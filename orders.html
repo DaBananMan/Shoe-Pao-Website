@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders - SHOEPAO</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body.orders-body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background: #fff;
+            margin: 0;
+            padding: 0;
+            color: #222;
+        }
+        .orders-navbar {
+            width: 100vw;
+            background: #fff;
+            box-shadow: 0 1px 0 #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 44px;
+            height: 72px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .orders-navbar-left {
+            display: flex;
+            align-items: center;
+            gap: 38px;
+        }
+        .orders-navbar-logo {
+            height: 38px;
+            width: auto;
+            cursor: pointer;
+        }
+        .orders-navbar-link {
+            font-size: 1.08rem;
+            font-weight: 500;
+            color: #222;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.15s;
+        }
+        .orders-navbar-link:hover {
+            color: #b71c1c;
+        }
+        .orders-navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+        .orders-header {
+            font-size: 2rem;
+            font-weight: 600;
+            margin: 48px 0 24px 120px;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .orders-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 32px;
+            margin-left: 120px;
+            margin-bottom: 180px;
+        }
+        .order-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(34,34,34,0.07);
+            width: 300px;
+            min-width: 300px;
+            max-width: 340px;
+            margin-bottom: 0;
+            padding: 0 0 18px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            border: 1px solid #eee;
+        }
+        .order-status-box {
+            background: #f5f5f5;
+            border-radius: 8px 8px 0 0;
+            padding: 12px 18px 10px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .order-status-icon {
+            width: 28px;
+            height: 28px;
+        }
+        .order-status-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+        .order-status-label {
+            font-size: 1.01rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .order-status-date {
+            font-size: 0.93rem;
+            color: #666;
+            margin-top: 1px;
+        }
+        .order-card-img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 0 0 0 0;
+            margin-bottom: 0;
+        }
+        .order-card-divider {
+            width: 100%;
+            height: 1.5px;
+            background: #eee;
+            margin: 0 0 0 0;
+        }
+        .order-card-info-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 18px 0 18px;
+            font-size: 1.01rem;
+        }
+        .order-card-qty {
+            color: #444;
+        }
+        .order-card-price {
+            font-weight: 600;
+            color: #222;
+        }
+        .order-card-code-row {
+            padding: 4px 18px 0 18px;
+            font-size: 0.97rem;
+            color: #444;
+        }
+        .order-card-btn-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        .order-card-btn {
+            background: #8B0000;
+            color: #fff;
+            border: none;
+            border-radius: 22px;
+            padding: 10px 0;
+            width: 90%;
+            font-size: 0.93rem;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(34,34,34,0.10);
+        }
+        .order-card-btn:hover {
+            background: #5a0000;
+        }
+        @media (max-width: 900px) {
+            .orders-header, .orders-list {
+                margin-left: 12px;
+            }
+            .orders-list {
+                gap: 18px;
+                flex-direction: column;
+                flex-wrap: nowrap;
+            }
+        }
+        .cart-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            max-height: 340px;
+            padding-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:72px;padding-left:46px;">
+        <div style="display:flex;align-items:center;gap:24px;">
+            <a href="home.html" style="display:flex;align-items:center;gap:30px;text-decoration:none;color:inherit;">
+                <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" style="height:42px;width:auto;cursor:pointer;">
+                <span class="header-caption" style="font-size:1.18rem;font-weight:600;color:#b71c1c;cursor:pointer;">Shoe Pao Footwear</span>
+            </a>
+            <span class="header-link" onclick="goToProfile()">Profile</span>
+            <span class="header-link" onclick="goToProductList()">Shop</span>
+            <span class="header-link" onclick="goToOrders()">Orders</span>
+            <span class="header-link" onclick="goToWishlist()">Wishlist</span>
+            <span class="header-link" onclick="goToFAQ()">FAQ</span>
+            <span class="header-link" onclick="goToContact()">Contact us</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;">
+            <button class="header-icon-btn" onclick="toggleSearchBox()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/SEARCHICON.png" class="header-icon" alt="Search" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToUserPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/USERICON.png" class="header-icon" alt="User" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToCartPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/CARTICON.png" class="header-icon" alt="Cart" style="width:26px;height:26px;"></button>
+        </div>
+        <div class="search-box" id="searchBox" style="display:none;position:absolute;top:72px;right:80px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px 16px;z-index:101;">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)" style="font-family:'Poppins',Arial,sans-serif;font-size:1rem;border:none;outline:none;width:220px;padding:6px 0;">
+        </div>
+    </nav>
+    <div class="orders-header">Orders</div>
+        <div class="orders-list" id="ordersList">
+                <!-- Order cards will be rendered here -->
+        </div>
+
+        <!-- Order Details Modal Overlay -->
+        <div id="orderModalOverlay" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(34,34,34,0.45);z-index:99999;align-items:center;justify-content:center;">
+            <div id="orderModal" style="background:#fff;border-radius:18px;box-shadow:0 8px 32px rgba(34,34,34,0.18);padding:38px 48px 38px 38px;min-width:600px;max-width:98vw;min-height:320px;display:flex;flex-direction:column;gap:18px;position:relative;align-items:stretch;outline:none;z-index:1000000;max-width:820px;width:820px;margin-bottom:120px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:18px;">
+                    <div style="font-size:1.45rem;font-weight:700;color:#222;">Order Details</div>
+                    <button onclick="closeOrderModal()" style="background:none;border:none;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;position:absolute;top:32px;right:32px;"><img src="IMAGE/X.png" alt="Close" style="width:28px;height:28px;"></button>
+                </div>
+                <div style="width:100%;height:2px;background:#eee;margin:12px 0 18px 0;"></div>
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div id="orderModalId" style="font-size:1.13rem;font-weight:600;color:#222;">Order ID: </div>
+                        <div id="orderModalName" style="font-size:1.13rem;font-weight:600;color:#222;">Customer Name: </div>
+                        <div id="orderModalContact" style="font-size:1.13rem;font-weight:600;color:#222;">Contact: </div>
+                        <div id="orderModalEmail" style="font-size:1.13rem;font-weight:600;color:#222;">Email: </div>
+                        <div id="orderModalAddress" style="font-size:1.13rem;font-weight:600;color:#222;">Shipping Address: </div>
+                    </div>
+                    <img id="orderModalImg" src="" alt="Order Product" style="width:180px;height:120px;object-fit:cover;border-radius:8px;box-shadow:0 2px 8px rgba(34,34,34,0.10);margin-left:32px;">
+                </div>
+                <div style="margin-top:18px;font-size:1.13rem;font-weight:600;color:#222;">Order Items:</div>
+                <table style="width:100%;border-collapse:collapse;margin-top:8px;margin-bottom:8px;">
+                    <thead>
+                        <tr style="font-size:1.05rem;font-weight:600;color:#222;text-align:left;">
+                            <th style="padding-bottom:6px;">Product</th>
+                            <th style="padding-bottom:6px;">Quantity</th>
+                            <th style="padding-bottom:6px;">Unit Price</th>
+                            <th style="padding-bottom:6px;">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="font-size:1.05rem;color:#222;">
+                            <td id="orderModalProduct" style="font-weight:500;"></td>
+                            <td id="orderModalQty"></td>
+                            <td id="orderModalUnitPrice"></td>
+                            <td id="orderModalSubtotal"></td>
+                        </tr>
+                            <main class="orders-main">
+                        <tr style="font-size:1.05rem;color:#222;">
+                            <td style="font-weight:500;">Shipping Fee</td>
+                            <td></td>
+                            <td>₱250.00</td>
+                            <td id="orderModalShipping">₱250.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+                    <span id="orderModalPayment" style="font-size:1.05rem;color:#222;">Payment Method: </span>
+                    <span id="orderModalTracking" style="font-size:1.05rem;color:#222;">Tracking Number: </span>
+                </main>
+                <div style="font-size:1.13rem;font-weight:600;color:#222;margin-top:8px;">Total Amount: <span id="orderModalTotal" style="font-weight:700;"></span></div>
+                <div style="font-size:1.05rem;color:#222;margin-top:2px;">Status: <span id="orderModalStatus">Pending Confirmation</span></div>
+            </div>
+        </div>
+    </div>
+    <footer class="footer" style="background:#111;color:#fff;padding:48px 7vw 0 7vw;width:100%;position:static;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:48px;">
+                        <div style="flex:2;min-width:0;width:80%;">
+                            <div style="font-size:1.3rem;font-weight:600;margin-bottom:18px;">Have questions?</div>
+                            <div style="font-size:1.05rem;font-weight:400;margin-bottom:12px;">Contact us at our facebook page</div>
+                            <div style="font-size:1.05rem;font-weight:400;margin-bottom:24px;margin-top:18px;">Or via phone/email</div>
+                            <div style="display:flex;flex-direction:column;">
+                                <span style="width:93%;height:2px;background:#444;margin:18px 0 12px 0;display:inline-block;"></span>
+                                <span style="font-size:0.92rem;color:#bbb;display:inline-block;width:93%;">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br><br>© 2025 Shoe Pao Footwear. All rights reserved.</span>
+                            </div>
+                        </div>
+                        <div style="flex:1;display:flex;flex-direction:column;gap:12px;align-items:flex-end;min-width:180px;justify-content:flex-start;margin-top:18px;padding-right:14.1%;">
+                            <span style="font-size:1.05rem;margin-bottom:2px;">About Us</span>
+                            <span style="font-size:1.05rem;margin-bottom:2px;">Shipping</span>
+                            <span style="font-size:1.05rem;margin-bottom:2px;">Returns & Exchanges</span>
+                            <span style="font-size:1.05rem;margin-bottom:2px;">Privacy Policy</span>
+                            <span style="font-size:1.05rem;margin-bottom:2px;">Terms of Service</span>
+                        </div>
+                    </div>
+    </footer>
+
+    <script>
+    // Navigation bar functions
+    function goToHome() { window.location.href = 'home.html'; }
+    function goToProfile() { window.location.href = 'profile.html'; }
+    function goToProductList() { window.location.href = 'product-list.html'; }
+    function goToOrders() { window.location.href = 'orders.html'; }
+    function goToWishlist() { window.location.href = 'wishlist.html'; }
+    function goToFAQ() { window.location.href = 'faq.html'; }
+    function goToContact() { window.location.href = 'contact.html'; }
+    function goToUserPage() { window.location.href = 'profile.html'; }
+    function goToCartPage() { window.location.href = 'cart.html'; }
+    function toggleSearchBox() {
+        var box = document.getElementById('searchBox');
+        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+        if (box.style.display === 'block') {
+            document.getElementById('searchInput').focus();
+        }
+    }
+    function searchKeyDown(e) {
+        if (e.key === 'Enter') {
+            var val = document.getElementById('searchInput').value.trim();
+            if (val) {
+                window.location.href = 'product-list.html?search=' + encodeURIComponent(val);
+            }
+        }
+    }
+    // Generate random order code
+    function randomOrderCode() {
+        var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        var code = '';
+        for (var i = 0; i < 5; i++) code += letters[Math.floor(Math.random() * letters.length)];
+        for (var i = 0; i < 4; i++) code += Math.floor(Math.random() * 10);
+        return code;
+    }
+    // Generate random future date (1-7 days from today)
+    function randomFutureDate() {
+        var now = new Date();
+        var days = Math.floor(Math.random() * 7) + 1;
+        now.setDate(now.getDate() + days);
+        return now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    // Render orders from cart
+    function renderOrders() {
+        var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        var ordersList = document.getElementById('ordersList');
+        ordersList.innerHTML = '';
+        cart.forEach(function(item, idx) {
+            var qty = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
+            var orderCode = randomOrderCode();
+            var orderDate = randomFutureDate();
+            var div = document.createElement('div');
+            div.className = 'order-card';
+            div.innerHTML = `
+                <div class="order-status-box">
+                    <img src="IMAGE/PendingIcon.png" class="order-status-icon" alt="Pending">
+                    <div class="order-status-info">
+                        <span class="order-status-label">Pending</span>
+                        <span class="order-status-date">${orderDate}</span>
+                    </div>
+                </div>
+                <img src="${item.image}" class="order-card-img" alt="${item.title}">
+                <div class="order-card-divider"></div>
+                <div class="order-card-info-row">
+                    <span class="order-card-qty">${qty} Item${qty > 1 ? 's' : ''}</span>
+                    <span class="order-card-price">₱${(item.price * qty).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                </div>
+                <div class="order-card-code-row">Order ${orderCode}</div>
+                <div class="order-card-btn-row">
+                    <button class="order-card-btn" onclick="openOrderModal(${idx}, '${orderCode}', '${item.image.replace(/'/g, "\\'")}', '${item.title.replace(/'/g, "\\'")}', ${qty}, ${item.price})">View Order</button>
+                    <button class="order-card-btn order-cancel-btn" style="background:#b71c1c;margin-left:6px;" onclick="removeOrder(${idx})">Cancel</button>
+                    <button class="order-card-btn order-refund-btn" style="background:#222;margin-left:6px;" onclick="removeOrder(${idx})">Refund</button>
+                </div>
+            `;
+            ordersList.appendChild(div);
+        });
+    }
+    window.addEventListener('DOMContentLoaded', renderOrders);
+
+    // Modal logic for Order Details
+    // Remove order by index
+    function removeOrder(idx) {
+    var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    cart.splice(idx, 1);
+    localStorage.setItem('cart', JSON.stringify(cart));
+    renderOrders();
+    closeOrderModal();
+    }
+    function openOrderModal(idx, orderCode, img, title, qty, price) {
+        // Example user info (replace with real user data if available)
+        var userName = 'Jemar Eden';
+        var userContact = '+629 123 4567';
+        var userEmail = 'fatima.saleh@email.com';
+        var userAddress = '10 Buick, Nova Quezon City';
+        var paymentMethod = 'Bank Transfer';
+        var tracking = randomTrackingCode();
+        var subtotal = price * qty;
+        var shipping = 250;
+        var total = subtotal + shipping;
+        document.getElementById('orderModalId').textContent = 'Order ID: ' + orderCode;
+        document.getElementById('orderModalName').textContent = 'Customer Name: ' + userName;
+        document.getElementById('orderModalContact').textContent = 'Contact: ' + userContact;
+        document.getElementById('orderModalEmail').textContent = 'Email: ' + userEmail;
+        document.getElementById('orderModalAddress').textContent = 'Shipping Address: ' + userAddress;
+        document.getElementById('orderModalImg').src = img;
+        document.getElementById('orderModalProduct').textContent = title;
+        document.getElementById('orderModalQty').textContent = qty;
+        document.getElementById('orderModalUnitPrice').textContent = '₱' + price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        document.getElementById('orderModalSubtotal').textContent = '₱' + subtotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        document.getElementById('orderModalShipping').textContent = '₱250.00';
+        document.getElementById('orderModalPayment').textContent = 'Payment Method: ' + paymentMethod;
+        document.getElementById('orderModalTracking').textContent = 'Tracking Number: ' + tracking;
+        document.getElementById('orderModalTotal').textContent = '₱' + total.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        document.getElementById('orderModalStatus').textContent = 'Pending Confirmation';
+        document.getElementById('orderModalOverlay').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+    function closeOrderModal() {
+        document.getElementById('orderModalOverlay').style.display = 'none';
+        document.body.style.overflow = '';
+    }
+    // Generate random tracking code: 2 letters + 12 numbers
+    function randomTrackingCode() {
+        var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        var code = '';
+        for (var i = 0; i < 2; i++) code += letters[Math.floor(Math.random() * letters.length)];
+        for (var i = 0; i < 12; i++) code += Math.floor(Math.random() * 10);
+        return code;
+    }
+    // Sticky footer fallback for short content
+    function stickyFooter() {
+        var body = document.body,
+            html = document.documentElement,
+            footer = document.querySelector('footer');
+        var contentHeight = Math.max(body.scrollHeight, body.offsetHeight,
+            html.clientHeight, html.scrollHeight, html.offsetHeight);
+        if (contentHeight < window.innerHeight) {
+            footer.style.position = 'fixed';
+            footer.style.left = '0';
+            footer.style.right = '0';
+            footer.style.bottom = '0';
+        } else {
+            footer.style.position = 'relative';
+        }
+    }
+    window.addEventListener('load', stickyFooter);
+    window.addEventListener('resize', stickyFooter);
+    </script>
+    <script src="cart-storage.js"></script>
+
+</body>
+
+    <!-- ===== Cart Overlay + Sidebar HTML (universal) ===== -->
+    <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
+    <aside id="cartSidebar" class="cart-sidebar" aria-hidden="true" role="complementary">
+        <div class="cart-header-row">
+            <div>
+                <span class="cart-header-title">Cart (<span id="cartCount">0</span>)</span>
+            </div>
+            <button id="closeCartBtn" class="cart-close" aria-label="Close cart"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+        </div>
+        <div class="cart-divider"></div>
+        <div id="cartItems" class="cart-items">
+            <div class="cart-empty">Your cart is empty</div>
+        </div>
+        <div class="cart-divider"></div>
+        <div class="cart-subtotal-row">
+            <span class="cart-subtotal-label">Subtotal</span>
+            <span id="cartSubtotal" class="cart-subtotal-value">₱0.00</span>
+        </div>
+        <button id="checkoutBtn" class="cart-checkout-btn">Checkout</button>
+    </aside>
+    <!-- ===== Cart Sidebar Behavior (universal) ===== -->
+    <script>
+    (function(){
+        let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        function parsePriceToNumber(priceText) {
+            if (!priceText) return 0;
+            var v = priceText.replace(/[^0-9.]/g, '');
+            return parseFloat(v || 0);
+        }
+        function formatPHP(amount) {
+            try {
+                return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+            } catch (e) {
+                return '₱' + Number(amount).toFixed(2);
+            }
+        }
+        function saveCartToLocalStorage() {
+            localStorage.setItem('cart', JSON.stringify(cart));
+        }
+        const cartOverlay = document.getElementById('cartOverlay');
+        const cartSidebar = document.getElementById('cartSidebar');
+        const cartItemsContainer = document.getElementById('cartItems');
+        const cartCountEl = document.getElementById('cartCount');
+        const cartSubtotalEl = document.getElementById('cartSubtotal');
+        const closeCartBtn = document.getElementById('closeCartBtn');
+        const checkoutBtn = document.getElementById('checkoutBtn');
+        function getNavCartButton() {
+            const img = document.querySelector('img[alt="Cart"]');
+            if (!img) return null;
+            return img.closest('button');
+        }
+        function openCartSidebar() {
+            cartOverlay.classList.add('show');
+            cartSidebar.classList.add('open');
+            document.body.style.overflow = 'hidden';
+            cartSidebar.setAttribute('aria-hidden', 'false');
+            cartOverlay.setAttribute('aria-hidden', 'false');
+        }
+        function closeCartSidebar() {
+            cartOverlay.classList.remove('show');
+            cartSidebar.classList.remove('open');
+            document.body.style.overflow = '';
+            cartSidebar.setAttribute('aria-hidden', 'true');
+            cartOverlay.setAttribute('aria-hidden', 'true');
+        }
+        function renderCart() {
+            cartItemsContainer.innerHTML = '';
+            if (cart.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'cart-empty';
+                empty.textContent = 'Your cart is empty';
+                cartItemsContainer.appendChild(empty);
+                cartCountEl.textContent = 0;
+                cartSubtotalEl.textContent = formatPHP(0);
+                saveCartToLocalStorage();
+                return;
+            }
+            let subtotal = 0;
+            let totalQty = 0;
+            cart.forEach((item, index) => {
+                subtotal += item.price * item.quantity;
+                totalQty += item.quantity;
+                const box = document.createElement('div');
+                box.className = 'cart-item-box';
+                const img = document.createElement('img');
+                img.className = 'cart-item-img';
+                img.src = item.image || 'IMAGE/NIKE1.png';
+                img.alt = item.title || 'Product';
+                const middle = document.createElement('div');
+                middle.className = 'cart-item-middle';
+                const title = document.createElement('div');
+                title.className = 'cart-item-title';
+                title.textContent = item.title;
+                const brand = document.createElement('div');
+                brand.className = 'cart-item-brand';
+                brand.textContent = item.brand;
+                const size = document.createElement('div');
+                size.className = 'cart-item-size';
+                size.textContent = 'Size: ' + (item.size || '');
+                const qtyControls = document.createElement('div');
+                qtyControls.className = 'cart-quantity-controls';
+                const lessenBtn = document.createElement('button');
+                lessenBtn.className = 'qty-btn decrease';
+                lessenBtn.setAttribute('data-index', index);
+                const lessenImg = document.createElement('img');
+                lessenImg.src = 'IMAGE/LessenBTN.png';
+                lessenImg.alt = '-';
+                lessenImg.style.width = '22px';
+                lessenImg.style.height = '22px';
+                lessenBtn.appendChild(lessenImg);
+                const qtyText = document.createElement('span');
+                qtyText.className = 'cart-item-qty';
+                qtyText.textContent = item.quantity;
+                const addBtn = document.createElement('button');
+                addBtn.className = 'qty-btn increase';
+                addBtn.setAttribute('data-index', index);
+                const addImg = document.createElement('img');
+                addImg.src = 'IMAGE/AddBTN.png';
+                addImg.alt = '+';
+                addImg.style.width = '22px';
+                addImg.style.height = '22px';
+                addBtn.appendChild(addImg);
+                qtyControls.appendChild(lessenBtn);
+                qtyControls.appendChild(qtyText);
+                qtyControls.appendChild(addBtn);
+                middle.appendChild(title);
+                middle.appendChild(brand);
+                middle.appendChild(size);
+                middle.appendChild(qtyControls);
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'cart-item-remove';
+                removeBtn.setAttribute('data-index', index);
+                const trashImg = document.createElement('img');
+                trashImg.src = 'IMAGE/TrashIcon.png';
+                trashImg.alt = 'Remove';
+                trashImg.style.width = '18px';
+                trashImg.style.height = '18px';
+                removeBtn.appendChild(trashImg);
+                const priceEl = document.createElement('div');
+                priceEl.className = 'cart-item-price';
+                priceEl.textContent = formatPHP(item.price * item.quantity);
+                box.appendChild(img);
+                box.appendChild(middle);
+                box.appendChild(removeBtn);
+                box.appendChild(priceEl);
+                cartItemsContainer.appendChild(box);
+            });
+            cartCountEl.textContent = totalQty;
+            cartSubtotalEl.textContent = formatPHP(subtotal);
+            attachCartEvents();
+        }
+        function attachCartEvents() {
+            document.querySelectorAll('.qty-btn.decrease').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        if (cart[idx].quantity > 1) {
+                            cart[idx].quantity--;
+                        }
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            document.querySelectorAll('.qty-btn.increase').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        cart[idx].quantity++;
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            document.querySelectorAll('.cart-item-remove').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx)) {
+                        cart.splice(idx, 1);
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const navCartBtn = getNavCartButton();
+            if (navCartBtn) {
+                navCartBtn.removeAttribute('onclick');
+                navCartBtn.addEventListener('click', function(e){
+                    e.preventDefault();
+                    openCartSidebar();
+                });
+            }
+            if (closeCartBtn) closeCartBtn.addEventListener('click', closeCartSidebar);
+            if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
+            renderCart();
+            if (checkoutBtn) {
+                checkoutBtn.addEventListener('click', function(){
+                    window.location.href = 'checkout.html';
+                });
+            }
+        });
+    })();
+    </script>
+                 <style>
+                     .orders-body {
+                         min-height: 100vh;
+                         display: flex;
+                         flex-direction: column;
+                     }
+                     main.orders-main {
+                         flex: 1 0 auto;
+                         min-height: 0;
+                         display: flex;
+                         flex-direction: column;
+                     }
+                 </style>

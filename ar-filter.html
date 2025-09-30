@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Shoe Pao AR</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #fff;
+      font-family: 'Poppins', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .camera-border-box {
+      margin-top: 32px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 380px;
+      height: 380px;
+      border: 4px solid #222;
+      border-radius: 18px;
+      background: #000;
+      box-sizing: border-box;
+      position: relative;
+      z-index: 1;
+    }
+    .ar-logo {
+      margin-top: 32px;
+      margin-bottom: 12px;
+      height: 56px;
+      width: auto;
+      z-index: 2;
+      position: relative;
+    }
+    .ar-header {
+      color: #222;
+      font-size: 2.1rem;
+      font-weight: 700;
+      margin-bottom: 18px;
+      z-index: 2;
+      position: relative;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    #camera {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 14px;
+      background: #000;
+      display: block;
+    }
+    .ar-ui {
+      position: relative;
+      z-index: 3;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="ar-ui">
+    <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" class="ar-logo">
+    <div class="ar-header">Shoe Pao AR</div>
+  </div>
+  <div class="camera-border-box">
+    <video id="camera" autoplay playsinline></video>
+  </div>
+  <script type="module">
+    import { bootstrapCameraKit } from "https://cdn.jsdelivr.net/npm/@snap/camera-kit@latest";
+
+    async function init() {
+      // Use your Production API Token for public deployment
+      const apiToken = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzU5MTg3NTE2LCJzdWIiOiJmZGFiNjE5MC03ZmMxLTQ0YWItYTYwMS1mYjMxYzIzZDliODR-UFJPRFVDVElPTn5hMDViOWU2Mi1hOWFkLTQ5ZGUtYjBlOC0yNzFmZjQ0YmRlZTQifQ.kbj8IFBzSTnfQX2EQjIMLYtW_VByy8_dUWnWOaBz2zo";
+      const cameraKit = await bootstrapCameraKit({ apiToken });
+
+      // Attach video feed
+      const cameraEl = document.getElementById("camera");
+      const session = await cameraKit.createSession({ video: cameraEl });
+
+      // Load your lens
+      const lens = await cameraKit.lensRepository.loadLens(
+        "a2628590-23ad-46e6-ab29-3d51c3aa0afb", // Lens ID
+        "e1398642-5877-468c-8f52-268df062c065"  // Group ID
+      );
+
+      // Apply lens
+      await session.applyLens(lens);
+
+      // Start camera session
+      session.play();
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - SHOEPAO</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <style>
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background: #fff;
+            margin: 0;
+            padding: 0;
+            color: #222;
+        }
+        .checkout-main {
+            display: flex;
+            flex-direction: row;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 0 0 0;
+            min-height: 100vh;
+        }
+        .checkout-left {
+            flex: 2;
+            padding: 0 40px 0 0;
+            min-width: 420px;
+        }
+        .checkout-right {
+            flex: 1.1;
+            background: #f5f5f5;
+            padding: 32px 32px 32px 32px;
+            min-width: 340px;
+            max-width: 400px;
+            border-left: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
+        }
+        .checkout-header {
+            font-size: 2.1rem;
+            font-weight: 600;
+            margin-bottom: 32px;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .checkout-caption-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .checkout-caption {
+            font-size: 1.08rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-toggle-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 8px;
+            display: flex;
+            align-items: center;
+        }
+        .checkout-account {
+            font-size: 1rem;
+            color: #444;
+            margin-bottom: 18px;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .checkout-divider {
+            width: 100%;
+            height: 1.5px;
+            background: #eee;
+            margin: 18px 0 18px 0;
+        }
+        .checkout-section-title {
+            font-size: 1.08rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #222;
+        }
+        .checkout-address-box {
+            background: #f5f5f5;
+            border-radius: 18px;
+            padding: 18px 22px 14px 22px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .checkout-address-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+        .checkout-address-main {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-address-details {
+            font-size: 0.98rem;
+            color: #444;
+            margin-top: 2px;
+        }
+        .checkout-address-menu-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 8px;
+            display: flex;
+            align-items: flex-start;
+        }
+        .checkout-address-menu {
+            position: absolute;
+            top: 32px;
+            right: 18px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+            z-index: 10;
+            display: none;
+            flex-direction: column;
+            min-width: 110px;
+        }
+        .checkout-address-menu.show {
+            display: flex;
+        }
+        .checkout-address-menu-btn span {
+            font-size: 1.5rem;
+            color: #888;
+        }
+        .checkout-add-address-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            margin-top: 2px;
+            cursor: pointer;
+            color: #222;
+            font-size: 1rem;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .checkout-add-address-row img {
+            width: 22px;
+            height: 22px;
+        }
+        .checkout-delivery-method-title {
+            font-size: 1.08rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #222;
+        }
+        .checkout-delivery-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .checkout-delivery-option {
+            background: #f5f5f5;
+            border-radius: 18px;
+            padding: 14px 18px 10px 18px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border 0.2s;
+        }
+        .checkout-delivery-option.selected {
+            border: 2px solid #b71c1c;
+        }
+        .checkout-delivery-radio {
+            margin-top: 2px;
+        }
+        .checkout-delivery-label {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-delivery-desc {
+            font-size: 0.97rem;
+            color: #444;
+            margin-top: 2px;
+        }
+        .checkout-payment-title {
+            font-size: 1.08rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #222;
+        }
+        .checkout-payment-subtitle {
+            font-size: 0.97rem;
+            color: #444;
+            margin-bottom: 12px;
+        }
+        .checkout-payment-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .checkout-payment-option {
+            background: #f5f5f5;
+            border-radius: 18px;
+            padding: 14px 18px 10px 18px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border 0.2s;
+        }
+        .checkout-payment-option.selected {
+            border: 2px solid #b71c1c;
+        }
+        .checkout-payment-radio {
+            margin-top: 2px;
+        }
+        .checkout-payment-label {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-payment-desc {
+            font-size: 0.97rem;
+            color: #444;
+            margin-top: 2px;
+        }
+        .checkout-btn-row {
+            display: flex;
+            justify-content: center;
+            margin: 32px 0 18px 0;
+        }
+        .checkout-proceed-btn {
+            background: #222;
+            color: #fff;
+            border: none;
+            border-radius: 28px;
+            padding: 16px 0;
+            width: 100%;
+            max-width: 340px;
+            font-size: 1.15rem;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(34,34,34,0.10);
+        }
+        .checkout-proceed-btn:hover {
+            background: #b71c1c;
+            box-shadow: 0 4px 16px rgba(34,34,34,0.13);
+        }
+        .checkout-policy-row {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 18px;
+        }
+        .checkout-policy-link {
+            text-decoration: underline;
+            color: #222;
+            font-size: 0.97rem;
+            cursor: pointer;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        /* Right side cart summary */
+        .checkout-cart-list {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .checkout-cart-item {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .checkout-cart-img {
+            width: 68px;
+            height: 68px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: #fff;
+        }
+        .checkout-cart-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .checkout-cart-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .checkout-cart-title {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-cart-price {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #222;
+        }
+        .checkout-cart-size {
+            font-size: 0.97rem;
+            color: #444;
+        }
+        .checkout-cart-qty {
+            font-size: 0.97rem;
+            color: #444;
+        }
+        .checkout-cart-divider {
+            width: 100%;
+            height: 1.5px;
+            background: #ddd;
+            margin: 18px 0 18px 0;
+        }
+        .checkout-cart-summary-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1.05rem;
+            color: #222;
+            margin-bottom: 8px;
+        }
+        .checkout-cart-summary-label {
+            font-weight: 400;
+        }
+        .checkout-cart-summary-value {
+            font-weight: 500;
+        }
+        .checkout-cart-total-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1.18rem;
+            font-weight: 600;
+            color: #222;
+            margin-top: 8px;
+        }
+        .cart-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            max-height: 340px;
+            padding-right: 8px;
+        }
+        @media (max-width: 900px) {
+            .checkout-main {
+                flex-direction: column;
+                padding: 18px 0 0 0;
+            }
+            .checkout-left, .checkout-right {
+                min-width: 0;
+                max-width: 100vw;
+                padding: 0 12px;
+            }
+            .checkout-right {
+                margin-top: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar (copied from product-list.html) -->
+    <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:72px;">
+        <div style="display:flex;align-items:center;gap:24px;">
+            <a href="home.html" style="display:flex;align-items:center;gap:24px;text-decoration:none;color:inherit;">
+                <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" style="height:38px;width:auto;cursor:pointer;">
+                <span class="header-caption" style="font-size:1.18rem;font-weight:600;color:#b71c1c;cursor:pointer;">Shoe Pao Footwear</span>
+            </a>
+            <span class="header-link" onclick="goToSale()">Sale</span>
+            <span class="header-link" onclick="goToNewArrivals()">New Arrivals</span>
+            <span class="header-link" onclick="goToBrands()">Brands</span>
+            <span class="header-link" onclick="goToProductList()">Shop All</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;">
+            <button class="header-icon-btn" onclick="toggleSearchBox()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/SEARCHICON.png" class="header-icon" alt="Search" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToUserPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/USERICON.png" class="header-icon" alt="User" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToCartPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/CARTICON.png" class="header-icon" alt="Cart" style="width:26px;height:26px;"></button>
+        </div>
+        <div class="search-box" id="searchBox" style="display:none;position:absolute;top:72px;right:80px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px 16px;z-index:101;">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)" style="font-family:'Poppins',Arial,sans-serif;font-size:1rem;border:none;outline:none;width:220px;padding:6px 0;">
+        </div>
+    </nav>
+    <div class="checkout-main">
+        <div class="checkout-left">
+            <div class="checkout-header">Checkout</div>
+            <div class="checkout-caption-row">
+                <span class="checkout-caption">Account</span>
+                <button class="checkout-toggle-btn" onclick="toggleAccount()"><img src="IMAGE/ToggleHideButton.png" alt="Toggle Account" style="width:22px;height:22px;"></button>
+            </div>
+            <div class="checkout-account" id="accountEmail">useraccount@gmail.com</div>
+            <div class="checkout-divider"></div>
+            <div class="checkout-section-title">Ship to</div>
+            <div class="checkout-address-box">
+                <div class="checkout-address-row">
+                    <div>
+                        <span class="checkout-address-main">Jemar Eden, BLK 69 LOT 18 Fairview</span><br>
+                        <span class="checkout-address-details">QUEZON CITY, 1118, PH</span>
+                    </div>
+                    <button class="checkout-address-menu-btn" onclick="toggleAddressMenu(event)"><img src="IMAGE/X.png" alt="Menu" style="width:22px;height:22px;"></button>
+                    <div class="checkout-address-menu" id="addressMenu">
+                        <span style="padding:8px 12px;cursor:pointer;" onclick="editAddress()">Edit</span>
+                        <span style="padding:8px 12px;cursor:pointer;" onclick="deleteAddress()">Delete</span>
+                    </div>
+                </div>
+            </div>
+            <div class="checkout-add-address-row" onclick="editAddress()">
+                <img src="IMAGE/Plus.png" alt="Add">
+                <span>Use a different address</span>
+            </div>
+            <div class="checkout-divider"></div>
+            <div class="checkout-delivery-method-title">Delivery method</div>
+            <div class="checkout-delivery-options">
+                <div class="checkout-delivery-option selected" onclick="selectDeliveryMethod(this, 0)">
+                    <input type="radio" name="delivery" class="checkout-delivery-radio" checked>
+                    <div>
+                        <div class="checkout-delivery-label">Personal Delivery</div>
+                        <div class="checkout-delivery-desc">Hand delivered by our team. Est. Delivery Time: 1-2 days<br>Only available in Bacoor, Cavite.</div>
+                    </div>
+                </div>
+                <div class="checkout-delivery-option" onclick="selectDeliveryMethod(this, 1)">
+                    <input type="radio" name="delivery" class="checkout-delivery-radio">
+                    <div>
+                        <div class="checkout-delivery-label">Lalamove</div>
+                        <div class="checkout-delivery-desc">For nearby areas beyond our personal delivery range. Same-day delivery. Delivery fee may vary by distance.</div>
+                    </div>
+                </div>
+                <div class="checkout-delivery-option" onclick="selectDeliveryMethod(this, 2)">
+                    <input type="radio" name="delivery" class="checkout-delivery-radio">
+                    <div>
+                        <div class="checkout-delivery-label">Nationwide Delivery (J&T Express / JRS)</div>
+                        <div class="checkout-delivery-desc">For far provinces or areas outside Metro Manila. Delivery fee may vary by distance. Est. Delivery Time: 2-7 business days.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="checkout-divider"></div>
+            <div class="checkout-payment-title">Payment Method</div>
+            <div class="checkout-payment-subtitle">All transactions are secured.</div>
+            <div class="checkout-payment-options">
+                <div class="checkout-payment-option selected" onclick="selectPaymentMethod(this, 0)">
+                    <input type="radio" name="payment" class="checkout-payment-radio" checked>
+                    <div>
+                        <div class="checkout-payment-label">Secure payment via QR Ph</div>
+                        <div class="checkout-payment-desc">After clicking “Place order”, you will be redirected to QR Ph to complete your purchase securely. Supports Gcash, Maya, and banks with QR Ph support.</div>
+                    </div>
+                </div>
+                <div class="checkout-payment-option" onclick="selectPaymentMethod(this, 1)">
+                    <input type="radio" name="payment" class="checkout-payment-radio">
+                    <div>
+                        <div class="checkout-payment-label">Bank Transfer</div>
+                        <div class="checkout-payment-desc">Payment should be done within 24 hours upon purchase. We will confirm your order once we receive the payment. Note: Please upload proof of payment after transfer.<br>We accept BDO, BPI.</div>
+                    </div>
+                </div>
+                <div class="checkout-payment-option" onclick="selectPaymentMethod(this, 2)">
+                    <input type="radio" name="payment" class="checkout-payment-radio">
+                    <div>
+                        <div class="checkout-payment-label">Cash on Delivery</div>
+                        <div class="checkout-payment-desc">Payment is done upon delivery.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="checkout-btn-row">
+                <button class="checkout-proceed-btn" onclick="window.location.href='payment.html'">Proceed to payment</button>
+            </div>
+            <div class="checkout-policy-row">
+                <span class="checkout-policy-link">Refund policy</span>
+                <span class="checkout-policy-link">Shipping policy</span>
+                <span class="checkout-policy-link">Privacy Policy</span>
+                <span class="checkout-policy-link">Terms of Service</span>
+                <span class="checkout-policy-link">Contact Information</span>
+            </div>
+        </div>
+        <div class="checkout-right">
+            <div class="checkout-cart-list" id="checkoutCartList">
+                <!-- Cart items will be rendered here -->
+            </div>
+            <div class="checkout-cart-divider"></div>
+            <div class="checkout-cart-summary-row">
+                <span class="checkout-cart-summary-label">Subtotal</span>
+                <span class="checkout-cart-summary-value" id="checkoutSubtotal">₱0.00</span>
+            </div>
+            <div class="checkout-cart-summary-row">
+                <span class="checkout-cart-summary-label">Shipping</span>
+                <span class="checkout-cart-summary-value">₱250.00</span>
+            </div>
+            <div class="checkout-cart-total-row">
+                <span>Total</span>
+                <span id="checkoutTotal">₱0.00</span>
+            </div>
+        </div>
+    </div>
+    <script>
+    // Navigation bar functions (copied from product-list.html)
+    function goToSale() { window.location.href = 'product-list.html?sale=1'; }
+    function goToNewArrivals() { window.location.href = 'product-list.html?new=1'; }
+    function goToBrands() { window.location.href = 'product-list.html#brands'; }
+    function goToProductList() { window.location.href = 'product-list.html'; }
+    function goToUserPage() { window.location.href = 'profile.html'; }
+    function goToCartPage() { window.location.href = 'cart.html'; }
+    function toggleSearchBox() {
+        var box = document.getElementById('searchBox');
+        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+        if (box.style.display === 'block') {
+            document.getElementById('searchInput').focus();
+        }
+    }
+    function searchKeyDown(e) {
+        if (e.key === 'Enter') {
+            var val = document.getElementById('searchInput').value.trim();
+            if (val) {
+                window.location.href = 'product-list.html?search=' + encodeURIComponent(val);
+            }
+        }
+    }
+    // Account toggle
+    function toggleAccount() {
+        var email = document.getElementById('accountEmail');
+        if (email.style.display === 'none') {
+            email.style.display = '';
+        } else {
+            email.style.display = 'none';
+        }
+    }
+    // Address menu
+    function toggleAddressMenu(e) {
+        e.stopPropagation();
+        var menu = document.getElementById('addressMenu');
+        menu.classList.toggle('show');
+        document.addEventListener('click', function handler(ev) {
+            if (!menu.contains(ev.target)) {
+                menu.classList.remove('show');
+                document.removeEventListener('click', handler);
+            }
+        });
+    }
+    function editAddress() {
+        alert('Edit address functionality coming soon.');
+    }
+    function deleteAddress() {
+        alert('Delete address functionality coming soon.');
+    }
+    // Delivery method selection
+    function selectDeliveryMethod(el, idx) {
+        document.querySelectorAll('.checkout-delivery-option').forEach((opt, i) => {
+            opt.classList.toggle('selected', i === idx);
+            opt.querySelector('input[type="radio"]').checked = (i === idx);
+        });
+    }
+    // Payment method selection
+    function selectPaymentMethod(el, idx) {
+        document.querySelectorAll('.checkout-payment-option').forEach((opt, i) => {
+            opt.classList.toggle('selected', i === idx);
+            opt.querySelector('input[type="radio"]').checked = (i === idx);
+        });
+    }
+    // Cart rendering
+    function renderCheckoutCart() {
+        var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        var cartList = document.getElementById('checkoutCartList');
+        var subtotal = 0;
+        cartList.innerHTML = '';
+        cart.forEach(function(item) {
+            var qty = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
+            var itemTotal = (item.price * qty);
+            subtotal += itemTotal;
+            var div = document.createElement('div');
+            div.className = 'checkout-cart-item';
+            div.innerHTML = `
+                <img src="${item.image}" class="checkout-cart-img" alt="${item.title}">
+                <div class="checkout-cart-info">
+                    <div class="checkout-cart-title-row">
+                        <span class="checkout-cart-title">${item.title}</span>
+                        <span class="checkout-cart-price">₱${(item.price * qty).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                    </div>
+                    <div class="checkout-cart-size">Size: ${item.size}</div>
+                    <div class="checkout-cart-qty">QTY: ${qty}</div>
+                </div>
+            `;
+            cartList.appendChild(div);
+        });
+        document.getElementById('checkoutSubtotal').textContent = '₱' + subtotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        var shipping = 250;
+        document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+    window.addEventListener('DOMContentLoaded', renderCheckoutCart);
+    </script>
+    <script src="cart-storage.js"></script>
+</body>
+
+    <!-- ===== Cart Overlay + Sidebar HTML (universal) ===== -->
+    <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
+    <aside id="cartSidebar" class="cart-sidebar" aria-hidden="true" role="complementary">
+        <div class="cart-header-row">
+            <div>
+                <span class="cart-header-title">Cart (<span id="cartCount">0</span>)</span>
+            </div>
+            <button id="closeCartBtn" class="cart-close" aria-label="Close cart"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+        </div>
+        <div class="cart-divider"></div>
+        <div id="cartItems" class="cart-items">
+            <div class="cart-empty">Your cart is empty</div>
+        </div>
+        <div class="cart-divider"></div>
+        <div class="cart-subtotal-row">
+            <span class="cart-subtotal-label">Subtotal</span>
+            <span id="cartSubtotal" class="cart-subtotal-value">₱0.00</span>
+        </div>
+        <button id="checkoutBtn" class="cart-checkout-btn">Checkout</button>
+    </aside>
+    <!-- ===== Cart Sidebar Behavior (universal) ===== -->
+    <script>
+    (function(){
+        let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        function parsePriceToNumber(priceText) {
+            if (!priceText) return 0;
+            var v = priceText.replace(/[^0-9.]/g, '');
+            return parseFloat(v || 0);
+        }
+        function formatPHP(amount) {
+            try {
+                return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+            } catch (e) {
+                return '₱' + Number(amount).toFixed(2);
+            }
+        }
+        function saveCartToLocalStorage() {
+            localStorage.setItem('cart', JSON.stringify(cart));
+        }
+        const cartOverlay = document.getElementById('cartOverlay');
+        const cartSidebar = document.getElementById('cartSidebar');
+        const cartItemsContainer = document.getElementById('cartItems');
+        const cartCountEl = document.getElementById('cartCount');
+        const cartSubtotalEl = document.getElementById('cartSubtotal');
+        const closeCartBtn = document.getElementById('closeCartBtn');
+        const checkoutBtn = document.getElementById('checkoutBtn');
+        function getNavCartButton() {
+            const img = document.querySelector('img[alt="Cart"]');
+            if (!img) return null;
+            return img.closest('button');
+        }
+        function openCartSidebar() {
+            cartOverlay.classList.add('show');
+            cartSidebar.classList.add('open');
+            document.body.style.overflow = 'hidden';
+            cartSidebar.setAttribute('aria-hidden', 'false');
+            cartOverlay.setAttribute('aria-hidden', 'false');
+        }
+        function closeCartSidebar() {
+            cartOverlay.classList.remove('show');
+            cartSidebar.classList.remove('open');
+            document.body.style.overflow = '';
+            cartSidebar.setAttribute('aria-hidden', 'true');
+            cartOverlay.setAttribute('aria-hidden', 'true');
+        }
+        function renderCart() {
+            cartItemsContainer.innerHTML = '';
+            if (cart.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'cart-empty';
+                empty.textContent = 'Your cart is empty';
+                cartItemsContainer.appendChild(empty);
+                cartCountEl.textContent = 0;
+                cartSubtotalEl.textContent = formatPHP(0);
+                saveCartToLocalStorage();
+                return;
+            }
+            let subtotal = 0;
+            let totalQty = 0;
+            cart.forEach((item, index) => {
+                subtotal += item.price * item.quantity;
+                totalQty += item.quantity;
+                const box = document.createElement('div');
+                box.className = 'cart-item-box';
+                const img = document.createElement('img');
+                img.className = 'cart-item-img';
+                img.src = item.image || 'IMAGE/NIKE1.png';
+                img.alt = item.title || 'Product';
+                const middle = document.createElement('div');
+                middle.className = 'cart-item-middle';
+                const title = document.createElement('div');
+                title.className = 'cart-item-title';
+                title.textContent = item.title;
+                const brand = document.createElement('div');
+                brand.className = 'cart-item-brand';
+                brand.textContent = item.brand;
+                const size = document.createElement('div');
+                size.className = 'cart-item-size';
+                size.textContent = 'Size: ' + (item.size || '');
+                const qtyControls = document.createElement('div');
+                qtyControls.className = 'cart-quantity-controls';
+                const lessenBtn = document.createElement('button');
+                lessenBtn.className = 'qty-btn decrease';
+                lessenBtn.setAttribute('data-index', index);
+                const lessenImg = document.createElement('img');
+                lessenImg.src = 'IMAGE/LessenBTN.png';
+                lessenImg.alt = '-';
+                lessenImg.style.width = '22px';
+                lessenImg.style.height = '22px';
+                lessenBtn.appendChild(lessenImg);
+                const qtyText = document.createElement('span');
+                qtyText.className = 'cart-item-qty';
+                qtyText.textContent = item.quantity;
+                const addBtn = document.createElement('button');
+                addBtn.className = 'qty-btn increase';
+                addBtn.setAttribute('data-index', index);
+                const addImg = document.createElement('img');
+                addImg.src = 'IMAGE/AddBTN.png';
+                addImg.alt = '+';
+                addImg.style.width = '22px';
+                addImg.style.height = '22px';
+                addBtn.appendChild(addImg);
+                qtyControls.appendChild(lessenBtn);
+                qtyControls.appendChild(qtyText);
+                qtyControls.appendChild(addBtn);
+                middle.appendChild(title);
+                middle.appendChild(brand);
+                middle.appendChild(size);
+                middle.appendChild(qtyControls);
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'cart-item-remove';
+                removeBtn.setAttribute('data-index', index);
+                const trashImg = document.createElement('img');
+                trashImg.src = 'IMAGE/TrashIcon.png';
+                trashImg.alt = 'Remove';
+                trashImg.style.width = '18px';
+                trashImg.style.height = '18px';
+                removeBtn.appendChild(trashImg);
+                const priceEl = document.createElement('div');
+                priceEl.className = 'cart-item-price';
+                priceEl.textContent = formatPHP(item.price * item.quantity);
+                box.appendChild(img);
+                box.appendChild(middle);
+                box.appendChild(removeBtn);
+                box.appendChild(priceEl);
+                cartItemsContainer.appendChild(box);
+            });
+            cartCountEl.textContent = totalQty;
+            cartSubtotalEl.textContent = formatPHP(subtotal);
+            attachCartEvents();
+        }
+        function attachCartEvents() {
+            document.querySelectorAll('.qty-btn.decrease').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        if (cart[idx].quantity > 1) {
+                            cart[idx].quantity--;
+                        }
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            document.querySelectorAll('.qty-btn.increase').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        cart[idx].quantity++;
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            document.querySelectorAll('.cart-item-remove').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx)) {
+                        cart.splice(idx, 1);
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const navCartBtn = getNavCartButton();
+            if (navCartBtn) {
+                navCartBtn.removeAttribute('onclick');
+                navCartBtn.addEventListener('click', function(e){
+                    e.preventDefault();
+                    openCartSidebar();
+                });
+            }
+            if (closeCartBtn) closeCartBtn.addEventListener('click', closeCartSidebar);
+            if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
+            renderCart();
+            if (checkoutBtn) {
+                checkoutBtn.addEventListener('click', function(){
+                    window.location.href = 'checkout.html';
+                });
+            }
+        });
+    })();
+    </script>
+</html>

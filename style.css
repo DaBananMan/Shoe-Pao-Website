@@ -1,0 +1,1054 @@
+/* Sticky footer layout for product-list.html */
+.productlist-body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.productlist-main-content {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+.footer, footer {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    background: #111 !important;
+    color: #fff !important;
+    width: 100% !important;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1rem;
+    border-top: none;
+    box-shadow: 0 -2px 16px rgba(0,0,0,0.08);
+    z-index: 99999 !important;
+}
+/* === Cart Sidebar Overlay Styles (from product-view.html) === */
+/* ====== ADDED CART OVERLAY & SIDEBAR STYLES (from product-view.html) ====== */
+.cart-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(34,34,34,0.45);
+    display: none;
+    z-index: 99998;
+}
+.cart-overlay.show {
+    display: block;
+}
+.cart-sidebar {
+    position: fixed;
+    top: 0;
+    right: -440px; /* hidden by default */
+    width: 420px;
+    max-width: 98vw;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -12px 0 32px rgba(34,34,34,0.18);
+    z-index: 99999;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: right 0.28s ease;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+.cart-sidebar.open {
+    right: 0;
+}
+.cart-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.cart-header-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #222;
+}
+.cart-close {
+    background: none;
+    border: none;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.cart-divider {
+    height: 2px;
+    background: #eee;
+    width: 100%;
+    margin: 4px 0 8px 0;
+}
+.cart-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+.cart-item-box {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #f0f0f0;
+    padding: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    position: relative;
+}
+.cart-item-img {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #f7f7f7;
+    flex-shrink: 0;
+}
+.cart-item-middle {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+.cart-item-title {
+    font-weight: 600;
+    font-size: 0.99rem;
+    color: #222;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cart-item-brand {
+    font-size: 0.93rem;
+    color: #666;
+}
+.cart-item-size {
+    font-size: 0.92rem;
+    color: #444;
+}
+.cart-quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+.qty-btn {
+    background: none;
+    border: none;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.cart-item-remove {
+    position: absolute;
+    top: 8px;
+    right: 44px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cart-item-price {
+    position: absolute;
+    right: 12px;
+    bottom: 8px;
+    font-weight: 600;
+    color: #222;
+}
+.cart-subtotal-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #222;
+    padding-top: 6px;
+}
+.cart-checkout-btn {
+    background: #111;
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 12px 18px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    width: 100%;
+}
+.cart-empty {
+    color: #666;
+    font-size: 0.98rem;
+    padding: 18px 0;
+    text-align: center;
+}
+.cart-sidebar {
+    position: fixed;
+    top: 0;
+    right: -440px;
+    width: 420px;
+    max-width: 98vw;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -12px 0 32px rgba(34,34,34,0.18);
+    z-index: 99999;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: right 0.28s ease;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+.cart-sidebar.open {
+    right: 0;
+}
+.cart-sidebar.open {
+    right: 0;
+}
+.cart-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.cart-header-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #222;
+}
+.cart-close {
+    background: none;
+    border: none;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.cart-divider {
+    height: 2px;
+    background: #eee;
+    width: 100%;
+    margin: 4px 0 8px 0;
+}
+.cart-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+.cart-item-box {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #f0f0f0;
+    padding: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    position: relative;
+}
+.cart-item-img {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #f7f7f7;
+    flex-shrink: 0;
+}
+.cart-item-middle {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+.cart-item-title {
+    font-size: 1.08rem;
+    font-weight: 600;
+    color: #222;
+}
+.cart-item-brand {
+    font-size: 0.98rem;
+    color: #888;
+}
+.cart-item-size {
+    font-size: 0.98rem;
+    color: #444;
+}
+.cart-quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+.qty-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cart-item-qty {
+    font-size: 1.08rem;
+    font-weight: 500;
+    color: #222;
+    margin: 0 6px;
+}
+.cart-item-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-left: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cart-item-price {
+    font-size: 1.08rem;
+    font-weight: 600;
+    color: #222;
+    margin-left: auto;
+    align-self: flex-end;
+}
+.cart-empty {
+    text-align: center;
+    color: #888;
+    font-size: 1.08rem;
+    margin: 32px 0;
+}
+.cart-subtotal-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.12rem;
+    font-weight: 600;
+    color: #222;
+    margin: 8px 0 16px 0;
+}
+.cart-checkout-btn {
+    background: #b71c1c;
+    color: #fff;
+    border: none;
+    border-radius: 22px;
+    padding: 14px 0;
+    font-size: 1.12rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.2s;
+    width: 100%;
+}
+.cart-checkout-btn:hover {
+    background: #222;
+}
+/* Sticky footer flexbox layout for profile page */
+.profile-body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.profile-main {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+/* AR Modal Overlay Styles - ensure overlay and centering */
+.ar-modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(34,34,34,0.45) !important;
+    display: none !important; /* 🔹 start hidden, shown via JS */
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 99999 !important;
+}
+.ar-modal {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(34,34,34,0.18);
+    padding: 32px 38px 28px 38px;
+    min-width: 420px;
+    max-width: 98vw;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    position: relative;
+    align-items: stretch;
+    outline: none;
+    z-index: 100000; /* 🔹 ensure it's above overlay */
+}
+.ar-modal-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+.ar-modal-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #222;
+}
+.ar-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 1.5rem; /* 🔹 make sure × looks right */
+    color: #444;
+}
+.ar-modal-close:hover {
+    color: #b71c1c; /* 🔹 hover state */
+}
+.ar-modal-desc {
+    font-size: 1.08rem;
+    color: #444;
+    text-align: center;
+}
+.ar-modal-divider {
+    width: 100%;
+    height: 2px;
+    background: #eee;
+    margin: 12px 0;
+}
+.ar-modal-bottom-row {
+    display: flex;
+    gap: 32px;
+    justify-content: space-between;
+    margin-top: 12px;
+}
+.ar-modal-bottom-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 180px;
+}
+.ar-modal-dot-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ar-modal-dot {
+    width: 8px;
+    height: 8px;
+    background: #b71c1c;
+    border-radius: 50%;
+    display: inline-block;
+}
+.ar-modal-bottom-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #222;
+}
+.ar-modal-bottom-desc {
+    font-size: 0.98rem;
+    color: #444;
+}
+.ar-modal-qr {
+    width: 120px;
+    height: 120px;
+    margin-top: 8px;
+    border-radius: 12px;
+    background: #f7f7f7;
+}
+.ar-modal-mobile-btn {
+    background: #b71c1c;
+    color: #fff;
+    border: none;
+    border-radius: 18px;
+    padding: 10px 28px;
+    font-size: 1.08rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.2s;
+}
+.ar-modal-mobile-btn:hover {
+    background: #222;
+}
+
+/* === Rest of your CSS untouched === */
+.homepage-header > div,
+.homepage-header > a,
+.homepage-header > span,
+.homepage-header > button {
+    padding-top: 14.22px; /* 12px + 2% of 12px = 12px * 1.185 = 14.22px */
+    padding-bottom: 14.22px;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Sticky footer layout for product-list.html */
+.productlist-body {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.productlist-main-content {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+.footer, footer {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}
+/* Ensure footer stays at bottom if content is short */
+/* .productlist-content min-height removed to fix sticky footer white space */
+
+.productlist-content {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 0 !important;
+}
+
+.productlist-main {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 0 !important;
+}
+/* Sticky Footer Layout for Product List */
+body, html {
+    margin: 0;
+    padding: 0;
+}
+.main-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+.main-content {
+    flex: 1;
+}
+.productlist-caption-row {
+    margin-bottom: 2px !important;
+}
+.productlist-grid {
+    margin-top: 0 !important;
+}
+.productlist-caption-row {
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+.productlist-grid {
+    margin-top: 0;
+}
+.productlist-caption-row {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    display: flex;
+    align-items: flex-end;
+    min-height: 0;
+}
+.productlist-caption {
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: #222;
+    margin-bottom: 0;
+}
+
+/* --- POPPINS FONT USAGE FOR LOGIN AND SIGNUP PAGE --- */
+@font-face {
+    font-family: 'Poppins';
+    src: url('FONT/Poppins-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'Poppins';
+    src: url('FONT/Poppins-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'Poppins';
+    src: url('FONT/Poppins-SemiBold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+}
+[class^="search-input"], .search-input {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    color: #222;
+}
+
+.search-input:focus {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+.search-input::-webkit-input-placeholder {
+    color: #888;
+    opacity: 1;
+}
+.search-input:-ms-input-placeholder {
+    color: #888;
+    opacity: 1;
+}
+.search-input::placeholder {
+    color: #888;
+    opacity: 1;
+}
+body {
+    background: #fff;
+    font-family: 'Poppins', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+.form-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
+}
+.form-section > * {
+    width: 100%;
+    max-width: 400px;
+}
+/* Center the signup form and logo as a unit */
+.toggle-password {
+    display: inline-flex;
+    align-items: center;
+    /* Center the signup form and logo */
+    gap: 4px;
+}
+.password-label-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+.password-label-row .input-label {
+    margin: 0;
+    text-align: left;
+    flex: 1;
+}
+.password-label-row .toggle-password {
+    text-align: right;
+    flex: 0;
+}
+.password-row {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.toggle-password {
+    align-self: flex-end;
+    margin-bottom: 4px;
+    cursor: pointer;
+    font-size: 0.95em;
+    color: #555;
+}
+.container {
+    max-width: 400px;
+    margin: 60px auto;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.logo {
+    width: 110px;
+    margin-bottom: 32px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.login-header {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 600;
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 8px;
+    color: #222;
+    letter-spacing: 0.5px;
+    border: none !important;
+    outline: none;
+    width: 100%;
+    padding: 0;
+}
+.subheader {
+    font-size: 1rem;
+    color: #444;
+    margin-bottom: 28px;
+    text-align: center;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+.signup-link {
+    text-decoration: underline;
+    color: #222;
+    cursor: pointer;
+    font-weight: 500;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+
+.login-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+.input-label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1rem;
+    color: #222;
+    margin-bottom: 4px;
+    margin-left: 2px;
+    text-align: left;
+    font-weight: 500;
+}
+.input-box {
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 22px;
+    margin-bottom: 18px;
+    outline: none;
+    box-sizing: border-box;
+    background: #f5f5f5;
+    color: #222;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 400;
+    transition: box-shadow 0.2s;
+    box-shadow: 0 1px 4px rgba(34,34,34,0.07);
+}
+
+.input-box:focus {
+    box-shadow: 0 0 0 2px #b71c1c33;
+    background: #fff;
+}
+
+.toggle-password {
+    font-size: 1rem;
+    color: #7a7a7a;
+    cursor: pointer;
+    user-select: none;
+    margin-left: 8px;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+}
+
+.eye-icon {
+    margin-right: 2px;
+    font-size: 1.1em;
+}
+.forgot-row {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -10px;
+    margin-bottom: 18px;
+}
+.forgot-link {
+    text-decoration: underline;
+    color: #222;
+    font-size: 0.97rem;
+    cursor: pointer;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 400;
+}
+.login-btn {
+    width: 100%;
+    padding: 14px 0;
+    background: #222;
+    color: #fff;
+    border: none;
+    border-radius: 28px;
+    font-size: 1.15rem;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 18px;
+    transition: background 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 8px rgba(34,34,34,0.10);
+}
+.login-btn:hover {
+    background: #b71c1c;
+    box-shadow: 0 4px 16px rgba(34,34,34,0.13);
+}
+/* --- SIGNUP PAGE LAYOUT --- */
+.signup-wrapper {
+    display: flex;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    margin-bottom: 32px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+.logo-section {
+    display: flex;
+    align-items: flex-start;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 600;
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 10px;
+    color: #222;
+    letter-spacing: 0.5px;
+    border: none !important;
+    outline: none;
+    width: 100%;
+    padding: 0;
+    width: 120px;
+    height: auto;
+}
+.form-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
+    transform: translateX(-190px); /* Move form 40% more left from previous (-136px) */
+}
+.form-section > * {
+    width: 100%;
+    max-width: 400px;
+}
+.signup-header {
+    align-self: flex-start;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 32px;
+    color: #222;
+    margin-left: 40px; /* Move heading 10% more to the right */
+}
+.name-row {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+}
+.input-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+.input-label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.95rem;
+    color: #444;
+    font-weight: 500;
+    margin-bottom: 6px;
+    text-align: left;
+}
+.input-box, .phone-row {
+    margin-bottom: 18px;
+    font-size: 1rem;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+.password-instruction {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 18px;
+    margin-top: -10px;
+    font-weight: 400;
+}
+.checkbox-row {
+    margin-bottom: 10px;
+}
+.checkbox-row label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.97rem;
+    color: #222;
+    font-weight: 400;
+}
+.signup-action-row {
+    display: flex;
+    align-items: center;
+    margin-top: 28px;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 16px;
+}
+.signup-btn {
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 28px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-right: 0;
+    transition: background 0.2s;
+    font-family: 'Poppins', Arial, sans-serif;
+    white-space: nowrap;
+    min-width: 110px;
+}
+.signup-btn:hover {
+    background: #b71c1c;
+}
+.login-link-row {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.98rem;
+    color: #222;
+    font-weight: 400;
+    white-space: nowrap;
+}
+.login-link-row a {
+    text-decoration: underline;
+    color: #222;
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 400;
+    white-space: nowrap;
+}
+/* --- END SIGNUP PAGE LAYOUT --- */
+/* --- SIGNUP PAGE FONT AND FONT SIZE --- */
+body {
+    font-family: 'Poppins', Arial, sans-serif;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+}
+.signup-header {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 2rem;
+    font-weight: 600;
+    color: #222;
+    margin-bottom: 32px;
+}
+.input-label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.95rem;
+    color: #444;
+    font-weight: 500;
+    margin-bottom: 6px;
+    text-align: left;
+}
+.input-box, .phone-input {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1rem;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 18px;
+    background: #fff;
+    outline: none;
+    transition: border 0.2s;
+}
+.input-box:focus, .phone-input:focus {
+    border-color: #b71c1c;
+}
+.password-instruction {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 18px;
+    margin-top: -10px;
+}
+.checkbox-row label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.97rem;
+    color: #222;
+}
+.signup-btn {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+.login-link-row {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1rem;
+    color: #222;
+}
+.login-link-row a {
+    text-decoration: underline;
+    color: #222;
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+/* --- END SIGNUP PAGE FONT AND FONT SIZE --- */
+/* --- PHONE NUMBER DIVIDER --- */
+.phone-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+    height: 44px;
+    position: relative;
+    overflow: hidden;
+}
+.phone-prefix {
+    color: #444;
+    font-size: 1rem;
+    pointer-events: none;
+    margin-left: -2px; /* move +63 8% more right from previous -13px */
+    margin-right: 12px;
+    white-space: nowrap;
+    z-index: 2;
+}
+.phone-divider {
+    width: 1px;
+    height: 60%;
+    background: #ccc;
+    margin: 0 12px 0 0;
+    display: inline-block;
+    z-index: 2;
+}
+.phone-input {
+    border: none;
+    outline: none;
+    font-size: 1rem;
+    background: transparent;
+    flex: 1;
+    letter-spacing: 2px;
+    padding-left: 93px; /* keep previous right adjustment */
+    height: 100%;
+    text-align: left;
+    z-index: 1;
+    position: relative;
+    top: 7px; /* move up by 40% from previous 35px */
+    left: -37px; /* move input 40% left */
+}
+.phone-input:focus {
+    border: none;
+    outline: none;
+}
