@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Shoe Pao — Inventory Archive</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root{--accent:#b71c1c;--muted:#666;--page-bg:#fafafa}
+        body{font-family:'Poppins',Arial,sans-serif;margin:0;background:var(--page-bg);color:#222}
+        .topbar{background:#fff;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #eee;position:sticky;top:0;z-index:50}
+        .nav-left{display:flex;align-items:center;gap:22px;width:70%;max-width:820px}
+        .nav-left-inner{display:flex;align-items:center;justify-content:space-between;width:100%}
+        .logo-wrap{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
+        .logo-wrap img{height:40px}
+        .site-title{font-weight:600;color:var(--accent);font-size:1.05rem}
+        .nav-item{font-size:0.98rem;font-weight:500;color:#222;cursor:pointer;text-decoration:none;padding:8px 12px;border-radius:6px}
+        .nav-item:hover{color:var(--accent)}
+        .nav-right{display:flex;align-items:center;gap:12px}
+        .profile-btn{background:none;border:0;padding:6px;cursor:pointer}
+        .profile-btn img{width:34px;height:34px}
+        .container{max-width:1200px;margin:26px auto;padding:20px}
+        .page-title{font-size:2rem;font-weight:700;margin-bottom:8px}
+        .sub{color:var(--muted);margin-bottom:18px}
+    .card{background:#fff;border:1px solid #eee;border-radius:12px;padding:18px}
+    .table-top{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+    .search-input{flex:1;padding:10px 14px;border:1px solid #e6e6e6;border-radius:8px;font-family:'Poppins',Arial,sans-serif}
+    .filter-btn{padding:8px 12px;border-radius:18px;border:1px solid #ddd;background:#fff;cursor:pointer}
+    .inventory-table{width:100%;border-collapse:collapse;font-family:'Poppins',Arial,sans-serif}
+    .inventory-table th{background:transparent;padding:14px 12px;text-align:left;color:#444;border-bottom:1px solid #eee}
+    .inventory-table td{padding:10px 12px;border-bottom:1px solid #fafafa;color:#333}
+    .size-col{width:48px;text-align:center}
+    .actions-col{white-space:nowrap}
+    .view-archive-row{margin-top:18px;display:flex;justify-content:space-between;align-items:center}
+    .btn-black{background:#222;color:#fff;padding:10px 14px;border-radius:8px;border:0;cursor:pointer}
+    .size-stock-label{display:block;text-align:center;font-weight:600;color:#666;margin-bottom:6px}
+    .small-muted{color:#777;font-size:0.95rem}
+    /* Archive actions: transparent buttons with Poppins font */
+    .actions-col button{background:transparent;border:0;color:#222;padding:6px 8px;border-radius:6px;cursor:pointer;font-family:'Poppins', Arial, sans-serif;font-weight:500}
+    .actions-col button:hover{background:rgba(0,0,0,0.04)}
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="nav-left">
+            <div class="nav-left-inner">
+                <a class="logo-wrap" href="dashboard.html" aria-label="Shoe Pao dashboard">
+                    <img src="IMAGE/SHOEPAOLOGO.png" alt="ShoePao logo">
+                    <span class="site-title">Shoe Pao Footwear</span>
+                </a>
+                <a class="nav-item" href="dashboard.html">OVERVIEW</a>
+                <a class="nav-item" href="orders.html">Orders</a>
+                <a class="nav-item" href="inventory.html">Inventory</a>
+            </div>
+        </div>
+        <div class="nav-right">
+            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
+                <img src="IMAGE/USERICON.png" alt="User">
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="page-title">Archive</div>
+        <div class="sub">Archived inventory items. You can unarchive or permanently delete items here.</div>
+
+        <div class="card">
+            <div class="table-top">
+                <input id="archiveSearch" class="search-input" placeholder="Search by Name / Brand / ID / Size" />
+                <button class="filter-btn" data-sort="brand">Brand ▾</button>
+                <button class="filter-btn" data-sort="size">Size ▾</button>
+                <button class="filter-btn" data-sort="price">Price ▾</button>
+                <div style="margin-left:auto"><button class="btn-black" id="goBackBtn">Go back</button></div>
+            </div>
+
+            <div style="overflow:auto;">
+                <table class="inventory-table" id="archiveTable">
+                    <thead>
+                        <tr>
+                            <th>Product ID</th>
+                            <th>Product Name</th>
+                            <th>Brand</th>
+                            <th>Color</th>
+                            <th colspan="10" style="text-align:center">
+                                <span class="size-stock-label">Size Stock</span>
+                                <div style="display:flex;gap:10px;justify-content:center">
+                                    <span class="small-muted">36</span>
+                                    <span class="small-muted">37</span>
+                                    <span class="small-muted">38</span>
+                                    <span class="small-muted">39</span>
+                                    <span class="small-muted">40</span>
+                                    <span class="small-muted">41</span>
+                                    <span class="small-muted">42</span>
+                                    <span class="small-muted">43</span>
+                                    <span class="small-muted">44</span>
+                                    <span class="small-muted">45</span>
+                                </div>
+                            </th>
+                            <th>Price</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archiveTbody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    (function(){
+        function getArchive(){ try{ return JSON.parse(localStorage.getItem('inventoryArchive')||'[]')||[];}catch(e){return[];} }
+        function saveArchive(list){ localStorage.setItem('inventoryArchive', JSON.stringify(list)); }
+        function getInventory(){ try{ return JSON.parse(localStorage.getItem('inventory')||'[]')||[];}catch(e){return[];} }
+        function saveInventory(list){ localStorage.setItem('inventory', JSON.stringify(list)); }
+        function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:2}); }
+
+        var sortState={key:null,asc:true};
+        function render(list){ var tbody=document.getElementById('archiveTbody'); tbody.innerHTML=''; list.forEach(function(row){
+            var tr=document.createElement('tr');
+            var sizes=[36,37,38,39,40,41,42,43,44,45];
+            var sizeCells = sizes.map(function(s){ return '<td class="size-col">'+(row.sizes && row.sizes[s]? row.sizes[s] : '')+'</td>'; }).join('');
+            tr.innerHTML = `
+                <td>${row.id}</td>
+                <td>${row.name}</td>
+                <td>${row.brand}</td>
+                <td>${row.color}</td>
+                ${sizeCells}
+                <td>${formatPHP(row.price)}</td>
+                <td class="actions-col"><button onclick="unarchiveRow('${row.id}')">🔁 Unarchive</button> <button onclick="deleteRow('${row.id}')">🗑 Delete</button></td>
+            `;
+            tbody.appendChild(tr);
+        }); }
+
+        window.unarchiveRow = function(id){ var a = getArchive(); var idx = a.findIndex(i=>i.id===id); if(idx===-1) return; var item=a.splice(idx,1)[0]; saveArchive(a); var inv=getInventory(); inv.unshift(item); saveInventory(inv); render(a); }
+        window.deleteRow = function(id){ if(!confirm('Delete permanently?')) return; var a=getArchive(); var idx=a.findIndex(i=>i.id===id); if(idx===-1) return; a.splice(idx,1); saveArchive(a); render(a); }
+
+        function matches(row,q){ if(!q) return true; q=q.toLowerCase(); if((row.id||'').toLowerCase().indexOf(q)!==-1) return true; if((row.name||'').toLowerCase().indexOf(q)!==-1) return true; if((row.brand||'').toLowerCase().indexOf(q)!==-1) return true; if((row.color||'').toLowerCase().indexOf(q)!==-1) return true; if((row.price||'').toString().indexOf(q)!==-1) return true; for(var s in row.sizes) if(String(row.sizes[s]).indexOf(q)!==-1) return true; return false; }
+
+        function applySearch(){ var q=document.getElementById('archiveSearch').value.trim(); var list = getArchive().filter(r=>matches(r,q)); render(list); }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            document.getElementById('archiveSearch').addEventListener('input', applySearch);
+            document.getElementById('goBackBtn').addEventListener('click', function(){ window.location.href='inventory.html'; });
+            applySearch();
+        });
+    })();
+    </script>
+
+</body>
+</html>
