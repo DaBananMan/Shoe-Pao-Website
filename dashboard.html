@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Shoe Pao — Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root{--accent:#b71c1c;--muted:#666;--card-bg:#fff;--page-bg:#fafafa}
+        html,body{height:100%;margin:0;font-family:'Poppins',Arial,sans-serif;background:var(--page-bg);color:#222}
+        .dashboard-container{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+        /* NAV */
+        .topbar{background:#fff;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #eee;position:sticky;top:0;z-index:50}
+        .nav-left{display:flex;align-items:center;gap:22px;width:70%;max-width:820px}
+        .nav-left-inner{display:flex;align-items:center;justify-content:space-between;width:100%}
+        .logo-wrap{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
+        .logo-wrap img{height:40px}
+        .site-title{font-weight:600;color:var(--accent);font-size:1.05rem}
+        .nav-item{font-size:0.98rem;font-weight:500;color:#222;cursor:pointer;text-decoration:none;padding:8px 12px;border-radius:6px}
+        .nav-item:hover{color:var(--accent)}
+        .nav-right{display:flex;align-items:center;gap:12px}
+        .profile-btn{background:none;border:0;padding:6px;cursor:pointer}
+        .profile-btn img{width:34px;height:34px}
+
+        /* Header area */
+        .welcome{margin-top:28px}
+        .welcome h1{font-size:1.6rem;margin:6px 0 8px;font-weight:700}
+        .subheader{color:var(--muted);font-size:0.98rem;margin-bottom:18px}
+        .divider{height:1px;background:#eee;margin:18px 0}
+
+        /* Dashboard title */
+        .dashboard-title{font-size:1.18rem;font-weight:700;margin:22px 0}
+
+        /* Cards */
+        .cards-row{display:flex;flex-wrap:wrap;gap:20px}
+        .card{background:var(--card-bg);border:1px solid #eee;border-radius:10px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,0.02);flex:1 1 220px;min-width:220px;max-width:320px}
+        .card .label{font-weight:600;color:#222;margin-bottom:8px}
+        .card .value{font-size:1.28rem;font-weight:600;color:#111}
+
+        /* small screens */
+        @media (max-width:720px){
+            .nav-left{width:100%}
+            .nav-left-inner{gap:12px}
+            .site-title{display:none}
+            .dashboard-container{padding:18px}
+            .card{min-width:160px}
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="nav-left">
+            <div class="nav-left-inner">
+                <a class="logo-wrap" href="dashboard.html" aria-label="Shoe Pao dashboard">
+                    <img src="IMAGE/SHOEPAOLOGO.png" alt="ShoePao logo">
+                    <span class="site-title">Shoe Pao Footwear</span>
+                </a>
+                <a class="nav-item" href="dashboard.html">OVERVIEW</a>
+                <a class="nav-item" href="orders.html">Orders</a>
+                <a class="nav-item" href="inventory.html">Inventory</a>
+            </div>
+        </div>
+        <div class="nav-right">
+            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
+                <img src="IMAGE/USERICON.png" alt="User">
+            </button>
+        </div>
+    </header>
+
+    <main class="dashboard-container">
+        <section class="welcome">
+            <h1>Welcome, Admin!</h1>
+            <div class="subheader">Monitor Shoe Pao Footwear's performance at a glance. View real-time sales, inventory status, add products, and new orders.</div>
+        </section>
+
+        <div class="divider" aria-hidden="true"></div>
+
+        <h2 class="dashboard-title">Dashboard</h2>
+
+        <section class="cards-row" role="list">
+            <div class="card" role="listitem">
+                <div class="label">Total Revenue</div>
+                <div class="value">PHP 64,000.00</div>
+            </div>
+            <div class="card" role="listitem">
+                <div class="label">Sales</div>
+                <div class="value">100</div>
+            </div>
+            <div class="card" role="listitem">
+                <div class="label">Products in Stock</div>
+                <div class="value">25</div>
+            </div>
+            <div class="card" role="listitem">
+                <div class="label">Pending Orders</div>
+                <div class="value">23</div>
+            </div>
+        </section>
+    </main>
+
+</body>
+</html>

@@ -303,7 +303,7 @@
     function goToHome() { window.location.href = 'home.html'; }
     function goToProfile() { window.location.href = 'profile.html'; }
     function goToProductList() { window.location.href = 'product-list.html'; }
-    function goToOrders() { window.location.href = 'orders.html'; }
+    function goToOrders() { window.location.href = 'client-orders.html'; }
     function goToWishlist() { window.location.href = 'wishlist.html'; }
     function goToFAQ() { window.location.href = 'faq.html'; }
     function goToContact() { window.location.href = 'contact.html'; }
@@ -354,8 +354,13 @@
             el.innerHTML = '<img src="IMAGE/ToggleHideButton.png" alt="Hide"> Hide';
         }
     }
-    // Save profile (stub)
+    // Save profile (persist to localStorage)
     function saveProfile() {
+        var name = document.getElementById('profileName').value.trim();
+        var email = document.getElementById('profileEmail').value.trim();
+        var addressMain = document.getElementById('profileAddressMain') ? document.getElementById('profileAddressMain').textContent.trim() : '';
+        var addressDetails = document.getElementById('profileAddressDetails') ? document.getElementById('profileAddressDetails').textContent.trim() : '';
+        var phone = document.getElementById('profilePhone').value.trim();
         var newPassword = document.getElementById('newPassword').value.trim();
         var confirmPassword = document.getElementById('confirmPassword').value.trim();
         if (newPassword.length > 0) {
@@ -365,9 +370,80 @@
                 return;
             }
         }
-        // Save logic here (localStorage, API, etc.)
-        alert('Profile saved!');
+        var profile = {
+            name: name,
+            email: email,
+            addressMain: addressMain,
+            addressDetails: addressDetails,
+            phone: phone
+        };
+        try {
+            localStorage.setItem('profile', JSON.stringify(profile));
+            // Backfill existing orders that don't have a customerName
+            try{
+                var orders = JSON.parse(localStorage.getItem('orders') || '[]');
+                var updated = 0;
+                if(Array.isArray(orders) && orders.length){
+                    for(var i=0;i<orders.length;i++){
+                        if(!orders[i].customerName || orders[i].customerName.trim() === ''){
+                            orders[i].customerName = profile.name || '';
+                            updated++;
+                        }
+                    }
+                    if(updated>0) localStorage.setItem('orders', JSON.stringify(orders));
+                }
+            }catch(err){/* ignore orders parse errors */}
+            alert('Profile saved!' + (typeof updated !== 'undefined' && updated>0 ? ('\nBackfilled ' + updated + ' existing order(s)') : ''));
+        } catch (e) {
+            console.error('Could not save profile to localStorage', e);
+            alert('Unable to save profile locally.');
+        }
     }
+    // Populate profile inputs from localStorage if available and auto-save on change
+    document.addEventListener('DOMContentLoaded', function(){
+        try{
+            var p = JSON.parse(localStorage.getItem('profile') || 'null');
+            if(p){
+                if(document.getElementById('profileName')) document.getElementById('profileName').value = p.name || '';
+                if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = p.email || '';
+                if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = p.addressMain || '';
+                if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = p.addressDetails || '';
+                if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = p.phone || '';
+            }
+        }catch(err){/* ignore parse errors */}
+
+        // Debounced autosave when user types in profile fields so orders can pick up the name
+        function debounce(fn, wait){
+            var t;
+            return function(){
+                var args = arguments;
+                clearTimeout(t);
+                t = setTimeout(function(){ fn.apply(null, args); }, wait);
+            }
+        }
+
+        function autosaveProfile(){
+            var nameEl = document.getElementById('profileName');
+            var emailEl = document.getElementById('profileEmail');
+            var addrMainEl = document.getElementById('profileAddressMain');
+            var addrDetEl = document.getElementById('profileAddressDetails');
+            var phoneEl = document.getElementById('profilePhone');
+            var profile = {
+                name: nameEl ? nameEl.value.trim() : '',
+                email: emailEl ? emailEl.value.trim() : '',
+                addressMain: addrMainEl ? addrMainEl.textContent.trim() : '',
+                addressDetails: addrDetEl ? addrDetEl.textContent.trim() : '',
+                phone: phoneEl ? phoneEl.value.trim() : ''
+            };
+            try{ localStorage.setItem('profile', JSON.stringify(profile)); }catch(e){/* ignore */}
+        }
+
+        var debouncedAutosave = debounce(autosaveProfile, 600);
+        ['profileName','profileEmail','profilePhone'].forEach(function(id){
+            var el = document.getElementById(id);
+            if(el) el.addEventListener('input', debouncedAutosave);
+        });
+    });
     // Add address (stub)
     function addAddress() {
         alert('Add address functionality coming soon.');

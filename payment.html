@@ -260,6 +260,15 @@
             <div class="payment-header">Payment</div>
             <div class="payment-caption">Payment should be done within 24 hours upon purchase. We will confirm your<br>order once we receive the payment.<br>Please upload proof of payment after transfer.<br>We accept BDO and BPI.</div>
             <div class="payment-divider"></div>
+            <div class="payment-method-title">💳 Choose payment method</div>
+            <div class="payment-method-list" style="margin-bottom:12px;">
+                <!-- Payment selection is chosen on the Checkout page. Show the selected method here. -->
+                <div id="paymentMethodSummary" style="background:#fff;border-radius:12px;padding:12px 14px;border:1px solid #eee;font-size:1rem;color:#222;">
+                    <div id="paymentMethodLabel">Payment: (not chosen)</div>
+                    <div id="paymentMethodBank" style="color:#666;margin-top:6px;display:none;">Bank: </div>
+                </div>
+            </div>
+            <div class="payment-divider"></div>
             <div class="payment-method-title">💳 For Bank Transfer (BDO)</div>
             <div class="payment-method-list">
                 <ul>
@@ -280,7 +289,7 @@
             <div class="payment-upload-title">Upload proof of payment here</div>
             <div class="payment-upload-box">+ Upload Proof of Payment</div>
             <div class="payment-btn-row">
-                <button class="payment-placeorder-btn" onclick="window.location.href='orders.html'">Place order</button>
+                <button class="payment-placeorder-btn" id="placeOrderBtn">Place order</button>
             </div>
             <div class="payment-policy-row">
                 <span class="payment-policy-link">Refund policy</span>
@@ -362,6 +371,105 @@
         document.getElementById('paymentTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
     window.addEventListener('DOMContentLoaded', renderPaymentCart);
+
+    // Place order: persist cart into orders[] and clear cart
+    function generateOrderId() {
+        var d = new Date();
+        return 'ORD' + d.getFullYear().toString().slice(-2) + Math.floor(Math.random()*900000 + 100000);
+    }
+    function generateTracking() {
+        return 'TR' + Math.floor(Math.random()*90000000 + 10000000);
+    }
+    function placeOrder() {
+        var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        if (!cart || cart.length === 0) {
+            alert('Your cart is empty.');
+            return;
+        }
+        var subtotal = 0;
+        var items = cart.map(function(it){
+            var qty = (typeof it.qty === 'number') ? it.qty : (typeof it.quantity === 'number' ? it.quantity : 1);
+            subtotal += it.price * qty;
+            return Object.assign({}, it, { quantity: qty });
+        });
+        // determine selected payment method code & label - prefer checkout selection stored in localStorage
+        var selectedPaymentCode = localStorage.getItem('checkoutPaymentCode') || '';
+        // if there's no checkout selection (legacy), try to read any on-page radios
+        if(!selectedPaymentCode){
+            var radios = document.querySelectorAll('input[name="paymentMethod"]');
+            radios.forEach(function(r){ if(r.checked){ selectedPaymentCode = r.value || selectedPaymentCode; } });
+        }
+        // normalize selectedPaymentCode in case legacy labels were used
+        function normalizePaymentCode(codeOrLabel){
+            if(!codeOrLabel) return '';
+            var s = String(codeOrLabel).toLowerCase();
+            if(s === 'qr_ph' || s.indexOf('qr') !== -1 || s.indexOf('scan') !== -1) return 'qr_ph';
+            if(s === 'bank_transfer' || s.indexOf('bank') !== -1) return 'bank_transfer';
+            if(s === 'cod' || s.indexOf('cash') !== -1 || s.indexOf('cash on delivery') !== -1) return 'cod';
+            return codeOrLabel;
+        }
+        selectedPaymentCode = normalizePaymentCode(selectedPaymentCode);
+    // bank selection: prefer checkout-stored bank (if previously saved), else read any on-page bank choice
+    var bankChoice = localStorage.getItem('checkoutBank') || '';
+    if(!bankChoice){ bankChoice = (document.querySelector('input[name="bankChoice"]:checked')||{}).value || ''; }
+        // map code -> human label
+        function mapPaymentLabel(code, bank){
+            var c = normalizePaymentCode(code);
+            if(!c) return (localStorage.getItem('checkoutPayment')||'');
+            if(c === 'qr_ph') return 'QR PH';
+            if(c === 'bank_transfer') return bank ? ('Bank Transfer ('+bank+')') : 'Bank Transfer';
+            if(c === 'cod') return 'Cash on Delivery';
+            return code;
+        }
+    var selectedPaymentLabel = mapPaymentLabel(selectedPaymentCode, bankChoice);
+        // delivery method from checkout (persisted earlier) - both code and label
+        var deliveryCode = localStorage.getItem('checkoutDeliveryCode') || '';
+        var deliveryLabel = localStorage.getItem('checkoutDelivery') || '';
+    // try to read customer name from saved profile, otherwise from checkout
+    var profile = JSON.parse(localStorage.getItem('profile') || '{}');
+    var customerName = (profile && profile.name) ? profile.name : (localStorage.getItem('checkoutCustomerName') || '');
+        var order = {
+            id: generateOrderId(),
+            tracking: generateTracking(),
+            date: new Date().toISOString(),
+            status: 'Pending',
+            items: items,
+            total: subtotal,
+            paymentCode: selectedPaymentCode,
+            paymentLabel: selectedPaymentLabel,
+            customerName: customerName,
+            deliveryCode: deliveryCode,
+            deliveryLabel: deliveryLabel,
+            deliveryMethod: deliveryLabel
+        };
+        var orders = JSON.parse(localStorage.getItem('orders') || '[]');
+        orders.push(order);
+        localStorage.setItem('orders', JSON.stringify(orders));
+        // clear cart
+        localStorage.setItem('cart', JSON.stringify([]));
+        // navigate to client orders page
+        window.location.href = 'client-orders.html';
+    }
+    document.addEventListener('DOMContentLoaded', function(){
+        var btn = document.getElementById('placeOrderBtn');
+        if (btn) btn.addEventListener('click', placeOrder);
+        // Populate payment summary from Checkout selections
+        try{
+            var checkoutPaymentCode = localStorage.getItem('checkoutPaymentCode') || '';
+            var checkoutPaymentLabel = localStorage.getItem('checkoutPayment') || '';
+            var checkoutBank = localStorage.getItem('checkoutBank') || '';
+            var labelEl = document.getElementById('paymentMethodLabel');
+            var bankEl = document.getElementById('paymentMethodBank');
+            if(labelEl){
+                var displayLabel = checkoutPaymentLabel || (checkoutPaymentCode ? (checkoutPaymentCode === 'qr_ph' ? 'QR PH' : (checkoutPaymentCode === 'bank_transfer' ? 'Bank Transfer' : (checkoutPaymentCode === 'cod' ? 'Cash on Delivery' : checkoutPaymentCode))) : '(not chosen)');
+                labelEl.textContent = 'Payment: ' + displayLabel;
+            }
+            if(bankEl){
+                if(checkoutBank){ bankEl.style.display = 'block'; bankEl.textContent = 'Bank: ' + checkoutBank; }
+                else { bankEl.style.display = 'none'; }
+            }
+        }catch(e){}
+    });
     </script>
     <script src="cart-storage.js"></script>
 </body>

@@ -424,22 +424,22 @@
             <div class="checkout-divider"></div>
             <div class="checkout-delivery-method-title">Delivery method</div>
             <div class="checkout-delivery-options">
-                <div class="checkout-delivery-option selected" onclick="selectDeliveryMethod(this, 0)">
-                    <input type="radio" name="delivery" class="checkout-delivery-radio" checked>
+                <div class="checkout-delivery-option selected" data-code="personal" onclick="selectDeliveryMethod(this, 0)">
+                    <input type="radio" name="delivery" class="checkout-delivery-radio" checked value="personal">
                     <div>
                         <div class="checkout-delivery-label">Personal Delivery</div>
                         <div class="checkout-delivery-desc">Hand delivered by our team. Est. Delivery Time: 1-2 days<br>Only available in Bacoor, Cavite.</div>
                     </div>
                 </div>
-                <div class="checkout-delivery-option" onclick="selectDeliveryMethod(this, 1)">
-                    <input type="radio" name="delivery" class="checkout-delivery-radio">
+                <div class="checkout-delivery-option" data-code="lalamove" onclick="selectDeliveryMethod(this, 1)">
+                    <input type="radio" name="delivery" class="checkout-delivery-radio" value="lalamove">
                     <div>
                         <div class="checkout-delivery-label">Lalamove</div>
                         <div class="checkout-delivery-desc">For nearby areas beyond our personal delivery range. Same-day delivery. Delivery fee may vary by distance.</div>
                     </div>
                 </div>
-                <div class="checkout-delivery-option" onclick="selectDeliveryMethod(this, 2)">
-                    <input type="radio" name="delivery" class="checkout-delivery-radio">
+                <div class="checkout-delivery-option" data-code="nationwide" onclick="selectDeliveryMethod(this, 2)">
+                    <input type="radio" name="delivery" class="checkout-delivery-radio" value="nationwide">
                     <div>
                         <div class="checkout-delivery-label">Nationwide Delivery (J&T Express / JRS)</div>
                         <div class="checkout-delivery-desc">For far provinces or areas outside Metro Manila. Delivery fee may vary by distance. Est. Delivery Time: 2-7 business days.</div>
@@ -450,22 +450,22 @@
             <div class="checkout-payment-title">Payment Method</div>
             <div class="checkout-payment-subtitle">All transactions are secured.</div>
             <div class="checkout-payment-options">
-                <div class="checkout-payment-option selected" onclick="selectPaymentMethod(this, 0)">
-                    <input type="radio" name="payment" class="checkout-payment-radio" checked>
+                <div class="checkout-payment-option selected" data-code="qr_ph" onclick="selectPaymentMethod(this, 0)">
+                    <input type="radio" name="payment" class="checkout-payment-radio" checked value="qr_ph">
                     <div>
-                        <div class="checkout-payment-label">Secure payment via QR Ph</div>
+                        <div class="checkout-payment-label">QR PH</div>
                         <div class="checkout-payment-desc">After clicking “Place order”, you will be redirected to QR Ph to complete your purchase securely. Supports Gcash, Maya, and banks with QR Ph support.</div>
                     </div>
                 </div>
-                <div class="checkout-payment-option" onclick="selectPaymentMethod(this, 1)">
-                    <input type="radio" name="payment" class="checkout-payment-radio">
+                <div class="checkout-payment-option" data-code="bank_transfer" onclick="selectPaymentMethod(this, 1)">
+                    <input type="radio" name="payment" class="checkout-payment-radio" value="bank_transfer">
                     <div>
                         <div class="checkout-payment-label">Bank Transfer</div>
                         <div class="checkout-payment-desc">Payment should be done within 24 hours upon purchase. We will confirm your order once we receive the payment. Note: Please upload proof of payment after transfer.<br>We accept BDO, BPI.</div>
                     </div>
                 </div>
-                <div class="checkout-payment-option" onclick="selectPaymentMethod(this, 2)">
-                    <input type="radio" name="payment" class="checkout-payment-radio">
+                <div class="checkout-payment-option" data-code="cod" onclick="selectPaymentMethod(this, 2)">
+                    <input type="radio" name="payment" class="checkout-payment-radio" value="cod">
                     <div>
                         <div class="checkout-payment-label">Cash on Delivery</div>
                         <div class="checkout-payment-desc">Payment is done upon delivery.</div>
@@ -473,7 +473,7 @@
                 </div>
             </div>
             <div class="checkout-btn-row">
-                <button class="checkout-proceed-btn" onclick="window.location.href='payment.html'">Proceed to payment</button>
+                <button class="checkout-proceed-btn" onclick="proceedToPayment()">Proceed to payment</button>
             </div>
             <div class="checkout-policy-row">
                 <span class="checkout-policy-link">Refund policy</span>
@@ -558,6 +558,12 @@
             opt.classList.toggle('selected', i === idx);
             opt.querySelector('input[type="radio"]').checked = (i === idx);
         });
+        try{
+            var label = el.querySelector('.checkout-delivery-label') ? el.querySelector('.checkout-delivery-label').textContent.trim() : '';
+            var code = el.dataset && el.dataset.code ? el.dataset.code : (el.querySelector('input[type="radio"]').value || '');
+            if(label) localStorage.setItem('checkoutDelivery', label);
+            if(code) localStorage.setItem('checkoutDeliveryCode', code);
+        }catch(e){}
     }
     // Payment method selection
     function selectPaymentMethod(el, idx) {
@@ -565,6 +571,12 @@
             opt.classList.toggle('selected', i === idx);
             opt.querySelector('input[type="radio"]').checked = (i === idx);
         });
+        try{
+            var label = el.querySelector('.checkout-payment-label') ? el.querySelector('.checkout-payment-label').textContent.trim() : '';
+            var code = el.dataset && el.dataset.code ? el.dataset.code : (el.querySelector('input[type="radio"]').value || '');
+            if(label) localStorage.setItem('checkoutPayment', label);
+            if(code) localStorage.setItem('checkoutPaymentCode', code);
+        }catch(e){}
     }
     // Cart rendering
     function renderCheckoutCart() {
@@ -596,6 +608,32 @@
         document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
     window.addEventListener('DOMContentLoaded', renderCheckoutCart);
+
+    // Proceed from checkout to payment: persist the chosen delivery/payment and the customer name shown on the page
+    function proceedToPayment(){
+        try{
+            // delivery label
+            var deliveryEl = document.querySelector('.checkout-delivery-option.selected .checkout-delivery-label') || document.querySelector('.checkout-delivery-label');
+            var deliveryLabel = deliveryEl ? deliveryEl.textContent.trim() : '';
+            if(deliveryLabel) localStorage.setItem('checkoutDelivery', deliveryLabel);
+        }catch(e){}
+        try{
+            // payment label
+            var paymentEl = document.querySelector('.checkout-payment-option.selected .checkout-payment-label') || document.querySelector('.checkout-payment-label');
+            var paymentLabel = paymentEl ? paymentEl.textContent.trim() : '';
+            if(paymentLabel) localStorage.setItem('checkoutPayment', paymentLabel);
+        }catch(e){}
+        try{
+            // derive customer name from address main (before the first comma)
+            var addr = document.querySelector('.checkout-address-main');
+            if(addr){
+                var txt = addr.textContent.trim();
+                var name = txt.split(',')[0].trim();
+                if(name) localStorage.setItem('checkoutCustomerName', name);
+            }
+        }catch(e){}
+        window.location.href = 'payment.html';
+    }
     </script>
     <script src="cart-storage.js"></script>
 </body>
