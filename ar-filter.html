@@ -66,38 +66,140 @@
 </head>
 <body>
   <div class="ar-ui">
-    <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" class="ar-logo">
-    <div class="ar-header">Shoe Pao AR</div>
+  <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" class="ar-logo" id="arLogo" style="cursor:pointer;pointer-events:auto;">
+  <div class="ar-header" id="arHeader" style="cursor:pointer;pointer-events:auto;" role="link" tabindex="0">Shoe Pao AR</div>
   </div>
   <div class="camera-border-box">
     <video id="camera" autoplay playsinline></video>
   </div>
+  <script>
+    // Click on AR logo should return user to last viewed product if available
+    window.goBackToProduct = function(){
+      try{
+        var title = localStorage.getItem('productTitle');
+        if(title && title.trim().length>0){
+          window.location.href = 'product-view.html';
+          return;
+        }
+      }catch(e){}
+      window.location.href = 'product-list.html';
+    };
+    // attach to logo and header if present (make header keyboard-accessible too)
+    document.addEventListener('DOMContentLoaded', function(){
+      var logo = document.getElementById('arLogo');
+      if(logo) logo.addEventListener('click', window.goBackToProduct);
+      var hdr = document.getElementById('arHeader');
+      if(hdr){
+        hdr.addEventListener('click', window.goBackToProduct);
+        hdr.style.cursor = 'pointer';
+        hdr.setAttribute('role','link');
+        hdr.tabIndex = 0;
+        hdr.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.goBackToProduct(); } });
+      }
+    });
+  </script>
   <script type="module">
-    import { bootstrapCameraKit } from "https://cdn.jsdelivr.net/npm/@snap/camera-kit@latest";
+    // Create a visible status box immediately so users see progress even if imports fail
+    const status = document.createElement('div');
+    status.style.position = 'fixed';
+    status.style.left = '12px';
+    status.style.bottom = '12px';
+    status.style.background = 'rgba(0,0,0,0.6)';
+    status.style.color = '#fff';
+    status.style.padding = '8px 12px';
+    status.style.borderRadius = '8px';
+    status.style.fontSize = '13px';
+    status.style.zIndex = '9999';
+    status.textContent = 'Initializing AR...';
+    document.body.appendChild(status);
 
-    async function init() {
-      // Use your Production API Token for public deployment
+    (async function(){
+      const cameraEl = document.getElementById('camera');
       const apiToken = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzU5MTg3NTE2LCJzdWIiOiJmZGFiNjE5MC03ZmMxLTQ0YWItYTYwMS1mYjMxYzIzZDliODR-UFJPRFVDVElPTn5hMDViOWU2Mi1hOWFkLTQ5ZGUtYjBlOC0yNzFmZjQ0YmRlZTQifQ.kbj8IFBzSTnfQX2EQjIMLYtW_VByy8_dUWnWOaBz2zo";
-      const cameraKit = await bootstrapCameraKit({ apiToken });
 
-      // Attach video feed
-      const cameraEl = document.getElementById("camera");
-      const session = await cameraKit.createSession({ video: cameraEl });
+      try {
+          status.textContent = 'Loading Snap Camera Kit...';
+          // Try importing the SDK from multiple ESM-friendly CDNs because some bundles use
+          // bare specifiers that the browser can't resolve (eg. "@snap/ts-inject").
+          async function tryImportSequential(urls){
+            let lastErr = null;
+            for(const u of urls){
+              try{
+                status.textContent = 'Importing camera kit from: ' + u;
+                const m = await import(u);
+                console.log('Imported camera kit from', u, m);
+                return m;
+              }catch(ie){
+                console.warn('Import failed for', u, ie);
+                lastErr = ie;
+              }
+            }
+            throw lastErr || new Error('All imports failed');
+          }
 
-      // Load your lens
-      const lens = await cameraKit.lensRepository.loadLens(
-        "a2628590-23ad-46e6-ab29-3d51c3aa0afb", // Lens ID
-        "e1398642-5877-468c-8f52-268df062c065"  // Group ID
-      );
+          const cdnCandidates = [
+            'https://cdn.jsdelivr.net/npm/@snap/camera-kit@latest',
+            'https://cdn.skypack.dev/@snap/camera-kit',
+            'https://esm.sh/@snap/camera-kit'
+          ];
 
-      // Apply lens
-      await session.applyLens(lens);
+          const mod = await tryImportSequential(cdnCandidates);
+          const bootstrapCameraKit = mod.bootstrapCameraKit || (mod.default && mod.default.bootstrapCameraKit) || (mod.CameraKit && mod.CameraKit.bootstrapCameraKit);
+          if (!bootstrapCameraKit) {
+            console.warn('camera kit exports:', Object.keys(mod || {}));
+            throw new Error('bootstrapCameraKit not found in module exports');
+          }
 
-      // Start camera session
-      session.play();
-    }
+          status.textContent = 'Bootstrapping Snap Camera Kit...';
+          const cameraKit = await bootstrapCameraKit({ apiToken });
 
-    init();
+        status.textContent = 'Creating session...';
+        let session = null;
+        try {
+          session = await cameraKit.createSession({ video: cameraEl });
+        } catch (errA) {
+          try {
+            session = await cameraKit.createSession({ videoEl: cameraEl });
+          } catch (errB) {
+            console.error('cameraKit.createSession errors:', errA, errB);
+            throw new Error('Snap Camera Kit session creation failed');
+          }
+        }
+
+        status.textContent = 'Loading lens...';
+        const lens = await cameraKit.lensRepository.loadLens(
+          'a2628590-23ad-46e6-ab29-3d51c3aa0afb',
+          'e1398642-5877-468c-8f52-268df062c065'
+        );
+
+        status.textContent = 'Applying lens...';
+        await session.applyLens(lens);
+
+        status.textContent = 'Starting session...';
+        await session.play();
+        status.textContent = 'AR Ready';
+        console.log('Snap Camera Kit session started');
+        return;
+
+      } catch (err) {
+        console.warn('Snap Camera Kit failed — falling back to native camera. Error:', err);
+        // expose error details for easier debugging (visible and persisted)
+        try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: err && err.message, stack: err && err.stack, time: (new Date()).toISOString() })); }catch(e){}
+        status.textContent = 'Snap Camera Kit unavailable — using fallback camera: ' + ((err && err.message) || String(err));
+        try {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia not supported');
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+          cameraEl.srcObject = stream;
+          await cameraEl.play();
+          status.textContent = 'Camera running (fallback). Snap features may be unavailable.';
+          return;
+        } catch (gmErr) {
+          console.error('Fallback camera failed', gmErr);
+          try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: gmErr && gmErr.message, stack: gmErr && gmErr.stack, time: (new Date()).toISOString(), fallback:true })); }catch(e){}
+          status.textContent = 'Camera unavailable. Check permissions, serve over HTTPS/localhost, and ensure a valid Snap API token.';
+        }
+      }
+    })();
   </script>
 </body>
 </html>
