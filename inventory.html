@@ -48,6 +48,11 @@
     .btn-black{background:#222;color:#fff;padding:10px 14px;border-radius:8px;border:0;cursor:pointer}
     .size-stock-label{display:block;text-align:center;font-weight:600;color:#666;margin-bottom:6px}
     .small-muted{color:#777;font-size:0.95rem}
+    .post-field{display:flex;flex-direction:column;gap:8px;width:100%}
+    /* make inputs/selects fill their column and have consistent sizing */
+    .post-field .inline-input, .post-field select, .post-field .filter-btn { box-sizing:border-box;width:100%; }
+    /* keep the image preview box from stretching vertically and align it to the top */
+    #new_image_preview_wrap{align-self:flex-start}
     </style>
 </head>
 <body>
@@ -121,21 +126,94 @@
             </div>
 
             <div class="view-archive-row">
-                <button class="btn-black" id="viewArchiveBtn">View Archived Products</button>
+                <div>
+                    <button class="btn-black" id="viewArchiveBtn">View Archived Products</button>
+                </div>
+                <div>
+                    <button id="postNewProductBtn" class="btn-black">Post New Product</button>
+                </div>
             </div>
         </div>
     </main>
 
+    <!-- Post New Product Modal -->
+    <div id="postProductOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:#fff;width:720px;max-width:95vw;border-radius:12px;padding:18px;box-shadow:0 12px 48px rgba(0,0,0,0.3);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <strong style="font-size:1.1rem">Post New Product</strong>
+                <button onclick="closePostProductModal()" style="background:none;border:0;cursor:pointer;font-size:1.1rem">✕</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;align-items:start;">
+                <div class="post-field">
+                    <label class="small-muted">Product Name</label>
+                    <input id="new_name" class="inline-input" placeholder="e.g. Nike Air Zoom" />
+                </div>
+                <div class="post-field">
+                    <label class="small-muted">Brand</label>
+                    <select id="new_brand" class="inline-input">
+                        <option value="">Select brand...</option>
+                        <option>Nike</option>
+                        <option>Adidas</option>
+                        <option>Cloudtilt</option>
+                        <option>New Balance</option>
+                    </select>
+                </div>
+                <div class="post-field">
+                    <label class="small-muted">Gender</label>
+                    <select id="new_gender" class="inline-input">
+                        <option>Men</option>
+                        <option>Women</option>
+                        <option>Unisex</option>
+                    </select>
+                </div>
+                <div class="post-field">
+                    <label class="small-muted">Color</label>
+                    <input id="new_color" class="inline-input" placeholder="Color or variant" />
+                </div>
+                <div class="post-field">
+                    <label class="small-muted">Price (numeric PHP)</label>
+                    <input id="new_price" type="number" class="inline-input" placeholder="1299" />
+                </div>
+                <div class="post-field">
+                    <label class="small-muted">Image</label>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <div id="new_image_preview_wrap" style="width:120px;height:80px;border:1px dashed #e6e6e6;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fafafa;overflow:hidden">
+                            <img id="new_image_preview" src="IMAGE/CHANGETHIS.webp" alt="preview" style="max-width:100%;max-height:100%;object-fit:contain;display:block;" />
+                        </div>
+                        <div style="flex:1">
+                            <input id="new_image_file" type="file" accept="image/*" style="display:none" />
+                            <div style="display:flex;gap:8px;flex-direction:column">
+                                <button id="new_image_choose" class="filter-btn" type="button">Choose Image</button>
+                                <input id="new_image_text" class="inline-input" placeholder="(optional) or enter path like IMAGE/foo.png" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:12px;margin-bottom:8px;font-weight:600">Size quantities (EU 36–45)</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                <!-- generate size inputs -->
+                <script>/* placeholder for size inputs insertion */</script>
+                <div id="newSizeInputs" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+                <button onclick="closePostProductModal()" class="filter-btn">Cancel</button>
+                <button id="confirmPostProductBtn" class="btn-black">Post Product</button>
+            </div>
+        </div>
+    </div>
+
     <script>
     (function(){
-        // sample seed data
+        // sample seed data (aligned with product-list names, colors and images)
         var seed = [
-            { id:'#P001', name:'New Balance 530', brand:'New Balance', color:'Silver', sizes:{'36':6,'37':12,'38':2,'39':10,'40':4,'41':5,'42':5,'43':1,'44':2,'45':5}, price:1299 },
-            { id:'#P002', name:'Nike Airmax 696', brand:'Nike', color:'White', sizes:{'36':4,'37':2,'38':10,'39':6,'40':7,'41':8,'42':2,'43':11,'44':7,'45':3}, price:2395 },
-            { id:'#P003', name:'Nike Jordan Black', brand:'Nike', color:'Black', sizes:{'36':6,'37':4,'38':5,'39':6,'40':2,'41':3,'42':5,'43':6,'44':7,'45':1}, price:2395 },
-            { id:'#P004', name:'Adidas Runner Shoes', brand:'Adidas', color:'White', sizes:{'36':7,'37':8,'38':9,'39':10,'40':3,'41':5,'42':14,'43':2,'44':4,'45':15}, price:2395 },
-            { id:'#P005', name:'New Balance 550', brand:'New Balance', color:'Brown', sizes:{'36':6,'37':6,'38':4,'39':6,'40':7,'41':3,'42':3,'43':1,'44':4,'45':5}, price:2395 },
-            { id:'#P006', name:'New Balance 2000', brand:'New Balance', color:'Brown', sizes:{'36':6,'37':7,'38':4,'39':7,'40':8,'41':5,'42':8,'43':9,'44':12,'45':5}, price:2395 }
+            { id:'#P001', name:'Nike Airmax TN Aqua Blue', brand:'Nike', color:'Aqua Blue', image:'IMAGE/NIKE1.png', sizes:{'36':6,'37':8,'38':4,'39':10,'40':6,'41':5,'42':3,'43':2,'44':1,'45':0}, price:1299 },
+            { id:'#P002', name:'Nike Airmax Black', brand:'Nike', color:'Black', image:'IMAGE/NIKE2.png', sizes:{'36':4,'37':2,'38':10,'39':6,'40':7,'41':8,'42':2,'43':11,'44':7,'45':3}, price:2395 },
+            { id:'#P003', name:'Nike GT CUT 2 LEAP HIGH', brand:'Nike', color:'Multicolor', image:'IMAGE/NIKE3.png', sizes:{'36':2,'37':3,'38':6,'39':5,'40':4,'41':3,'42':2,'43':1,'44':0,'45':0}, price:1999 },
+            { id:'#P004', name:'Nike Airmax White', brand:'Nike', color:'White', image:'IMAGE/NIKE4.png', sizes:{'36':6,'37':5,'38':4,'39':6,'40':5,'41':4,'42':3,'43':2,'44':1,'45':0}, price:2199 },
+            { id:'#P005', name:'Nike Airmax Red', brand:'Nike', color:'Red', image:'IMAGE/NIKE5.png', sizes:{'36':3,'37':4,'38':5,'39':6,'40':7,'41':6,'42':5,'43':4,'44':3,'45':2}, price:2299 },
+            { id:'#P006', name:'Cloudtilt Iron Dew Womens', brand:'Cloudtilt', color:'Iridescent', image:'IMAGE/SALESSHOE1.png', sizes:{'36':5,'37':6,'38':7,'39':8,'40':4,'41':2,'42':1,'43':0,'44':0,'45':0}, price:1299 },
+            { id:'#P007', name:'New Balance 530', brand:'New Balance', color:'Silver', image:'IMAGE/SALESSHOE2.png', sizes:{'36':6,'37':12,'38':2,'39':10,'40':4,'41':5,'42':5,'43':1,'44':2,'45':5}, price:1299 }
         ];
 
         function getInventory(){
@@ -157,7 +235,8 @@
                 tr.dataset.id = row.id;
                 var sizes = [36,37,38,39,40,41,42,43,44,45];
                 var sizeCells = sizes.map(function(s){
-                    var v = (row.sizes && row.sizes[s]) ? row.sizes[s] : '';
+                    // treat 0 as a valid numeric value — only use empty string when undefined
+                    var v = (row.sizes && row.sizes[s] !== undefined) ? row.sizes[s] : '';
                     var cls = (v !== '' && Number(v) < 6) ? 'low-stock' : '';
                     return '<td class="size-col"><span class="'+cls+'">'+v+'</span></td>';
                 }).join('');
@@ -255,6 +334,54 @@
             document.getElementById('inventorySearch').addEventListener('input', applySearch);
             document.querySelectorAll('.filter-btn').forEach(function(b){ b.addEventListener('click', function(){ var key = b.dataset.sort; if(sortState.key===key) sortState.asc=!sortState.asc; else { sortState.key=key; sortState.asc=true;} applySearch(); }); });
             document.getElementById('viewArchiveBtn').addEventListener('click', function(){ window.location.href='inventory-archive.html'; });
+            // Post New Product button + modal wiring
+            var postBtn = document.getElementById('postNewProductBtn');
+            var overlay = document.getElementById('postProductOverlay');
+            var sizeContainer = document.getElementById('newSizeInputs');
+            // image upload state for modal
+            var newImageData = null;
+            var fileInput = document.getElementById('new_image_file');
+            var previewImg = document.getElementById('new_image_preview');
+            var previewWrap = document.getElementById('new_image_preview_wrap');
+            var chooseBtn = document.getElementById('new_image_choose');
+            var textInput = document.getElementById('new_image_text');
+            function buildSizeInputs(){ sizeContainer.innerHTML=''; var sizes=[36,37,38,39,40,41,42,43,44,45]; sizes.forEach(function(s){ var div=document.createElement('div'); div.style.display='flex'; div.style.flexDirection='column'; div.style.alignItems='center'; div.style.width='64px'; div.innerHTML = '<label style="font-size:0.85rem;margin-bottom:6px">'+s+'</label><input class="size-input" type="number" min="0" data-size="'+s+'" value="0">'; sizeContainer.appendChild(div); }); }
+            window.openPostProductModal = function(){ buildSizeInputs(); overlay.style.display='flex'; newImageData = null; if(previewImg) previewImg.src = 'IMAGE/CHANGETHIS.webp'; if(textInput) textInput.value=''; }
+            window.closePostProductModal = function(){ overlay.style.display='none'; }
+            if(postBtn){ postBtn.addEventListener('click', function(){ openPostProductModal(); }); }
+            // Confirm post product
+            var confirmBtn = document.getElementById('confirmPostProductBtn');
+            // wire image chooser and preview
+            if(fileInput){
+                fileInput.addEventListener('change', function(){
+                    if(fileInput.files && fileInput.files[0]){
+                        var reader = new FileReader();
+                        reader.onload = function(e){ newImageData = e.target.result; if(previewImg) previewImg.src = newImageData; };
+                        reader.readAsDataURL(fileInput.files[0]);
+                    }
+                });
+            }
+            if(previewWrap){ previewWrap.addEventListener('click', function(){ if(fileInput) fileInput.click(); }); }
+            if(chooseBtn){ chooseBtn.addEventListener('click', function(){ if(fileInput) fileInput.click(); }); }
+            if(textInput){ textInput.addEventListener('input', function(){ var v = textInput.value.trim(); if(v) { if(previewImg) previewImg.src = v; } }); }
+
+            if(confirmBtn){ confirmBtn.addEventListener('click', function(){
+                var name = document.getElementById('new_name').value.trim();
+                var brand = document.getElementById('new_brand').value.trim();
+                var gender = document.getElementById('new_gender').value.trim();
+                var color = document.getElementById('new_color').value.trim();
+                var price = Number(document.getElementById('new_price').value) || 0;
+                var image = newImageData || (document.getElementById('new_image_text').value.trim()) || 'IMAGE/NIKE1.png';
+                if(!name || !brand){ alert('Please enter at least a product name and brand.'); return; }
+                var sizesEls = Array.from(document.querySelectorAll('#newSizeInputs input.size-input'));
+                var sizesObj = {}; sizesEls.forEach(function(inp){ var s = inp.getAttribute('data-size'); var v = Number(inp.value)||0; sizesObj[s]=v; });
+                // generate id (simple incremental)
+                var list = getInventory(); var nextId = '#P' + String((list.length+1)).padStart(3,'0');
+                var newItem = { id: nextId, name: name, brand: brand, color: color, gender: gender, sizes: sizesObj, price: price, image: image };
+                list.unshift(newItem); saveInventory(list); inventory = list; applySearch(); closePostProductModal();
+                // notify other pages via storage event
+                try{ localStorage.setItem('inventory', JSON.stringify(list)); }catch(e){}
+            }); }
             // initial save if none
             try{ if(!localStorage.getItem('inventory')) localStorage.setItem('inventory', JSON.stringify(seed)); }catch(e){}
             applySearch();

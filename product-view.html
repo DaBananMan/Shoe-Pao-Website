@@ -81,9 +81,13 @@
         .productview-main-img {
             width: 380px;
             height: 380px;
-            object-fit: cover;
+            /* use contain to avoid cropping/zooming important product details
+               (keeps image aspect ratio and shows whole shoe); center it */
+            object-fit: contain;
+            object-position: center;
             border-radius: 18px;
             background: #f7f7f7;
+            padding: 8px; /* slight inner padding so edges aren't flush when contain adds empty space */
         }
         .productview-right {
             flex: 1;
@@ -1708,14 +1712,23 @@ On page.</div>
                         }
                     }
 
-                    if (found && eu) {
+                        if (found && eu) {
                         var qty = (found.sizes && (found.sizes[eu] !== undefined)) ? Number(found.sizes[eu]) : null;
+                        var addBtnEl = document.querySelector('.productview-cart-btn');
                         if (qty === null) {
                             elStock.textContent = 'Stock: not available for this size';
+                            if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; }
+                            elStock.style.color = '';
                         } else if (qty <= 0) {
-                            elStock.textContent = 'Stock: Out of stock';
+                            // show the numeric value (0) instead of leaving the box empty
+                            elStock.textContent = 'Stock: 0 available';
+                            // visually mark out of stock in red and prevent adding to cart
+                            elStock.style.color = '#b71c1c';
+                            if(addBtnEl) { addBtnEl.disabled = true; addBtnEl.style.opacity = '0.6'; }
                         } else {
                             elStock.textContent = 'Stock: ' + qty + ' available';
+                            elStock.style.color = '';
+                            if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; }
                         }
                     } else if (!eu) {
                         elStock.textContent = '';
@@ -1753,7 +1766,18 @@ On page.</div>
         if (brand) document.getElementById('productBrand').textContent = brand;
         if (title) document.getElementById('productTitle').textContent = title;
         if (price) document.getElementById('productPrice').textContent = price;
-        if (img) document.getElementById('mainShoeImg').src = img;
+        var mainImgEl = document.getElementById('mainShoeImg');
+        if (img) mainImgEl.src = img;
+        // If the product is a Nike, flip main image and thumbnails horizontally to match product-list
+        try {
+            if (brand && brand.toString().toLowerCase().indexOf('nike') !== -1) {
+                mainImgEl.style.transform = 'scaleX(-1)';
+                document.querySelectorAll('.productview-thumb').forEach(function(t){ t.style.transform = 'scaleX(-1)'; t.style.transformOrigin = 'center'; });
+            } else {
+                mainImgEl.style.transform = '';
+                document.querySelectorAll('.productview-thumb').forEach(function(t){ t.style.transform = ''; });
+            }
+        } catch (e) { /* ignore */ }
         // Optionally update badge
         // Description
         if (title) {

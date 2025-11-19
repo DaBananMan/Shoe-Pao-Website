@@ -199,6 +199,7 @@
             </button>
         </div>
     </header>
+    <div class="site-container">
     <div class="orders-page">
         <div class="orders-header" style="padding:24px 120px 8px 120px;">
             <h1 style="margin:0;font-size:2rem;font-weight:700;">Orders</h1>
@@ -245,6 +246,38 @@
             </div>
         </div>
     </div>
+    
+    <!-- Cancellation Review Modal (admin) -->
+    <div id="cancelReviewModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100000;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div style="font-weight:700;font-size:1.05rem;">Client Cancellation Review</div>
+                <button id="closeCancelReviewBtn" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+            </div>
+            <div id="cancelReviewContent" style="margin-bottom:12px;color:#444;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button onclick="closeCancelReviewModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Close</button>
+                <button id="adminRevokeBtn" style="background:#fff;border:1px solid #b71c1c;padding:8px 14px;border-radius:10px;color:#b71c1c;cursor:pointer;">Revoke Cancellation</button>
+                <button id="adminConfirmCancelBtn" style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;">Confirm Cancellation</button>
+            </div>
+        </div>
+    </div>
+    </div>
+    <!-- Refund Review Modal (admin) -->
+    <div id="refundReviewModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100000;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div style="font-weight:700;font-size:1.05rem;">Client Refund Review</div>
+            </div>
+            <div id="refundReviewContent" style="margin-bottom:12px;color:#444;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button id="refundFooterCloseBtn" onclick="closeRefundReviewModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Close</button>
+                <button id="adminRevokeRefundBtn" style="background:#fff;border:1px solid #b71c1c;padding:8px 14px;border-radius:10px;color:#b71c1c;cursor:pointer;">Revoke Refund</button>
+                <button id="adminConfirmRefundBtn" style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;">Confirm Refund</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Admin Order Details Modal (matches client order pop-up format) -->
     <div id="adminOrderModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:9999;align-items:center;justify-content:center;">
         <div id="adminOrderModal" style="background:#fff;border-radius:18px;box-shadow:0 8px 32px rgba(34,34,34,0.18);padding:28px;min-width:520px;max-width:96vw;">
@@ -271,7 +304,7 @@
             </div>
         </div>
     </div>
-    <footer></footer>
+    <!-- Footer removed for admin orders page to avoid showing the black/site footer -->
 
     <script>
     // Navigation bar functions
@@ -337,6 +370,19 @@
                 var fallbackProfileName = '';
                 try{ fallbackProfileName = JSON.parse(localStorage.getItem('profile')||'{}').name || ''; }catch(e){}
                 var displayName = row.customerName || row.name || fallbackProfileName || '';
+                // build status cell with optional cancel-review button for admin
+                var statusHtml = titleCase(row.status || '');
+                // show cancel request indicator only when admin has NOT yet confirmed
+                if(row.cancellation && !row.cancellation.adminConfirmed && !row.cancellation.adminRevoked){
+                    var cancelLabel = (String(row.status||'').toLowerCase() === 'cancelled') ? 'Cancelled' : 'Cancel Requested';
+                    statusHtml = '<span style="color:#b71c1c;font-weight:600;">' + cancelLabel + '</span> <button class="cancel-review-btn" data-id="' + (row.id||'') + '" style="background:none;border:none;color:#b71c1c;margin-left:8px;cursor:pointer;font-size:1.05rem;">⚠️</button>';
+                }
+                // refund indicator (refund_requested or refunded)
+                // show refund request indicator only when admin has NOT yet confirmed
+                if(row.refund && !row.refund.adminConfirmed && !row.refund.adminRevoked){
+                    var refundLabel = (String(row.status||'').toLowerCase() === 'refunded') ? 'Refunded' : 'Refund Requested';
+                    statusHtml = '<span style="color:#b71c1c;font-weight:600;">' + refundLabel + '</span> <button class="refund-review-btn" data-id="' + (row.id||'') + '" style="background:none;border:none;color:#b71c1c;margin-left:8px;cursor:pointer;font-size:1.05rem;">⚠️</button>';
+                }
             tr.innerHTML = `
                 <td style="padding:12px;border-bottom:1px solid #fafafa;">${idx}</td>
                 <td style="padding:12px;border-bottom:1px solid #fafafa;">${row.id}</td>
@@ -345,7 +391,7 @@
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.paymentLabel || row.payment || (row.paymentCode? (row.paymentCode==='qr_ph'? 'QR PH' : (row.paymentCode==='bank_transfer'? 'Bank Transfer' : (row.paymentCode==='cod'? 'Cash on Delivery' : row.paymentCode))) : ''))}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.deliveryMethod || '')}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${formatPHP(row.total)}</td>
-                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.status)}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${statusHtml}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.est)}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${row.tracking}</td>
                 `;
@@ -353,6 +399,23 @@
                 tr.addEventListener('click', function(){ showOrderModal(row); });
                 tbody.appendChild(tr);
             });
+            // attach cancel-review and refund-review button handlers
+            setTimeout(function(){
+                document.querySelectorAll('.cancel-review-btn').forEach(function(btn){
+                    btn.addEventListener('click', function(e){
+                        e.stopPropagation();
+                        var id = btn.getAttribute('data-id');
+                        openCancelReviewById(id);
+                    });
+                });
+                document.querySelectorAll('.refund-review-btn').forEach(function(btn){
+                    btn.addEventListener('click', function(e){
+                        e.stopPropagation();
+                        var id = btn.getAttribute('data-id');
+                        openRefundReviewById(id);
+                    });
+                });
+            }, 10);
         }
 
         // Show admin modal formatted like client order popup (uses fields from the row)
@@ -423,9 +486,15 @@
                 dateInput.style.borderRadius = '6px';
                 dateInput.addEventListener('change', function(){
                     if(dateInput.value){
-                        var d = new Date(dateInput.value);
-                        var estText = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() });
-                        updateOrder(row.id, { est: estText });
+                            if(!dateInput.value) return;
+                            try{
+                                var d = new Date(dateInput.value);
+                                if(isNaN(d.getTime())) return;
+                                // format date using options (year should be 'numeric' not the year number)
+                                var estText = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                // persist the human-friendly est string on the order and refresh
+                                updateOrder(row.id, { est: estText });
+                            }catch(e){ console.error('failed to parse est date', e); }
                     }
                 });
                 estRow.appendChild(estLabel); estRow.appendChild(dateInput);
@@ -438,12 +507,15 @@
         // Update an order in ordersData (and persist to localStorage), then refresh the current view
         function updateOrder(orderId, changes){
             try{
-                var idx = ordersData.findIndex(o => o.id === orderId);
+                // find by id using string comparison to avoid type mismatches (number vs string)
+                var idx = ordersData.findIndex(o => String(o.id) === String(orderId));
                 if(idx === -1) return;
                 ordersData[idx] = Object.assign({}, ordersData[idx], changes);
                 // persist
                 try { localStorage.setItem('orders', JSON.stringify(ordersData)); } catch(e) { console.error('persist failed', e); }
                 // reapply current filters/sort and render
+                // reload ordersData from storage to ensure consistency, then refresh view
+                try{ ordersData = JSON.parse(localStorage.getItem('orders') || '[]'); }catch(e){/* ignore */}
                 applySearch();
             }catch(e){console.error(e)}
         }
@@ -454,6 +526,25 @@
             var overlay = document.getElementById('adminOrderModalOverlay');
             if(closeBtn) closeBtn.addEventListener('click', function(){ overlay.style.display='none'; document.body.style.overflow=''; });
             if(overlay) overlay.addEventListener('click', function(e){ if(e.target===overlay){ overlay.style.display='none'; document.body.style.overflow=''; } });
+            // Cancel review modal close
+            var crClose = document.getElementById('closeCancelReviewBtn');
+            if(crClose) crClose.addEventListener('click', function(){ closeCancelReviewModal(); });
+            var crOverlay = document.getElementById('cancelReviewModalOverlay');
+            if(crOverlay) crOverlay.addEventListener('click', function(e){ if(e.target === crOverlay){ closeCancelReviewModal(); } });
+            // admin confirm/revoke handlers
+            var revokeBtn = document.getElementById('adminRevokeBtn');
+            var confirmBtn = document.getElementById('adminConfirmCancelBtn');
+            if(revokeBtn) revokeBtn.addEventListener('click', function(){ adminRevokeCancellation(); });
+            if(confirmBtn) confirmBtn.addEventListener('click', function(){ adminConfirmCancellation(); });
+            // Refund review modal close
+            var rfClose = document.getElementById('refundFooterCloseBtn');
+            if(rfClose) rfClose.addEventListener('click', function(){ closeRefundReviewModal(); });
+            var rfOverlay = document.getElementById('refundReviewModalOverlay');
+            if(rfOverlay) rfOverlay.addEventListener('click', function(e){ if(e.target === rfOverlay){ closeRefundReviewModal(); } });
+            var revokeRf = document.getElementById('adminRevokeRefundBtn');
+            var confirmRf = document.getElementById('adminConfirmRefundBtn');
+            if(revokeRf) revokeRf.addEventListener('click', function(){ adminRevokeRefund(); });
+            if(confirmRf) confirmRf.addEventListener('click', function(){ adminConfirmRefund(); });
         });
         // Listen for orders updates from other tabs/windows and refresh
         window.addEventListener('storage', function(e){
@@ -465,6 +556,145 @@
                 }catch(err){/* ignore */}
             }
         });
+
+        // Open cancel review modal for a given order id
+        function openCancelReviewById(orderId){
+            var row = ordersData.find(function(o){ return o.id === orderId; });
+            if(!row) return;
+            var content = document.getElementById('cancelReviewContent');
+            if(!content) return;
+            var html = '<div style="font-weight:600;margin-bottom:8px;">Order ID: ' + (row.id||'') + '</div>';
+            html += '<div style="margin-bottom:8px;">Customer: ' + (row.name || '') + '</div>';
+            if(row.cancellation && row.cancellation.reasons){ html += '<div style="margin-bottom:8px;"><strong>Client reasons:</strong><ul style="margin-top:6px;padding-left:18px;">'; row.cancellation.reasons.forEach(function(r){ html += '<li>' + r + '</li>'; }); html += '</ul></div>'; }
+            if(row.cancellation && row.cancellation.timestamp){ html += '<div style="color:#666;font-size:0.95rem;margin-bottom:6px;">Submitted: ' + new Date(row.cancellation.timestamp).toLocaleString() + '</div>'; }
+            if(row.cancellation && row.cancellation.adminConfirmed){ html += '<div style="color:green;font-weight:600;margin-bottom:6px;">Admin confirmed cancellation</div>'; }
+            content.innerHTML = html;
+            // stash current id
+            content.setAttribute('data-order-id', orderId);
+            document.getElementById('cancelReviewModalOverlay').style.display = 'flex'; document.body.style.overflow='hidden';
+        }
+
+        function closeCancelReviewModal(){ var o = document.getElementById('cancelReviewModalOverlay'); if(!o) return; o.style.display='none'; document.body.style.overflow=''; }
+
+        function adminConfirmCancellation(){
+            var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            var idx = ordersData.findIndex(function(o){ return o.id === id; }); if(idx === -1) return;
+            ordersData[idx].cancellation = ordersData[idx].cancellation || {};
+            ordersData[idx].cancellation.adminConfirmed = true;
+            // ensure status is Cancelled (admin confirmed)
+            ordersData[idx].status = 'Cancelled';
+            localStorage.setItem('orders', JSON.stringify(ordersData));
+            applySearch(); closeCancelReviewModal();
+        }
+
+        function adminRevokeCancellation(){
+            var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            var idx = ordersData.findIndex(function(o){ return o.id === id; }); if(idx === -1) return;
+            // restore previous status if present
+            var prev = ordersData[idx].previousStatus || 'Pending';
+            ordersData[idx].status = prev;
+            delete ordersData[idx].previousStatus;
+            delete ordersData[idx].cancellation;
+            localStorage.setItem('orders', JSON.stringify(ordersData));
+            applySearch(); closeCancelReviewModal();
+        }
+
+        // Refund review functions
+        function openRefundReviewById(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row) return;
+            var content = document.getElementById('refundReviewContent'); if(!content) return;
+            var html = '<div style="font-weight:600;margin-bottom:8px;">Order ID: ' + (row.id||'') + '</div>';
+            html += '<div style="margin-bottom:8px;">Customer: ' + (row.name || '') + '</div>';
+            if(row.refund && row.refund.reasons){ html += '<div style="margin-bottom:8px;"><strong>Client refund reasons:</strong><ul style="margin-top:6px;padding-left:18px;">'; row.refund.reasons.forEach(function(r){ html += '<li>' + r + '</li>'; }); html += '</ul></div>'; }
+            if(row.refund && row.refund.timestamp){ html += '<div style="color:#666;font-size:0.95rem;margin-bottom:6px;">Submitted: ' + new Date(row.refund.timestamp).toLocaleString() + '</div>'; }
+            if(row.refund && row.refund.proof){ html += '<div style="margin-top:8px;margin-bottom:8px;"><strong>Uploaded proof:</strong><div style="margin-top:8px;"><img src="' + row.refund.proof + '" alt="Proof" style="max-width:320px;border:1px solid #eee;border-radius:8px;object-fit:contain;"/></div></div>'; }
+            if(row.refund && row.refund.adminConfirmed){ html += '<div style="color:green;font-weight:600;margin-bottom:6px;">Admin confirmed refund</div>'; }
+            if(row.refund && row.refund.adminRevoked && row.refund.revocation){ html += '<div style="color:#b71c1c;font-weight:600;margin-bottom:6px;">Admin revoked refund</div>'; html += '<div style="margin-bottom:8px;"><strong>Revocation reasons:</strong><ul style="margin-top:6px;padding-left:18px;">'; row.refund.revocation.reasons.forEach(function(r){ html += '<li>' + r + '</li>'; }); html += '</ul></div>'; }
+            content.innerHTML = html;
+            content.setAttribute('data-order-id', orderId);
+            // ensure footer buttons for refund review are visible when showing the review
+            try{ var fClose = document.getElementById('refundFooterCloseBtn'); if(fClose) fClose.style.display = ''; }catch(e){}
+            try{ var rRevoke = document.getElementById('adminRevokeRefundBtn'); if(rRevoke) rRevoke.style.display = ''; }catch(e){}
+            try{ var rConfirm = document.getElementById('adminConfirmRefundBtn'); if(rConfirm) rConfirm.style.display = ''; }catch(e){}
+            document.getElementById('refundReviewModalOverlay').style.display = 'flex'; document.body.style.overflow='hidden';
+        }
+
+        function closeRefundReviewModal(){ var o = document.getElementById('refundReviewModalOverlay'); if(!o) return; o.style.display='none'; document.body.style.overflow=''; }
+
+        function adminConfirmRefund(){
+            var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            var idx = ordersData.findIndex(function(o){ return String(o.id) === String(id); }); if(idx === -1) return;
+            ordersData[idx].refund = ordersData[idx].refund || {};
+            ordersData[idx].refund.adminConfirmed = true;
+            ordersData[idx].status = 'Refunded';
+            localStorage.setItem('orders', JSON.stringify(ordersData));
+            applySearch(); closeRefundReviewModal();
+        }
+
+        // When admin clicks Revoke (first step), show a revocation reasons form inside the same modal
+        function adminRevokeRefund(){
+            var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            openRefundRevokeForm(id);
+        }
+
+        // Render the admin revoke form (checkbox reasons + Other textbox)
+        function openRefundRevokeForm(orderId){
+            var content = document.getElementById('refundReviewContent'); if(!content) return;
+            var html = '<div style="font-weight:600;margin-bottom:8px;">Revoke Refund</div>';
+            html += '<div style="margin-bottom:8px;">Select reason(s) for revoking this refund request:</div>';
+            html += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">';
+            var reasons = [
+                'Policy Violations',
+                'Product Condition',
+                'Customer Error',
+                'Refusal of Delivery without Valid Cause',
+                'Proof of Delivery',
+                'Lack of Evidence',
+                'Prior Refund/Chargeback',
+                'Fraudulent Behavior'
+            ];
+            reasons.forEach(function(r, i){
+                html += '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="adminRevokeReason" data-reason="' + r.replace(/"/g,'&quot;') + '" /> ' + r + '</label>';
+            });
+            html += '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="adminRevokeReason" id="adminRevokeOtherChk" /> Other: <input id="adminRevokeOtherText" type="text" placeholder="Specify other reason" style="margin-left:8px;flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;" /></label>';
+            html += '</div>';
+            // use compact inline buttons: Go Back and Confirm Revoke
+            html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:nowrap;">';
+            html += '<button id="backToRefundBtn" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;display:inline-block;min-width:110px;">Go Back</button>';
+            html += '<button id="confirmAdminRevokeBtn" style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;display:inline-block;min-width:120px;">Confirm Revoke</button>';
+            html += '</div>';
+            content.innerHTML = html;
+            content.setAttribute('data-order-id', orderId);
+            // wire buttons
+            setTimeout(function(){
+                var back = document.getElementById('backToRefundBtn'); if(back) back.addEventListener('click', function(){ openRefundReviewById(orderId); });
+                var confirm = document.getElementById('confirmAdminRevokeBtn'); if(confirm) confirm.addEventListener('click', function(){ adminConfirmRevokeRefund(); });
+            }, 10);
+            // hide the modal footer default buttons while revocation form is shown
+            try{ var fClose = document.getElementById('refundFooterCloseBtn'); if(fClose) fClose.style.display = 'none'; }catch(e){}
+            try{ var rRevoke = document.getElementById('adminRevokeRefundBtn'); if(rRevoke) rRevoke.style.display = 'none'; }catch(e){}
+            try{ var rConfirm = document.getElementById('adminConfirmRefundBtn'); if(rConfirm) rConfirm.style.display = 'none'; }catch(e){}
+        }
+
+        // Confirm the admin revoke: collect reasons, validate, persist revocation metadata and restore previous status
+        function adminConfirmRevokeRefund(){
+            var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            var checks = Array.prototype.slice.call(document.querySelectorAll('.adminRevokeReason'));
+            var selections = [];
+            checks.forEach(function(ch){ if(ch.checked){ if(ch.id === 'adminRevokeOtherChk'){ var t = (document.getElementById('adminRevokeOtherText')||{}).value || ''; if(t && t.trim().length > 2) selections.push(t.trim()); } else { selections.push(ch.getAttribute('data-reason')); } } });
+            if(selections.length === 0){ alert('Please select at least one reason or provide details in Other.'); return; }
+            var idx = ordersData.findIndex(function(o){ return String(o.id) === String(id); }); if(idx === -1) return;
+            ordersData[idx].refund = ordersData[idx].refund || {};
+            ordersData[idx].refund.adminRevoked = true;
+            ordersData[idx].refund.revocation = { reasons: selections, timestamp: new Date().toISOString() };
+            // restore previous status
+            var prev = ordersData[idx].previousStatus || 'Pending';
+            ordersData[idx].status = prev;
+            delete ordersData[idx].previousStatus;
+            localStorage.setItem('orders', JSON.stringify(ordersData));
+            applySearch(); closeRefundReviewModal();
+        }
 
         function matchesSearch(row, q){
             if(!q) return true;
@@ -519,6 +749,7 @@
         var body = document.body,
             html = document.documentElement,
             footer = document.querySelector('footer');
+        if(!footer) return; // nothing to do when there is no footer on the page
         var contentHeight = Math.max(body.scrollHeight, body.offsetHeight,
             html.clientHeight, html.scrollHeight, html.offsetHeight);
         if (contentHeight < window.innerHeight) {

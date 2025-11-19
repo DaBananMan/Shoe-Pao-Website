@@ -2,44 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - SHOEPAO</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .header-link {
-            font-size: 1.05rem;
-            font-weight: 500;
-            color: #222;
-            margin-right: 8px;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-        .header-link:hover {
-            color: #b71c1c !important;
-            cursor: pointer;
-        }
-        .header-home-link:hover {
-            color: #b71c1c !important;
-            cursor: pointer;
-        }
-        body {
-            font-family: 'Poppins', Arial, sans-serif;
-            background: #fff;
-            margin: 0;
-            padding: 0;
-            color: #222;
-        }
-        .productlist-header {
-            margin-bottom: 0;
-        }
-        .productlist-main {
-            display: flex;
-            flex-direction: row;
-            align-items: flex-start;
-            justify-content: center;
-            gap: 48px;
-            width: 100vw;
-            max-width: 100%;
-            /* margin-top: 48px; */
-        }
         .productlist-sidebar {
             min-width: 220px;
             max-width: 260px;
@@ -87,6 +53,27 @@
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
+        }
+        .size-btn {
+            background: #fff;
+            color: #222;
+            border: 2px solid #ccc;
+            border-radius: 18px;
+            padding: 8px 18px;
+            font-size: 1.05rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+            width: 56px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .size-btn.active {
+            background: #222;
+            color: #fff;
+            border-color: #222;
         }
         .size-btn {
             background: #fff;
@@ -168,6 +155,22 @@
             padding: 4px 18px;
             z-index: 2;
         }
+        .badge-sale {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: #b71c1c;
+            color: #fff;
+            font-size: 0.98rem;
+            font-weight: 500;
+            border-radius: 12px;
+            padding: 4px 14px;
+            z-index: 2;
+        }
+        .flip-horizontal {
+            transform: scaleX(-1);
+            transform-origin: center;
+        }
         .shoe-info-box {
             background: #f7f7f7;
             border-radius: 0;
@@ -198,7 +201,6 @@
             font-size: 0.98rem;
         }
     </style>
-    </style>
 </head>
 <body class="productlist-body" style="min-height:100vh;display:flex;flex-direction:column;">
     <!-- Navigation Bar (copied from home.html) -->
@@ -210,7 +212,21 @@
             </a>
             <span class="header-link" onclick="goToSale()">Sale</span>
             <span class="header-link" onclick="goToNewArrivals()">New Arrivals</span>
-            <span class="header-link" onclick="goToBrands()">Brands</span>
+            <span class="header-link" id="brandNavPL">Brands
+                <div class="brand-dropdown" id="brandDropdownPL" aria-hidden="true">
+                    <a href="product-list.html?brand=Nike" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('Nike')"><img src="IMAGE/NIKELOGO.png" alt="Nike" style="height:28px;"></a>
+                    <a href="product-list.html?brand=Adidas" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('Adidas')"><img src="IMAGE/ADIDASLOGO.png" alt="Adidas" style="height:28px;"></a>
+                    <a href="product-list.html?brand=Cloudtilt" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('Cloudtilt')"><img src="IMAGE/CLOUDTILTLOGO.png" alt="Cloudtilt" style="height:28px;"></a>
+                    <a href="product-list.html?brand=New%20Balance" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('New Balance')"><img src="IMAGE/NEWBALANCELOGO.png" alt="New Balance" style="height:28px;"></a>
+                </div>
+            </span>
+            <style>
+                /* ensure brand dropdown anchors under nav item */
+                #brandNavPL { position: relative; }
+                /* match home page: horizontal brand icons */
+                #brandDropdownPL { display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #fff; color: #222; border: 1px solid #eee; padding: 8px 10px; border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); z-index: 120; white-space: nowrap; text-align: center; }
+                .brand-drop-link { display: inline-block; margin: 4px 8px; }
+            </style>
             <span class="header-link" onclick="goToProductList()">Shop All</span>
         </div>
         <div style="display:flex;align-items:center;gap:18px;">
@@ -222,7 +238,8 @@
             <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)" style="font-family:'Poppins',Arial,sans-serif;font-size:1rem;border:none;outline:none;width:220px;padding:6px 0;">
         </div>
     </nav>
-    <main class="productlist-main-content" style="flex:1 1 auto;">
+    <main class="productlist-main-content" style="flex:1 1 auto;padding-top:20px;">
+        <div class="site-container">
         <div class="productlist-main">
             <!-- Sidebar -->
             <aside class="productlist-sidebar" style="padding-left:24px;">
@@ -230,55 +247,54 @@
                     <div class="sidebar-header" style="font-size:1.18rem;font-weight:600;color:#222;margin-bottom:18px;">Gender</div>
                     <div class="gender-checkbox-row" style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
                         <label class="gender-checkbox" style="display:flex;align-items:center;gap:8px;font-size:1.05rem;font-weight:500;color:#222;">
-                            <input type="checkbox" id="genderMen" checked onchange="filterGender()" style="accent-color:#000;width:18px;height:18px;">
+                            <input type="checkbox" id="genderMen" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;">
                             <span style="color:#222;">Men</span>
                         </label>
                         <label class="gender-checkbox" style="display:flex;align-items:center;gap:8px;font-size:1.05rem;font-weight:500;color:#222;">
-                            <input type="checkbox" id="genderWomen" checked onchange="filterGender()" style="accent-color:#000;width:18px;height:18px;">
+                            <input type="checkbox" id="genderWomen" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;">
                             <span style="color:#222;">Women</span>
                         </label>
+                        <label class="gender-checkbox" style="display:flex;align-items:center;gap:8px;font-size:1.05rem;font-weight:500;color:#222;">
+                            <input type="checkbox" id="genderUnisex" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;">
+                            <span style="color:#222;">Unisex</span>
+                        </label>
+                    </div>
+                    <div style="margin-top:6px;margin-bottom:8px;">
+                        <div class="sidebar-header" style="font-size:1.08rem;font-weight:600;color:#222;margin-bottom:8px;">Brands</div>
+                        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">
+                            <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandNike" value="Nike" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> Nike</label>
+                            <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandAdidas" value="Adidas" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> Adidas</label>
+                            <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandCloudtilt" value="Cloudtilt" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> Cloudtilt</label>
+                            <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandNewBalance" value="New Balance" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> New Balance</label>
+                        </div>
                     </div>
                     <div class="sidebar-divider" style="width:80%;height:2px;background:#eee;margin:18px 0 12px 0;"></div>
                 </div>
                 <div class="sidebar-section">
                     <div class="sidebar-size-header" style="font-size:1.08rem;font-weight:600;color:#222;margin-bottom:14px;">Size</div>
-                    <div class="size-btn-row" id="sizeBtnRow" style="display:flex;flex-wrap:wrap;gap:10px;">
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">4.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">5.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">6</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">6.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">7</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">7.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">8</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">8.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">9</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">9.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">10</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">10.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">11</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">11.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">12</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">12.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">13</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">13.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">14</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">14.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">15</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">15.5</button>
-                        <button class="size-btn" style="width:56px;height:38px;display:flex;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;" onclick="toggleSize(this)">16</button>
+                    <div class="size-control" style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <label style="font-weight:600;margin-right:8px;font-size:1rem;color:#222;">Size Standard:</label>
+                            <button id="euBtn" class="size-standard-btn" style="padding:6px 12px;border-radius:8px;border:1px solid #222;background:#222;color:#fff;font-weight:600;">EU</button>
+                            <button id="usBtn" class="size-standard-btn" style="padding:6px 12px;border-radius:8px;border:1px solid #ccc;background:#fff;color:#222;">US</button>
+                        </div>
+                        <div class="size-btn-row" id="sizeBtnRow" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
                     </div>
                 </div>
             </aside>
             <!-- Main Content -->
             <section class="productlist-content">
-                <div class="productlist-caption-row">
-                    <span class="productlist-caption">Showing 5 products for <span class="brand">NIKE</span></span>
+                <div class="productlist-caption-row" id="productlist-caption-row" style="margin-bottom:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+                    <span id="productlist-caption" class="productlist-caption" style="text-align:center;display:block;min-height:1.2em;"></span>
+                    <button id="clearSearchBtn" aria-label="Clear search" style="display:none;background:transparent;border:none;color:#222;cursor:pointer;font-size:0.95rem;display:flex;align-items:center;gap:8px;padding:6px 10px;">
+                        <span style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;">✕</span>
+                        <span>Clear search</span>
+                    </button>
                 </div>
                 <div class="productlist-grid" id="productGrid">
                     <div class="shoe-card" data-gender="Men" data-size="8" style="cursor:pointer;" onclick="viewProduct('Nike','Nike Airmax TN Aqua Blue','P1,299.00','IMAGE/NIKE1.png','New')">
                         <div class="shoe-img-box">
-                            <img src="IMAGE/NIKE1.png" class="shoe-img" alt="Nike Airmax TN Aqua Blue">
+                            <img src="IMAGE/NIKE1.png" class="shoe-img flip-horizontal" alt="Nike Airmax TN Aqua Blue">
                             <span class="badge-new">New</span>
                         </div>
                         <div class="shoe-info-box">
@@ -291,7 +307,7 @@
                     </div>
                     <div class="shoe-card" data-gender="Men" data-size="9" style="cursor:pointer;" onclick="viewProduct('Nike','Nike Airmax Black','P2,395.00','IMAGE/NIKE2.png','New')">
                         <div class="shoe-img-box">
-                            <img src="IMAGE/NIKE2.png" class="shoe-img" alt="Nike Airmax Black">
+                            <img src="IMAGE/NIKE2.png" class="shoe-img flip-horizontal" alt="Nike Airmax Black">
                             <span class="badge-new">New</span>
                         </div>
                         <div class="shoe-info-box">
@@ -304,7 +320,7 @@
                     </div>
                     <div class="shoe-card" data-gender="Women" data-size="7" style="cursor:pointer;" onclick="viewProduct('Nike','Nike GT CUT 2 LEAP HIGH','P1,999.00','IMAGE/NIKE3.png','New')">
                         <div class="shoe-img-box">
-                            <img src="IMAGE/NIKE3.png" class="shoe-img" alt="Nike GT CUT 2 LEAP HIGH">
+                            <img src="IMAGE/NIKE3.png" class="shoe-img flip-horizontal" alt="Nike GT CUT 2 LEAP HIGH">
                         </div>
                         <div class="shoe-info-box">
                             <div class="shoe-info-top">
@@ -316,7 +332,7 @@
                     </div>
                     <div class="shoe-card" data-gender="Women" data-size="8" style="cursor:pointer;" onclick="viewProduct('Nike','Nike Airmax White','P2,199.00','IMAGE/NIKE4.png','New')">
                         <div class="shoe-img-box">
-                            <img src="IMAGE/NIKE4.png" class="shoe-img" alt="Nike Airmax White">
+                            <img src="IMAGE/NIKE4.png" class="shoe-img flip-horizontal" alt="Nike Airmax White">
                         </div>
                         <div class="shoe-info-box">
                             <div class="shoe-info-top">
@@ -328,7 +344,7 @@
                     </div>
                     <div class="shoe-card" data-gender="Men" data-size="10" style="cursor:pointer;" onclick="viewProduct('Nike','Nike Airmax Red','P2,299.00','IMAGE/NIKE5.png','New')">
                         <div class="shoe-img-box">
-                            <img src="IMAGE/NIKE5.png" class="shoe-img" alt="Nike Airmax Red">
+                            <img src="IMAGE/NIKE5.png" class="shoe-img flip-horizontal" alt="Nike Airmax Red">
                         </div>
                         <div class="shoe-info-box">
                             <div class="shoe-info-top">
@@ -338,11 +354,111 @@
                             <div class="shoe-info-bottom">Nike Airmax Red</div>
                         </div>
                     </div>
+                    <!-- Sale items added from Home -> Sale -->
+                    <div class="shoe-card" data-gender="Women" data-size="8" style="cursor:pointer;" onclick="viewProduct('Cloudtilt','Cloudtilt Iron Dew Womens','P1,299.00','IMAGE/SALESSHOE1.png','Sale')">
+                        <div class="shoe-img-box">
+                            <img src="IMAGE/SALESSHOE1.png" class="shoe-img" alt="Cloudtilt Iron Dew Womens">
+                            <span class="badge-sale">Sale</span>
+                        </div>
+                        <div class="shoe-info-box">
+                            <div class="shoe-info-top">
+                                <span class="shoe-brand">Cloudtilt</span>
+                                <span><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span>
+                            </div>
+                            <div class="shoe-info-bottom">Cloudtilt Iron Dew Womens</div>
+                        </div>
+                    </div>
+                    <div class="shoe-card" data-gender="Men" data-size="9" style="cursor:pointer;" onclick="viewProduct('New Balance','New Balance 530','P1,299.00','IMAGE/SALESSHOE2.png','Sale')">
+                        <div class="shoe-img-box">
+                            <img src="IMAGE/SALESSHOE2.png" class="shoe-img" alt="New Balance 530">
+                            <span class="badge-sale">Sale</span>
+                        </div>
+                        <div class="shoe-info-box">
+                            <div class="shoe-info-top">
+                                <span class="shoe-brand">New Balance</span>
+                                <span><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span>
+                            </div>
+                            <div class="shoe-info-bottom">New Balance 530</div>
+                        </div>
+                    </div>
                 </div>
             </section>
         </div>
+        </div>
     </main>
     
+    <script>
+    // Header nav helpers (product-list)
+    function goToSale(){ window.location.href = 'product-list.html?filter=sale'; }
+    function goToNewArrivals(){ window.location.href = 'product-list.html?filter=new'; }
+    // Brand dropdown toggle for product-list header
+    document.addEventListener('DOMContentLoaded', function(){
+        var brandNav = document.getElementById('brandNavPL');
+        var brandDropdown = document.getElementById('brandDropdownPL');
+        if(!brandNav || !brandDropdown) return;
+        brandNav.addEventListener('click', function(e){
+            e.stopPropagation();
+            var showing = brandDropdown.style.display === 'block';
+            brandDropdown.style.display = showing ? 'none' : 'block';
+        });
+        document.addEventListener('click', function(){ brandDropdown.style.display = 'none'; });
+
+        // Read URL params and pre-filter cards if needed
+        var params = new URLSearchParams(window.location.search);
+        var qBrand = params.get('brand');
+        var qFilter = params.get('filter');
+        function applyUrlFilters(){
+            // hide the large Brands section when a specific filter/brand is active
+            var brandsSection = document.getElementById('brands');
+            if(brandsSection && (qBrand || qFilter)) brandsSection.style.display = 'none';
+
+            // apply card filtering
+            var cards = Array.from(document.querySelectorAll('.shoe-card'));
+            var visibleCount = 0;
+            cards.forEach(function(card){
+                var keep = true;
+                if(qBrand){
+                    var b = (card.getAttribute('data-brand')||'').toLowerCase();
+                    if(b !== qBrand.toLowerCase()) keep = false;
+                }
+                if(qFilter === 'sale'){
+                    var badge = card.querySelector('.badge-sale');
+                    if(!badge) keep = false;
+                }
+                if(qFilter === 'new'){
+                    var badge = card.querySelector('.badge-new');
+                    if(!badge) keep = false;
+                }
+                card.style.display = keep ? '' : 'none';
+                if(keep) visibleCount++;
+            });
+
+            // show no-results message if nothing matched
+            var content = document.querySelector('.productlist-content');
+            if(!content) return;
+            var existing = document.querySelector('.no-results-message');
+            if(existing) existing.remove();
+            if(visibleCount === 0){
+                var msg = 'No matching products';
+                if(qFilter === 'sale') msg = 'No shoes on Sale';
+                else if(qFilter === 'new') msg = 'No New Arrivals';
+                else if(qBrand) msg = 'No ' + qBrand + ' shoes';
+                var el = document.createElement('div');
+                el.className = 'no-results-message';
+                el.style.padding = '28px';
+                el.style.color = '#666';
+                el.style.fontSize = '1.05rem';
+                el.textContent = msg;
+                content.insertBefore(el, content.firstChild);
+            }
+        }
+
+        if(qBrand || qFilter){
+            // run after a brief delay to ensure cards rendered
+            setTimeout(applyUrlFilters, 150);
+        }
+    });
+    </script>
     <script>
     function viewProduct(brand, name, price, img, badge) {
         localStorage.setItem('productBrand', brand);
@@ -357,9 +473,9 @@
     });
     // Navigation bar functions (copied from home.html)
     function goToHomeTop() { window.location.href = 'home.html#top'; }
-    function goToSale() { window.location.href = 'home.html#sale'; }
-    function goToNewArrivals() { window.location.href = 'home.html#new-arrivals'; }
-    function goToBrands() { window.location.href = 'home.html#brands'; }
+    function goToSale() { window.location.href = 'product-list.html?filter=sale'; }
+    function goToNewArrivals() { window.location.href = 'product-list.html?filter=new'; }
+    function goToBrands() { window.location.href = 'product-list.html'; }
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToUserPage() { window.location.href = 'profile.html'; }
     function goToCartPage() { window.location.href = 'cart.html'; }
@@ -378,62 +494,288 @@
             }
         }
     }
-    // Gender filter
+    // Gender filter: delegate to unified filter so all controls combine correctly
     function filterGender() {
-        var men = document.getElementById('genderMen').checked;
-        var women = document.getElementById('genderWomen').checked;
-        var cards = document.querySelectorAll('.shoe-card');
-        cards.forEach(card => {
-            var gender = card.getAttribute('data-gender');
-            if ((men && gender === 'Men') || (women && gender === 'Women') || (men && women) || (!men && !women)) {
-                card.style.display = '';
+        applyAllFilters();
+    }
+    // Size filter + EU/US toggle with persistent selected sizes (stored as EU internally)
+    (function(){
+        const EU_SIZES = ['36','37','38','39','40','41','42','43','44','45'];
+        const US_SIZES = ['5','5.5','6.5','7','7.5','8','8.5','9.5','10','11'];
+        const US_TO_EU = { '5':'36','5.5':'37','6.5':'38','7':'39','7.5':'40','8':'41','8.5':'42','9.5':'43','10':'44','11':'45' };
+        const EU_TO_US = Object.fromEntries(Object.entries(US_TO_EU).map(([u,e])=>[e,u]));
+
+        function getStandard(){ return localStorage.getItem('sizeStandard') || 'EU'; }
+        function setStandard(v){ localStorage.setItem('sizeStandard', v); }
+
+        // selected sizes are stored as an array of EU sizes in localStorage.selectedEU
+        function getSelectedEU(){ try{ return JSON.parse(localStorage.getItem('selectedEU') || '[]'); }catch(e){ return []; } }
+        function setSelectedEU(arr){ localStorage.setItem('selectedEU', JSON.stringify(Array.from(new Set(arr)))); }
+        function toggleSelectedEU(eu){ const cur = new Set(getSelectedEU()); if(cur.has(eu)) cur.delete(eu); else cur.add(eu); setSelectedEU([...cur]); }
+
+        const euBtn = document.getElementById('euBtn');
+        const usBtn = document.getElementById('usBtn');
+        const sizeBtnRow = document.getElementById('sizeBtnRow');
+
+        function clearSizeButtons(){ sizeBtnRow.innerHTML = ''; }
+
+        function renderSizeButtons(){
+            clearSizeButtons();
+            const std = getStandard();
+            const sizes = (std === 'EU') ? EU_SIZES : US_SIZES;
+            const selectedEU = new Set(getSelectedEU());
+            sizes.forEach(sz => {
+                const b = document.createElement('button');
+                b.className = 'size-btn';
+                b.textContent = sz;
+                b.dataset.size = sz;
+                // determine the EU equivalent for this button
+                const eu = (std === 'EU') ? sz : (US_TO_EU[sz] || null);
+                if(eu && selectedEU.has(eu)) b.classList.add('active');
+                b.addEventListener('click', function(){
+                    if(!eu) return;
+                    toggleSelectedEU(eu);
+                    // re-render to keep visual state consistent across standards
+                    renderSizeButtons();
+                    applyAllFilters();
+                });
+                sizeBtnRow.appendChild(b);
+            });
+            // style standard buttons
+            if(getStandard() === 'EU'){
+                euBtn.style.background = '#222'; euBtn.style.color = '#fff'; euBtn.style.borderColor = '#222';
+                usBtn.style.background = '#fff'; usBtn.style.color = '#222'; usBtn.style.borderColor = '#ccc';
             } else {
-                card.style.display = 'none';
+                usBtn.style.background = '#222'; usBtn.style.color = '#fff'; usBtn.style.borderColor = '#222';
+                euBtn.style.background = '#fff'; euBtn.style.color = '#222'; euBtn.style.borderColor = '#ccc';
+            }
+        }
+
+        euBtn.addEventListener('click', function(){ setStandard('EU'); renderSizeButtons(); applyAllFilters(); });
+        usBtn.addEventListener('click', function(){ setStandard('US'); renderSizeButtons(); applyAllFilters(); });
+
+        function getCardProductInfo(card){
+            let brand = card.getAttribute('data-brand') || '';
+            let title = card.getAttribute('data-title') || '';
+            if(!brand || !title){
+                const onclick = card.getAttribute('onclick') || '';
+                const m = onclick.match(/viewProduct\(\s*'([^']*)'\s*,\s*'([^']*)'/);
+                if(m){ brand = brand || m[1]; title = title || m[2]; }
+            }
+            return { brand: (brand||'').trim(), title: (title||'').trim() };
+        }
+
+        function findInventoryForProduct(product){
+            try{
+                const inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                if(!Array.isArray(inv)) return null;
+                const title = (product.title||'').trim();
+                const brand = (product.brand||'').trim();
+                let found = inv.find(i => (i.name||'').toString().trim() === title);
+                if(!found) found = inv.find(i => title && (i.name||'').toString().toLowerCase().indexOf(title.toLowerCase()) !== -1);
+                if(!found && brand) found = inv.find(i => (i.brand||'').toString().toLowerCase() === brand.toLowerCase());
+                return found || null;
+            }catch(e){ return null; }
+        }
+
+        // Render inventory items (admin-posted) into the product grid
+        function renderInventoryCards(){
+            try{
+                var grid = document.getElementById('productGrid');
+                if(!grid) return;
+                var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                if(!Array.isArray(inv)) return;
+                // append each inventory item if not already present (by data-id)
+                inv.forEach(function(item){
+                    if(!item || !item.id) return;
+                    // avoid duplicates
+                    if(grid.querySelector('.shoe-card[data-id="'+item.id+'"]')) return;
+                    var card = document.createElement('div');
+                    card.className = 'shoe-card';
+                    card.setAttribute('data-id', item.id);
+                    if(item.gender) card.setAttribute('data-gender', item.gender);
+                    // choose a size attribute for display (first available or 8)
+                    var displaySize = '';
+                    if(item.sizes){ for(var s in item.sizes){ if(Number(item.sizes[s])>0){ displaySize = s; break; } } }
+                    if(displaySize) card.setAttribute('data-size', displaySize);
+                    card.style.cursor = 'pointer';
+                    var priceText = 'P' + Number(item.price||0).toLocaleString(undefined,{minimumFractionDigits:2});
+                    var imgSrc = (item.image) ? item.image : 'IMAGE/NIKE1.png';
+                    var badge = item.badge || '';
+                    // build inner HTML
+                    var badgeHtml = badge ? '<span class="badge-new">'+badge+'</span>' : '';
+                    var flipClass = (item.brand && item.brand.toString().toLowerCase().indexOf('nike')!==-1) ? ' flip-horizontal' : '';
+                    var infoTopPrice = '<span class="shoe-brand">'+(item.brand||'')+'</span><span class="shoe-price">'+priceText+'</span>';
+                    var inner = '<div class="shoe-img-box"><img src="'+imgSrc+'" class="shoe-img'+flipClass+'" alt="'+(item.name||'Product')+'">'+(badge?('<span class="badge-sale">'+badge+'</span>'):'')+'</div>'+
+                                '<div class="shoe-info-box"><div class="shoe-info-top">'+infoTopPrice+'</div><div class="shoe-info-bottom">'+(item.name||'')+'</div></div>';
+                    card.innerHTML = inner;
+                    // onclick to view product
+                    card.addEventListener('click', function(){
+                        viewProduct(item.brand||'', item.name||'', priceText, imgSrc, badge||'');
+                    });
+                    // insert at beginning so newest appear first
+                    grid.insertBefore(card, grid.firstChild);
+                });
+            }catch(e){ console.error('renderInventoryCards error', e); }
+        }
+
+        function getQueryParam(name){
+            try{
+                const params = new URLSearchParams(window.location.search);
+                return params.get(name) || '';
+            }catch(e){ return ''; }
+        }
+
+        function applyAllFilters(){
+                const men = document.getElementById('genderMen') ? document.getElementById('genderMen').checked : true;
+                const women = document.getElementById('genderWomen') ? document.getElementById('genderWomen').checked : true;
+                const unisex = document.getElementById('genderUnisex') ? document.getElementById('genderUnisex').checked : true;
+                const selectedEU = getSelectedEU();
+
+                // gather selected brands (by value) - if none selected, show all brands
+                const selectedBrands = Array.from(document.querySelectorAll('.brand-checkbox:checked')).map(b=>b.value.toString().toLowerCase());
+
+                const cards = Array.from(document.querySelectorAll('.shoe-card'));
+                let visibleCount = 0;
+                const rawSearch = (document.getElementById('searchInput') ? document.getElementById('searchInput').value.trim() : '') || getQueryParam('search') || '';
+                const searchTerm = rawSearch.toString().toLowerCase();
+
+                cards.forEach(card => {
+                    const gender = (card.getAttribute('data-gender') || '').toString();
+
+                    // gender filtering: if no gender checkboxes are checked, treat as 'show all'
+                    const anyGenderChecked = men || women || unisex;
+                    let genderPass = true;
+                    if(anyGenderChecked){
+                        genderPass = ((men && gender === 'Men') || (women && gender === 'Women') || (unisex && gender === 'Unisex'));
+                    }
+                    if(!genderPass){ card.style.display = 'none'; return; }
+
+                    // brand filtering
+                    const prod = getCardProductInfo(card);
+                    const brandName = (prod.brand || '').toString().toLowerCase();
+                    if(selectedBrands.length > 0 && brandName){
+                        if(selectedBrands.indexOf(brandName) === -1){ card.style.display = 'none'; return; }
+                    }
+
+                    // search filtering (match title or brand)
+                    if(searchTerm){
+                        const titleText = (prod.title || '').toString().toLowerCase();
+                        // also check visible card text as fallback
+                        const cardText = (card.textContent || '').toString().toLowerCase();
+                        if(!(titleText.includes(searchTerm) || brandName.includes(searchTerm) || cardText.includes(searchTerm))){
+                            card.style.display = 'none'; return;
+                        }
+                    }
+
+                    // size filtering
+                    if(selectedEU.length === 0){ card.style.display = ''; visibleCount++; return; }
+
+                    const invRow = findInventoryForProduct(prod);
+                    if(!invRow){ card.style.display = ''; visibleCount++; return; }
+
+                    let sizeMatch = false;
+                    for(const eu of selectedEU){
+                        const qty = (invRow.sizes && (invRow.sizes[eu] !== undefined)) ? Number(invRow.sizes[eu]) : null;
+                        if(qty !== null && qty > 0){ sizeMatch = true; break; }
+                    }
+                    card.style.display = sizeMatch ? '' : 'none';
+                    if(sizeMatch) visibleCount++;
+                });
+
+                // update caption based on search
+                try{
+                    const capEl = document.getElementById('productlist-caption');
+                    const clearBtn = document.getElementById('clearSearchBtn');
+                    if(capEl){
+                        if(rawSearch){
+                            if(visibleCount > 0) capEl.textContent = `Showing ${visibleCount} product${visibleCount>1? 's':''} for "${rawSearch}"`;
+                            else capEl.textContent = `No results found for "${rawSearch}"`;
+                            if(clearBtn) clearBtn.style.display = 'block';
+                        } else {
+                            capEl.textContent = '';
+                            if(clearBtn) clearBtn.style.display = 'none';
+                        }
+                    }
+                }catch(e){ /* ignore caption errors */ }
+        }
+
+        window.addEventListener('storage', function(e){
+            if(e.key === 'inventory' || e.key === 'sizeStandard' || e.key === 'selectedEU'){
+                try{ if(e.key === 'inventory') renderInventoryCards(); }catch(_){}
+                renderSizeButtons();
+                applyAllFilters();
             }
         });
-    }
-    // Size filter
-    function toggleSize(btn) {
-        btn.classList.toggle('active');
-        var activeSizes = Array.from(document.querySelectorAll('.size-btn.active')).map(b => b.textContent.trim());
-        var cards = document.querySelectorAll('.shoe-card');
-        cards.forEach(card => {
-            var size = card.getAttribute('data-size');
-            if (activeSizes.length === 0 || activeSizes.includes(size)) {
-                card.style.display = '';
-            } else {
-                card.style.display = 'none';
-            }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            if(!localStorage.getItem('sizeStandard')) localStorage.setItem('sizeStandard','EU');
+            if(!localStorage.getItem('selectedEU')) localStorage.setItem('selectedEU', JSON.stringify([]));
+            renderSizeButtons();
+            // render any admin-posted inventory cards
+            try{ renderInventoryCards(); }catch(_){}
+            // if a search param exists in URL, populate the nav search input so users can cancel/see it
+            try{
+                const raw = getQueryParam('search');
+                const si = document.getElementById('searchInput');
+                if(raw && si) si.value = raw;
+            }catch(e){}
+            applyAllFilters();
+            // wire clear button
+            try{
+                const clearBtn = document.getElementById('clearSearchBtn');
+                if(clearBtn){
+                    clearBtn.addEventListener('click', function(){
+                        const si = document.getElementById('searchInput');
+                        if(si) si.value = '';
+                        // remove search param from URL without reload
+                        try{
+                            const url = new URL(window.location.href);
+                            url.searchParams.delete('search');
+                            window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+                        }catch(e){}
+                        applyAllFilters();
+                        // hide caption/clear button
+                        const cap = document.getElementById('productlist-caption');
+                        if(cap) cap.textContent = '';
+                        clearBtn.style.display = 'none';
+                    });
+                }
+            }catch(e){}
+            window.applyAllFilters = applyAllFilters;
         });
-    }
-    // Initial filter: show all
+    })();
+    // Initial filter: show all (use unified filter)
     window.addEventListener('DOMContentLoaded', function() {
-        filterGender();
+        if (typeof applyAllFilters === 'function') applyAllFilters();
     });
+    // When page regains focus (user navigates back here), refresh inventory cards and filters
+    window.addEventListener('focus', function(){ try{ renderInventoryCards(); renderSizeButtons(); if(typeof applyAllFilters==='function') applyAllFilters(); }catch(e){} });
+    document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'){ try{ renderInventoryCards(); renderSizeButtons(); if(typeof applyAllFilters==='function') applyAllFilters(); }catch(e){} } });
     </script>
 
 
 
-    <footer>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:48px;">
-        <div style="flex:2;min-width:0;width:80%;">
-          <div style="font-size:1.3rem;font-weight:600;margin-bottom:18px;">Have questions?</div>
-          <div style="font-size:1.05rem;font-weight:400;margin-bottom:12px;">Contact us at our facebook page</div>
-          <div style="font-size:1.05rem;font-weight:400;margin-bottom:24px;margin-top:18px;">Or via phone/email</div>
-          <div style="display:flex;flex-direction:column;">
-            <span style="width:93%;height:2px;background:#444;margin:18px 0 12px 0;display:inline-block;"></span>
-            <span style="font-size:0.92rem;color:#bbb;display:inline-block;width:93%;">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br /><br />© 2025 Shoe Pao Footwear. All rights reserved.</span>
-          </div>
-        </div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:12px;align-items:flex-end;min-width:180px;justify-content:flex-start;margin-top:18px;padding-right:14.1%;">
-          <span style="font-size:1.05rem;margin-bottom:2px;">About Us</span>
-          <span style="font-size:1.05rem;margin-bottom:2px;">Shipping</span>
-          <span style="font-size:1.05rem;margin-bottom:2px;">Returns & Exchanges</span>
-          <span style="font-size:1.05rem;margin-bottom:2px;">Privacy Policy</span>
-          <span style="font-size:1.05rem;margin-bottom:2px;">Terms of Service</span>
-        </div>
-      </div>
-    </footer>
+        <footer class="footer-section">
+            <div class="site-container">
+                <div class="footer-row">
+                    <div class="footer-left">
+                        <div class="footer-header">Have questions?</div>
+                        <div class="footer-subheader">Contact us at our facebook page</div>
+                        <div class="footer-subheader" style="margin-top:18px;">Or via phone/email</div>
+                        <div class="footer-divider"></div>
+                        <div class="footer-note">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br><br>© 2025 Shoe Pao Footwear. All rights reserved.</div>
+                    </div>
+                    <div class="footer-right">
+                        <a href="#" class="footer-link">About Us</a>
+                        <a href="#" class="footer-link">Shipping</a>
+                        <a href="#" class="footer-link">Returns & Exchanges</a>
+                        <a href="#" class="footer-link">Privacy Policy</a>
+                        <a href="#" class="footer-link">Terms of Service</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
 
     <!-- ===== ADDED: Cart Overlay + Sidebar HTML (from product-view.html) ===== -->
     <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
