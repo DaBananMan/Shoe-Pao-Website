@@ -565,6 +565,22 @@
             return { brand: (brand||'').trim(), title: (title||'').trim() };
         }
 
+        // ===== ADDED: default seed inventory for first-time visitors =====
+        // If a visitor hasn't visited the admin `inventory.html` page yet,
+        // localStorage.inventory may be empty. Seed it here so product-list
+        // shows stock and admin-posted items to first-time visitors.
+        var defaultInventorySeed = [
+            { id:'#P001', name:'Nike Airmax TN Aqua Blue', brand:'Nike', color:'Aqua Blue', image:'IMAGE/NIKE1.png', sizes:{'36':6,'37':8,'38':4,'39':10,'40':6,'41':5,'42':3,'43':2,'44':1,'45':0}, price:1299 },
+            { id:'#P002', name:'Nike Airmax Black', brand:'Nike', color:'Black', image:'IMAGE/NIKE2.png', sizes:{'36':4,'37':2,'38':10,'39':6,'40':7,'41':8,'42':2,'43':11,'44':7,'45':3}, price:2395 },
+            { id:'#P003', name:'Nike GT CUT 2 LEAP HIGH', brand:'Nike', color:'Multicolor', image:'IMAGE/NIKE3.png', sizes:{'36':2,'37':3,'38':6,'39':5,'40':4,'41':3,'42':2,'43':1,'44':0,'45':0}, price:1999 },
+            { id:'#P004', name:'Nike Airmax White', brand:'Nike', color:'White', image:'IMAGE/NIKE4.png', sizes:{'36':6,'37':5,'38':4,'39':6,'40':5,'41':4,'42':3,'43':2,'44':1,'45':0}, price:2199 },
+            { id:'#P005', name:'Nike Airmax Red', brand:'Nike', color:'Red', image:'IMAGE/NIKE5.png', sizes:{'36':3,'37':4,'38':5,'39':6,'40':7,'41':6,'42':5,'43':4,'44':3,'45':2}, price:2299 },
+            { id:'#P006', name:'Cloudtilt Iron Dew Womens', brand:'Cloudtilt', color:'Iridescent', image:'IMAGE/SALESSHOE1.png', sizes:{'36':5,'37':6,'38':7,'39':8,'40':4,'41':2,'42':1,'43':0,'44':0,'45':0}, price:1299 },
+            { id:'#P007', name:'New Balance 530', brand:'New Balance', color:'Silver', image:'IMAGE/SALESSHOE2.png', sizes:{'36':6,'37':12,'38':2,'39':10,'40':4,'41':5,'42':5,'43':1,'44':2,'45':5}, price:1299 }
+        ];
+        try{ if(!localStorage.getItem('inventory')) localStorage.setItem('inventory', JSON.stringify(defaultInventorySeed)); }catch(e){}
+
+
         function findInventoryForProduct(product){
             try{
                 const inv = JSON.parse(localStorage.getItem('inventory') || '[]');
