@@ -48,10 +48,13 @@
 .cart-overlay.show {
     display: block;
 }
+/* Off-canvas cart sidebar using transform so it doesn't affect layout
+   or create horizontal overflow when hidden. */
 .cart-sidebar {
     position: fixed;
     top: 0;
-    right: -440px; /* hidden by default */
+    right: 0; /* pinned to right, but pushed out of view using transform */
+    transform: translateX(100%); /* hidden off-canvas without changing layout */
     width: 420px;
     max-width: 98vw;
     height: 100vh;
@@ -62,11 +65,11 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    transition: right 0.28s ease;
+    transition: transform 0.28s ease;
     font-family: 'Poppins', Arial, sans-serif;
 }
 .cart-sidebar.open {
-    right: 0;
+    transform: translateX(0);
 }
 .cart-header-row {
     display: flex;
@@ -208,29 +211,7 @@
     padding: 18px 0;
     text-align: center;
 }
-.cart-sidebar {
-    position: fixed;
-    top: 0;
-    right: -440px;
-    width: 420px;
-    max-width: 98vw;
-    height: 100vh;
-    background: #fff;
-    box-shadow: -12px 0 32px rgba(34,34,34,0.18);
-    z-index: 99999;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    transition: right 0.28s ease;
-    font-family: 'Poppins', Arial, sans-serif;
-}
-.cart-sidebar.open {
-    right: 0;
-}
-.cart-sidebar.open {
-    right: 0;
-}
+/* Duplicate cart-sidebar rules removed (off-canvas transform implementation used earlier) */
 .cart-header-row {
     display: flex;
     justify-content: space-between;
@@ -516,6 +497,15 @@
     margin-bottom: 0 !important;
 }
 
+/* When header uses .site-container inside the nav, ensure the
+   container lays out the left and right header regions side-by-side. */
+.homepage-header .site-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
 /* Sticky footer layout for product-list.html */
 .productlist-body {
     height: 100vh;
@@ -545,10 +535,29 @@
     padding-bottom: 0 !important;
     min-height: 0 !important;
 }
+/* Layout: place sidebar to the left and product content to the right */
+.productlist-main {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 28px;
+}
+.productlist-sidebar {
+    flex: 0 0 260px; /* fixed-ish sidebar width */
+}
+.productlist-content {
+    flex: 1 1 auto;
+    min-width: 0; /* allow children to shrink inside flex */
+}
 /* Sticky Footer Layout for Product List */
-body, html {
+html, body {
     margin: 0;
     padding: 0;
+    /* Hide any horizontal overflow caused by off-canvas UI (cart sidebar,
+       modals, etc.). We keep the cart off-canvas via transform but some
+       browsers still report it as overflowing; hiding horizontal overflow
+       prevents the visible white bar while preserving the slide-in animation. */
+    overflow-x: hidden;
 }
 .main-wrapper {
     display: flex;
@@ -582,6 +591,99 @@ body, html {
     font-weight: 500;
     color: #222;
     margin-bottom: 0;
+}
+
+/* Canonical footer styles (moved from home.html) */
+.footer-section {
+    background: #111;
+    color: #fff;
+    /* Remove footer's own horizontal vw padding since we wrap footer
+       inner content with .site-container which provides consistent
+       left/right padding aligned with the header. This prevents
+       double-padding that can push footer text off-screen. */
+    padding: 48px 0 24px 0;
+    margin-top: 64px;
+}
+.footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 48px;
+}
+.footer-left {
+    flex: 2;
+}
+.footer-header {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 18px;
+}
+.footer-subheader {
+    font-size: 1.05rem;
+    font-weight: 400;
+    margin-bottom: 12px;
+}
+.footer-divider {
+    width: 100%;
+    height: 2px;
+    background: #444;
+    margin: 18px 0 12px 0;
+}
+.footer-note {
+    font-size: 0.92rem;
+    color: #bbb;
+    margin-top: 12px;
+}
+.footer-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-end;
+}
+.footer-link {
+    color: #fff;
+    font-size: 1.05rem;
+    text-decoration: none;
+    margin-bottom: 2px;
+    transition: color 0.2s;
+}
+.footer-link:hover { color: #b71c1c; }
+
+@media (max-width: 700px) {
+    .footer-row { flex-direction: column; gap: 18px; }
+    .footer-right { align-items: flex-start; }
+}
+
+/* Site-wide content container to keep consistent spacing across pages.
+   Use by inserting <div class="site-container"> directly after the header/nav
+   and closing it before the footer. This ensures left/right padding aligns with
+   header controls (logo, cart) while keeping footer full-width unless wrapped. */
+.site-container {
+    /* Use padding to align content with the header controls (logo, cart).
+       Padding keeps the page width at 100% while shifting inner content
+       to match the nav without introducing extra page margins that
+       can cause centering or overflow. */
+    margin: 0;
+    width: 100%;
+    padding-left: 46px;
+    padding-right: 40px;
+    box-sizing: border-box;
+}
+
+/* Debug helper: add class 'debug-layout' to <body> to visualize container and footer bounds
+   Use in the browser console to diagnose alignment: document.body.classList.add('debug-layout')
+   Remove with: document.body.classList.remove('debug-layout') */
+.debug-layout .site-container { outline: 2px dashed rgba(0,128,255,0.6); }
+.debug-layout .footer-row { outline: 2px dashed rgba(255,128,0,0.6); }
+
+@media (max-width: 900px) {
+    .site-container {
+        /* Use symmetric inner padding on small screens instead of margins */
+        padding-left: 16px;
+        padding-right: 16px;
+        width: 100%;
+    }
 }
 
 /* --- POPPINS FONT USAGE FOR LOGIN AND SIGNUP PAGE --- */

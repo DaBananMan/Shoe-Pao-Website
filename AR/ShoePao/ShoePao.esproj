@@ -1,0 +1,45 @@
+studioVersion:
+  major: 5
+  minor: 16
+  patch: 0
+  build: 25111305
+  type: Public
+coreVersion: 336
+clientVersion: 13.66
+updateCheckpoint: 81
+sceneId: 0a1ccb1a-fe88-4fbb-9883-e3af3c75fd99
+metaInfo:
+  hints:
+    []
+  tags:
+    []
+  lensName: Footwear Try-On AR
+  lensDescriptors:
+    []
+  lensApplicability:
+    - Front
+    - Back
+  lensClientCompatibilities:
+    - Mobile
+    - Web
+    - CameraKit
+  platformBundlesEnabled: false
+  iconHash: 942dc0e3a9112e3f40a2f9a21685ea97
+  videoPreviewHash: ""
+  fromTemplateName: Footwear Try On
+  fromTemplateUrl: Lens Studio 5.16.0.25111305
+  activationCamera: Rear
+  sourceMapEnabled: false
+  usingMinClientVersions: false
+  androidMinClientVersion:
+    major: 0
+    minor: 0
+    patch: 0
+    build: 0
+  iOSMinClientVersion:
+    major: 0
+    minor: 0
+    patch: 0
+    build: 0
+  documentId: d6ed82da-8040-485d-a0ae-17fceeb9a21b
+  originalDocumentId: d6ed82da-8040-485d-a0ae-17fceeb9a21b

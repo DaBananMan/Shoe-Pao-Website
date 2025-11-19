@@ -164,6 +164,10 @@
             max-height: 340px;
             padding-right: 8px;
         }
+        .flip-horizontal {
+            transform: scaleX(-1);
+            transform-origin: center;
+        }
         @media (max-width: 900px) {
             .wishlist-header, .wishlist-grid, .wishlist-recommend-header, .wishlist-recommend-grid {
                 max-width: 98vw;
@@ -197,30 +201,30 @@
             <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)" style="font-family:'Poppins',Arial,sans-serif;font-size:1rem;border:none;outline:none;width:220px;padding:6px 0;">
         </div>
     </nav>
-    <main class="wishlist-main-content">
+        <div class="site-container">
+            <main class="wishlist-main-content">
         <div class="wishlist-header">Your Wishlist</div>
         <div class="wishlist-grid" id="wishlistGrid"></div>
         <div class="wishlist-divider"></div>
         <div class="wishlist-recommend-header">You may also like</div>
         <div class="wishlist-recommend-grid" id="wishlistRecommendGrid"></div>
     </main>
-    <footer class="footer" style="background:#111;color:#fff;padding:48px 7vw 0 7vw;width:100%;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:48px;">
-            <div style="flex:2;min-width:0;width:80%;">
-                <div style="font-size:1.3rem;font-weight:600;margin-bottom:18px;">Have questions?</div>
-                <div style="font-size:1.05rem;font-weight:400;margin-bottom:12px;">Contact us at our facebook page</div>
-                <div style="font-size:1.05rem;font-weight:400;margin-bottom:24px;margin-top:18px;">Or via phone/email</div>
-                <div style="display:flex;flex-direction:column;">
-                    <span style="width:93%;height:2px;background:#444;margin:18px 0 12px 0;display:inline-block;"></span>
-                    <span style="font-size:0.92rem;color:#bbb;display:inline-block;width:93%;">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br /><br />© 2025 Shoe Pao Footwear. All rights reserved.</span>
-                </div>
             </div>
-            <div style="flex:1;display:flex;flex-direction:column;gap:12px;align-items:flex-end;min-width:180px;justify-content:flex-start;margin-top:18px;padding-right:14.1%;">
-                <span style="font-size:1.05rem;margin-bottom:2px;">About Us</span>
-                <span style="font-size:1.05rem;margin-bottom:2px;">Shipping</span>
-                <span style="font-size:1.05rem;margin-bottom:2px;">Returns & Exchanges</span>
-                <span style="font-size:1.05rem;margin-bottom:2px;">Privacy Policy</span>
-                <span style="font-size:1.05rem;margin-bottom:2px;">Terms of Service</span>
+        <footer class="footer-section">
+        <div class="footer-row">
+            <div class="footer-left">
+                <div class="footer-header">Have questions?</div>
+                <div class="footer-subheader">Contact us at our facebook page</div>
+                <div class="footer-subheader" style="margin-top:18px;">Or via phone/email</div>
+                <div class="footer-divider"></div>
+                <div class="footer-note">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br><br>© 2025 Shoe Pao Footwear. All rights reserved.</div>
+            </div>
+            <div class="footer-right">
+                <a href="#" class="footer-link">About Us</a>
+                <a href="#" class="footer-link">Shipping</a>
+                <a href="#" class="footer-link">Returns & Exchanges</a>
+                <a href="#" class="footer-link">Privacy Policy</a>
+                <a href="#" class="footer-link">Terms of Service</a>
             </div>
         </div>
     </footer>
@@ -233,6 +237,17 @@
     function goToFAQ() { window.location.href = 'faq.html'; }
     function goToContact() { window.location.href = 'contact.html'; }
     function goToUserPage() { window.location.href = 'profile.html'; }
+    // viewProduct helper (shared behavior with product-list)
+    function viewProduct(brand, name, price, img, badge) {
+        try{
+            localStorage.setItem('productBrand', brand || '');
+            localStorage.setItem('productTitle', name || '');
+            localStorage.setItem('productPrice', price || '');
+            localStorage.setItem('productImg', img || '');
+            localStorage.setItem('productBadge', badge || '');
+        }catch(e){}
+        window.location.href = 'product-view.html';
+    }
     function toggleSearchBox() {
         var box = document.getElementById('searchBox');
         box.style.display = (box.style.display === 'block') ? 'none' : 'block';
@@ -279,10 +294,12 @@
         wishlist.forEach(function(item, idx) {
             var card = document.createElement('div');
             card.className = 'wishlist-card';
+            // determine flip for Nike images
+            var flipClass = ((item.brand && item.brand.toString().toLowerCase().indexOf('nike') !== -1) || (item.image && item.image.toString().toLowerCase().indexOf('nike') !== -1)) ? ' flip-horizontal' : '';
             card.innerHTML = `
                 <button class="wishlist-card-delete-btn" title="Remove from Wishlist" data-idx="${idx}">&times;</button>
                 <div class="wishlist-card-img-box">
-                    <img src="${item.image}" class="wishlist-card-img" alt="${item.title}">
+                    <img src="${item.image}" class="wishlist-card-img${flipClass}" alt="${item.title}">
                     ${item.sale ? '<span class="wishlist-card-badge-sale">Sale</span>' : ''}
                 </div>
                 <div class="wishlist-card-info-box">
@@ -293,6 +310,17 @@
                     <div class="wishlist-card-info-bottom">${item.title}</div>
                 </div>
             `;
+            // make image and info clickable to view product (avoid clicks on delete button)
+            var imgBox = card.querySelector('.wishlist-card-img-box');
+            var infoBox = card.querySelector('.wishlist-card-info-box');
+            function onCardClick(e){
+                // if clicking the delete button, ignore
+                if(e.target.closest('.wishlist-card-delete-btn')) return;
+                // set product localStorage keys and navigate
+                viewProduct(item.brand || '', item.title || '', item.price || '', item.image || '', item.sale ? 'Sale' : '');
+            }
+            if(imgBox) imgBox.style.cursor = 'pointer', imgBox.addEventListener('click', onCardClick);
+            if(infoBox) infoBox.style.cursor = 'pointer', infoBox.addEventListener('click', onCardClick);
             grid.appendChild(card);
         });
         // Attach delete event
@@ -319,9 +347,10 @@
         recommend.forEach(function(item) {
             var card = document.createElement('div');
             card.className = 'wishlist-card';
+            var flipClass = ((item.brand && item.brand.toString().toLowerCase().indexOf('nike') !== -1) || (item.image && item.image.toString().toLowerCase().indexOf('nike') !== -1)) ? ' flip-horizontal' : '';
             card.innerHTML = `
                 <div class="wishlist-card-img-box">
-                    <img src="${item.image}" class="wishlist-card-img" alt="${item.title}">
+                    <img src="${item.image}" class="wishlist-card-img${flipClass}" alt="${item.title}">
                     ${item.sale ? '<span class="wishlist-card-badge-sale">New</span>' : ''}
                 </div>
                 <div class="wishlist-card-info-box">
@@ -332,6 +361,14 @@
                     <div class="wishlist-card-info-bottom">${item.title}</div>
                 </div>
             `;
+            // navigate to product view when clicking image or info
+            var imgBox = card.querySelector('.wishlist-card-img-box');
+            var infoBox = card.querySelector('.wishlist-card-info-box');
+            function onRecommendClick(e){
+                viewProduct(item.brand || '', item.title || '', item.price || '', item.image || '', item.sale ? 'New' : '');
+            }
+            if(imgBox) imgBox.style.cursor = 'pointer', imgBox.addEventListener('click', onRecommendClick);
+            if(infoBox) infoBox.style.cursor = 'pointer', infoBox.addEventListener('click', onRecommendClick);
             grid.appendChild(card);
         });
     }

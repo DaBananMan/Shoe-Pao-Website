@@ -20,13 +20,12 @@
             margin: 0;
             padding: 0;
             color: #222;
-            overflow-x: hidden;
         }
         .homepage-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 48px;
+            padding: 0;
             height: 72px;
             background: #fff;
             border-bottom: 1px solid #eee;
@@ -65,13 +64,13 @@
         .header-right {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 18px; /* match product-list header icon spacing */
         }
         .header-icon-btn {
             background: none;
             border: none;
             cursor: pointer;
-            padding: 0 2px;
+            padding: 6px; /* align with product-list icon button spacing */
             display: flex;
             align-items: center;
         }
@@ -119,13 +118,33 @@
         }
         .banner-content {
             position: absolute;
-            left: 0;
+            left: 7vw; /* inset banner content to align with page content */
             top: 140px;
             color: #fff;
             display: flex;
             flex-direction: column;
             gap: 18px;
         }
+        /* Brand dropdown styling */
+        .brand-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%; /* place right below the parent */
+            left: 50%; /* center under the parent */
+            transform: translateX(-50%);
+            background: #fff;
+            color: #222;
+            border: 1px solid #eee;
+            padding: 8px 10px;
+            border-radius: 6px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+            z-index: 120;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .brand-drop-link { display: inline-block; margin: 4px 8px; }
+    /* ensure brand nav container positions dropdown */
+    #brandNav { position: relative; }
         .banner-header {
             font-size: 2.2rem;
             font-weight: 700;
@@ -171,6 +190,27 @@
             color: #222;
             margin-left: 7vw;
             margin-bottom: 24px;
+        }
+        /* Make Sale header top spacing match the gap between Sale cards and New Arrival header */
+        /* Sale shoe cards use `margin-bottom: 48px` so we match that on desktop */
+        section#sale .section-header {
+            margin-top: 0; /* header already has bottom spacing; keep top zero */
+        }
+        @media (max-width: 900px) {
+            section#sale .section-header { margin-top: 0; }
+        }
+        @media (max-width: 700px) {
+            section#sale .section-header { margin-top: 0; }
+        }
+        /* Ensure spacing cannot collapse: add padding on the sale section itself to match sale-row bottom */
+        section#sale {
+            padding-top: 48px; /* match .sale-row { margin-bottom: 48px } */
+        }
+        @media (max-width: 900px) {
+            section#sale { padding-top: 24px; }
+        }
+        @media (max-width: 700px) {
+            section#sale { padding-top: 12px; }
         }
         /* center headers for Sale and New Arrivals only */
         section#sale .section-header,
@@ -477,24 +517,49 @@
 <body>
     <!-- Header Navigation -->
     <nav class="homepage-header">
-        <div class="header-left">
-            <img src="IMAGE/SHOEPAOLOGO.png" class="header-logo" alt="SHOEPAO Logo" onclick="scrollToTop()">
-            <span class="header-caption" onclick="scrollToTop()">Shoe Pao Footwear</span>
-            <span class="header-link" onclick="scrollToSection('sale')">Sale</span>
-            <span class="header-link" onclick="scrollToSection('new-arrivals')">New Arrivals</span>
-            <span class="header-link" onclick="scrollToSection('brands')">Brands</span>
-            <span class="header-link" onclick="goToProductList()">Shop All</span>
-        </div>
-        <div class="header-right">
-            <button class="header-icon-btn" onclick="toggleSearchBox()"><img src="IMAGE/SEARCHICON.png" class="header-icon" alt="Search"></button>
-            <button class="header-icon-btn" onclick="goToUserPage()"><img src="IMAGE/USERICON.png" class="header-icon" alt="User"></button>
-            <button class="header-icon-btn" onclick="goToCartPage()"><img src="IMAGE/CARTICON.png" class="header-icon" alt="Cart"></button>
-        </div>
-        <div class="search-box" id="searchBox">
-            <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)">
+        <div class="site-container">
+            <div class="header-left">
+                <img src="IMAGE/SHOEPAOLOGO.png" class="header-logo" alt="SHOEPAO Logo" onclick="scrollToTop()">
+                <span class="header-caption" onclick="scrollToTop()">Shoe Pao Footwear</span>
+                <span class="header-link" onclick="goToSale()">Sale</span>
+                <span class="header-link" onclick="goToNewArrivals()">New Arrivals</span>
+                <span class="header-link" id="brandNav">Brands
+                    <div class="brand-dropdown" id="brandDropdown" aria-hidden="true">
+                        <a href="product-list.html?brand=Nike" class="brand-drop-link"><img src="IMAGE/NIKELOGO.png" alt="Nike" style="height:28px;"></a>
+                        <a href="product-list.html?brand=Adidas" class="brand-drop-link"><img src="IMAGE/ADIDASLOGO.png" alt="Adidas" style="height:28px;"></a>
+                        <a href="product-list.html?brand=Cloudtilt" class="brand-drop-link"><img src="IMAGE/CLOUDTILTLOGO.png" alt="Cloudtilt" style="height:28px;"></a>
+                        <a href="product-list.html?brand=New%20Balance" class="brand-drop-link"><img src="IMAGE/NEWBALANCELOGO.png" alt="New Balance" style="height:28px;"></a>
+                    </div>
+                </span>
+                <span class="header-link" onclick="goToProductList()">Shop All</span>
+            </div>
+            <div class="header-right">
+                <button class="header-icon-btn" onclick="toggleSearchBox()"><img src="IMAGE/SEARCHICON.png" class="header-icon" alt="Search"></button>
+                <button class="header-icon-btn" onclick="goToUserPage()"><img src="IMAGE/USERICON.png" class="header-icon" alt="User"></button>
+                <button class="header-icon-btn" onclick="goToCartPage()"><img src="IMAGE/CARTICON.png" class="header-icon" alt="Cart"></button>
+            </div>
+            <div class="search-box" id="searchBox">
+                <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)">
+            </div>
         </div>
     </nav>
-
+    <script>
+    // Header nav helpers (home)
+    function goToSale(){ window.location.href = 'product-list.html?filter=sale'; }
+    function goToNewArrivals(){ window.location.href = 'product-list.html?filter=new'; }
+    // Toggle brand dropdown
+    document.addEventListener('DOMContentLoaded', function(){
+        var brandNav = document.getElementById('brandNav');
+        var brandDropdown = document.getElementById('brandDropdown');
+        if(!brandNav || !brandDropdown) return;
+        brandNav.addEventListener('click', function(e){
+            e.stopPropagation();
+            var showing = brandDropdown.style.display === 'flex';
+            brandDropdown.style.display = showing ? 'none' : 'flex';
+        });
+        document.addEventListener('click', function(){ brandDropdown.style.display = 'none'; });
+    });
+    </script>
     <!-- Banner 1: New Arrivals -->
     <section class="banner-section">
         <div class="banner" style="background-image: url('IMAGE/SHOEPAOBG1.png');">
@@ -515,9 +580,7 @@
             </div>
         </div>
     </section>
-    <!-- Divider -->
-    <div class="divider"></div>
-
+    <div class="site-container">
     <!-- Sale Section -->
     <section id="sale">
         <div class="section-header">Sale</div>
@@ -622,8 +685,10 @@
     </section>
 
     <!-- Footer Section -->
+    </div>
     <footer class="footer-section">
-        <div class="footer-row">
+        <div class="site-container">
+            <div class="footer-row">
             <div class="footer-left">
                 <div class="footer-header">Have questions?</div>
                 <div class="footer-subheader">Contact us at our facebook page</div>

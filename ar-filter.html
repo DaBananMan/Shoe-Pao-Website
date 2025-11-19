@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <title>Shoe Pao AR</title>
+  <!-- model-viewer for Web AR (Quick Look on iOS, WebXR on supported Android browsers) -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
   <style>
     body {
       margin: 0;
@@ -70,7 +72,20 @@
   <div class="ar-header" id="arHeader" style="cursor:pointer;pointer-events:auto;" role="link" tabindex="0">Shoe Pao AR</div>
   </div>
   <div class="camera-border-box">
-    <video id="camera" autoplay playsinline></video>
+    <!-- model-viewer sits above the video; if a 3D model URL is provided (localStorage.productModel)
+         we'll show the model-viewer and let it handle AR. Otherwise the video fallback will run. -->
+    <model-viewer id="mv"
+                  style="width:100%;height:100%;border-radius:14px;display:none;"
+                  alt="3D shoe model"
+                  shadow-intensity="1"
+                  camera-controls
+                  environment-image="neutral"
+                  ar
+                  ar-scale="auto"
+                  ios-src=""
+                  ></model-viewer>
+
+    <video id="camera" autoplay playsinline style="width:100%;height:100%;border-radius:14px;object-fit:cover;display:block;"></video>
   </div>
   <script>
     // Click on AR logo should return user to last viewed product if available
@@ -113,93 +128,74 @@
     status.textContent = 'Initializing AR...';
     document.body.appendChild(status);
 
+    // Elements
+    const cameraEl = document.getElementById('camera');
+    const mv = document.getElementById('mv');
+
+    // Utility to show/hide model-viewer vs video
+    function showModelViewer(src, iosSrc) {
+      if (!src) return false;
+      mv.src = src;
+      if (iosSrc) mv.setAttribute('ios-src', iosSrc);
+      mv.style.display = 'block';
+      cameraEl.style.display = 'none';
+      return true;
+    }
+
+    async function startFallbackCamera(){
+      try{
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia not supported');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        cameraEl.srcObject = stream;
+        await cameraEl.play();
+        cameraEl.style.display = 'block';
+        mv.style.display = 'none';
+        status.textContent = 'Camera running (fallback).';
+        return true;
+      }catch(e){
+        console.error('Fallback camera failed', e);
+        status.textContent = 'Camera unavailable. Check permissions and HTTPS.';
+        try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: e && e.message, stack: e && e.stack, time: (new Date()).toISOString(), fallback:true })); }catch(_){}
+        return false;
+      }
+    }
+
     (async function(){
-      const cameraEl = document.getElementById('camera');
-      const apiToken = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzU5MTg3NTE2LCJzdWIiOiJmZGFiNjE5MC03ZmMxLTQ0YWItYTYwMS1mYjMxYzIzZDliODR-UFJPRFVDVElPTn5hMDViOWU2Mi1hOWFkLTQ5ZGUtYjBlOC0yNzFmZjQ0YmRlZTQifQ.kbj8IFBzSTnfQX2EQjIMLYtW_VByy8_dUWnWOaBz2zo";
+      try{
+        // If the product has a 3D model URL stored in localStorage, prefer model-viewer AR
+        const modelUrl = localStorage.getItem('productModel');
+        const iosUrl = localStorage.getItem('productModelIOS'); // optional USDZ for iOS Quick Look
 
-      try {
-          status.textContent = 'Loading Snap Camera Kit...';
-          // Try importing the SDK from multiple ESM-friendly CDNs because some bundles use
-          // bare specifiers that the browser can't resolve (eg. "@snap/ts-inject").
-          async function tryImportSequential(urls){
-            let lastErr = null;
-            for(const u of urls){
-              try{
-                status.textContent = 'Importing camera kit from: ' + u;
-                const m = await import(u);
-                console.log('Imported camera kit from', u, m);
-                return m;
-              }catch(ie){
-                console.warn('Import failed for', u, ie);
-                lastErr = ie;
-              }
-            }
-            throw lastErr || new Error('All imports failed');
-          }
-
-          const cdnCandidates = [
-            'https://cdn.jsdelivr.net/npm/@snap/camera-kit@latest',
-            'https://cdn.skypack.dev/@snap/camera-kit',
-            'https://esm.sh/@snap/camera-kit'
-          ];
-
-          const mod = await tryImportSequential(cdnCandidates);
-          const bootstrapCameraKit = mod.bootstrapCameraKit || (mod.default && mod.default.bootstrapCameraKit) || (mod.CameraKit && mod.CameraKit.bootstrapCameraKit);
-          if (!bootstrapCameraKit) {
-            console.warn('camera kit exports:', Object.keys(mod || {}));
-            throw new Error('bootstrapCameraKit not found in module exports');
-          }
-
-          status.textContent = 'Bootstrapping Snap Camera Kit...';
-          const cameraKit = await bootstrapCameraKit({ apiToken });
-
-        status.textContent = 'Creating session...';
-        let session = null;
-        try {
-          session = await cameraKit.createSession({ video: cameraEl });
-        } catch (errA) {
-          try {
-            session = await cameraKit.createSession({ videoEl: cameraEl });
-          } catch (errB) {
-            console.error('cameraKit.createSession errors:', errA, errB);
-            throw new Error('Snap Camera Kit session creation failed');
-          }
-        }
-
-        status.textContent = 'Loading lens...';
-        const lens = await cameraKit.lensRepository.loadLens(
-          'a2628590-23ad-46e6-ab29-3d51c3aa0afb',
-          'e1398642-5877-468c-8f52-268df062c065'
-        );
-
-        status.textContent = 'Applying lens...';
-        await session.applyLens(lens);
-
-        status.textContent = 'Starting session...';
-        await session.play();
-        status.textContent = 'AR Ready';
-        console.log('Snap Camera Kit session started');
-        return;
-
-      } catch (err) {
-        console.warn('Snap Camera Kit failed — falling back to native camera. Error:', err);
-        // expose error details for easier debugging (visible and persisted)
-        try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: err && err.message, stack: err && err.stack, time: (new Date()).toISOString() })); }catch(e){}
-        status.textContent = 'Snap Camera Kit unavailable — using fallback camera: ' + ((err && err.message) || String(err));
-        try {
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia not supported');
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-          cameraEl.srcObject = stream;
-          await cameraEl.play();
-          status.textContent = 'Camera running (fallback). Snap features may be unavailable.';
+        if (modelUrl) {
+          status.textContent = 'Loading 3D model...';
+          // show model-viewer and enable AR button (model-viewer adds its own AR affordance)
+          showModelViewer(modelUrl, iosUrl || '');
+          status.textContent = '3D model ready — tap the AR icon to place in your space.';
+          // Ensure model-viewer has aria-label for accessibility
+          mv.setAttribute('aria-label', localStorage.getItem('productTitle') || '3D Shoe');
           return;
-        } catch (gmErr) {
-          console.error('Fallback camera failed', gmErr);
-          try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: gmErr && gmErr.message, stack: gmErr && gmErr.stack, time: (new Date()).toISOString(), fallback:true })); }catch(e){}
-          status.textContent = 'Camera unavailable. Check permissions, serve over HTTPS/localhost, and ensure a valid Snap API token.';
         }
+
+        // No model found — run camera fallback so users can still see themselves
+        status.textContent = 'No 3D model found — running camera fallback.';
+        await startFallbackCamera();
+      }catch(err){
+        console.error('AR init error', err);
+        status.textContent = 'AR initialization error — see console for details.';
+        try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: err && err.message, stack: err && err.stack, time: (new Date()).toISOString() })); }catch(_){}
+        await startFallbackCamera();
       }
     })();
+
+    // Expose a small helper to let other pages set the model and open this page in model-viewer mode.
+    window.loadModelAndOpenAR = function(modelSrc, iosSrc){
+      try{
+        if (modelSrc) localStorage.setItem('productModel', modelSrc);
+        if (iosSrc) localStorage.setItem('productModelIOS', iosSrc);
+        // reload to pick up the new model (simpler than dynamic switching for older browsers)
+        window.location.reload();
+      }catch(e){ console.warn(e); }
+    };
   </script>
 </body>
 </html>
