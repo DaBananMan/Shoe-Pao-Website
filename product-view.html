@@ -1507,6 +1507,18 @@ On page.</div>
             <span id="cartSubtotal" class="cart-subtotal-value">₱0.00</span>
         </div>
 
+        <!-- Packaging fee row (will be shown when applicable) -->
+        <div id="cartPackagingRow" class="cart-subtotal-row" style="display:none;">
+            <span class="cart-subtotal-label">Packaging Fee</span>
+            <span id="cartPackagingValue" class="cart-subtotal-value">₱0.00</span>
+        </div>
+
+        <!-- Total row -->
+        <div id="cartTotalRow" class="cart-subtotal-row" style="margin-top:8px;">
+            <span class="cart-subtotal-label">Total</span>
+            <span id="cartTotalValue" class="cart-subtotal-value">₱0.00</span>
+        </div>
+
         <button id="checkoutBtn" class="cart-checkout-btn">Checkout</button>
     </aside>
 
@@ -1605,8 +1617,24 @@ On page.</div>
         var overlay = document.getElementById('arModalOverlay');
         overlay.style.setProperty('display', 'none', 'important');
         document.body.style.overflow = '';
+        // stop any running AR session if available
+        try { if (window.stopARSession && typeof window.stopARSession === 'function') window.stopARSession(); } catch (e) { console.error(e); }
     }
     function goToARFilter() {
+        // Open the AR modal and start the AR session using the shared AR.js logic if available.
+        openARModal();
+        try {
+            if (window.startARSession && typeof window.startARSession === 'function') {
+                // start without container so the session output appends to the body
+                window.startARSession(null, { cameraType: 'front', mirror: true }).catch(function(err){
+                    console.error('startARSession failed', err);
+                    // fallback to redirect if AR cannot start
+                    window.location.href = 'ar-filter.html';
+                });
+                return;
+            }
+        } catch (e) { console.error(e); }
+        // fallback behavior: navigate to ar-filter page
         window.location.href = 'ar-filter.html';
     }
     // Navigation bar functions
@@ -1959,6 +1987,19 @@ On page.</div>
 
             cartCountEl.textContent = totalQty;
             cartSubtotalEl.textContent = formatPHP(subtotal);
+
+            // Update packaging fee and total if helper exists (or compute locally)
+            try {
+                var totals = (window.getCartTotals && typeof window.getCartTotals === 'function') ? window.getCartTotals(cart) : (function(){ var p = (window.computePackagingFee && typeof window.computePackagingFee === 'function') ? window.computePackagingFee(cart) : 0; return { subtotal: subtotal, packaging: p, total: subtotal + p }; })();
+                var pkgRow = document.getElementById('cartPackagingRow');
+                var pkgVal = document.getElementById('cartPackagingValue');
+                if (pkgVal) pkgVal.textContent = formatPHP(totals.packaging);
+                if (pkgRow) {
+                    pkgRow.style.display = (totals.packaging && totals.packaging > 0) ? '' : 'none';
+                }
+                var totalVal = document.getElementById('cartTotalValue');
+                if (totalVal) totalVal.textContent = formatPHP(totals.total);
+            } catch (e) { /* ignore any UI update errors */ }
 
             // attach events
             attachCartEvents();

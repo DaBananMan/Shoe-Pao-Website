@@ -162,7 +162,29 @@
 
     (async function(){
       try{
-        // If the product has a 3D model URL stored in localStorage, prefer model-viewer AR
+        // Try to load the optional AR.js module and start a CameraKit session first.
+        // If that succeeds, we won't run the fallback camera.
+        try {
+          // dynamic import; path is relative to this file
+          await import('./AR.js');
+          if (window.startARSession && typeof window.startARSession === 'function') {
+            status.textContent = 'Starting CameraKit AR session...';
+            try {
+              // attempt to mount the live output in the video placeholder
+              await window.startARSession('#camera', { cameraType: 'back', mirror: false });
+              status.textContent = 'CameraKit AR running.';
+              return; // done
+            } catch (arErr) {
+              console.warn('startARSession failed', arErr);
+              // continue to next fallback
+            }
+          }
+        } catch (modErr) {
+          // module import failed or not available — continue to model-viewer/fallback
+          console.warn('AR module import failed (continuing to fallback):', modErr);
+        }
+
+        // If we reach here, CameraKit wasn't started. Prefer 3D model if present.
         const modelUrl = localStorage.getItem('productModel');
         const iosUrl = localStorage.getItem('productModelIOS'); // optional USDZ for iOS Quick Look
 
@@ -182,7 +204,7 @@
       }catch(err){
         console.error('AR init error', err);
         status.textContent = 'AR initialization error — see console for details.';
-        try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: err && err.message, stack: err && err.stack, time: (new Date()).toISOString() })); }catch(_){}
+        try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: err && err.message, stack: err && err.stack, time: (new Date()).toISOString() })); }catch(_){ }
         await startFallbackCamera();
       }
     })();

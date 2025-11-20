@@ -578,7 +578,17 @@
             { id:'#P006', name:'Cloudtilt Iron Dew Womens', brand:'Cloudtilt', color:'Iridescent', image:'IMAGE/SALESSHOE1.png', sizes:{'36':5,'37':6,'38':7,'39':8,'40':4,'41':2,'42':1,'43':0,'44':0,'45':0}, price:1299 },
             { id:'#P007', name:'New Balance 530', brand:'New Balance', color:'Silver', image:'IMAGE/SALESSHOE2.png', sizes:{'36':6,'37':12,'38':2,'39':10,'40':4,'41':5,'42':5,'43':1,'44':2,'45':5}, price:1299 }
         ];
-        try{ if(!localStorage.getItem('inventory')) localStorage.setItem('inventory', JSON.stringify(defaultInventorySeed)); }catch(e){}
+        try{
+            // Merge seed into existing localStorage.inventory so product-list and admin inventory align
+            var _inv = JSON.parse(localStorage.getItem('inventory')||'null');
+            if(!Array.isArray(_inv)) _inv = [];
+            defaultInventorySeed.forEach(function(s){
+                var exists = _inv.find(function(i){ if(!i) return false; if(i.id && s.id && i.id===s.id) return true; var iname=(i.name||'').toString().trim().toLowerCase(); var sname=(s.name||'').toString().trim().toLowerCase(); return iname && sname && iname===sname; });
+                if(!exists) _inv.push(Object.assign({}, s));
+            });
+            if(_inv.length === 0) _inv = defaultInventorySeed.slice();
+            localStorage.setItem('inventory', JSON.stringify(_inv));
+        }catch(e){}
 
 
         function findInventoryForProduct(product){
@@ -871,6 +881,9 @@
                 cartItemsContainer.appendChild(empty);
                 cartCountEl.textContent = 0;
                 cartSubtotalEl.textContent = formatPHP(0);
+                // ensure packaging row is hidden/zero when empty
+                var pkgRow = document.getElementById('cartPackagingRow'); if(pkgRow) pkgRow.style.display='none';
+                var totalRow = document.getElementById('cartTotalRow'); if(totalRow) totalRow.style.display='none';
                 saveCartToLocalStorage();
                 return;
             }
@@ -946,7 +959,54 @@
                 cartItemsContainer.appendChild(box);
             });
             cartCountEl.textContent = totalQty;
-            cartSubtotalEl.textContent = formatPHP(subtotal);
+            // compute packaging fee and totals
+            var totals = { subtotal: subtotal, packaging: 0, total: subtotal };
+            try{
+                // Preferred: use helper if it's already loaded
+                if(typeof window.getCartTotals === 'function'){
+                    totals = window.getCartTotals(cart);
+                } else {
+                    // Fallback: compute packaging locally so fee appears even if cart-storage.js
+                    // hasn't been loaded yet. Packaging: PHP50 per pair (every 2 items).
+                    var totalItemsLocal = 0;
+                    cart.forEach(function(item){ var q = (typeof item.qty==='number')?item.qty:((typeof item.quantity==='number')?item.quantity:1); totalItemsLocal += Number(q)||0; });
+                    var pairsLocal = Math.floor(totalItemsLocal / 2);
+                    var packagingLocal = pairsLocal * 50;
+                    totals.subtotal = subtotal;
+                    totals.packaging = packagingLocal;
+                    totals.total = totals.subtotal + totals.packaging;
+                    // attach helpful details for display
+                    totals._pairs = pairsLocal;
+                    totals._totalItems = totalItemsLocal;
+                }
+            }catch(e){ totals = { subtotal: subtotal, packaging: 0, total: subtotal }; }
+            cartSubtotalEl.textContent = formatPHP(totals.subtotal);
+            // create or update packaging row
+            var pkgRow = document.getElementById('cartPackagingRow');
+            if(!pkgRow){
+                pkgRow = document.createElement('div'); pkgRow.id='cartPackagingRow'; pkgRow.className='cart-subtotal-row'; pkgRow.style.marginTop='6px';
+                pkgRow.innerHTML = '<span class="cart-subtotal-label">Packaging Fee</span><span id="cartPackagingValue" class="cart-subtotal-value">₱0.00</span>';
+                cartSubtotalEl.parentNode.parentNode.insertBefore(pkgRow, cartSubtotalEl.parentNode.nextSibling);
+            }
+            var pkgVal = document.getElementById('cartPackagingValue'); if(pkgVal) pkgVal.textContent = formatPHP(totals.packaging);
+            // show explanation when packaging applies
+            if(totals.packaging > 0){
+                pkgRow.style.display = '';
+                var expl = document.getElementById('cartPackagingExpl');
+                if(!expl){ expl = document.createElement('div'); expl.id = 'cartPackagingExpl'; expl.style.fontSize='0.9rem'; expl.style.color='#666'; expl.style.marginTop='4px'; pkgRow.appendChild(expl); }
+                var pairs = (typeof totals._pairs === 'number') ? totals._pairs : Math.floor((Number(cart.reduce(function(a,b){ var q=(typeof b.qty==='number')?b.qty:((typeof b.quantity==='number')?b.quantity:1); return a + (Number(q)||0); },0))) / 2);
+                expl.textContent = 'Packaging fee: ₱50 per pair. You have ' + (totals._totalItems || cart.reduce(function(a,b){ var q=(typeof b.qty==='number')?b.qty:((typeof b.quantity==='number')?b.quantity:1); return a + (Number(q)||0); },0)) + ' item(s) → ' + pairs + ' pair(s).';
+            } else {
+                pkgRow.style.display = 'none';
+            }
+            // create or update total row
+            var totalRow = document.getElementById('cartTotalRow');
+            if(!totalRow){
+                totalRow = document.createElement('div'); totalRow.id='cartTotalRow'; totalRow.className='cart-subtotal-row'; totalRow.style.marginTop='6px';
+                totalRow.innerHTML = '<span class="cart-subtotal-label">Total</span><span id="cartTotalValue" class="cart-subtotal-value">₱0.00</span>';
+                cartSubtotalEl.parentNode.parentNode.insertBefore(totalRow, cartSubtotalEl.parentNode.nextSibling.nextSibling);
+            }
+            var totalVal = document.getElementById('cartTotalValue'); if(totalVal) totalVal.textContent = formatPHP(totals.total);
             attachCartEvents();
         }
         function attachCartEvents() {
