@@ -119,6 +119,27 @@ async function startARSession(container, options) {
         // replace container contents with live output
         // if the provided element itself is a placeholder element, replace it
         try { el.replaceWith(session.output.live) } catch (e) { el.appendChild(session.output.live) }
+        // Constrain the live output to its parent so it doesn't overlap surrounding UI
+        try {
+            const live = session.output.live
+            // make the live element fill the container and use cover behavior
+            live.style.width = '100%'
+            live.style.height = '100%'
+            live.style.objectFit = 'cover'
+            live.style.display = 'block'
+            if (!live.style.borderRadius) live.style.borderRadius = '14px'
+            const parent = live.parentElement
+            if (parent) {
+                parent.style.overflow = 'hidden'
+                // ensure parent has positioning context for contained children
+                if (!parent.style.position) parent.style.position = 'relative'
+                // preserve parent's border-radius when possible
+                if (!parent.style.borderRadius) parent.style.borderRadius = '14px'
+            }
+        } catch (err) {
+            // non-fatal
+            console.warn('Failed to style live AR output for containment', err)
+        }
     } else if (session && session.output && session.output.live) {
         document.body.appendChild(session.output.live)
     }
