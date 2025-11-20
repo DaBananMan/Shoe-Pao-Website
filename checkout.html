@@ -603,6 +603,10 @@
                 <span class="checkout-cart-summary-value" id="checkoutSubtotal">₱0.00</span>
             </div>
             <div class="checkout-cart-summary-row">
+                <span class="checkout-cart-summary-label">Packaging</span>
+                <span class="checkout-cart-summary-value" id="checkoutPackagingValue">₱0.00</span>
+            </div>
+            <div class="checkout-cart-summary-row">
                 <span class="checkout-cart-summary-label" id="checkoutShippingLabel">Shipping</span>
                 <span class="checkout-cart-summary-value" id="checkoutShippingValue">₱0.00</span>
             </div>
@@ -1263,7 +1267,25 @@
         var shipLblEl = document.getElementById('checkoutShippingLabel');
         if(shipValEl) shipValEl.textContent = '₱' + shipping.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
         if(shipLblEl) shipLblEl.textContent = label;
-        document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        // compute packaging fee (use global helper if available, fallback to local compute)
+        var packaging = 0;
+        try {
+            if (window.getCartTotals && typeof window.getCartTotals === 'function') {
+                var t = window.getCartTotals(cart);
+                packaging = Number(t.packaging || 0);
+            } else if (window.computePackagingFee && typeof window.computePackagingFee === 'function') {
+                packaging = Number(window.computePackagingFee(cart) || 0);
+            } else {
+                // fallback: compute pairs * 50
+                var totalItems = 0; cart.forEach(function(it){ totalItems += (it.qty || it.quantity || 1); });
+                packaging = Math.floor(totalItems / 2) * 50;
+            }
+        } catch (e) { packaging = 0; }
+        // persist packaging for later pages
+        try { localStorage.setItem('checkoutPackaging', String(packaging)); } catch (e){}
+        // update packaging display
+        var pkgEl = document.getElementById('checkoutPackagingValue'); if(pkgEl) pkgEl.textContent = '₱' + packaging.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + shipping + packaging).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
     window.addEventListener('DOMContentLoaded', function(){
         try{ renderCheckoutCart(); }catch(e){}

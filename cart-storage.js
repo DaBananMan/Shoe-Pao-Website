@@ -80,19 +80,99 @@ function findInventoryItemForProduct(product) {
 function getMaxAllowedForProduct(product) {
     try {
         var invItem = findInventoryItemForProduct(product);
+        // If inventory is missing for this product, allow adding without an artificial cap
+        // (the live site may not seed inventory for all visitors). When inventory exists,
+        // enforce critical-level rule: if stock < 6 allow only 1 per customer; otherwise
+        // allow up to the available stock (no lower cap like '3').
         if (!invItem) {
-            // inventory not found -> fallback to generic cap of 3
-            return 3;
+            return Number.POSITIVE_INFINITY; // no artificial cap
         }
         var size = (product.size || '').toString();
         var stock = (invItem.sizes && (invItem.sizes[size] !== undefined)) ? Number(invItem.sizes[size]) : 0;
         if (isNaN(stock) || stock <= 0) return 0;
-        var cap = (stock < 6) ? 1 : 3;
-        return Math.min(cap, stock);
+        if (stock < 6) return 1; // critical level: only one allowed
+        // otherwise allow up to the available stock (no artificial per-customer cap)
+        return stock;
     } catch (e) {
         return 3;
     }
 }
+
+// Compute packaging fee: every two total shoes in the cart incurs an additional PHP 50 charge
+function computePackagingFee(cart) {
+    try {
+        cart = Array.isArray(cart) ? cart : getCart();
+        var totalItems = 0;
+        cart.forEach(function(item){
+            var qty = (typeof item.qty === 'number') ? item.qty : ((typeof item.quantity === 'number') ? item.quantity : 1);
+            totalItems += Number(qty) || 0;
+        });
+        var pairs = Math.floor(totalItems / 2);
+        return pairs * 50; // 50 PHP per pair
+    } catch (e) { return 0; }
+}
+
+function getCartTotals(cart) {
+    try {
+        cart = Array.isArray(cart) ? cart : getCart();
+        var subtotal = 0;
+        cart.forEach(function(item){
+            var qty = (typeof item.qty === 'number') ? item.qty : ((typeof item.quantity === 'number') ? item.quantity : 1);
+            subtotal += (Number(item.price) || 0) * Number(qty);
+        });
+        var packaging = computePackagingFee(cart);
+        return { subtotal: subtotal, packaging: packaging, total: subtotal + packaging };
+    } catch (e) { return { subtotal:0, packaging:0, total:0 }; }
+}
+
+// expose helpers globally
+window.computePackagingFee = computePackagingFee;
+window.getCartTotals = getCartTotals;
+
+// Update any cart sidebar UI elements if present on the page.
+function renderCartSidebarUI(){
+    try{
+        var cart = getCart();
+        var totals = getCartTotals(cart);
+        // format currency simple helper
+        function fmt(v){ try{ return new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(v); }catch(e){ return '₱'+Number(v||0).toFixed(2);} }
+        // update subtotal
+        var elSubtotal = document.getElementById('cartSubtotal'); if(elSubtotal) elSubtotal.textContent = fmt(totals.subtotal);
+        // update packaging row/value
+        var pkgRow = document.getElementById('cartPackagingRow');
+        if(!pkgRow){
+            // try to create under subtotal
+            if(elSubtotal && elSubtotal.parentNode && elSubtotal.parentNode.parentNode){
+                pkgRow = document.createElement('div'); pkgRow.id='cartPackagingRow'; pkgRow.className='cart-subtotal-row'; pkgRow.style.marginTop='6px';
+                pkgRow.innerHTML = '<span class="cart-subtotal-label">Packaging Fee</span><span id="cartPackagingValue" class="cart-subtotal-value">₱0.00</span>';
+                elSubtotal.parentNode.parentNode.insertBefore(pkgRow, elSubtotal.parentNode.nextSibling);
+            }
+        }
+        var pkgVal = document.getElementById('cartPackagingValue'); if(pkgVal) pkgVal.textContent = fmt(totals.packaging);
+        if(pkgRow){
+            if(totals.packaging > 0) {
+                pkgRow.style.display = '';
+                var expl = document.getElementById('cartPackagingExpl');
+                if(!expl){ expl = document.createElement('div'); expl.id='cartPackagingExpl'; expl.style.fontSize='0.9rem'; expl.style.color='#666'; expl.style.marginTop='4px'; pkgRow.appendChild(expl); }
+                var totalItems = 0; cart.forEach(function(it){ var q = (typeof it.qty==='number')?it.qty:((typeof it.quantity==='number')?it.quantity:1); totalItems += Number(q)||0; });
+                var pairs = Math.floor(totalItems/2);
+                expl.textContent = 'Packaging fee: ₱50 per pair. You have ' + totalItems + ' item(s) → ' + pairs + ' pair(s).';
+            } else {
+                pkgRow.style.display = 'none';
+            }
+        }
+        // update total row
+        var totalRow = document.getElementById('cartTotalRow');
+        if(totalRow){ var totalVal = document.getElementById('cartTotalValue'); if(totalVal) totalVal.textContent = fmt(totals.total); }
+        // update cart count
+        var countEl = document.getElementById('cartCount'); if(countEl){ var totalItems2=0; cart.forEach(function(it){ var q=(typeof it.qty==='number')?it.qty:((typeof it.quantity==='number')?it.quantity:1); totalItems2 += Number(q)||0; }); countEl.textContent = totalItems2; }
+    }catch(e){ /* ignore UI update errors */ }
+}
+
+// Keep cart UI in sync when cart changes in other tabs/windows
+window.addEventListener('storage', function(e){ if(e.key === 'cart' || e.key === null) renderCartSidebarUI(); });
+// Also try to update when DOM is ready
+document.addEventListener('DOMContentLoaded', function(){ renderCartSidebarUI(); });
 
 function removeFromCart(idx) {
     let cart = getCart();

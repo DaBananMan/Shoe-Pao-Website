@@ -364,6 +364,10 @@
                 <span class="payment-cart-summary-label">Subtotal</span>
                 <span class="payment-cart-summary-value" id="paymentSubtotal">₱0.00</span>
             </div>
+            <div class="payment-cart-summary-row">
+                <span class="payment-cart-summary-label">Packaging</span>
+                <span class="payment-cart-summary-value" id="paymentPackagingValue">₱0.00</span>
+            </div>
             <div class="payment-cart-summary-row" id="paymentShippingRow">
                 <span class="payment-cart-summary-label" id="paymentShippingLabel">Shipping</span>
                 <span class="payment-cart-summary-value" id="paymentShippingValue">₱0.00</span>
@@ -443,7 +447,18 @@
         }
         document.getElementById('paymentShippingLabel').textContent = shippingLabel ? ('Shipping: ' + shippingLabel) : 'Shipping';
         document.getElementById('paymentShippingValue').textContent = '₱' + shipping.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-        document.getElementById('paymentTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        // compute packaging fee (prefer persisted checkoutPackaging, fall back to helper)
+        var packaging = 0;
+        try {
+            var storedPkg = localStorage.getItem('checkoutPackaging');
+            if (storedPkg !== null) packaging = Number(storedPkg) || 0;
+            else if (window.getCartTotals && typeof window.getCartTotals === 'function') packaging = Number(window.getCartTotals(cart).packaging || 0);
+            else if (window.computePackagingFee && typeof window.computePackagingFee === 'function') packaging = Number(window.computePackagingFee(cart) || 0);
+            else { var totalItems = 0; cart.forEach(function(it){ totalItems += (it.qty || it.quantity || 1); }); packaging = Math.floor(totalItems/2) * 50; }
+        } catch (e) { packaging = 0; }
+        // update packaging UI
+        try{ var pkgEl = document.getElementById('paymentPackagingValue'); if(pkgEl) pkgEl.textContent = '₱' + packaging.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }catch(e){}
+        document.getElementById('paymentTotal').textContent = '₱' + (subtotal + shipping + packaging).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
     window.addEventListener('DOMContentLoaded', renderPaymentCart);
 
@@ -583,6 +598,7 @@
     var profile = JSON.parse(localStorage.getItem('profile') || '{}');
     var customerName = (profile && profile.name) ? profile.name : (localStorage.getItem('checkoutCustomerName') || '');
         var shippingCost = Number(localStorage.getItem('checkoutShipping') || 0);
+    var packagingCost = Number(localStorage.getItem('checkoutPackaging') || 0);
         var shippingAddress = (localStorage.getItem('checkoutAddressMain') || '').trim();
         if(!shippingAddress){
             // fallback to profile
@@ -600,8 +616,9 @@
             status: 'Pending',
             items: items,
             subtotal: subtotal,
+            packaging: packagingCost,
             shipping: shippingCost,
-            total: subtotal + shippingCost,
+            total: subtotal + shippingCost + packagingCost,
             paymentCode: selectedPaymentCode,
             paymentLabel: selectedPaymentLabel,
             referenceNumber: (document.getElementById('referenceNumber') ? document.getElementById('referenceNumber').value : ''),
@@ -659,6 +676,7 @@
             localStorage.removeItem('checkoutRegion');
             localStorage.removeItem('checkoutShipping');
             localStorage.removeItem('checkoutShippingLabel');
+            localStorage.removeItem('checkoutPackaging');
             // also clear delivery/payment transient keys
             localStorage.removeItem('checkoutDelivery');
             localStorage.removeItem('checkoutDeliveryCode');
