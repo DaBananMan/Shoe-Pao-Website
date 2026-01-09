@@ -26,6 +26,9 @@
     }
   };
 
+  // Cache of products as rendered in the table to ensure modals reflect the visible row
+  let displayedProductCache = {};
+
   // Utilities
   const uid = (p='id') => `${p}-${Math.random().toString(36).slice(2, 9)}`;
   const clampNum = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -80,9 +83,487 @@
     set(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
   };
 
+  // --- Firebase / Firestore helpers (optional): if window.FIREBASE_CONFIG is provided,
+  // initialize Firebase and subscribe to live updates. All calls are guarded so the
+  // app continues to work offline/local-only when no config is present.
+  const firebaseState = { db: null, enabled: false };
+
+  // (debug panel removed) 
+
+  function firebaseAvailable() {
+    return typeof window.firebase !== 'undefined' && window.firebase && window.firebase.apps !== undefined;
+  }
+
+  function initFirebase() {
+    try {
+      if (!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.projectId) return;
+      if (!firebaseAvailable()) {
+        console.warn('Firebase scripts not loaded; skip Firebase init');
+        return;
+      }
+      // Avoid double-init
+      if (firebase.apps && firebase.apps.length) {
+        // reuse existing
+      } else {
+        firebase.initializeApp(window.FIREBASE_CONFIG);
+      }
+      firebaseState.db = firebase.firestore();
+      firebaseState.enabled = true;
+      // Enable persistence where supported
+      // Prefer cache-based settings in future SDKs; keep enablePersistence for now
+      if (firebaseState.db.enablePersistence) {
+        firebaseState.db.enablePersistence().catch(function(err){
+          // ignore persistence errors (multiple tabs or unsupported)
+          console.warn('Firestore persistence not enabled:', err && err.message);
+        });
+      }
+
+      // Ensure user is signed-in before attaching listeners. Many Firestore rules
+      // restrict reads to authenticated users. We'll attempt anonymous sign-in for
+      // a friction-free dev experience; if your rules disallow anonymous access
+      // you'll still see permission-denied errors and should update rules or sign
+      // in with a proper credential.
+      if (firebase.auth) {
+        firebase.auth().onAuthStateChanged(user => {
+          if (user) {
+            console.info('Firebase auth state:', user && (user.uid || user.isAnonymous ? 'signed-in' : 'no-user'));
+            attachFirestoreListeners();
+          } else {
+            // Anonymous sign-in used to be automatic for developer convenience.
+            // To avoid creating accidental anonymous accounts during flows like signup
+            // (where a user may later create an email account), require an explicit opt-in
+            // by setting `window.ALLOW_ANON_SIGNIN = true` on the page. If not set, skip.
+            if (window.ALLOW_ANON_SIGNIN === true) {
+              // try anonymous sign-in for development convenience
+              firebase.auth().signInAnonymously().then(cred => {
+                console.info('Signed in anonymously as', cred && cred.user && cred.user.uid);
+                attachFirestoreListeners();
+              }).catch(err => {
+                console.warn('Anonymous sign-in failed (rules may disallow). Continuing without auth:', err && err.message);
+                // Still attempt to attach listeners; they'll error if rules block reads.
+                attachFirestoreListeners();
+              });
+            } else {
+              console.info('Anonymous sign-in disabled (set window.ALLOW_ANON_SIGNIN = true to enable)');
+              attachFirestoreListeners();
+            }
+          }
+        });
+      } else {
+        // No auth available; attach listeners anyway (may receive permission errors).
+        attachFirestoreListeners();
+      }
+
+      console.info('Firebase initialized (auth pending)');
+    } catch (e) {
+      console.error('initFirebase error', e);
+    }
+  }
+
+  // Attach Firestore listeners in one place so we can call it after auth is ready
+  function attachFirestoreListeners() {
+    if (!firebaseState.enabled || !firebaseState.db) return;
+
+    // products
+    firebaseState.db.collection('products').onSnapshot(snapshot => {
+      try {
+          let docs = snapshot.docs.map(d => Object.assign({ id: d.id }, d.data()));
+              // Do not merge or read localStorage here. Prefer Firestore as the source-of-truth
+              // to avoid showing stale local values that get overwritten on snapshot arrival.
+          // Normalize common field name variants and ensure `pricing`, `category`, `status`, and `tagsManual`
+          // exist so the UI shows the expected columns even when Firestore uses different keys.
+          docs = docs.map(d => {
+            try {
+              const out = Object.assign({}, d);
+              // category fallbacks
+              out.category = out.category || out.categoryName || out.cat || out.category_id || out.categoryCode || '';
+              // status fallbacks
+              out.status = out.status || out.state || out.availability || '';
+              // tags fallbacks
+              out.tagsManual = Array.isArray(out.tagsManual) ? out.tagsManual : (Array.isArray(out.tags) ? out.tags : (out.tagsList || out.tags_list || []));
+              if (!Array.isArray(out.tagsManual)) out.tagsManual = [];
+              // Pricing normalization: prefer nested `pricing`, otherwise detect common top-level price fields
+              const p = out.pricing || {};
+              const origCandidates = [p.original, p.orig, out.originalPrice, out.original_price, out.priceOriginal, out.price_original, out.price];
+              const saleCandidates = [p.sale, p.salePrice, p.sale_price, out.salePrice, out.sale_price, out.price_sale];
+              const costCandidates = [p.cost, out.cost, out.priceCost, out.price_cost];
+              const pickNum = arr => {
+                for (const v of arr) {
+                  if (v === undefined || v === null) continue;
+                  const n = Number(v);
+                  if (Number.isFinite(n)) return n;
+                }
+                return 0;
+              };
+              out.pricing = {
+                original: pickNum(origCandidates),
+                sale: pickNum(saleCandidates) || pickNum(origCandidates),
+                cost: pickNum(costCandidates)
+              };
+              // Ensure images array
+              out.images = Array.isArray(out.images) ? out.images : (out.image ? [out.image] : []);
+              return out;
+            } catch (e) { return d; }
+          });
+          state.products = docs;
+  // Merge any known variants into products shape and render (do not persist to localStorage)
+  mergeVariantsIntoProducts();
+  renderAll();
+  // (debug panel removed) 
+      } catch (e) { console.error('Error applying products snapshot', e); }
+    }, err => {
+      console.error('products snapshot error:', err);
+      if (err && err.code === 'permission-denied') {
+        console.error('Firestore permission-denied when listening to products. Check your Firestore security rules and ensure the client is authenticated or rules allow read access for this path.');
+      }
+    });
+
+    // sales
+    firebaseState.db.collection('sales').onSnapshot(snapshot => {
+      try {
+        const docs = snapshot.docs.map(d => Object.assign({ id: d.id }, d.data()));
+    state.sales = docs;
+  renderAll();
+      } catch (e) { console.error('Error applying sales snapshot', e); }
+    }, err => {
+      console.error('sales snapshot error:', err);
+      if (err && err.code === 'permission-denied') {
+        console.error('Firestore permission-denied when listening to sales. Check your Firestore security rules and ensure the client is authenticated or rules allow read access for this path.');
+      }
+    });
+
+    // variants: keep a local grouped map and merge into products view
+    // variantsByProductId: { [productId]: [ colorObj, ... ] }
+    firebaseState.variantsByProductId = {};
+    firebaseState.db.collection('variants').onSnapshot(snapshot => {
+      try {
+        const docs = snapshot.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        // rebuild grouped map
+        const map = {};
+        docs.forEach(v => {
+          // try common field names for parent product id or DocumentReference shapes
+          const pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || (v.product && typeof v.product === 'string' ? (v.product.split('/').pop()) : null) || (v.productPath && typeof v.productPath === 'string' ? v.productPath.split('/').pop() : null) || null;
+          if (!pid) return;
+          map[pid] = map[pid] || [];
+          // normalize a variant doc into a color object the UI expects
+          const color = {
+            id: v.id || uid('color'),
+            name: v.colorName || v.name || v.color || 'Color',
+            code: v.colorCode || v.code || '#ffffff',
+            sizes: []
+          };
+          // variant may store sizes as array of { eu, stock } or as an object map
+          if (Array.isArray(v.sizes)) {
+            // ensure sizes have eu and stock
+            color.sizes = EU_SIZES.map(eu => {
+              const found = v.sizes.find(s => Number(s.eu) === Number(eu) || String(s.eu) === String(eu));
+              return { eu, stock: found ? parseNum(found.stock, 0) : 0, sku: found && found.sku || '' };
+            });
+          } else if (v.sizeMap && typeof v.sizeMap === 'object') {
+            color.sizes = EU_SIZES.map(eu => ({ eu, stock: parseNum(v.sizeMap[String(eu)] || v.sizeMap[eu] || 0, 0), sku: '' }));
+          } else if (v.sizesMap && typeof v.sizesMap === 'object') {
+            color.sizes = EU_SIZES.map(eu => ({ eu, stock: parseNum(v.sizesMap[String(eu)] || 0, 0), sku: '' }));
+          } else {
+            // fallback: try numeric fields like stock35, stock36, etc.
+            color.sizes = EU_SIZES.map(eu => ({ eu, stock: parseNum(v[`s${eu}`] || v[`stock${eu}`] || 0, 0), sku: '' }));
+          }
+          map[pid].push(color);
+        });
+    firebaseState.variantsByProductId = map;
+    // merge into products and re-render (do not persist to localStorage)
+    mergeVariantsIntoProducts();
+  renderAll();
+      } catch (e) { console.error('Error applying variants snapshot', e); }
+    }, err => {
+      console.error('variants snapshot error:', err);
+      if (err && err.code === 'permission-denied') {
+        console.error('Firestore permission-denied when listening to variants. Check your Firestore security rules and ensure the client is authenticated or rules allow read access for this path.');
+      }
+    });
+  }
+
+  // Merge variants (from firebaseState.variantsByProductId) into state.products.
+  // Strategy: for each product, if it already has a non-empty colors array, keep it
+  // (but optionally merge); otherwise, if variants exist for that productId, use them.
+  function mergeVariantsIntoProducts() {
+    if (!Array.isArray(state.products)) return;
+    const map = firebaseState.variantsByProductId || {};
+    state.products = state.products.map(p => {
+      const pid = p.id || p.productId || p.sku || null;
+      const hasColors = Array.isArray(p.colors) && p.colors.length;
+      if (hasColors) {
+        // still, if there are variants for this product and product.colors is empty or missing sizes,
+        // we might merge. For now, prefer product.colors when present.
+        return p;
+      }
+      if (pid && map[pid]) {
+        // clone product and attach colors from variants
+        const np = Object.assign({}, p);
+        np.colors = map[pid].map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes }));
+        return np;
+      }
+      return p;
+    });
+  }
+
+  // Clear localStorage inventory/sales/settings data and do not rehydrate from local on next snapshot.
+  function clearLocalInventoryData() {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.inventory);
+      localStorage.removeItem(STORAGE_KEYS.sales);
+      localStorage.removeItem(STORAGE_KEYS.settings);
+      console.info('Local inventory, sales and settings removed from localStorage. Reload the page to see remote-only data.');
+    } catch (e) { console.warn('clearLocalInventoryData failed', e); }
+  }
+  try { window.clearLocalInventoryData = clearLocalInventoryData; } catch (e) { /* ignore */ }
+
+  function upsertProductToFirestore(product) {
+    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
+    const id = product.id || product.sku || firebaseState.db.collection('products').doc().id;
+    // Avoid circular references and functions — Firestore accepts plain objects
+    const safe = Object.assign({}, product);
+    safe.pricing = safe.pricing || {};
+    safe.pricing.original = parseNum(safe.pricing.original, 0);
+    safe.pricing.sale = parseNum(safe.pricing.sale, safe.pricing.original || 0);
+    safe.pricing.cost = parseNum(safe.pricing.cost, 0);
+    safe.tagsManual = Array.isArray(safe.tagsManual) ? safe.tagsManual : (Array.isArray(safe.tags) ? safe.tags : []);
+    safe.category = safe.category || '';
+    safe.status = safe.status || '';
+    // Sanitize payload to avoid sending large data URIs or huge arrays (images replaced with lightweight pathfile markers)
+    const sanitized = sanitizeProductForFirestore(safe);
+    const payload = JSON.parse(JSON.stringify(sanitized));
+    return firebaseState.db.collection('products').doc(String(id)).set(payload, { merge: true })
+      .then(() => console.info('upsertProductToFirestore: written product', String(id)))
+      .catch(err => console.error('upsertProductToFirestore', err));
+  }
+
+  function deleteProductFromFirestore(id) {
+    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
+    return firebaseState.db.collection('products').doc(String(id)).delete()
+      .then(() => console.info('deleteProductFromFirestore: deleted product', String(id)))
+      .catch(err => console.error('deleteProductFromFirestore', err));
+  }
+
+  function upsertSaleToFirestore(sale) {
+    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
+    const id = sale.id || firebaseState.db.collection('sales').doc().id;
+    const payload = JSON.parse(JSON.stringify(sale));
+    return firebaseState.db.collection('sales').doc(String(id)).set(payload, { merge: true })
+      .then(() => console.info('upsertSaleToFirestore: written sale', String(id)))
+      .catch(err => console.error('upsertSaleToFirestore', err));
+  }
+
+  // Variants write helpers: create/update/delete variant documents in `variants` collection
+  function upsertVariantToFirestore(productId, color) {
+    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
+    const id = color.id || firebaseState.db.collection('variants').doc().id;
+    const payload = {
+      id: id,
+      productId: productId,
+      colorName: color.name || '',
+      colorCode: color.code || '',
+      // store sizes as an array of { eu, stock, sku }
+      sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), sku: s.sku || '' })) : []
+    };
+    return firebaseState.db.collection('variants').doc(String(id)).set(payload, { merge: true })
+      .then(() => console.info('upsertVariantToFirestore: written variant', String(id), 'for product', String(productId)))
+      .catch(err => console.error('upsertVariantToFirestore', err));
+  }
+
+  function deleteVariantFromFirestore(id) {
+    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
+    return firebaseState.db.collection('variants').doc(String(id)).delete()
+      .then(() => console.info('deleteVariantFromFirestore: deleted variant', String(id)))
+      .catch(err => console.error('deleteVariantFromFirestore', err));
+  }
+
+  // Sync local product.colors with Firestore variants collection for that product
+  function syncVariantsForProduct(product) {
+    if (!product || !product.id) return Promise.resolve();
+    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
+    const pid = product.id;
+    const existing = firebaseState.variantsByProductId && firebaseState.variantsByProductId[pid] ? firebaseState.variantsByProductId[pid].map(v => v.id).filter(Boolean) : [];
+    const desired = Array.isArray(product.colors) ? product.colors.map(c => c.id).filter(Boolean) : [];
+    const upserts = (product.colors || []).map(c => upsertVariantToFirestore(pid, c));
+    // delete variants that exist remotely but were removed locally
+    const toDelete = existing.filter(id => !desired.includes(id));
+    const deletes = toDelete.map(id => deleteVariantFromFirestore(id));
+    return Promise.all([Promise.all(upserts), Promise.all(deletes)]).catch(err => console.error('syncVariantsForProduct', err));
+  }
+
+  // Schedule & perform a full one-way sync from local `state.products` to Firestore so the
+  // remote DB mirrors the current admin UI. This is intentionally aggressive: it will upsert
+  // local products/variants and delete remote docs that no longer exist locally. Use only for
+  // dev or when the UI should be the source-of-truth.
+  function scheduleFullSync(delay = 1000) {
+    if (!firebaseState.enabled || !firebaseState.db) return;
+    if (firebaseState.syncTimer) clearTimeout(firebaseState.syncTimer);
+    firebaseState.syncTimer = setTimeout(() => { fullSyncToFirestore().catch(err => console.error('fullSyncToFirestore', err)); }, delay);
+  }
+
+  async function fullSyncToFirestore() {
+    if (!firebaseState.enabled || !firebaseState.db) return;
+    try {
+      const db = firebaseState.db;
+      // read remote collections (one-time)
+      const [remoteProductsSnap, remoteVariantsSnap] = await Promise.all([
+        db.collection('products').get(),
+        db.collection('variants').get()
+      ]);
+
+      const remoteProducts = new Map(remoteProductsSnap.docs.map(d => [String(d.id), d]));
+      const remoteVariants = new Map(remoteVariantsSnap.docs.map(d => [String(d.id), d]));
+
+      // Build local maps
+      const localProducts = (Array.isArray(state.products) ? state.products : []).map(p => {
+        // ensure id
+        const id = p.id || p.sku || uid('prod');
+        const copy = JSON.parse(JSON.stringify(Object.assign({}, p)));
+        copy.id = id;
+        copy.pricing = copy.pricing || { original: 0, sale: 0, cost: 0 };
+        return copy;
+      });
+      const localProductIds = new Set(localProducts.map(p => String(p.id)));
+
+      // Prepare operations: upsert local products (set), delete remote products not in local
+      const ops = [];
+      localProducts.forEach(p => {
+        const docRef = db.collection('products').doc(String(p.id));
+        // Sanitize product to avoid sending data URIs or oversized arrays
+        const sanitized = sanitizeProductForFirestore(p);
+        // write the sanitized product document to reflect UI (overwrite)
+        ops.push({ type: 'set', ref: docRef, payload: sanitized });
+      });
+      remoteProducts.forEach((d, id) => {
+        if (!localProductIds.has(id)) ops.push({ type: 'delete', ref: db.collection('products').doc(id) });
+      });
+
+      // Variants: local aggregate
+      const localVariantsMap = new Map(); // variantId -> payload
+      localProducts.forEach(p => {
+        const pid = String(p.id);
+        (Array.isArray(p.colors) ? p.colors : []).forEach(c => {
+          const vid = c.id || `${pid}-${c.name || c.code || uid('color')}`;
+          const payload = {
+            id: vid,
+            productId: pid,
+            colorName: c.name || '',
+            colorCode: c.code || '',
+            sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock,0), sku: s.sku || '' })) : []
+          };
+          localVariantsMap.set(String(vid), payload);
+        });
+      });
+
+      // Upsert local variants
+      localVariantsMap.forEach((payload, id) => {
+        const ref = db.collection('variants').doc(String(id));
+        ops.push({ type: 'set', ref, payload });
+      });
+      // Delete remote variants not in local map
+      remoteVariants.forEach((d, id) => { if (!localVariantsMap.has(String(id))) ops.push({ type: 'delete', ref: db.collection('variants').doc(String(id)) }); });
+
+      // Commit operations in batches (max 400 per batch to be safe)
+      const chunkSize = 400;
+      for (let i = 0; i < ops.length; i += chunkSize) {
+        const chunk = ops.slice(i, i + chunkSize);
+        const batch = db.batch();
+        chunk.forEach(op => {
+          if (op.type === 'set') batch.set(op.ref, op.payload);
+          else if (op.type === 'delete') batch.delete(op.ref);
+        });
+        await batch.commit();
+      }
+
+      console.info('fullSyncToFirestore: sync completed (products:', localProducts.length, 'variants:', localVariantsMap.size, ')');
+      return true;
+    } catch (e) {
+      console.error('fullSyncToFirestore failed', e);
+      throw e;
+    }
+  }
+
+  // Merge-only sync: upsert local products and variants to Firestore without deleting remote docs.
+  // This is the safe option to populate category/status fields in Firestore without destructive deletes.
+  async function mergeOnlySyncToFirestore() {
+    if (!firebaseState.enabled || !firebaseState.db) {
+      console.warn('mergeOnlySyncToFirestore: Firebase not initialized or disabled; no-op');
+      return Promise.resolve();
+    }
+    try {
+      const db = firebaseState.db;
+      console.info('mergeOnlySyncToFirestore: starting upserts for', (Array.isArray(state.products) ? state.products.length : 0), 'products');
+      for (const p of (Array.isArray(state.products) ? state.products : [])) {
+        try {
+          // Ensure product has id
+          p.id = p.id || p.sku || db.collection('products').doc().id;
+          await upsertProductToFirestore(p);
+        } catch (e) {
+          console.error('mergeOnlySyncToFirestore: failed upsert product', p && (p.id || p.sku), e);
+        }
+        try {
+          await syncVariantsForProduct(p);
+        } catch (e) {
+          console.error('mergeOnlySyncToFirestore: failed syncing variants for', p && (p.id || p.sku), e);
+        }
+      }
+      console.info('mergeOnlySyncToFirestore: completed');
+      return true;
+    } catch (e) {
+      console.error('mergeOnlySyncToFirestore: unexpected error', e);
+      throw e;
+    }
+  }
+
+  // Expose the merge-only sync for manual invocation from the browser console:
+  // in the page console run: window.mergeOnlySyncToFirestore()
+  try { window.mergeOnlySyncToFirestore = mergeOnlySyncToFirestore; } catch (e) { /* ignore in non-browser test runners */ }
+
   // Data helpers
   function ensureSizes() {
     return EU_SIZES.map(eu => ({ eu, stock: 0, sku: '' }));
+  }
+
+  // Sanitize product payload to avoid sending large embedded blobs (data URIs) and very large arrays.
+  // - Replaces data: URI images with a lightweight { pathfile: '<placeholder>' } entry
+  // - Limits images array length to a reasonable cap
+  // - Truncates overly long string fields if necessary
+  function sanitizeProductForFirestore(p) {
+    if (!p || typeof p !== 'object') return p;
+    // shallow copy then process
+    const out = Object.assign({}, p);
+    try {
+      // Images: map data URIs to pathfile placeholders; keep normal URLs/paths
+      if (Array.isArray(out.images)) {
+        const cap = 20; // keep at most 20 images
+        const images = out.images.slice(0, cap).map((img, idx) => {
+          if (typeof img === 'string' && img.startsWith('data:')) {
+            // Try to infer a filename from alt props if available, else put a placeholder
+            const inferred = (out.imagePaths && out.imagePaths[idx]) || (out.imagePath) || '[DATA_URI_REMOVED]';
+            return { pathfile: inferred };
+          }
+          // keep short strings as-is; if it's an object, leave it but avoid large nested blobs
+          if (typeof img === 'string') return img;
+          try { return JSON.parse(JSON.stringify(img)); } catch { return '[IMAGE_REDACTED]'; }
+        });
+        out.images = images;
+      }
+
+      // Safety: truncate very large arrays that may have been used for logs/history
+      if (Array.isArray(out.tagsManual) && out.tagsManual.length > 500) out.tagsManual = out.tagsManual.slice(0, 500);
+
+      // Truncate extremely long strings on top-level fields
+      const maxStr = 200000; // 200 KB per-field defensive cap
+      Object.keys(out).forEach(k => {
+        if (typeof out[k] === 'string' && out[k].length > maxStr) {
+          out[k] = out[k].slice(0, maxStr) + '...[TRUNCATED]';
+        }
+      });
+    } catch (e) {
+      // On any sanitizer failure, return a minimal safe shape
+      return { id: out.id || out.sku || uid('prod'), brand: out.brand || '', model: out.model || '', sku: out.sku || '' };
+    }
+    return out;
   }
 
   function newColor(name, code) {
@@ -107,15 +588,18 @@
   }
 
   function totalStockForProduct(p) {
-    return p.colors.reduce((acc, c) => acc + c.sizes.reduce((sacc, s) => sacc + s.stock, 0), 0);
+    if (!p || !Array.isArray(p.colors)) return 0;
+    return p.colors.reduce((acc, c) => acc + (Array.isArray(c.sizes) ? c.sizes.reduce((sacc, s) => sacc + (parseNum(s.stock,0) || 0), 0) : 0), 0);
   }
 
   function totalStockForColor(c) {
-    return c.sizes.reduce((acc, s) => acc + s.stock, 0);
+    if (!c || !Array.isArray(c.sizes)) return 0;
+    return c.sizes.reduce((acc, s) => acc + (parseNum(s.stock,0) || 0), 0);
   }
 
   function availableSizes(c) {
-    return c.sizes.filter(s => s.stock > 0).map(s => s.eu);
+    if (!c || !Array.isArray(c.sizes)) return [];
+    return c.sizes.filter(s => parseNum(s.stock,0) > 0).map(s => s.eu);
   }
 
   // Persistence
@@ -129,6 +613,8 @@
     ls.set(STORAGE_KEYS.inventory, state.products);
     ls.set(STORAGE_KEYS.sales, state.sales);
     ls.set(STORAGE_KEYS.settings, state.settings);
+    // Schedule a one-way sync to Firestore so remote mirrors current UI state
+    try { if (firebaseState && firebaseState.enabled) scheduleFullSync(); } catch (e) { /* ignore */ }
   }
 
   // Ensure every product has a SKU; generate if missing/blank
@@ -154,25 +640,47 @@
     if (changed) saveAll();
   }
 
-  // Sample data
-  function seedSampleIfEmpty() {
-    if (state.products && state.products.length) return;
-    const p1 = newProduct({ brand: 'Nike', model: 'Air Max 90', category: 'Sneakers', images: ['IMAGE/AIRMAXWHITE.avif'] });
-    const p2 = newProduct({ brand: 'Adidas', model: 'Ultraboost 22', category: 'Running' });
-    const p3 = newProduct({ brand: 'Converse', model: 'Chuck Taylor', category: 'Casual' });
+  // Backfill category and status for products. Try to infer category from model/brand
+  // using a small keyword map; otherwise default to 'Uncategorized'. Ensure status is 'active'.
+  function backfillCategoryAndStatus() {
+    if (!Array.isArray(state.products) || !state.products.length) return;
+    const changedProducts = [];
+    const keywordMap = [
+      { keys: ['air','max','airmax','nike'], cat: 'Sneakers' },
+      { keys: ['ultra','boost','adidas','running'], cat: 'Running' },
+      { keys: ['moccasin','moccasins','loafer'], cat: 'Casual' },
+      { keys: ['sandal','sandals','flip'], cat: 'Sandals' },
+      { keys: ['boot','boots'], cat: 'Boots' },
+      { keys: ['slip','slide'], cat: 'Casual' },
+      { keys: ['sneaker','sneakers'], cat: 'Sneakers' },
+      { keys: ['formal','dress'], cat: 'Formal' }
+    ];
 
-    p1.colors.push(newColor('White', '#ffffff'));
-    p1.colors.push(newColor('Black', '#000000'));
-    p2.colors.push(newColor('Core Black', '#111111'));
-    p2.colors.push(newColor('Solar Red', '#ff3b3b'));
-    p3.colors.push(newColor('Optical White', '#ffffff'));
+    const infer = (p) => {
+      const txt = ((p.model || '') + ' ' + (p.brand || '') + ' ' + (p.category || '')).toLowerCase();
+      for (const entry of keywordMap) {
+        for (const k of entry.keys) if (txt.indexOf(k) !== -1) return entry.cat;
+      }
+      return p.category || 'Uncategorized';
+    };
 
-    // Randomize initial stock
-    [p1, p2, p3].forEach(p => p.colors.forEach(c => c.sizes.forEach(s => s.stock = Math.floor(Math.random() * 8))));
-
-    state.products = [p1, p2, p3];
-    saveAll();
+    let changed = false;
+    state.products.forEach(p => {
+      const cat = infer(p);
+      if (!p.category || p.category !== cat) { p.category = cat; changed = true; }
+      if (!p.status || p.status !== 'active') { p.status = 'active'; changed = true; }
+      // ensure pricing object exists so UI shows price
+      p.pricing = p.pricing || { original: 0, sale: 0, cost: 0 };
+      if (!Array.isArray(p.tagsManual)) p.tagsManual = [];
+      if (changed) changedProducts.push(p.id || p.sku || '(new)');
+    });
+    if (changed) {
+      saveAll();
+      console.info('backfillCategoryAndStatus: updated products', changedProducts.slice(0,20));
+    }
   }
+
+  // Sample data removed — seeding disabled
 
   // UI binding helpers
   const qs = (sel) => document.querySelector(sel);
@@ -208,9 +716,16 @@
     const filterStatus = qs('#filterStatus') ? qs('#filterStatus').value : '';
     const threshold = state.settings.lowStockThreshold;
 
-    // Compute best-seller products (all-time, by units)
-    const byProductQty = new Map();
-    state.sales.forEach(s => byProductQty.set(s.productId, (byProductQty.get(s.productId) || 0) + s.qty));
+  // Use a guarded products array in case Firestore or imports yielded products without a
+  // `colors` array (e.g. when variants are stored separately or permission-denied prevents
+  // the variants merge). This prevents repeated `Cannot read properties of undefined` errors.
+  const productsList = Array.isArray(state.products) ? state.products : [];
+  // Build a per-render cache so modals open with the exact values visible in the table row
+  displayedProductCache = {};
+
+  // Compute best-seller products (all-time, by units)
+  const byProductQty = new Map();
+  (Array.isArray(state.sales) ? state.sales : []).forEach(s => byProductQty.set(s.productId, (byProductQty.get(s.productId) || 0) + s.qty));
     const bestIds = new Set(Array.from(byProductQty.entries()).sort((a,b) => b[1]-a[1]).slice(0,5).map(([id]) => id));
 
     function computeTags(p) {
@@ -219,7 +734,7 @@
       const created = p.createdAt ? new Date(p.createdAt).getTime() : 0;
       const ageDays = created ? Math.floor((now - created) / (24*3600*1000)) : Infinity;
       const isNew = ageDays <= 14 && p.status === 'active';
-      const isSale = (parseNum(p.pricing.sale,0) > 0) && (parseNum(p.pricing.sale,0) < parseNum(p.pricing.original,0)) && p.status === 'active';
+  const isSale = (parseNum(p.pricing?.sale,0) > 0) && (parseNum(p.pricing?.sale,0) < parseNum(p.pricing?.original,0)) && p.status === 'active';
       const total = totalStockForProduct(p);
       const isPre = (total === 0) && p.status === 'active';
       const isBest = bestIds.has(p.id);
@@ -232,44 +747,76 @@
       return Array.from(new Set([ ...manual, ...tags ]));
     }
 
-    const filtered = state.products.filter(p => {
-      const matchesText = !text || [p.brand, p.model, p.category].join(' ').toLowerCase().includes(text) || p.colors.some(c => c.name.toLowerCase().includes(text));
+    const filtered = productsList.filter(p => {
+      const colorsArr = Array.isArray(p.colors) ? p.colors : [];
+      const matchesText = !text || [p.brand, p.model, p.category].join(' ').toLowerCase().includes(text) || colorsArr.some(c => (c.name || '').toLowerCase().includes(text));
       const matchesBrand = !filterBrand || p.brand === filterBrand;
       const matchesCat = !filterCat || p.category === filterCat;
       // If a specific size is selected, consider size existence; allow out-of-stock when filtering 'out'
-      const matchesSize = !filterSize || p.colors.some(c => c.sizes.some(s => String(s.eu) === filterSize && (filterStock === 'out' ? true : s.stock > 0)));
+      const matchesSize = !filterSize || colorsArr.some(c => Array.isArray(c.sizes) && c.sizes.some(s => String(s.eu) === filterSize && (filterStock === 'out' ? true : s.stock > 0)));
       // Determine stock status: use total product stock, or size-specific total when a size filter is applied
       const total = !filterSize
         ? totalStockForProduct(p)
-        : p.colors.reduce((acc, c) => acc + c.sizes.reduce((sacc, s) => sacc + (String(s.eu) === filterSize ? s.stock : 0), 0), 0);
+        : colorsArr.reduce((acc, c) => acc + (Array.isArray(c.sizes) ? c.sizes.reduce((sacc, s) => sacc + (String(s.eu) === filterSize ? s.stock : 0), 0) : 0), 0);
       const stockStatus = total === 0 ? 'out' : (total <= threshold ? 'low' : 'in');
       const matchesStock = !filterStock || stockStatus === filterStock;
       const matchesStatus = !filterStatus || p.status === filterStatus;
       return matchesText && matchesBrand && matchesCat && matchesSize && matchesStock && matchesStatus;
     });
 
+    
+
     tbody.innerHTML = filtered.map(p => {
-      const colors = p.colors.map(c => {
+      // snapshot the displayed product for modal use
+      try { displayedProductCache[String(p.id)] = JSON.parse(JSON.stringify(p)); } catch (e) { displayedProductCache[String(p.id)] = p; }
+      // small helper: pick the first non-empty field from candidates
+      const pick = (obj, keys, dflt = '') => {
+        if (!obj || typeof obj !== 'object') return dflt;
+        for (const k of keys) {
+          try { const v = obj[k]; if (v !== undefined && v !== null && String(v).trim() !== '') return v; } catch (e) { /* continue */ }
+        }
+        return dflt;
+      };
+
+      const displayBrand = pick(p, ['brand','brandName'], '');
+      const displayModel = pick(p, ['model','name','title','productName'], '');
+      const displaySku = pick(p, ['sku'], p.id || '');
+  const displayStatus = pick(p, ['status','state','availability'], '');
+
+      // colors fallback: try product.colors or variants map (grouped by several possible keys)
+      let colorsArr = Array.isArray(p.colors) ? p.colors : [];
+      if (!colorsArr.length && firebaseState.variantsByProductId) {
+        const map = firebaseState.variantsByProductId;
+        const candidates = [p.id, p.productId, p.sku, String(p.id || '')];
+        for (const c of candidates) {
+          if (!c) continue;
+          if (Array.isArray(map[c]) && map[c].length) { colorsArr = map[c]; break; }
+        }
+      }
+
+      const colors = colorsArr.map(c => {
         const stock = totalStockForColor(c);
         const status = stock === 0 ? 'out' : (stock <= threshold ? 'low' : 'in');
-        return `<span class="badge ${status}" title="${availableSizes(c).join(', ') || 'None'}">${c.name} (${stock})</span>`;
+        return `<span class="badge ${status}" title="${(availableSizes(c) || []).join(', ') || 'None'}">${c.name} (${stock})</span>`;
       }).join(' ');
+
       const total = totalStockForProduct(p);
       const totalStatus = total === 0 ? 'out' : (total <= threshold ? 'low' : 'in');
-      const price = `₱${p.pricing.sale || p.pricing.original || 0}`;
+      const price = `₱${(parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0))}`;
       const bulkBox = state.ui.bulkMode ? `<input type="checkbox" class="bulkSel" data-id="${p.id}" ${state.ui.selectedProductIds.has(p.id) ? 'checked' : ''}/>` : '';
       const catDisplay = (p.category || '').trim();
       const tags = computeTags(p);
       const tagsHtml = tags.length ? tags.map(t => `<span class="tag ${t.toLowerCase().replace(/\s+/g,'-')}">${t}</span>`).join(' ') : '';
+
       return `<tr>
         <td class="bulk-col">${bulkBox}</td>
-        <td>${p.brand}</td>
-        <td>${p.sku || ''}</td>
-        <td>${p.model}</td>
+        <td>${displayBrand}</td>
+        <td>${displaySku || ''}</td>
+        <td>${displayModel}</td>
         <td>${catDisplay}</td>
-        <td class="status ${p.status}">${p.status}</td>
+        <td class="status ${displayStatus}">${displayStatus}</td>
         <td class="tags-cell">${tagsHtml || ''}</td>
-        <td class="colors-cell">${colors || '<span class=\"badge out\">No colors</span>'}</td>
+        <td class="colors-cell">${colors || '<span class="badge out">No colors</span>'}</td>
         <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${price}</td>
         <td>
@@ -317,19 +864,70 @@
     // images handled via state.ui.productModalImages
 
     if (isEdit) {
-      const p = state.products.find(x => x.id === productId);
-      brand.value = p.brand; model.value = p.model; cat.value = p.category || ''; statusSel.value = p.status;
+      // Prefer the product data as rendered in the table (stable) to avoid flicker from snapshots.
+      // Additionally, read the visible table row values directly from the DOM to ensure the
+      // modal reflects exactly what's shown to the user (text content, tags, and price formatting).
+      const p = (displayedProductCache && displayedProductCache[productId]) ? displayedProductCache[productId] : state.products.find(x => x.id === productId);
+
+      const getRowDataFromTable = (id) => {
+        try {
+          const btn = document.querySelector(`[data-action="edit"][data-id="${id}"]`);
+          if (!btn) return null;
+          const tr = btn.closest('tr');
+          if (!tr) return null;
+          const cells = tr.children;
+          const brandTxt = (cells[1] && cells[1].textContent) ? cells[1].textContent.trim() : '';
+          const skuTxt = (cells[2] && cells[2].textContent) ? cells[2].textContent.trim() : '';
+          const modelTxt = (cells[3] && cells[3].textContent) ? cells[3].textContent.trim() : '';
+          const catTxt = (cells[4] && cells[4].textContent) ? cells[4].textContent.trim() : '';
+          const statusTxt = (cells[5] && cells[5].textContent) ? cells[5].textContent.trim() : '';
+          const priceTxt = (cells[9] && cells[9].textContent) ? cells[9].textContent.trim() : '';
+          // Extract numeric price if present (e.g., "₱1,234.00")
+          let priceNum = 0;
+          const m = priceTxt.match(/[\d,\.]+/);
+          if (m) priceNum = parseFloat(m[0].replace(/,/g, '')) || 0;
+          const tags = Array.from(tr.querySelectorAll('.tags-cell .tag')).map(el => el.textContent.trim());
+          return { brand: brandTxt, sku: skuTxt, model: modelTxt, category: catTxt, status: statusTxt, price: priceNum, tags };
+        } catch (e) { return null; }
+      };
+
+      const dom = getRowDataFromTable(productId);
+
+      // Fill inputs preferring the visible DOM values when available, otherwise fall back to the product object
+      brand.value = (dom && dom.brand) ? dom.brand : (p.brand || '');
+      model.value = (dom && dom.model) ? dom.model : (p.model || '');
+      cat.value = (dom && dom.category) ? dom.category : (p.category || '');
+      statusSel.value = (dom && dom.status) ? dom.status : (p.status || '');
       if (genderSel) genderSel.value = p.gender || 'Unisex';
-      pOrig.value = p.pricing.original || ''; pSale.value = p.pricing.sale || ''; pCost.value = p.pricing.cost || '';
-      if (skuEl) skuEl.value = p.sku || '';
+      pOrig.value = (dom && Number.isFinite(dom.price) && dom.price > 0) ? dom.price : (p.pricing?.original || '');
+      pSale.value = p.pricing?.sale || '';
+      pCost.value = p.pricing?.cost || '';
+      if (skuEl) skuEl.value = (dom && dom.sku) ? dom.sku : (p.sku || '');
       if (descEl) descEl.value = p.description || '';
       // Manual tags
       const manual = Array.isArray(p.tagsManual) ? p.tagsManual : [];
+      // If DOM tags were detected, use them to set the manual tag checkboxes so the modal mirrors the table
+      if (dom && Array.isArray(dom.tags) && dom.tags.length) {
+        // sync manual array with DOM-detected tags (but don't overwrite p.tagsManual variable)
+        const domTags = dom.tags;
+        // mark checkboxes based on presence
+        if (domTags.includes('New')) manual.push('New');
+        if (domTags.includes('Sale')) manual.push('Sale');
+        if (domTags.includes('Pre-Order')) manual.push('Pre-Order');
+        if (domTags.includes('Best Seller')) manual.push('Best Seller');
+      }
       const tagNew = qs('#tagNew'); if (tagNew) tagNew.checked = manual.includes('New');
       const tagSale = qs('#tagSale'); if (tagSale) tagSale.checked = manual.includes('Sale');
       const tagPre = qs('#tagPreOrder'); if (tagPre) tagPre.checked = manual.includes('Pre-Order');
       const tagBest = qs('#tagBestSeller'); if (tagBest) tagBest.checked = manual.includes('Best Seller');
-      state.ui.productModalImages = Array.isArray(p.images) ? p.images.map(url => ({ url, name: displayNameFromUrl(url) })) : [];
+      state.ui.productModalImages = Array.isArray(p.images) ? p.images.map(it => {
+        if (typeof it === 'string') return { url: it, name: displayNameFromUrl(it) };
+        if (it && typeof it === 'object') {
+          if (it.url) return { url: it.url, name: it.name || displayNameFromUrl(it.url), pathfile: it.pathfile };
+          if (it.pathfile) return { url: '', name: it.pathfile, pathfile: it.pathfile };
+        }
+        return { url: '', name: '[image]' };
+      }) : [];
       renderImagesList();
       // Hide initial variant builder on edit; use Variants modal instead
       const initSec = qs('#initialVariantSection'); if (initSec) initSec.style.display = 'none';
@@ -373,9 +971,9 @@
     const tagPre = qs('#tagPreOrder'); if (tagPre && tagPre.checked) manual.push('Pre-Order');
     const tagBest = qs('#tagBestSeller'); if (tagBest && tagBest.checked) manual.push('Best Seller');
 
-    if (!brand || !model) { alert('Brand and Model are required'); return; }
-    if (pOrig <= 0) { alert('Original price is required'); return; }
-    if (!state.ui.productModalImages || state.ui.productModalImages.length < 2) { alert('Add at least two images'); return; }
+  if (!brand || !model) { alert('Brand and Model are required'); return; }
+  if (pOrig <= 0) { alert('Original price is required'); return; }
+  // Images are optional: do not force users to import images to save
 
     // Prevent duplicates: do not allow another product with the same Brand + Model
     const pid = state.ui.editingProductId;
@@ -391,13 +989,18 @@
         const ok = confirm(`Archive ${p.brand} ${p.model}?\nArchived products are hidden from active listings.`);
         if (!ok) { return; }
       }
-      p.brand = brand; p.model = model; p.category = cat; p.gender = genderSel || 'Unisex'; p.status = statusSel;
-      p.pricing.original = pOrig; p.pricing.sale = pSale; p.pricing.cost = pCost;
+  p.brand = brand; p.model = model; p.category = cat; p.gender = genderSel || 'Unisex'; p.status = statusSel;
+  p.pricing = p.pricing || { original: 0, sale: 0, cost: 0 };
+  p.pricing.original = pOrig; p.pricing.sale = pSale; p.pricing.cost = pCost;
       // Keep existing SKU unless empty; regenerate if missing
       if (!p.sku) p.sku = generateProductSKU(brand, model, cat);
       p.description = desc;
-      p.images = state.ui.productModalImages.map(it => it.url);
+  p.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       p.tagsManual = manual;
+      // Sync to Firestore when available
+      if (firebaseState.enabled) {
+        upsertProductToFirestore(p).then(() => syncVariantsForProduct(p));
+      }
     } else {
       // Require at least one color with sizes when adding
       const colors = state.ui.productModalColors.filter(c => (c.name || '').trim().length);
@@ -407,11 +1010,15 @@
         if (!ok) { return; }
       }
       const newP = newProduct({ brand, model, category: cat, status: statusSel, images: [], pricing: { original: pOrig, sale: pSale, cost: pCost }, description: desc, gender: genderSel || 'Unisex' });
-      newP.images = state.ui.productModalImages.map(it => it.url);
+  newP.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       newP.tagsManual = manual;
       // Copy colors and sizes
       newP.colors = colors.map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), sku: s.sku || '' })) }));
       state.products.push(newP);
+      // Sync created product and its variants to Firestore when available
+      if (firebaseState.enabled) {
+        upsertProductToFirestore(newP).then(() => syncVariantsForProduct(newP));
+      }
     }
     saveAll();
     qs('#productModal').close();
@@ -423,16 +1030,25 @@
     state.products = state.products.filter(p => p.id !== id);
     saveAll();
     renderAll();
+    if (firebaseState.enabled) deleteProductFromFirestore(id);
   }
 
   // Images management in Add/Edit Product modal
   function renderImagesList() {
     const list = qs('#imagesList'); if (!list) return;
     const raw = state.ui.productModalImages || [];
-    const imgs = raw.map(it => (typeof it === 'string' ? { url: it, name: displayNameFromUrl(it) } : it));
+    const imgs = raw.map(it => {
+      if (typeof it === 'string') return { url: it, name: displayNameFromUrl(it) };
+      if (it && typeof it === 'object') {
+        if (it.url) return { url: it.url, name: it.name || displayNameFromUrl(it.url), pathfile: it.pathfile };
+        if (it.pathfile) return { url: '', name: it.pathfile, pathfile: it.pathfile };
+        return { url: it.url || '', name: it.name || '[image]' };
+      }
+      return { url: '', name: '[image]' };
+    });
     state.ui.productModalImages = imgs;
     list.innerHTML = imgs.map((item, idx) => `<div class="image-item" data-index="${idx}">
-      <img src="${item.url}" alt="Product image ${idx+1}" />
+      ${item.url ? `<img src="${item.url}" alt="Product image ${idx+1}" />` : `<div class="image-placeholder">${item.name}</div>`}
       <span class="image-name" title="${item.name}">${item.name}</span>
       <div class="image-actions">
         <button class="danger" data-action="remove-image">Remove</button>
@@ -663,8 +1279,19 @@
   }
 
   function saveVariantsModal() {
-    qs('#variantModal').close();
-    renderAll();
+    // Persist variants to Firestore for the editing product (if enabled)
+    const pid = state.ui.editingVariantProductId;
+    const p = state.products.find(x => x.id === pid);
+    if (p) {
+      // attempt to sync variants; errors are logged inside syncVariantsForProduct
+      syncVariantsForProduct(p).finally(() => {
+        qs('#variantModal').close();
+        renderAll();
+      });
+    } else {
+      qs('#variantModal').close();
+      renderAll();
+    }
   }
 
   // Bulk actions
@@ -687,13 +1314,14 @@
     if ((method === 'inc_num' || method === 'dec_num') && value < 0) { alert('Amount must be non-negative'); return; }
     state.products.forEach(p => {
       if (!ids.includes(p.id)) return;
-      const cur = parseNum(p.pricing[field], 0);
+      const cur = parseNum(p.pricing?.[field], 0);
       let next = cur;
       if (method === 'set') next = value;
       else if (method === 'inc_pct') next = cur * (1 + value / 100);
       else if (method === 'dec_pct') next = cur * (1 - value / 100);
       else if (method === 'inc_num') next = cur + value;
       else if (method === 'dec_num') next = cur - value;
+      p.pricing = p.pricing || { original: 0, sale: 0, cost: 0 };
       p.pricing[field] = Math.max(0, Number(next.toFixed(2)));
     });
     saveAll(); qs('#bulkPriceModal').close(); renderProductsTable();
@@ -749,6 +1377,7 @@
   // Sales tracking
   function populateSaleSelectors() {
     const prodSel = qs('#saleProduct');
+    if (!prodSel) return; // sales controls not present in this layout
     prodSel.innerHTML = state.products.map(p => `<option value="${p.id}">${p.brand} ${p.model}</option>`).join('');
     onSaleProductChange();
   }
@@ -757,17 +1386,22 @@
     const prodSel = qs('#saleProduct');
     const colorSel = qs('#saleColor');
     const sizeSel = qs('#saleSize');
+    if (!prodSel || !colorSel || !sizeSel) return;
     const p = state.products.find(x => x.id === prodSel.value);
-    colorSel.innerHTML = p.colors.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-    const c = p.colors[0];
+    if (!p) { colorSel.innerHTML = ''; sizeSel.innerHTML = ''; return; }
+    colorSel.innerHTML = (p.colors || []).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    const c = p.colors && p.colors[0];
     sizeSel.innerHTML = (c ? c.sizes : EU_SIZES.map(eu => ({ eu }))).map(s => `<option value="${s.eu}">${s.eu}EU</option>`).join('');
   }
 
   function onSaleColorChange() {
     const prodSel = qs('#saleProduct'); const colorSel = qs('#saleColor'); const sizeSel = qs('#saleSize');
+    if (!prodSel || !colorSel || !sizeSel) return;
     const p = state.products.find(x => x.id === prodSel.value);
-    const c = p.colors.find(y => y.id === colorSel.value);
-    sizeSel.innerHTML = c.sizes.map(s => `<option value="${s.eu}">${s.eu}EU (${s.stock})</option>`).join('');
+    if (!p) { sizeSel.innerHTML = ''; return; }
+    const c = (p.colors || []).find(y => y.id === colorSel.value);
+    if (!c) { sizeSel.innerHTML = ''; return; }
+    sizeSel.innerHTML = (c.sizes || []).map(s => `<option value="${s.eu}">${s.eu}EU (${s.stock})</option>`).join('');
   }
 
   function recordSale() {
@@ -775,7 +1409,7 @@
     const c = p.colors.find(y => y.id === qs('#saleColor').value);
     const eu = parseNum(qs('#saleSize').value);
     const qty = clampNum(parseNum(qs('#saleQty').value, 1), 1, 9999);
-    const price = parseNum(qs('#salePrice').value, p.pricing.sale || p.pricing.original || 0);
+  const price = parseNum(qs('#salePrice').value, parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0));
     const s = c.sizes.find(z => z.eu === eu);
     if (s.stock < qty) { alert('Insufficient stock'); return; }
     s.stock -= qty;
@@ -784,23 +1418,25 @@
     saveAll();
     renderSalesLog();
     renderProductsTable();
+    if (firebaseState.enabled) upsertSaleToFirestore(sale);
   }
 
   function renderSalesLog() {
     const tbody = qs('#salesTbody');
+    if (!tbody) return;
     const rows = state.sales.slice().reverse().map(sale => {
-      const p = state.products.find(p => p.id === sale.productId);
-      const c = p.colors.find(x => x.id === sale.colorId) || { name: '?' };
-      const total = sale.qty * sale.price;
-      const date = new Date(sale.date).toLocaleString();
+      const p = state.products.find(p => p.id === sale.productId) || { brand: '?', model: '?' };
+      const c = (p.colors && Array.isArray(p.colors)) ? (p.colors.find(x => x.id === sale.colorId) || { name: '?' }) : { name: '?' };
+      const total = (parseNum(sale.qty,0) || 0) * (parseNum(sale.price,0) || 0);
+      const date = sale.date ? new Date(sale.date).toLocaleString() : '';
       return `<tr>
         <td>${date}</td>
-        <td>${p.brand}</td>
-        <td>${p.model}</td>
-        <td>${c.name}</td>
-        <td>${sale.eu}EU</td>
-        <td>${sale.qty}</td>
-        <td>₱${total.toFixed(2)}</td>
+        <td>${p.brand || '?'}</td>
+        <td>${p.model || '?'}</td>
+        <td>${c.name || '?'}</td>
+        <td>${sale.eu || ''}EU</td>
+        <td>${sale.qty || 0}</td>
+        <td>₱${Number(total || 0).toFixed(2)}</td>
       </tr>`;
     }).join('');
     tbody.innerHTML = rows;
@@ -951,24 +1587,24 @@
 
   // Event wiring
   function wireEvents() {
-    qsa('.tabs button').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+  qsa('.tabs button').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 
-    qs('#addProductBtn').addEventListener('click', () => openProductModal(null));
-    qs('#saveProductBtn').addEventListener('click', (e) => { e.preventDefault(); saveProductFromModal(); });
-    const cancelBtn = qs('#cancelProductBtn'); if (cancelBtn) cancelBtn.addEventListener('click', (e) => { e.preventDefault(); qs('#productModal').close(); });
-    const addInitBtn = qs('#addInitialColorBtn'); if (addInitBtn) addInitBtn.addEventListener('click', (e) => { e.preventDefault(); addInitialColorFromModal(); });
-    const importImageBtn = qs('#importImageBtn'); if (importImageBtn) importImageBtn.addEventListener('click', (e) => { e.preventDefault(); addImagesFromFileInput(); });
+  const addProductBtn = qs('#addProductBtn'); if (addProductBtn) addProductBtn.addEventListener('click', () => openProductModal(null));
+  const saveProductBtn = qs('#saveProductBtn'); if (saveProductBtn) saveProductBtn.addEventListener('click', (e) => { e.preventDefault(); saveProductFromModal(); });
+  const cancelBtn = qs('#cancelProductBtn'); if (cancelBtn) cancelBtn.addEventListener('click', (e) => { e.preventDefault(); qs('#productModal').close(); });
+  const addInitBtn = qs('#addInitialColorBtn'); if (addInitBtn) addInitBtn.addEventListener('click', (e) => { e.preventDefault(); addInitialColorFromModal(); });
+  const importImageBtn = qs('#importImageBtn'); if (importImageBtn) importImageBtn.addEventListener('click', (e) => { e.preventDefault(); addImagesFromFileInput(); });
 
-    qs('#addColorBtn').addEventListener('click', (e) => { e.preventDefault(); addColorFromModal(); });
-    qs('#saveVariantsBtn').addEventListener('click', (e) => { e.preventDefault(); saveVariantsModal(); });
+  const addColorBtn = qs('#addColorBtn'); if (addColorBtn) addColorBtn.addEventListener('click', (e) => { e.preventDefault(); addColorFromModal(); });
+  const saveVariantsBtn = qs('#saveVariantsBtn'); if (saveVariantsBtn) saveVariantsBtn.addEventListener('click', (e) => { e.preventDefault(); saveVariantsModal(); });
 
-    qs('#toggleBulkSelect').addEventListener('change', (e) => setBulkMode(e.target.checked));
-    qs('#bulkEditPrice').addEventListener('click', openBulkPrice);
-    qs('#applyBulkPriceBtn').addEventListener('click', (e) => { e.preventDefault(); applyBulkPrice(); });
+  const toggleBulkSelect = qs('#toggleBulkSelect'); if (toggleBulkSelect) toggleBulkSelect.addEventListener('change', (e) => setBulkMode(e.target.checked));
+  const bulkEditPriceBtn = qs('#bulkEditPrice'); if (bulkEditPriceBtn) bulkEditPriceBtn.addEventListener('click', openBulkPrice);
+  const applyBulkPriceBtn = qs('#applyBulkPriceBtn'); if (applyBulkPriceBtn) applyBulkPriceBtn.addEventListener('click', (e) => { e.preventDefault(); applyBulkPrice(); });
 
-    qs('#bulkRestock').addEventListener('click', openBulkRestock);
-    qs('#applyBulkRestockBtn').addEventListener('click', (e) => { e.preventDefault(); applyBulkRestock(); });
-    const publishBtn = qs('#publishInventoryBtn'); if (publishBtn) publishBtn.addEventListener('click', (e) => { e.preventDefault(); publishInventoryToStorefront(); });
+  const bulkRestockBtn = qs('#bulkRestock'); if (bulkRestockBtn) bulkRestockBtn.addEventListener('click', openBulkRestock);
+  const applyBulkRestockBtn = qs('#applyBulkRestockBtn'); if (applyBulkRestockBtn) applyBulkRestockBtn.addEventListener('click', (e) => { e.preventDefault(); applyBulkRestock(); });
+  const publishBtn = qs('#publishInventoryBtn'); if (publishBtn) publishBtn.addEventListener('click', (e) => { e.preventDefault(); publishInventoryToStorefront(); });
     const bulkPriceMethodSel = qs('#bulkPriceMethod');
     const bulkPriceValueInp = qs('#bulkPriceValue');
     if (bulkPriceMethodSel && bulkPriceValueInp) {
@@ -981,8 +1617,8 @@
       updatePlaceholder();
     }
 
-    qs('#bulkArchive').addEventListener('click', bulkArchive);
-    const bulkUnarchiveBtn = qs('#bulkUnarchive'); if (bulkUnarchiveBtn) bulkUnarchiveBtn.addEventListener('click', bulkUnarchive);
+  const bulkArchiveBtn = qs('#bulkArchive'); if (bulkArchiveBtn) bulkArchiveBtn.addEventListener('click', bulkArchive);
+  const bulkUnarchiveBtn = qs('#bulkUnarchive'); if (bulkUnarchiveBtn) bulkUnarchiveBtn.addEventListener('click', bulkUnarchive);
 
     const scopeSel = qs('#bulkRestockScope');
     const sizeInp = qs('#bulkRestockSize');
@@ -1000,10 +1636,10 @@
       updateSelectedCount();
     });
 
-    // Sales
-    qs('#saleProduct').addEventListener('change', onSaleProductChange);
-    qs('#saleColor').addEventListener('change', onSaleColorChange);
-    qs('#recordSaleBtn').addEventListener('click', recordSale);
+  // Sales
+  const saleProductEl = qs('#saleProduct'); if (saleProductEl) saleProductEl.addEventListener('change', onSaleProductChange);
+  const saleColorEl = qs('#saleColor'); if (saleColorEl) saleColorEl.addEventListener('change', onSaleColorChange);
+  const recordSaleBtn = qs('#recordSaleBtn'); if (recordSaleBtn) recordSaleBtn.addEventListener('click', recordSale);
 
     // Filters
     ['#searchInput','#filterBrand','#filterCategory','#filterSize','#filterStock','#filterStatus'].forEach(sel => {
@@ -1021,16 +1657,19 @@
       renderReports();
     }));
     // Settings
-    qs('#saveSettingsBtn').addEventListener('click', saveSettings);
+    const saveSettingsBtn = qs('#saveSettingsBtn'); if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', saveSettings);
   }
 
   // Init
   function init() {
     loadAll();
-    seedSampleIfEmpty();
+  // Sample seeding removed to avoid demo rows appearing on load.
     backfillSkus();
     backfillCreatedAt();
+    backfillCategoryAndStatus();
     wireEvents();
+    // Initialize Firebase (if configured) and attach realtime listeners
+    try { initFirebase(); } catch (e) { /* ignore */ }
     renderAll();
   }
 

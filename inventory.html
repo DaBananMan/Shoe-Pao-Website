@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -113,21 +112,8 @@
                     </tr>
                 </thead>
                 <tbody id="productsTbody"></tbody>
-            </table>
-        </section>
+                </table>
 
-        <section id="tab-sales" class="tab">
-            <div class="sales-entry">
-                <h2>Record Sale</h2>
-                <div class="form-grid">
-                    <select id="saleProduct"></select>
-                    <select id="saleColor"></select>
-                    <select id="saleSize"></select>
-                    <input id="saleQty" type="number" min="1" value="1" placeholder="Qty" />
-                    <input id="salePrice" type="number" min="0" step="0.01" placeholder="Sale Price" />
-                    <button id="recordSaleBtn" class="primary">Record Sale</button>
-                </div>
-            </div>
             <div class="sales-log">
                 <h2>Sales Log</h2>
                 <table>
@@ -139,6 +125,27 @@
                     <tbody id="salesTbody"></tbody>
                 </table>
             </div>
+
+    <!-- Firebase config (paste your web config here). Public keys are fine in client code. -->
+    <script>
+      window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
+        apiKey: "AIzaSyDf1LltQfn3_AXmV1-gpm2SWOTInXfIdgY",
+        authDomain: "shoe-pao-special.firebaseapp.com",
+        projectId: "shoe-pao-special",
+        storageBucket: "shoe-pao-special.firebasestorage.app",
+        messagingSenderId: "590509920226",
+        appId: "1:590509920226:web:9daf77b2841e3d699633bb",
+        measurementId: "G-JD4WGCKFQC"
+      };
+    </script>
+
+    <!-- Firebase CDN (compat) - light and simple for this static site -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <!-- App script -->
+    <script src="inventory-app.js"></script>
         </section>
 
         <section id="tab-reports" class="tab">
@@ -339,7 +346,5 @@
         </form>
     </dialog>
 
-    <script src="inventory-app.js"></script>
 </body>
-</html>
 </html>

@@ -222,6 +222,25 @@
                 min-width: 0;
             }
         }
+        /* Social button styles — mirror login page */
+        .social-auth { display:flex; gap:10px; margin:12px 0; }
+        .social-btn { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.98rem; border:0; }
+        .social-btn img { width:32px; height:32px; object-fit:contain; }
+        .social-btn.facebook { background:#3b5998; color:#fff; }
+        .social-btn.facebook:hover { filter:brightness(0.95); }
+        .social-btn.google { background:#fff; color:#111; border:2px solid #e0e0e0; }
+        .social-btn.google:hover { box-shadow:0 1px 2px rgba(0,0,0,0.08); }
+        .social-auth .social-btn { flex:1 1 0; justify-content:center; }
+        .social-btn.disabled { opacity:0.6; pointer-events:none; }
+    /* Verification overlay styles */
+    .verification-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:9999; }
+    .verification-modal { background:#fff; padding:22px; border-radius:10px; max-width:520px; width:92%; box-shadow:0 8px 30px rgba(0,0,0,0.25); color:#111; }
+    .verification-modal h3 { margin:0 0 8px 0; font-size:1.2rem; }
+    .verification-modal p { margin:6px 0 12px 0; color:#444; }
+    .verification-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+    .verification-actions .btn { padding:8px 12px; border-radius:6px; border:0; cursor:pointer; }
+    .btn-primary { background:#b71c1c; color:#fff; }
+    .btn-outline { background:transparent; border:1px solid #ddd; color:#111; }
     </style>
 </head>
 <body>
@@ -231,6 +250,12 @@
         </div>
         <form class="form-section" autocomplete="off" onsubmit="return handleSignup(event)">
             <div class="signup-header">Sign up now</div>
+            <div class="social-auth">
+                <button id="googleSignIn" class="social-btn google" type="button" aria-label="Sign up with Google">
+                    <img src="IMAGE/googleicon.png" alt="Google logo" />
+                    <span>Sign up with Google</span>
+                </button>
+            </div>
             <div class="name-row">
                 <div class="input-group">
                     <label for="firstName" class="input-label">First name</label>
@@ -278,6 +303,11 @@
             </div>
         </form>
     </div>
+    <!-- Shared Firebase config and SDKs -->
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
     <script>
 function togglePassword() {
     const passwordInput = document.getElementById('password');
@@ -305,72 +335,296 @@ function formatPhone(input) {
     }
     input.value = formatted;
 }
-function handleSignup(e) {
+function handleSignup(e){
     e.preventDefault();
-    try{
-        var firstName = (document.getElementById('firstName').value||'').trim();
-        var lastName = (document.getElementById('lastName').value||'').trim();
-        var email = (document.getElementById('email').value||'').trim().toLowerCase();
-        var phone = (document.getElementById('phone').value||'').trim();
-        var password = (document.getElementById('password').value||'');
-        var addressVal = (document.getElementById('address') ? document.getElementById('address').value : '').trim();
-        var addressMain = addressVal.split('\n')[0] || addressVal;
-        var addressDetails = addressVal.split('\n').slice(1).join(', ') || '';
-        if(!email){ alert('Please enter an email'); return; }
-        // load existing users or create array
-        var users = [];
-        try{ users = JSON.parse(localStorage.getItem('users') || '[]'); }catch(err){ users = []; }
-        // check if user exists
-        var existing = users.find(u => (u.email||'').toLowerCase() === email);
-        if(existing){
-            // update existing record
-            existing.firstName = firstName || existing.firstName;
-            existing.lastName = lastName || existing.lastName;
-            // keep a combined name field for compatibility with other pages
-            existing.name = ((existing.firstName || '') + (existing.lastName ? (' ' + existing.lastName) : '')).trim() || existing.name;
-            existing.phone = phone || existing.phone;
-            if(password) existing.password = password;
-            // update address fields if provided
-            if(addressMain) existing.addressMain = addressMain;
-            if(addressDetails) existing.addressDetails = addressDetails;
-        } else {
-            var newUser = { email: email, password: password, firstName: firstName, lastName: lastName, name: ((firstName || '') + (lastName ? (' ' + lastName) : '')).trim(), phone: phone, role: 'user', registeredAt: Date.now() };
-            if(addressMain) newUser.addressMain = addressMain;
-            if(addressDetails) newUser.addressDetails = addressDetails;
-            users.push(newUser);
+    (async function(){
+        const firstName = (document.getElementById('firstName').value||'').trim();
+        const lastName = (document.getElementById('lastName').value||'').trim();
+        const email = (document.getElementById('email').value||'').trim().toLowerCase();
+        const phone = (document.getElementById('phone').value||'').trim();
+        const password = (document.getElementById('password').value||'');
+        const addressVal = (document.getElementById('address') ? document.getElementById('address').value : '').trim();
+        const addressMain = addressVal.split('\n')[0] || addressVal;
+        const addressDetails = addressVal.split('\n').slice(1).join(', ') || '';
+        if(!email || !password){ alert('Please enter email and password'); return; }
+
+        // If Firebase is configured, use it; otherwise fall back to local storage logic
+        if(window.FIREBASE_CONFIG && window.firebase && window.firebase.auth){
+            try{
+                if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                // If an anonymous session exists, link it to the new credentials instead of creating a new account
+                const currentUser = firebase.auth().currentUser;
+                if(currentUser && currentUser.isAnonymous){
+                    // link anonymous to email credential
+                    const cred = firebase.auth.EmailAuthProvider.credential(email, password);
+                    await currentUser.linkWithCredential(cred);
+                    // update profile
+                    try{ await currentUser.updateProfile({ displayName: ((firstName||'') + (lastName?(' ' + lastName):'')).trim() }); }catch(e){}
+                    alert('Account created and linked from anonymous session. Please verify your email if you have not already.');
+                    // send verification if needed
+                    if(!currentUser.emailVerified){
+                        try { await currentUser.sendEmailVerification({ url: window.location.origin + '/signup.html' }); } catch(e){ console.warn('sendEmailVerification', e); }
+                        // Show verification overlay and defer creating the canonical users/{uid} doc until verification completes
+                        showVerificationOverlay(email, password, { firstName, lastName, phone, addressMain, addressDetails });
+                        return;
+                    }
+                    // If already verified (rare), create the user doc now
+                    try{ const db = firebase.firestore(); await db.doc('users/' + currentUser.uid).set({ email, displayName: currentUser.displayName || '', firstName, lastName, phone, addressMain, addressDetails, emailVerified: !!currentUser.emailVerified, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true }); }catch(e){ console.warn('user doc merge failed', e); }
+                    return;
+                }
+
+                // create user normally
+                const result = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                const user = result.user;
+                if(user && user.updateProfile){ try{ await user.updateProfile({ displayName: ((firstName||'') + (lastName?(' ' + lastName):'')).trim() }); }catch(e){} }
+
+                // send verification email and require verification before leaving
+                const actionCodeSettings = { url: window.location.origin + '/signup.html', handleCodeInApp: false };
+                await user.sendEmailVerification(actionCodeSettings);
+                // sign out so we don't treat unverified as signed-in
+                try{ await firebase.auth().signOut(); }catch(e){}
+
+                // show overlay instructing user to verify and prevent navigation
+                showVerificationOverlay(email, password, { firstName, lastName, phone, addressMain, addressDetails });
+            }catch(err){ console.error('Firebase signup error', err); alert('Signup failed: ' + (err && err.message ? err.message : String(err))); }
+            return;
         }
-        localStorage.setItem('users', JSON.stringify(users));
-        // also set the active profile for this session
-    var profile = { name: (firstName + (lastName ? (' ' + lastName) : '')).trim() || '', email: email, phone: phone, addressMain: addressMain || '', addressDetails: addressDetails || '' };
-    // persist profile and mark update time so other pages can detect the change
-        try{ 
-            // store profile for this browsing session (cleared on close)
-            sessionStorage.setItem('profile', JSON.stringify(profile));
-            sessionStorage.setItem('profile_updated_at', String(Date.now()));
-        }catch(e){ }
-    }catch(err){ console.warn('Could not save new user', err); }
-    window.location.href = 'home.html';
+
+        // Fallback local storage path (legacy)
+        try{
+            var users = JSON.parse(localStorage.getItem('users')||'[]')||[];
+            var existing = users.find(u => (u.email||'').toLowerCase() === email);
+            if(existing){ existing.firstName = firstName || existing.firstName; existing.lastName = lastName || existing.lastName; existing.name = ((existing.firstName||'') + (existing.lastName?(' ' + existing.lastName):'')).trim() || existing.name; existing.phone = phone || existing.phone; if(password) existing.password = password; if(addressMain) existing.addressMain = addressMain; if(addressDetails) existing.addressDetails = addressDetails; }
+            else { var newUser = { email, password, firstName, lastName, name: ((firstName||'') + (lastName?(' ' + lastName):'')).trim(), phone, role:'user', registeredAt: Date.now() }; if(addressMain) newUser.addressMain = addressMain; if(addressDetails) newUser.addressDetails = addressDetails; users.push(newUser); }
+            localStorage.setItem('users', JSON.stringify(users));
+            sessionStorage.setItem('profile', JSON.stringify({ name: (firstName + (lastName ? (' ' + lastName) : '')).trim() || '', email, phone, addressMain: addressMain || '', addressDetails: addressDetails || '' }));
+        }catch(e){ console.warn('Could not save new user (local fallback)', e); }
+        window.location.href = 'home.html';
+    })();
+}
+// --- Social sign-in handlers (copied/adapted from login.html) ---
+function getQueryParam(name) {
+    try{ var params = new URLSearchParams(window.location.search); return params.get(name); }catch(e){ return null; }
+}
+
+function signInWithProvider(name) {
+    try {
+        if (!window.firebase || !firebase.auth) { alert('Firebase not configured'); return; }
+        let provider = null;
+        if (name === 'google') provider = new firebase.auth.GoogleAuthProvider();
+        else { alert('Unknown provider'); return; }
+        firebase.auth().signInWithPopup(provider).then(result => {
+            const user = result.user;
+            // create/merge profile in Firestore for social sign-ins
+            try {
+                if (window.firebase && firebase.firestore && user && user.uid) {
+                    if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                    const userDoc = firebase.firestore().doc('users/' + user.uid);
+                    const payload = { email: user.email, displayName: user.displayName || '', emailVerified: !!user.emailVerified, role: 'user', lastLoginAt: firebase.firestore.FieldValue.serverTimestamp() };
+                    userDoc.set(payload, { merge: true }).catch(() => {});
+                }
+            } catch (e) { console.warn('Failed to upsert social sign-in user doc', e); }
+            const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || '' };
+            try { sessionStorage.setItem('profile', JSON.stringify(profile)); sessionStorage.setItem('profile_updated_at', String(Date.now())); } catch (e) {}
+            const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
+            // Basic routing
+            const role = (user.email && user.email.toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
+            if (role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
+        }).catch(err => {
+            console.error('Social sign-in error', err);
+            alert('Social sign-in failed: ' + (err && err.message ? err.message : String(err)));
+        });
+    } catch (e) { console.error('signInWithProvider', e); }
+}
+
+function initFirebaseAuthHandlers() {
+    try {
+        if (!window.FIREBASE_CONFIG || !window.firebase) return;
+        if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+        const googleBtn = document.getElementById('googleSignIn');
+        if (googleBtn) googleBtn.addEventListener('click', (e) => { e.preventDefault(); signInWithProvider('google'); });
+        const updateSocialButtons = () => {
+            const ok = (window.FIREBASE_CONFIG && window.firebase && firebase.auth);
+            const b = googleBtn;
+            if (!b) return;
+            if (ok) { b.classList.remove('disabled'); b.disabled = false; b.title = ''; }
+            else { b.classList.add('disabled'); b.disabled = true; b.title = 'Firebase not configured or providers not enabled'; }
+        };
+        updateSocialButtons();
+    } catch (e) { console.warn('initFirebaseAuthHandlers failed', e); }
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+    try { var saved = localStorage.getItem('lastUnverifiedEmail'); if (saved) window.lastUnverifiedEmail = saved; } catch(e){}
+    try { initFirebaseAuthHandlers(); } catch(e){}
+});
+
+// Show a blocking overlay that instructs the user to verify their email.
+// It polls by attempting to sign in with the provided email/password and checking emailVerified.
+function showVerificationOverlay(email, password, meta) {
+    try {
+        // Create DOM elements
+        const overlay = document.createElement('div'); overlay.className = 'verification-overlay';
+        const modal = document.createElement('div'); modal.className = 'verification-modal';
+        modal.innerHTML = '<h3>Verify your email</h3>' +
+            '<p>We sent a verification link to <strong>' + (email || '') + '</strong>. Please check your inbox (and spam).\nAfter you click the link, return here and click "I verified" or wait for automatic detection.</p>' +
+            '<div style="font-size:0.9rem;color:#666;margin-top:6px;">To protect your account we won\'t proceed until the email is verified.</div>';
+
+    const statusEl = document.createElement('div'); statusEl.style = 'margin-top:10px;color:#444;font-size:0.95rem;min-height:22px;';
+    modal.appendChild(statusEl);
+    const actions = document.createElement('div'); actions.className = 'verification-actions';
+    const resendBtn = document.createElement('button'); resendBtn.className = 'btn btn-outline'; resendBtn.textContent = 'Resend verification';
+    const checkBtn = document.createElement('button'); checkBtn.className = 'btn btn-outline'; checkBtn.textContent = 'I verified — check now';
+    const resetBtn = document.createElement('button'); resetBtn.className = 'btn btn-outline'; resetBtn.textContent = 'Reset password'; resetBtn.style.display = 'none';
+    const closeBtn = document.createElement('button'); closeBtn.className = 'btn btn-primary'; closeBtn.textContent = 'Cancel';
+    actions.appendChild(resendBtn); actions.appendChild(checkBtn); actions.appendChild(resetBtn); actions.appendChild(closeBtn);
+        modal.appendChild(actions);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Prevent leaving the page casually
+        const beforeUnloadHandler = function(e){ e.preventDefault(); e.returnValue = ''; return ''; };
+        window.addEventListener('beforeunload', beforeUnloadHandler);
+
+        let stopped = false;
+        let attempts = 0;
+        let intervalMs = 8000;
+        async function doCheck() {
+            if (stopped) return;
+            if (!window.firebase || !firebase.auth) return;
+            attempts++;
+            statusEl.textContent = 'Checking verification status... (attempt ' + attempts + ')';
+            try {
+                // Try to sign in with provided credentials to refresh user record
+                if (!password) {
+                    statusEl.textContent = 'Password not available in this session. Please sign in from the login page to resend verification or reset your password.';
+                    stopped = true; clearInterval(intervalId); return;
+                }
+                await firebase.auth().signInWithEmailAndPassword(email, password);
+                const u = firebase.auth().currentUser;
+                if (!u) { statusEl.textContent = 'Unable to get user session. Retrying...'; return; }
+                await u.reload();
+                if (u.emailVerified) {
+                    // Verified — clean up and route to home
+                    stopped = true;
+                    try {
+                        // Build payload including any metadata provided during signup
+                        const payload = Object.assign({}, (meta || {}));
+                        payload.email = u.email;
+                        payload.displayName = u.displayName || payload.displayName || '';
+                        payload.emailVerified = true;
+                        payload.lastLoginAt = firebase.firestore.FieldValue.serverTimestamp();
+                        // Ensure role and createdAt exist for new users
+                        if (!payload.role) payload.role = 'user';
+                        if (!payload.createdAt) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                        await firebase.firestore().doc('users/' + u.uid).set(payload, { merge: true });
+                    } catch(e){ console.warn('Failed to upsert user doc after verification', e); }
+                    try { sessionStorage.setItem('profile', JSON.stringify({ email: u.email, name: u.displayName || (meta && (meta.firstName || '') + ' ' + (meta.lastName || '')) || '', uid: u.uid })); } catch(e){}
+                    // remove overlay and handler
+                    window.removeEventListener('beforeunload', beforeUnloadHandler);
+                    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                    // route
+                    const role = (u.email && u.email.toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
+                    if (role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
+                } else {
+                    // sign out so UI doesn't hold an unverified session
+                    try { await firebase.auth().signOut(); } catch(e){}
+                    statusEl.textContent = 'Email still unverified. Waiting for confirmation...';
+                }
+            } catch (err) {
+                // Handle common auth errors and stop retrying for non-recoverable ones
+                const code = err && err.code ? err.code : null;
+                const msg = err && err.message ? err.message : String(err);
+                console.warn('Verification check attempt failed (will retry):', code, msg);
+                if (code === 'auth/wrong-password') {
+                    statusEl.textContent = 'The password provided is incorrect. Click "Reset password" to receive a password reset email.';
+                    resetBtn.style.display = '';
+                    stopped = true; clearInterval(intervalId); window.removeEventListener('beforeunload', beforeUnloadHandler);
+                    return;
+                }
+                if (code === 'auth/user-not-found') {
+                    statusEl.textContent = 'No account found for this email. Please register again or contact support.';
+                    stopped = true; clearInterval(intervalId); window.removeEventListener('beforeunload', beforeUnloadHandler);
+                    return;
+                }
+                if (code === 'auth/user-disabled') {
+                    statusEl.textContent = 'This user account has been disabled. Contact support.';
+                    stopped = true; clearInterval(intervalId); window.removeEventListener('beforeunload', beforeUnloadHandler);
+                    return;
+                }
+                // transient errors: network, too-many-requests — back off exponentially up to some limit
+                if (code === 'auth/too-many-requests' || code === 'auth/network-request-failed' || attempts < 6) {
+                    statusEl.textContent = 'Temporary error checking verification. Retrying in a few seconds...';
+                    // increase interval for exponential backoff
+                    intervalMs = Math.min(60000, intervalMs * 1.8);
+                    clearInterval(intervalId);
+                    setInterval(doCheck, intervalMs);
+                    return;
+                }
+                // Unknown error: stop retrying and surface message
+                statusEl.textContent = 'Unable to automatically verify your email right now: ' + msg + '. Please try again later or contact support.';
+                stopped = true; clearInterval(intervalId); window.removeEventListener('beforeunload', beforeUnloadHandler);
+            }
+        }
+
+        // Periodic poll every 8 seconds
+        const intervalId = setInterval(doCheck, 8000);
+
+        // Immediate check when clicking "I verified"
+        checkBtn.addEventListener('click', async function(){ try { await doCheck(); } catch(e){} });
+
+        // Reset password handler
+        resetBtn.addEventListener('click', async function(){
+            try {
+                if (!email) { alert('No email available'); return; }
+                if (!window.firebase || !firebase.auth) { alert('Firebase not available'); return; }
+                await firebase.auth().sendPasswordResetEmail(email, { url: window.location.origin + '/login.html' });
+                alert('Password reset email sent. Please check your inbox.');
+            } catch (err) { console.error('sendPasswordResetEmail failed', err); alert('Failed to send password reset: ' + (err && err.message ? err.message : String(err))); }
+        });
+
+        // Resend handler: if password is available, sign in briefly and use client SDK's sendEmailVerification
+        resendBtn.addEventListener('click', async function(){
+            try {
+                if (window.firebase && firebase.auth) {
+                    if (!email) { alert('No email available to resend to'); return; }
+                    if (!password) {
+                        alert('Password not available. Please go to the login page and request a verification resend from there.');
+                        return;
+                    }
+                    try {
+                        // Sign in to obtain a valid idToken/currentUser, then call sendEmailVerification
+                        const res = await firebase.auth().signInWithEmailAndPassword(email, password);
+                        const u = res.user || firebase.auth().currentUser;
+                        if (u && u.sendEmailVerification) {
+                            await u.sendEmailVerification({ url: window.location.origin + '/signup.html' });
+                            alert('Verification email sent. Please check your inbox and spam folder.');
+                        } else {
+                            alert('Could not send verification email using Firebase SDK.');
+                        }
+                        try { await firebase.auth().signOut(); } catch(e){}
+                        return;
+                    } catch (err) {
+                        console.warn('Client resend via signIn failed', err);
+                        alert('Could not resend verification automatically. Please sign in and request a verification email from your account settings or the login page.');
+                        try { await firebase.auth().signOut(); } catch(e){}
+                        return;
+                    }
+                }
+                // If Firebase SDK not available, fall back to instructing the user
+                alert('Firebase not configured in this browser. Please check your internet connection or try again.');
+            } catch(e) { console.error('resend verification error', e); alert('Failed to resend verification'); }
+        });
+
+        // Cancel/close overlay (user chooses to stop signup flow)
+        closeBtn.addEventListener('click', function(){ stopped = true; clearInterval(intervalId); window.removeEventListener('beforeunload', beforeUnloadHandler); if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); });
+
+        // Start with an immediate check attempt (in case verification was instant)
+        setTimeout(doCheck, 800);
+
+    } catch (e) { console.error('showVerificationOverlay error', e); alert('Unable to show verification overlay: ' + (e && e.message ? e.message : String(e))); }
 }
 </script>
-    <footer class="footer-section">
-        <div class="site-container">
-            <div class="footer-row">
-                <div class="footer-left">
-                    <div class="footer-header">Have questions?</div>
-                    <div class="footer-subheader">Contact us at our facebook page</div>
-                    <div class="footer-subheader" style="margin-top:18px;">Or via phone/email</div>
-                    <div class="footer-divider"></div>
-                    <div class="footer-note">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br><br>© 2025 Shoe Pao Footwear. All rights reserved.</div>
-                </div>
-                <div class="footer-right">
-                    <a href="about-us.html" class="footer-link">About Us</a>
-                    <a href="shipping.html" class="footer-link">Shipping</a>
-                    <a href="returns.html" class="footer-link">Returns & Exchanges</a>
-                    <a href="privacy.html" class="footer-link">Privacy Policy</a>
-                    <a href="terms.html" class="footer-link">Terms of Service</a>
-                </div>
-            </div>
-        </div>
-    </footer>
+    <!-- Footer removed on signup page per UX request -->
 </body>
 </html>
