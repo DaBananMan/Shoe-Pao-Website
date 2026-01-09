@@ -17,3 +17,6 @@ Workspaces/**
 
 # Shipped by Lens Studio
 Firebase/*.json
+node_modules/
+serviceAccountKey.json
+shoe-pao-storage.json

@@ -1,0 +1,31 @@
+// Dev-friendly Firestore rules (NOT FOR PRODUCTION)
+// Purpose: temporarily allow the admin UI in this repo to read/write the
+// `products` and `sales` collections while you configure proper auth & rules.
+// WARNING: These rules are intentionally permissive. Revert to a secure
+// policy before deploying to production.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow full read/write on products for development/testing only
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+
+    // Allow full read/write on sales for development/testing only
+    match /sales/{saleId} {
+      allow read, write: if true;
+    }
+
+    // Allow full read/write on variants for development/testing only
+    // (If you store per-product color/size docs in a `variants` collection)
+    match /variants/{variantId} {
+      allow read, write: if true;
+    }
+
+    // By default deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
