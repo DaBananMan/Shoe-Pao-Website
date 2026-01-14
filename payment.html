@@ -21,7 +21,24 @@
             margin:0 auto;
             padding:32px 16px 0 16px; /* add spacing from left/right edges */
             box-sizing:border-box;
+            /* allow the main container to grow so the footer is pushed to the bottom on short pages */
+            flex: 1 0 auto;
         }
+        /* When COD is selected we want only the action row and policy links to be pushed
+           toward the bottom; keep instruction blocks (like COD instructions) near the header.
+           The JS toggles the `cod-selected` class on <body> when COD is active. */
+        body.cod-selected .payment-left {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        /* Push only the action row and policy links down in the flex column layout */
+        body.cod-selected .payment-btn-row,
+        body.cod-selected .payment-policy-row {
+            margin-top: auto;
+        }
+        /* Small page-scoped footer gap override so the footer sits closer on this page */
+        body.payment-page .footer-section { margin-top: 18px !important; }
         .payment-right {
             flex: 1.1;
             background: #f5f5f5;
@@ -261,7 +278,7 @@
         }
     </style>
 </head>
-<body>
+<body class="productlist-body payment-page">
     <!-- Navigation Bar (copied from product-list.html) -->
     <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:72px;">
         <div style="display:flex;align-items:center;gap:24px;">
@@ -621,6 +638,8 @@
                 } else if(code === 'cod'){
                     if(codEl) codEl.style.display = '';
                 }
+                // Toggle a body-level class so CSS can place left-column items nearer the footer
+                try{ if(code === 'cod') document.body.classList.add('cod-selected'); else document.body.classList.remove('cod-selected'); }catch(e){}
                 // Reference number constraints (GCash QR vs Bank Transfer)
                 try{ updateReferenceFieldConstraints(code); }catch(e){}
             }catch(e){ /* ignore */ }
@@ -724,6 +743,8 @@
                     } else if(code === 'cod'){
                         if(codEl) codEl.style.display = '';
                     }
+                    // Toggle a body-level class so CSS can place left-column items nearer the footer
+                    try{ if(code === 'cod') document.body.classList.add('cod-selected'); else document.body.classList.remove('cod-selected'); }catch(e){}
                 }catch(e){}
             }
         });
