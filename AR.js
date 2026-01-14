@@ -5,8 +5,8 @@
 // and fall back to trying a UMD bundle injected via a <script> tag.
 
 // Configuration (replace these with your real values if needed)
-const AR_API_TOKEN = 'eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzYzNTE2MDY3LCJzdWIiOiI2MTk0ZWUzNi0zZTVjLTQwODMtOWRkYy0zNzIzYTdjY2U0OGJ-U1RBR0lOR341NmU2NzFmNC04YTg3LTRkMzAtODQ3ZC1mOTg0YTFjNTkzNGIifQ.kt8hfIKsMUUI80dqpfUaHa-NgyagEdZQzd1s1-BAays'
-const AR_GROUP_ID = '9a8350d1-1048-407b-94e5-1e740fe90deb'
+const AR_API_TOKEN = 'eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzY4Mzk3ODE2LCJzdWIiOiJiYjc3YjkxMC1jZjI5LTRjNmEtOTA0ZS01YzQ3OWY0YTE4MzJ-U1RBR0lOR35iY2FiM2NkYS1mYjkzLTRiM2QtYjY0ZS1jNGQyNDIxMDNjODYifQ.WjHoloZXYkELt_pOHSVBHVMBCVF56-ddVZR6tX4mGHY'
+const AR_GROUP_ID = '7beeec19-bcc9-47fe-b1e8-97d0783e252c'
 
 // Keep reference to active session and stream so we can stop later
 window._shoePaoAR = window._shoePaoAR || { session: null, stream: null }
