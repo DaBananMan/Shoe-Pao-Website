@@ -94,6 +94,10 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
 .form-grid textarea { grid-column: 1 / -1; min-height: 80px; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 
+/* Product modal field title (label on top of input) */
+.form-grid .field { display: block; }
+.form-grid .field .field-title { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+
 /* Variants */
 .variant-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .colors-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
@@ -102,8 +106,24 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
 .color-actions { margin-left: auto; display: flex; gap: 6px; }
 .sizes-editor { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .size-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
-.size-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; margin-bottom: 6px; }
-.size-row label { color: var(--muted); font-size: 12px; }
+.size-row { display: grid; /* checkbox | label | input area | qty controls */ grid-template-columns: auto auto 1fr auto; gap: 6px; align-items: center; margin-bottom: 4px; }
+.size-row label { color: var(--muted); font-size: 12px; grid-column: 2; justify-self: end; }
+.size-checkbox { width: 16px; height: 16px; }
+.size-row input[type="number"] { width: 56px; grid-column: 3; justify-self: center; }
+.qty-controls { display: inline-flex; gap: 4px; align-items: center; grid-column: 4; justify-self: start; }
+.qty-btn { background: #f2f2f2; border: 1px solid #d9d9d9; padding: 4px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; width:28px; height:28px; }
+.qty-btn img { width: 14px; height: 14px; display: block; }
+
+/* Remove native number input spinners */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
 .fill-actions { display: flex; gap: 8px; margin-bottom: 8px; }
 
 /* Images list */

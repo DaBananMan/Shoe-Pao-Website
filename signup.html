@@ -348,45 +348,16 @@ function handleSignup(e){
         const addressDetails = addressVal.split('\n').slice(1).join(', ') || '';
         if(!email || !password){ alert('Please enter email and password'); return; }
 
-        // If Firebase is configured, use it; otherwise fall back to local storage logic
+        // If Firebase is configured, don't create/send verification yet.
+        // Save the pending signup payload and redirect to a dedicated verification page
+        // where the user chooses email verification or SMS (OTP). That page will
+        // create the Firebase user and perform the selected verification action.
         if(window.FIREBASE_CONFIG && window.firebase && window.firebase.auth){
             try{
-                if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
-                // If an anonymous session exists, link it to the new credentials instead of creating a new account
-                const currentUser = firebase.auth().currentUser;
-                if(currentUser && currentUser.isAnonymous){
-                    // link anonymous to email credential
-                    const cred = firebase.auth.EmailAuthProvider.credential(email, password);
-                    await currentUser.linkWithCredential(cred);
-                    // update profile
-                    try{ await currentUser.updateProfile({ displayName: ((firstName||'') + (lastName?(' ' + lastName):'')).trim() }); }catch(e){}
-                    alert('Account created and linked from anonymous session. Please verify your email if you have not already.');
-                    // send verification if needed
-                    if(!currentUser.emailVerified){
-                        try { await currentUser.sendEmailVerification({ url: window.location.origin + '/signup.html' }); } catch(e){ console.warn('sendEmailVerification', e); }
-                        // Show verification overlay and defer creating the canonical users/{uid} doc until verification completes
-                        showVerificationOverlay(email, password, { firstName, lastName, phone, addressMain, addressDetails });
-                        return;
-                    }
-                    // If already verified (rare), create the user doc now
-                    try{ const db = firebase.firestore(); await db.doc('users/' + currentUser.uid).set({ email, displayName: currentUser.displayName || '', firstName, lastName, phone, addressMain, addressDetails, emailVerified: !!currentUser.emailVerified, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge:true }); }catch(e){ console.warn('user doc merge failed', e); }
-                    return;
-                }
-
-                // create user normally
-                const result = await firebase.auth().createUserWithEmailAndPassword(email, password);
-                const user = result.user;
-                if(user && user.updateProfile){ try{ await user.updateProfile({ displayName: ((firstName||'') + (lastName?(' ' + lastName):'')).trim() }); }catch(e){} }
-
-                // send verification email and require verification before leaving
-                const actionCodeSettings = { url: window.location.origin + '/signup.html', handleCodeInApp: false };
-                await user.sendEmailVerification(actionCodeSettings);
-                // sign out so we don't treat unverified as signed-in
-                try{ await firebase.auth().signOut(); }catch(e){}
-
-                // show overlay instructing user to verify and prevent navigation
-                showVerificationOverlay(email, password, { firstName, lastName, phone, addressMain, addressDetails });
-            }catch(err){ console.error('Firebase signup error', err); alert('Signup failed: ' + (err && err.message ? err.message : String(err))); }
+                const pending = { email, password, firstName, lastName, phone, addressMain, addressDetails };
+                try { sessionStorage.setItem('pending_signup', JSON.stringify(pending)); } catch(e) { console.warn('Could not persist pending signup in sessionStorage', e); }
+                window.location.href = 'verification.html';
+            }catch(err){ console.error('Signup redirect error', err); alert('Signup failed: ' + (err && err.message ? err.message : String(err))); }
             return;
         }
 

@@ -800,9 +800,10 @@
         return `<span class="badge ${status}" title="${(availableSizes(c) || []).join(', ') || 'None'}">${c.name} (${stock})</span>`;
       }).join(' ');
 
-      const total = totalStockForProduct(p);
-      const totalStatus = total === 0 ? 'out' : (total <= threshold ? 'low' : 'in');
-      const price = `₱${(parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0))}`;
+  const total = totalStockForProduct(p);
+  const totalStatus = total === 0 ? 'out' : (total <= threshold ? 'low' : 'in');
+  const price = `₱${(parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0))}`;
+  const displayGender = (p.gender || p.genderFitting || 'Unisex');
       const bulkBox = state.ui.bulkMode ? `<input type="checkbox" class="bulkSel" data-id="${p.id}" ${state.ui.selectedProductIds.has(p.id) ? 'checked' : ''}/>` : '';
       const catDisplay = (p.category || '').trim();
       const tags = computeTags(p);
@@ -813,8 +814,9 @@
         <td>${displayBrand}</td>
         <td>${displaySku || ''}</td>
         <td>${displayModel}</td>
-        <td>${catDisplay}</td>
-        <td class="status ${displayStatus}">${displayStatus}</td>
+  <td>${catDisplay}</td>
+  <td>${displayGender}</td>
+  <td class="status ${displayStatus}">${displayStatus}</td>
         <td class="tags-cell">${tagsHtml || ''}</td>
         <td class="colors-cell">${colors || '<span class="badge out">No colors</span>'}</td>
         <td><span class="badge ${totalStatus}">${total}</span></td>
@@ -880,14 +882,15 @@
           const skuTxt = (cells[2] && cells[2].textContent) ? cells[2].textContent.trim() : '';
           const modelTxt = (cells[3] && cells[3].textContent) ? cells[3].textContent.trim() : '';
           const catTxt = (cells[4] && cells[4].textContent) ? cells[4].textContent.trim() : '';
-          const statusTxt = (cells[5] && cells[5].textContent) ? cells[5].textContent.trim() : '';
-          const priceTxt = (cells[9] && cells[9].textContent) ? cells[9].textContent.trim() : '';
+          const genderTxt = (cells[5] && cells[5].textContent) ? cells[5].textContent.trim() : '';
+          const statusTxt = (cells[6] && cells[6].textContent) ? cells[6].textContent.trim() : '';
+          const priceTxt = (cells[10] && cells[10].textContent) ? cells[10].textContent.trim() : '';
           // Extract numeric price if present (e.g., "₱1,234.00")
           let priceNum = 0;
           const m = priceTxt.match(/[\d,\.]+/);
           if (m) priceNum = parseFloat(m[0].replace(/,/g, '')) || 0;
           const tags = Array.from(tr.querySelectorAll('.tags-cell .tag')).map(el => el.textContent.trim());
-          return { brand: brandTxt, sku: skuTxt, model: modelTxt, category: catTxt, status: statusTxt, price: priceNum, tags };
+          return { brand: brandTxt, sku: skuTxt, model: modelTxt, category: catTxt, gender: genderTxt, status: statusTxt, price: priceNum, tags };
         } catch (e) { return null; }
       };
 
@@ -896,9 +899,9 @@
       // Fill inputs preferring the visible DOM values when available, otherwise fall back to the product object
       brand.value = (dom && dom.brand) ? dom.brand : (p.brand || '');
       model.value = (dom && dom.model) ? dom.model : (p.model || '');
-      cat.value = (dom && dom.category) ? dom.category : (p.category || '');
-      statusSel.value = (dom && dom.status) ? dom.status : (p.status || '');
-      if (genderSel) genderSel.value = p.gender || 'Unisex';
+  cat.value = (dom && dom.category) ? dom.category : (p.category || '');
+  statusSel.value = (dom && dom.status) ? dom.status : (p.status || '');
+  if (genderSel) genderSel.value = (dom && dom.gender) ? dom.gender : (p.gender || 'Unisex');
       pOrig.value = (dom && Number.isFinite(dom.price) && dom.price > 0) ? dom.price : (p.pricing?.original || '');
       pSale.value = p.pricing?.sale || '';
       pCost.value = p.pricing?.cost || '';
@@ -1130,31 +1133,38 @@
     p.colors.forEach(color => {
       const card = document.createElement('div'); card.className = 'size-card';
       const fill = document.createElement('div'); fill.className = 'fill-actions';
+      // Add a per-color select-all checkbox and bulk apply controls
       fill.innerHTML = `<strong>${color.name}</strong>
-        <button class="secondary" data-action="fill-all" data-id="${color.id}">Fill all sizes</button>
+        <label style="margin-left:8px"><input type="checkbox" class="color-select-all" data-id="${color.id}" /> Select all</label>
         <button class="secondary" data-action="clear-all" data-id="${color.id}">Clear</button>`;
       card.appendChild(fill);
       const grid = document.createElement('div'); grid.className = 'size-grid';
       EU_SIZES.forEach(eu => {
-        const s = color.sizes.find(x => x.eu === eu);
+        const s = color.sizes.find(x => x.eu === eu) || { eu, stock: 0 };
         const row = document.createElement('div'); row.className = 'size-row';
-        row.innerHTML = `<label>${eu}EU</label><input type="number" min="0" step="1" value="${s.stock}" data-color="${color.id}" data-size="${eu}" />`;
+        // checkbox, label, numeric input, then qty controls (minus/plus icons on the right)
+        row.innerHTML = `<input type="checkbox" class="size-checkbox" data-color="${color.id}" data-size="${eu}" />
+          <label>${eu}EU</label>
+          <input type="number" min="0" step="1" value="${s.stock}" data-color="${color.id}" data-size="${eu}" />
+          <div class="qty-controls">
+            <button type="button" class="qty-btn qty-dec" data-color="${color.id}" data-size="${eu}"><img src="IMAGE/minus_icon.png" alt="-" /></button>
+            <button type="button" class="qty-btn qty-inc" data-color="${color.id}" data-size="${eu}"><img src="IMAGE/plus.png" alt="+" /></button>
+          </div>`;
         grid.appendChild(row);
       });
       card.appendChild(grid);
+
+      // per-color bulk apply controls
+      const apply = document.createElement('div'); apply.className = 'apply-actions';
+      apply.innerHTML = `<input type="number" min="0" step="1" class="apply-qty" data-id="${color.id}" placeholder="Qty" style="width:80px" />
+        <button class="secondary" data-action="apply-selected" data-id="${color.id}">Apply to selected</button>`;
+      card.appendChild(apply);
+
       editor.appendChild(card);
     });
 
     // Bind fill actions and size inputs
-    editor.querySelectorAll('[data-action="fill-all"]').forEach(btn => btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      const qty = parseNum(prompt('Set stock for all sizes to:'), null);
-      if (qty === null) return;
-      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = p.colors.find(y => y.id === id);
-      c.sizes.forEach(s => s.stock = clampNum(qty, 0, 9999));
-      saveAll(); openVariantModal(p.id);
-    }));
+    // (fill-all removed) per-color bulk apply is available via the Apply to selected control
     editor.querySelectorAll('[data-action="clear-all"]').forEach(btn => btn.addEventListener('click', () => {
       const id = btn.dataset.id;
       const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
@@ -1164,7 +1174,40 @@
       saveAll(); openVariantModal(p.id);
     }));
 
-    editor.querySelectorAll('input[type="number"]').forEach(inp => inp.addEventListener('change', (e) => {
+    // Per-color select-all checkbox behavior
+    editor.querySelectorAll('.color-select-all').forEach(cb => cb.addEventListener('change', (e) => {
+      const id = cb.dataset.id;
+      const card = cb.closest('.size-card');
+      if (!card) return;
+      const checked = cb.checked;
+      card.querySelectorAll('.size-checkbox').forEach(ch => ch.checked = checked);
+    }));
+
+    // Apply to selected sizes for a color
+    editor.querySelectorAll('[data-action="apply-selected"]').forEach(btn => btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const qtyInp = editor.querySelector(`.apply-qty[data-id="${id}"]`);
+      if (!qtyInp) return;
+      const qty = parseNum(qtyInp.value, null);
+      if (qty === null || qty < 0) { alert('Enter a non-negative quantity'); return; }
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === id);
+      // find all checked size-checkboxes for this color
+      const checked = Array.from(editor.querySelectorAll(`.size-checkbox[data-color="${id}"]`)).filter(ch => ch.checked);
+      if (!checked.length) { alert('No sizes selected'); return; }
+      checked.forEach(ch => {
+        const eu = parseNum(ch.dataset.size);
+        const s = c.sizes.find(z => z.eu === eu);
+        if (s) s.stock = clampNum(qty, 0, 9999);
+        // update corresponding number input in DOM
+        const num = editor.querySelector(`input[type="number"][data-color="${id}"][data-size="${eu}"]`);
+        if (num) num.value = s ? s.stock : 0;
+      });
+      saveAll(); openVariantModal(p.id);
+    }));
+
+    // Only bind change handlers to the stock number inputs (they have data-size)
+    editor.querySelectorAll('input[type="number"][data-size]').forEach(inp => inp.addEventListener('change', (e) => {
       const colorId = Number.isNaN(Number(e.target.dataset.color)) ? e.target.dataset.color : e.target.dataset.color;
       const eu = parseNum(e.target.dataset.size);
       const qty = clampNum(parseNum(e.target.value), 0, 9999);
@@ -1172,6 +1215,26 @@
       const c = p.colors.find(y => y.id === colorId);
       const s = c.sizes.find(z => z.eu === eu);
       s.stock = qty; saveAll();
+    }));
+
+    // Bind plus/minus buttons to increment/decrement the corresponding number input
+    editor.querySelectorAll('.qty-inc').forEach(btn => btn.addEventListener('click', (e) => {
+      const colorId = btn.dataset.color;
+      const eu = parseNum(btn.dataset.size);
+      const num = editor.querySelector(`input[type="number"][data-color="${colorId}"][data-size="${eu}"]`);
+      if (!num) return;
+      const next = clampNum((parseNum(num.value, 0) || 0) + 1, 0, 9999);
+      num.value = next;
+      num.dispatchEvent(new Event('change'));
+    }));
+    editor.querySelectorAll('.qty-dec').forEach(btn => btn.addEventListener('click', (e) => {
+      const colorId = btn.dataset.color;
+      const eu = parseNum(btn.dataset.size);
+      const num = editor.querySelector(`input[type="number"][data-color="${colorId}"][data-size="${eu}"]`);
+      if (!num) return;
+      const next = clampNum((parseNum(num.value, 0) || 0) - 1, 0, 9999);
+      num.value = next;
+      num.dispatchEvent(new Event('change'));
     }));
   }
 

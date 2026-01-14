@@ -91,6 +91,7 @@
                     <col style="width:11%" />
                     <col style="width:9%" />
                     <col style="width:8%" />
+                    <col style="width:8%" />
                     <col style="width:10%" />
                     <col style="width:auto" />
                     <col style="width:8%" />
@@ -103,6 +104,7 @@
                         <th>SKU</th>
                         <th>Model</th>
                         <th>Category</th>
+                        <th>Gender-Fitting</th>
                         <th>Status</th>
                         <th>Tags</th>
                         <th class="colors-col">Colors</th>
@@ -219,23 +221,58 @@
         <form method="dialog" id="productForm">
             <h2 id="productModalTitle">Add Product</h2>
             <div class="form-grid">
-                <input id="prodBrand" placeholder="Brand" required />
-                <input id="prodModel" placeholder="Model" required />
-                <input id="prodCategory" placeholder="Category" />
-                <select id="prodGender">
-                    <option value="Unisex">Unisex</option>
-                    <option value="Men">Men</option>
-                    <option value="Women">Women</option>
-                </select>
-                <input id="prodSKU" placeholder="SKU (auto: SP-BBB-MMMM-XXXX)" readonly />
-                <select id="prodStatus">
-                    <option value="active">Active</option>
-                    <option value="archived">Archived</option>
-                </select>
-                <input id="priceOriginal" type="number" min="0" step="0.01" placeholder="Original Price" required />
-                <input id="priceSale" type="number" min="0" step="0.01" placeholder="Sale Price" />
-                <input id="priceCost" type="number" min="0" step="0.01" placeholder="Cost" />
-                <textarea id="prodDescription" placeholder="Description (optional)" rows="3"></textarea>
+                <label class="field">
+                    <div class="field-title">Brand</div>
+                    <input id="prodBrand" placeholder="Brand" required />
+                </label>
+                <label class="field">
+                    <div class="field-title">Model</div>
+                    <input id="prodModel" placeholder="Model" required />
+                </label>
+                <label class="field">
+                    <div class="field-title">Category</div>
+                    <select id="prodCategory">
+                        <option value="">Select category</option>
+                        <option>Basketball/Performance</option>
+                        <option>Lifestyle/Streetwear</option>
+                        <option>Running/Training</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <div class="field-title">Gender-Fitting</div>
+                    <select id="prodGender">
+                        <option value="Unisex">Unisex</option>
+                        <option value="Men">Men</option>
+                        <option value="Women">Women</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <div class="field-title">SKU</div>
+                    <input id="prodSKU" placeholder="SKU (auto: SP-BBB-MMMM-XXXX)" readonly />
+                </label>
+                <label class="field">
+                    <div class="field-title">Status</div>
+                    <select id="prodStatus">
+                        <option value="active">Active</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <div class="field-title">Original Price</div>
+                    <input id="priceOriginal" type="number" min="0" step="0.01" placeholder="Original Price" required />
+                </label>
+                <label class="field">
+                    <div class="field-title">Sale Price</div>
+                    <input id="priceSale" type="number" min="0" step="0.01" placeholder="Sale Price" />
+                </label>
+                <label class="field">
+                    <div class="field-title">Cost</div>
+                    <input id="priceCost" type="number" min="0" step="0.01" placeholder="Cost" />
+                </label>
+                <label class="field">
+                    <div class="field-title">Description</div>
+                    <textarea id="prodDescription" placeholder="Description (optional)" rows="3"></textarea>
+                </label>
             </div>
             <div id="tagsSection" class="tags-section">
                 <h3>Manual Tags</h3>

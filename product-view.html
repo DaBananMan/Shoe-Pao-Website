@@ -1773,7 +1773,12 @@ On page.</div>
                             elStock.style.color = '#b71c1c';
                             if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; addBtnEl.textContent = 'Pre-Order'; addBtnEl.dataset.preorder = '1'; }
                         } else {
-                            elStock.textContent = 'Stock: ' + qty + ' available';
+                            // Show stock quantity. If stock is low, display a red "LOW STOCK!" label next to the quantity
+                            if (qty < 6) {
+                                elStock.innerHTML = 'Stock: ' + qty + ' available <span style="color:#b71c1c;font-weight:700;margin-left:8px;">LOW STOCK!</span>';
+                            } else {
+                                elStock.textContent = 'Stock: ' + qty + ' available';
+                            }
                             elStock.style.color = '';
                             if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; addBtnEl.textContent = 'Add to Cart'; addBtnEl.dataset.preorder = '0'; }
                         }
@@ -1830,7 +1835,7 @@ On page.</div>
                         b.classList.add('oos');
                     } else {
                         b.disabled = false;
-                        if(qty < 6){ b.classList.add('low-stock'); }
+                        // Do not change button color for low stock; show 'LOW STOCK!' next to stock line instead
                     }
                 }catch(ee){}
             });
