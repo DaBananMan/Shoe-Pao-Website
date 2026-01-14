@@ -134,13 +134,19 @@
     flex: 1;
     min-width: 0;
 }
+.cart-item-middle {
+    /* ensure text doesn't flow underneath the absolute-positioned icons on the right */
+    padding-right: 96px;
+}
 .cart-item-title {
     font-weight: 600;
     font-size: 0.99rem;
     color: #222;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    /* allow wrapping so long model names break onto a new line before colliding with icons */
+    overflow-wrap: break-word;
+    word-break: normal;
+    white-space: normal;
+    display: block;
 }
 .cart-item-brand {
     font-size: 0.93rem;
@@ -209,11 +215,51 @@
     margin-top: 8px;
     width: 100%;
 }
+
+/* Ensure cart edit modal uses white background with black text even on pages
+   that don't include the admin `inventory-app.css`. The modal is created
+   with classes `bank-modal cart-edit-modal` by the script, so target that
+   to neutralize the global low-stock orange inside the modal. */
+.bank-modal.cart-edit-modal {
+    background: #ffffff !important;
+    color: #000000 !important;
+}
+.bank-modal.cart-edit-modal .bank-modal-close { color: #000000 !important; }
+.bank-modal.cart-edit-modal .btn.ghost {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #ddd !important;
+}
+.bank-modal.cart-edit-modal .btn.primary {
+    background: #000000 !important;
+    color: #ffffff !important;
+    border: 0 !important;
+}
+.bank-modal.cart-edit-modal .btn.low-stock:not(.primary),
+.bank-modal.cart-edit-modal .product-size-btn,
+.bank-modal.cart-edit-modal .gender-btn {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #ddd !important;
+}
+.bank-modal.cart-edit-modal .product-size-btn.oos,
+.bank-modal.cart-edit-modal .btn.oos { opacity: 0.45 !important; }
 .cart-empty {
     color: #666;
     font-size: 0.98rem;
     padding: 18px 0;
     text-align: center;
+}
+/* Force cart item titles to wrap and reserve right space for icons.
+   This overrides any earlier rules that set nowrap/ellipsis so long names
+   will start a new line before colliding with the price/trash icons. */
+.cart-item-middle { padding-right: 96px !important; }
+.cart-item-title {
+    white-space: normal !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
 }
 /* Duplicate cart-sidebar rules removed (off-canvas transform implementation used earlier) */
 .cart-header-row {
@@ -274,11 +320,18 @@
     flex-direction: column;
     gap: 4px;
     flex: 1;
+    /* prevent the middle column's content from flowing under the absolute-positioned icons */
+    padding-right: 96px;
+    min-width: 0;
 }
 .cart-item-title {
     font-size: 1.08rem;
     font-weight: 600;
     color: #222;
+    /* allow wrapping so the name moves to a new line before colliding with icons */
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
 }
 .cart-item-brand {
     font-size: 0.98rem;

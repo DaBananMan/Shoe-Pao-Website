@@ -643,34 +643,78 @@
         }
 
         // ===== Build inventory solely from admin-managed products =====
-        // Remove legacy seeded products and regenerate inventory from shoeInventoryData.
+        // Only regenerate inventory from `shoeInventoryData` when there is no
+        // existing `inventory` in localStorage. This prevents overwriting the
+        // published inventory (which may include variants sourced from the
+        // admin variants collection) when the page loads.
         try{
+            var existingInv = JSON.parse(localStorage.getItem('inventory')||'[]');
             var adminProducts = JSON.parse(localStorage.getItem('shoeInventoryData')||'null');
-            var newInv = [];
-            if(Array.isArray(adminProducts) && adminProducts.length){
-                adminProducts.forEach(function(p){
-                    var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : '';
-                    (Array.isArray(p.colors) ? p.colors : []).forEach(function(c){
-                        var sizesMap = {};
-                        (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ sizesMap[String(s.eu)] = Number(s.stock||0); });
-                        newInv.push({
-                            id: p.sku || p.id || ('gen-' + Math.random().toString(36).slice(2,9)),
-                            name: (p.model||'') + (c.name?(' '+c.name):''),
-                            brand: p.brand || '',
-                            color: c.name || '',
-                            image: baseImg || 'IMAGE/NIKE1.png',
-                            sizes: sizesMap,
-                            price: Number((p.pricing && (p.pricing.sale||p.pricing.original)) || 0),
-                            originalPrice: Number((p.pricing && p.pricing.original) || 0),
-                            productId: p.id || '',
-                            colorId: c.id || '',
-                            createdAt: p.createdAt || null,
-                            gender: p.gender || ''
+            // If there's no published inventory, build it from admin products as before
+            if(!Array.isArray(existingInv) || existingInv.length === 0){
+                var newInv = [];
+                if(Array.isArray(adminProducts) && adminProducts.length){
+                    adminProducts.forEach(function(p){
+                        var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : '';
+                        (Array.isArray(p.colors) ? p.colors : []).forEach(function(c){
+                            var sizesMap = {};
+                            (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ sizesMap[String(s.eu)] = Number(s.stock||0); });
+                            newInv.push({
+                                id: p.sku || p.id || ('gen-' + Math.random().toString(36).slice(2,9)),
+                                name: (p.model||'') + (c.name?(' '+c.name):''),
+                                brand: p.brand || '',
+                                color: c.name || '',
+                                image: baseImg || 'IMAGE/NIKE1.png',
+                                sizes: sizesMap,
+                                price: Number((p.pricing && (p.pricing.sale||p.pricing.original)) || 0),
+                                originalPrice: Number((p.pricing && p.pricing.original) || 0),
+                                productId: p.id || '',
+                                colorId: c.id || '',
+                                createdAt: p.createdAt || null,
+                                gender: p.gender || ''
+                            });
                         });
                     });
-                });
+                }
+                localStorage.setItem('inventory', JSON.stringify(newInv));
+            } else {
+                // If published inventory exists, ensure it contains any variants defined in adminProducts
+                // This handles cases where variants are stored only in admin products (or merged from Firestore)
+                if(Array.isArray(adminProducts) && adminProducts.length){
+                    var changed = false;
+                    adminProducts.forEach(function(p){
+                        var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : '';
+                        (Array.isArray(p.colors) ? p.colors : []).forEach(function(c){
+                            // Check if inventory already has this productId + color
+                            var exists = existingInv.some(function(it){
+                                try{
+                                    return (it.productId && p.id && String(it.productId) === String(p.id)) && (String((it.color||'')).toLowerCase() === String((c.name||'')).toLowerCase());
+                                }catch(e){return false;}
+                            });
+                            if(!exists){
+                                var sizesMap = {};
+                                (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ sizesMap[String(s.eu)] = Number(s.stock||0); });
+                                existingInv.push({
+                                    id: p.sku || p.id || ('gen-' + Math.random().toString(36).slice(2,9)),
+                                    name: (p.model||'') + (c.name?(' '+c.name):''),
+                                    brand: p.brand || '',
+                                    color: c.name || '',
+                                    image: baseImg || 'IMAGE/NIKE1.png',
+                                    sizes: sizesMap,
+                                    price: Number((p.pricing && (p.pricing.sale||p.pricing.original)) || 0),
+                                    originalPrice: Number((p.pricing && p.pricing.original) || 0),
+                                    productId: p.id || '',
+                                    colorId: c.id || '',
+                                    createdAt: p.createdAt || null,
+                                    gender: p.gender || ''
+                                });
+                                changed = true;
+                            }
+                        });
+                    });
+                    if(changed) localStorage.setItem('inventory', JSON.stringify(existingInv));
+                }
             }
-            localStorage.setItem('inventory', JSON.stringify(newInv));
         }catch(e){}
 
 
@@ -750,8 +794,30 @@
                     var priceText = (minP === maxP) ? ('P' + Number(minP).toLocaleString(undefined,{minimumFractionDigits:2}))
                                                     : ('From P' + Number(minP).toLocaleString(undefined,{minimumFractionDigits:2}));
 
-                    // gender: if all same use it, else Unisex
-                    var genders = Array.from(new Set(g.variants.map(function(v){ return (v.gender||'').toString(); }).filter(Boolean)));
+                    // gender: normalize per-variant gender values (split lists like "Men, Women")
+                    // and compute group-level gender: if all same -> that, else 'Unisex'
+                    var genderSet = new Set();
+                    g.variants.forEach(function(v){
+                        try{
+                            var raw = v && v.gender ? v.gender : '';
+                            var parts = [];
+                            if(Array.isArray(raw)){
+                                parts = raw.map(function(x){ return (x||'').toString().trim(); }).filter(Boolean);
+                            } else {
+                                var s = (raw||'').toString();
+                                // split common separators
+                                parts = s.split(/[,\/|;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+                                // if splitting didn't produce tokens, detect common keywords inside the string
+                                if(parts.length === 0){
+                                    if(/men/i.test(s)) parts.push('Men');
+                                    if(/women/i.test(s)) parts.push('Women');
+                                    if(/unisex/i.test(s)) parts.push('Unisex');
+                                }
+                            }
+                            parts.forEach(function(p){ if(p) genderSet.add(p); });
+                        }catch(_){ }
+                    });
+                    var genders = Array.from(genderSet).filter(Boolean);
                     var genderAttr = (genders.length === 1) ? genders[0] : 'Unisex';
 
                     // Compute group-level tags
@@ -784,10 +850,10 @@
                         '</div>' +
                         '<div class="shoe-info-box">' +
                         '  <div class="shoe-info-top">' +
-                        '    <span class="shoe-brand">'+(g.brand||'')+'</span>' +
+                        '    <span class="shoe-model">'+(g.baseName||'')+'</span>' +
                         '    <span class="shoe-price">'+priceText+'</span>' +
                         '  </div>' +
-                        '  <div class="shoe-info-bottom">'+(g.baseName||'')+' ('+g.variants.length+' colors)</div>' +
+                        '  <div class="shoe-info-bottom">'+(g.brand||'')+' ('+g.variants.length+' colors)</div>' +
                         '</div>';
                     card.innerHTML = inner;
 
@@ -1014,8 +1080,15 @@
         });
 
         document.addEventListener('DOMContentLoaded', function(){
+            // Ensure sensible default filters on load so published inventory is visible
             if(!localStorage.getItem('sizeStandard')) localStorage.setItem('sizeStandard','EU');
-            if(!localStorage.getItem('selectedEU')) localStorage.setItem('selectedEU', JSON.stringify([]));
+            // Reset selected sizes to show all by default (prevents accidental size filtering hiding groups)
+            try { localStorage.setItem('selectedEU', JSON.stringify([])); } catch(e) {}
+            // Ensure brand and gender checkboxes are checked by default so published cards are not hidden
+            try { document.querySelectorAll('.brand-checkbox').forEach(cb => cb.checked = true); } catch(e) {}
+            try { if(document.getElementById('genderMen')) document.getElementById('genderMen').checked = true; if(document.getElementById('genderWomen')) document.getElementById('genderWomen').checked = true; if(document.getElementById('genderUnisex')) document.getElementById('genderUnisex').checked = true; } catch(e) {}
+            // Clear any search param/input on initial load to avoid accidental filtering
+            try { const si = document.getElementById('searchInput'); if(si) si.value = ''; const url = new URL(window.location.href); url.searchParams.delete('search'); window.history.replaceState({}, '', url.pathname + url.search + url.hash); } catch(e) {}
             renderSizeButtons();
             // render any admin-posted inventory cards
             try{ renderInventoryCards(); }catch(_){}

@@ -211,6 +211,29 @@
         window.requestCancelOrderById = function(id){ var idx = findOrderIndexById(id); if(idx === -1) return; requestCancelOrder(idx); }
         window.requestRefundOrderById = function(id){ var idx = findOrderIndexById(id); if(idx === -1) return; requestRefundOrder(idx); }
 
+        // Mark the order as received (Delivered) from the client side
+        window.markOrderReceivedById = function(id){
+            try{
+                var orders = JSON.parse(localStorage.getItem('orders')||'[]');
+                var idx = orders.findIndex(function(o){ return (o && (o.id||'')) === id; });
+                if(idx === -1) return;
+                orders[idx].status = 'delivered';
+                try{ localStorage.setItem('orders', JSON.stringify(orders)); }catch(e){ console.error('persist failed', e); }
+                renderOrders();
+                // If order modal is open for this id, refresh it
+                var overlay = document.getElementById('orderModalOverlay');
+                if(overlay && overlay.style.display === 'flex'){
+                    var currentIdText = (document.getElementById('orderModalId')||{}).textContent || '';
+                    var m = currentIdText.match(/Order ID:\s*(\S+)/);
+                    var currentId = m ? m[1] : null;
+                    if(currentId === id){
+                        var newIdx = orders.findIndex(function(o){ return (o && (o.id||'')) === id; });
+                        if(newIdx !== -1){ openOrderModal(newIdx); }
+                    }
+                }
+            }catch(e){ console.error(e); }
+        }
+
         // Return a representative image URL from an order's items (first non-empty image), fallback to placeholder
         function getOrderRepresentativeImage(order){
             try{
@@ -275,8 +298,9 @@
                         ${ isCancellationRevoked(order) ? ('<div style="padding:6px 18px;color:#b71c1c;font-weight:600;">Cancel Request Was Revoked</div>') : '' }
                         <div class="order-card-btn-row">
                         <button class="order-card-btn view-btn" onclick="openOrderModalById('${order.id}')">View Order</button>
-                        <button class="order-card-btn cancel-btn" onclick="requestCancelOrderById('${order.id}')">Cancel</button>
+                        ${ (String(order.status||'').toLowerCase() !== 'shipped' && String(order.status||'').toLowerCase() !== 'delivered') ? (`<button class="order-card-btn cancel-btn" onclick="requestCancelOrderById('${order.id}')">Cancel</button>`) : '' }
                         <button class="order-card-btn refund-btn" onclick="requestRefundOrderById('${order.id}')">Refund</button>
+                        ${ String(order.status||'').toLowerCase() === 'shipped' ? (`<button class="order-card-btn view-btn" onclick="markOrderReceivedById('${order.id}')">Order Received</button>`) : '' }
                     </div>
                 `;
                 container.appendChild(card);

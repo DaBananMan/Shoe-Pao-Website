@@ -800,31 +800,36 @@
         return `<span class="badge ${status}" title="${(availableSizes(c) || []).join(', ') || 'None'}">${c.name} (${stock})</span>`;
       }).join(' ');
 
-  const total = totalStockForProduct(p);
-  const totalStatus = total === 0 ? 'out' : (total <= threshold ? 'low' : 'in');
-  const price = `₱${(parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0))}`;
-  const displayGender = (p.gender || p.genderFitting || 'Unisex');
+      const total = totalStockForProduct(p);
+      const totalStatus = total === 0 ? 'out' : (total <= threshold ? 'low' : 'in');
+      const price = `₱${(parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0))}`;
       const bulkBox = state.ui.bulkMode ? `<input type="checkbox" class="bulkSel" data-id="${p.id}" ${state.ui.selectedProductIds.has(p.id) ? 'checked' : ''}/>` : '';
       const catDisplay = (p.category || '').trim();
-      const tags = computeTags(p);
-      const tagsHtml = tags.length ? tags.map(t => `<span class="tag ${t.toLowerCase().replace(/\s+/g,'-')}">${t}</span>`).join(' ') : '';
+  const tags = computeTags(p);
+  const tagsHtml = tags.length ? tags.map(t => `<span class="tag ${t.toLowerCase().replace(/\s+/g,'-')}">${t}</span>`).join(' ') : '';
+  // Gender: allow array or comma-separated string
+  const gRaw = p.gender || [];
+  const genderArr = Array.isArray(gRaw) ? gRaw : (typeof gRaw === 'string' ? gRaw.split(',').map(s => s.trim()) : []);
+  const genderHtml = genderArr.length ? genderArr.map(g => `<span class="badge gender-badge">${g}</span>`).join(' ') : '';
 
       return `<tr>
         <td class="bulk-col">${bulkBox}</td>
         <td>${displayBrand}</td>
         <td>${displaySku || ''}</td>
         <td>${displayModel}</td>
-  <td>${catDisplay}</td>
-  <td>${displayGender}</td>
+        <td>${catDisplay}</td>
   <td class="status ${displayStatus}">${displayStatus}</td>
-        <td class="tags-cell">${tagsHtml || ''}</td>
-        <td class="colors-cell">${colors || '<span class="badge out">No colors</span>'}</td>
+  <td class="gender-cell"><div class="cell-stack">${genderHtml || ''}</div></td>
+  <td class="tags-cell">${tagsHtml || ''}</td>
+    <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
         <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${price}</td>
-        <td>
-          <button class="secondary" data-action="edit" data-id="${p.id}">Edit</button>
-          <button class="secondary" data-action="variants" data-id="${p.id}">Variants</button>
-          <button class="danger" data-action="delete" data-id="${p.id}">Delete</button>
+        <td class="actions-col">
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button class="secondary" data-action="edit" data-id="${p.id}">Edit</button>
+            <button class="secondary" data-action="variants" data-id="${p.id}">Variants</button>
+            <button class="danger" data-action="delete" data-id="${p.id}">Delete</button>
+          </div>
         </td>
       </tr>`;
     }).join('');
@@ -853,10 +858,12 @@
     const isEdit = !!productId;
     state.ui.editingProductId = productId || null;
     qs('#productModalTitle').textContent = isEdit ? 'Edit Product' : 'Add Product';
-    const brand = qs('#prodBrand');
-    const model = qs('#prodModel');
-    const cat = qs('#prodCategory');
-    const genderSel = qs('#prodGender');
+  const brand = qs('#prodBrand');
+  const model = qs('#prodModel');
+  const cat = qs('#prodCategory');
+  const genderMen = qs('#prodGenderMen');
+  const genderWomen = qs('#prodGenderWomen');
+  const genderUnisex = qs('#prodGenderUnisex');
     const statusSel = qs('#prodStatus');
     const pOrig = qs('#priceOriginal');
     const pSale = qs('#priceSale');
@@ -882,15 +889,14 @@
           const skuTxt = (cells[2] && cells[2].textContent) ? cells[2].textContent.trim() : '';
           const modelTxt = (cells[3] && cells[3].textContent) ? cells[3].textContent.trim() : '';
           const catTxt = (cells[4] && cells[4].textContent) ? cells[4].textContent.trim() : '';
-          const genderTxt = (cells[5] && cells[5].textContent) ? cells[5].textContent.trim() : '';
-          const statusTxt = (cells[6] && cells[6].textContent) ? cells[6].textContent.trim() : '';
-          const priceTxt = (cells[10] && cells[10].textContent) ? cells[10].textContent.trim() : '';
+          const statusTxt = (cells[5] && cells[5].textContent) ? cells[5].textContent.trim() : '';
+          const priceTxt = (cells[9] && cells[9].textContent) ? cells[9].textContent.trim() : '';
           // Extract numeric price if present (e.g., "₱1,234.00")
           let priceNum = 0;
           const m = priceTxt.match(/[\d,\.]+/);
           if (m) priceNum = parseFloat(m[0].replace(/,/g, '')) || 0;
           const tags = Array.from(tr.querySelectorAll('.tags-cell .tag')).map(el => el.textContent.trim());
-          return { brand: brandTxt, sku: skuTxt, model: modelTxt, category: catTxt, gender: genderTxt, status: statusTxt, price: priceNum, tags };
+          return { brand: brandTxt, sku: skuTxt, model: modelTxt, category: catTxt, status: statusTxt, price: priceNum, tags };
         } catch (e) { return null; }
       };
 
@@ -899,9 +905,18 @@
       // Fill inputs preferring the visible DOM values when available, otherwise fall back to the product object
       brand.value = (dom && dom.brand) ? dom.brand : (p.brand || '');
       model.value = (dom && dom.model) ? dom.model : (p.model || '');
-  cat.value = (dom && dom.category) ? dom.category : (p.category || '');
-  statusSel.value = (dom && dom.status) ? dom.status : (p.status || '');
-  if (genderSel) genderSel.value = (dom && dom.gender) ? dom.gender : (p.gender || 'Unisex');
+      cat.value = (dom && dom.category) ? dom.category : (p.category || '');
+      statusSel.value = (dom && dom.status) ? dom.status : (p.status || '');
+      // Set gender checkboxes based on product data (allow string or array)
+      try {
+        const g = p.gender || [];
+        const genders = Array.isArray(g) ? g : (typeof g === 'string' ? g.split(',').map(s => s.trim()) : []);
+        if (genderMen) genderMen.checked = genders.includes('Men');
+        if (genderWomen) genderWomen.checked = genders.includes('Women');
+        if (genderUnisex) genderUnisex.checked = genders.includes('Unisex') || genders.length === 0;
+      } catch (e) {
+        if (genderUnisex) genderUnisex.checked = true;
+      }
       pOrig.value = (dom && Number.isFinite(dom.price) && dom.price > 0) ? dom.price : (p.pricing?.original || '');
       pSale.value = p.pricing?.sale || '';
       pCost.value = p.pricing?.cost || '';
@@ -936,7 +951,11 @@
       const initSec = qs('#initialVariantSection'); if (initSec) initSec.style.display = 'none';
       state.ui.productModalColors = [];
     } else {
-      brand.value = ''; model.value = ''; cat.value = ''; if (genderSel) genderSel.value = 'Unisex'; statusSel.value = 'active'; pOrig.value = ''; pSale.value = ''; pCost.value = '';
+  brand.value = ''; model.value = ''; cat.value = '';
+  if (genderMen) genderMen.checked = false;
+  if (genderWomen) genderWomen.checked = false;
+  if (genderUnisex) genderUnisex.checked = true;
+  statusSel.value = 'active'; pOrig.value = ''; pSale.value = ''; pCost.value = '';
       if (skuEl) skuEl.value = '';
       if (descEl) descEl.value = '';
       // Clear manual tags on add
@@ -959,7 +978,12 @@
     const brand = qs('#prodBrand').value.trim();
     const model = qs('#prodModel').value.trim();
     const cat = qs('#prodCategory').value.trim();
-    const genderSel = (qs('#prodGender') ? qs('#prodGender').value : 'Unisex');
+  // Read gender checkboxes; allow multiple selections. If none selected, default to Unisex.
+  const genders = [];
+  const genderMenEl = qs('#prodGenderMen'); if (genderMenEl && genderMenEl.checked) genders.push('Men');
+  const genderWomenEl = qs('#prodGenderWomen'); if (genderWomenEl && genderWomenEl.checked) genders.push('Women');
+  const genderUnisexEl = qs('#prodGenderUnisex'); if (genderUnisexEl && genderUnisexEl.checked) genders.push('Unisex');
+  const genderSel = genders.length ? genders : ['Unisex'];
     const statusSel = qs('#prodStatus').value;
     const pOrig = parseNum(qs('#priceOriginal').value, 0);
     const pSale = parseNum(qs('#priceSale').value, 0);
@@ -992,7 +1016,7 @@
         const ok = confirm(`Archive ${p.brand} ${p.model}?\nArchived products are hidden from active listings.`);
         if (!ok) { return; }
       }
-  p.brand = brand; p.model = model; p.category = cat; p.gender = genderSel || 'Unisex'; p.status = statusSel;
+  p.brand = brand; p.model = model; p.category = cat; p.gender = Array.isArray(genderSel) ? genderSel : [genderSel]; p.status = statusSel;
   p.pricing = p.pricing || { original: 0, sale: 0, cost: 0 };
   p.pricing.original = pOrig; p.pricing.sale = pSale; p.pricing.cost = pCost;
       // Keep existing SKU unless empty; regenerate if missing
@@ -1012,7 +1036,7 @@
         const ok = confirm('Create this product in archived state?');
         if (!ok) { return; }
       }
-      const newP = newProduct({ brand, model, category: cat, status: statusSel, images: [], pricing: { original: pOrig, sale: pSale, cost: pCost }, description: desc, gender: genderSel || 'Unisex' });
+  const newP = newProduct({ brand, model, category: cat, status: statusSel, images: [], pricing: { original: pOrig, sale: pSale, cost: pCost }, description: desc, gender: Array.isArray(genderSel) ? genderSel : [genderSel] });
   newP.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       newP.tagsManual = manual;
       // Copy colors and sizes
@@ -1087,6 +1111,7 @@
     state.ui.editingVariantProductId = productId;
     const p = state.products.find(x => x.id === productId);
     const list = qs('#variantColorsList');
+    // Render color list (actions moved into each color's size card for proximity)
     list.innerHTML = p.colors.map(c => `<div class="color-item" data-id="${c.id}">
       <span class="color-dot" style="background:${c.code}"></span>
       <strong>${c.name}</strong>
@@ -1132,39 +1157,71 @@
     }
     p.colors.forEach(color => {
       const card = document.createElement('div'); card.className = 'size-card';
+      // Header: color name + select-all + apply-to-selected control + clear
       const fill = document.createElement('div'); fill.className = 'fill-actions';
-      // Add a per-color select-all checkbox and bulk apply controls
-      fill.innerHTML = `<strong>${color.name}</strong>
-        <label style="margin-left:8px"><input type="checkbox" class="color-select-all" data-id="${color.id}" /> Select all</label>
-        <button class="secondary" data-action="clear-all" data-id="${color.id}">Clear</button>`;
+      fill.innerHTML = `
+        <div class="color-header">
+          <strong class="color-name">${color.name}</strong>
+          <label class="select-all-label"><input type="checkbox" class="select-all-sizes" data-id="${color.id}" /> Select all</label>
+          <button class="secondary clear-btn" data-action="clear-all" data-id="${color.id}">Clear</button>
+        </div>`;
       card.appendChild(fill);
+
       const grid = document.createElement('div'); grid.className = 'size-grid';
       EU_SIZES.forEach(eu => {
-        const s = color.sizes.find(x => x.eu === eu) || { eu, stock: 0 };
+        const s = color.sizes.find(x => x.eu === eu) || { eu: eu, stock: 0 };
         const row = document.createElement('div'); row.className = 'size-row';
-        // checkbox, label, numeric input, then qty controls (minus/plus icons on the right)
-        row.innerHTML = `<input type="checkbox" class="size-checkbox" data-color="${color.id}" data-size="${eu}" />
+        // checkbox | label | number input | qty-controls (+/-)
+        row.innerHTML = `
+          <input type="checkbox" class="size-checkbox" data-color="${color.id}" data-size="${eu}" />
           <label>${eu}EU</label>
           <input type="number" min="0" step="1" value="${s.stock}" data-color="${color.id}" data-size="${eu}" />
           <div class="qty-controls">
-            <button type="button" class="qty-btn qty-dec" data-color="${color.id}" data-size="${eu}"><img src="IMAGE/minus_icon.png" alt="-" /></button>
-            <button type="button" class="qty-btn qty-inc" data-color="${color.id}" data-size="${eu}"><img src="IMAGE/plus.png" alt="+" /></button>
+            <button type="button" class="qty-btn" data-action="decr" data-color="${color.id}" data-size="${eu}">−</button>
+            <button type="button" class="qty-btn" data-action="incr" data-color="${color.id}" data-size="${eu}">+</button>
           </div>`;
         grid.appendChild(row);
       });
       card.appendChild(grid);
 
-      // per-color bulk apply controls
-      const apply = document.createElement('div'); apply.className = 'apply-actions';
-      apply.innerHTML = `<input type="number" min="0" step="1" class="apply-qty" data-id="${color.id}" placeholder="Qty" style="width:80px" />
-        <button class="secondary" data-action="apply-selected" data-id="${color.id}">Apply to selected</button>`;
-      card.appendChild(apply);
-
+      // Footer: apply-to-selected moved to bottom of the color card for easier reach
+      const footer = document.createElement('div'); footer.className = 'card-footer';
+      footer.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;">
+          <label style="display:inline-flex;align-items:center;gap:6px">Apply to selected: <input type="number" class="apply-qty" min="0" step="1" /></label>
+          <button class="secondary" data-action="apply-selected" data-id="${color.id}">Apply</button>
+        </div>`;
+      card.appendChild(footer);
       editor.appendChild(card);
     });
 
-    // Bind fill actions and size inputs
-    // (fill-all removed) per-color bulk apply is available via the Apply to selected control
+    // Bind select-all checkboxes
+    editor.querySelectorAll('.select-all-sizes').forEach(cb => cb.addEventListener('change', (e) => {
+      const colorId = e.target.dataset.id;
+      const checked = e.target.checked;
+      editor.querySelectorAll(`.size-row input.size-checkbox[data-color="${colorId}"]`).forEach(c=> c.checked = checked);
+    }));
+
+    // Bind apply to selected
+    editor.querySelectorAll('[data-action="apply-selected"]').forEach(btn => btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const card = btn.closest('.size-card');
+      const inp = card.querySelector('.apply-qty');
+      const qty = parseNum(inp.value, null);
+      if (qty === null) return alert('Enter a quantity to apply');
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === id);
+      if (!c) return;
+      // find selected checkboxes and set their sizes
+      card.querySelectorAll('.size-row input.size-checkbox:checked').forEach(cb => {
+        const eu = parseNum(cb.dataset.size);
+        const s = c.sizes.find(z => z.eu === eu);
+        if (s) s.stock = clampNum(qty, 0, 9999);
+      });
+      saveAll(); openVariantModal(p.id);
+    }));
+
+    // Bind clear-all
     editor.querySelectorAll('[data-action="clear-all"]').forEach(btn => btn.addEventListener('click', () => {
       const id = btn.dataset.id;
       const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
@@ -1174,67 +1231,33 @@
       saveAll(); openVariantModal(p.id);
     }));
 
-    // Per-color select-all checkbox behavior
-    editor.querySelectorAll('.color-select-all').forEach(cb => cb.addEventListener('change', (e) => {
-      const id = cb.dataset.id;
-      const card = cb.closest('.size-card');
-      if (!card) return;
-      const checked = cb.checked;
-      card.querySelectorAll('.size-checkbox').forEach(ch => ch.checked = checked);
-    }));
-
-    // Apply to selected sizes for a color
-    editor.querySelectorAll('[data-action="apply-selected"]').forEach(btn => btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      const qtyInp = editor.querySelector(`.apply-qty[data-id="${id}"]`);
-      if (!qtyInp) return;
-      const qty = parseNum(qtyInp.value, null);
-      if (qty === null || qty < 0) { alert('Enter a non-negative quantity'); return; }
-      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = p.colors.find(y => y.id === id);
-      // find all checked size-checkboxes for this color
-      const checked = Array.from(editor.querySelectorAll(`.size-checkbox[data-color="${id}"]`)).filter(ch => ch.checked);
-      if (!checked.length) { alert('No sizes selected'); return; }
-      checked.forEach(ch => {
-        const eu = parseNum(ch.dataset.size);
+    // Bind number inputs change
+    editor.querySelectorAll('input[type="number"]').forEach(inp => {
+      // skip apply-qty inputs (they are not per-size)
+      if (inp.classList.contains('apply-qty')) return;
+      inp.addEventListener('change', (e) => {
+        const colorId = e.target.dataset.color;
+        const eu = parseNum(e.target.dataset.size);
+        const qty = clampNum(parseNum(e.target.value), 0, 9999);
+        const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+        const c = p.colors.find(y => y.id === colorId);
         const s = c.sizes.find(z => z.eu === eu);
-        if (s) s.stock = clampNum(qty, 0, 9999);
-        // update corresponding number input in DOM
-        const num = editor.querySelector(`input[type="number"][data-color="${id}"][data-size="${eu}"]`);
-        if (num) num.value = s ? s.stock : 0;
+        s.stock = qty; saveAll();
       });
-      saveAll(); openVariantModal(p.id);
-    }));
+    });
 
-    // Only bind change handlers to the stock number inputs (they have data-size)
-    editor.querySelectorAll('input[type="number"][data-size]').forEach(inp => inp.addEventListener('change', (e) => {
-      const colorId = Number.isNaN(Number(e.target.dataset.color)) ? e.target.dataset.color : e.target.dataset.color;
-      const eu = parseNum(e.target.dataset.size);
-      const qty = clampNum(parseNum(e.target.value), 0, 9999);
+    // Bind qty +/- buttons
+    editor.querySelectorAll('.qty-btn').forEach(btn => btn.addEventListener('click', (e) => {
+      const action = btn.dataset.action;
+      const colorId = btn.dataset.color;
+      const eu = parseNum(btn.dataset.size);
       const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
       const c = p.colors.find(y => y.id === colorId);
       const s = c.sizes.find(z => z.eu === eu);
-      s.stock = qty; saveAll();
-    }));
-
-    // Bind plus/minus buttons to increment/decrement the corresponding number input
-    editor.querySelectorAll('.qty-inc').forEach(btn => btn.addEventListener('click', (e) => {
-      const colorId = btn.dataset.color;
-      const eu = parseNum(btn.dataset.size);
-      const num = editor.querySelector(`input[type="number"][data-color="${colorId}"][data-size="${eu}"]`);
-      if (!num) return;
-      const next = clampNum((parseNum(num.value, 0) || 0) + 1, 0, 9999);
-      num.value = next;
-      num.dispatchEvent(new Event('change'));
-    }));
-    editor.querySelectorAll('.qty-dec').forEach(btn => btn.addEventListener('click', (e) => {
-      const colorId = btn.dataset.color;
-      const eu = parseNum(btn.dataset.size);
-      const num = editor.querySelector(`input[type="number"][data-color="${colorId}"][data-size="${eu}"]`);
-      if (!num) return;
-      const next = clampNum((parseNum(num.value, 0) || 0) - 1, 0, 9999);
-      num.value = next;
-      num.dispatchEvent(new Event('change'));
+      if (!s) return;
+      const delta = action === 'incr' ? 1 : -1;
+      s.stock = clampNum((Number(s.stock||0) || 0) + delta, 0, 9999);
+      saveAll(); openVariantModal(p.id);
     }));
   }
 
@@ -1612,7 +1635,17 @@
       const out = [];
       state.products.forEach(p => {
         const baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : '';
-        (Array.isArray(p.colors) ? p.colors : []).forEach(c => {
+        // Resolve colors from product.colors or, if empty, from firebase variants map
+        let colorsArr = Array.isArray(p.colors) ? p.colors.slice() : [];
+        if ((!colorsArr || !colorsArr.length) && firebaseState.variantsByProductId) {
+          const map = firebaseState.variantsByProductId;
+          const candidates = [p.id, p.productId, p.sku, String(p.id || '')];
+          for (const cKey of candidates) {
+            if (!cKey) continue;
+            if (Array.isArray(map[cKey]) && map[cKey].length) { colorsArr = map[cKey]; break; }
+          }
+        }
+        (Array.isArray(colorsArr) ? colorsArr : []).forEach(c => {
           const sizesMap = {};
           (Array.isArray(c.sizes) ? c.sizes : []).forEach(s => { sizesMap[String(s.eu)] = Number(s.stock || 0); });
           out.push({

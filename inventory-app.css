@@ -43,15 +43,16 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
 
 .bulk-actions { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
 
-.products-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.products-table { width: 100%; border-collapse: collapse; table-layout: auto; }
 .products-table th, .products-table td { border-bottom: 1px solid var(--border); padding: 6px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .products-table td.colors-cell { white-space: normal; }
 .products-table th.colors-col { padding-right: 10px; }
 .products-table td.colors-cell { padding-right: 24px; }
-/* Make SKU column more compact to free space for Colors */
-.products-table th:nth-child(3), .products-table td:nth-child(3) { padding-left: 6px; padding-right: 6px; }
-.products-table th:nth-child(4), .products-table td:nth-child(4) { padding-left: 4px; padding-right: 4px; }
-.products-table th:nth-child(5), .products-table td:nth-child(5) { padding-left: 4px; padding-right: 4px; }
+/* Column paddings: tweak Brand/SKU/Model/Category spacing */
+.products-table th:nth-child(2), .products-table td:nth-child(2) { padding-left: 4px; padding-right: 4px; } /* Brand */
+.products-table th:nth-child(3), .products-table td:nth-child(3) { padding-left: 4px; padding-right: 8px; } /* SKU - give more right gap to separate from Model */
+.products-table th:nth-child(4), .products-table td:nth-child(4) { padding-left: 12px; padding-right: 6px; } /* Model */
+.products-table th:nth-child(5), .products-table td:nth-child(5) { padding-left: 6px; padding-right: 4px; } /* Category */
 .products-table tbody tr:hover { background: #f7f7f7; }
 .bulk-col { width: 36px; }
 .badge { padding: 3px 6px; border-radius: 999px; font-size: 11px; display: inline-block; }
@@ -59,9 +60,52 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
 .badge.out { background: #ffffff; color: #d24b4b; border: 1px solid #e14d4d33; }
 .badge.in { background: #ffffff; color: var(--ok); border: 1px solid #2ecc7133; }
 
-/* Tags */
-.tags-cell { white-space: normal; max-width: 180px; }
-.colors-cell { white-space: normal; max-width: 240px; }
+.colors-cell {
+  /* Keep the td as a normal table-cell. We use an inner .cell-stack div to
+     provide a flex container for stacked badges so the table row sizing and
+     alignment remain consistent. */
+  white-space: normal;
+  max-width: 240px;
+  padding-right: 8px;
+}
+
+/* Slightly increase vertical padding for color cells so stacked badges have
+   breathing room and the row height increases smoothly. */
+.products-table td.colors-cell { padding-top: 8px; padding-bottom: 8px; }
+
+/* Inner stack container used by both colors and gender cells. It stacks
+   badges vertically but lives inside the td so the td keeps its table-cell
+   behaviour. */
+/* Stack horizontally first, then wrap to the next line when space runs out.
+  This keeps badges inline until they exceed the container width and then
+  flows them onto subsequent lines without changing the td table layout. */
+.cell-stack {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  align-content: center; /* centers wrapped lines vertically inside the container */
+  justify-content: flex-start;
+}
+
+/* Limit inner stack width per column so wrapping happens predictably.
+  These widths can be tuned to change when the wrap occurs. */
+.gender-cell .cell-stack { max-width: 140px; }
+.colors-cell .cell-stack { max-width: 240px; }
+
+/* Style badges when they live inside a stacked cell */
+.cell-stack .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #222222;
+  font-size: 12px;
+  line-height: 1;
+}
 .tag { padding: 3px 8px; border-radius: 999px; font-size: 11px; display: inline-block; margin-right: 6px; border: 1px solid var(--border); background: #ffffff; color: #222; }
 .tag.new { color: #ffffff; background: var(--primary); border-color: var(--primary); }
 .tag.sale { color: #ffffff; background: #b71c1c; border-color: #b71c1c; }
@@ -88,7 +132,7 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
 /* Modals */
 .modal { border: none; padding: 0; }
 .modal::backdrop { background: rgba(0,0,0,0.5); }
-.modal form { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 520px; }
+.modal form { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 14px; min-width: 380px; max-width: 92vw; width: auto; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 8px; }
 .form-grid #prodSKU { grid-column: 1 / -1; }
 .form-grid textarea { grid-column: 1 / -1; min-height: 80px; }
@@ -98,20 +142,83 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
 .form-grid .field { display: block; }
 .form-grid .field .field-title { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 
+/* Table scroll wrapper (keeps actions column visible) */
+.table-scroll { overflow: auto; overflow-y: visible; position: relative; padding-right: 8px; }
+.table-scroll .products-table { width: 100%; min-width: max-content; table-layout: auto; }
+.gender-cell {
+  /* Keep the td as a normal table-cell. Use .cell-stack inside to stack
+     gender badges without changing table layout behaviour. */
+  white-space: normal;
+  max-width: 140px;
+  padding-right: 12px;
+}
+
+/* Slight padding so stacked gender badges have room */
+.products-table td.gender-cell { padding-top: 8px; padding-bottom: 8px; }
+
+/* Gender badge specific tweaks when inside a stacked cell */
+.cell-stack .gender-badge { font-weight: 600; }
+.tags-cell { white-space: normal; max-width: 160px; padding-left: 6px; }
+.table-scroll .products-table th, .table-scroll .products-table td { position: relative; z-index: 1; background: var(--panel); }
+
+/* Ensure table cells vertically align to the middle by default so columns
+  with different internal layouts (flex children) line up visually. */
+.products-table th, .products-table td { vertical-align: middle; }
+
+/* Sticky actions column on the right - ensure it's always fully visible above other columns */
+.products-table th.actions-col,
+.products-table td.actions-col {
+  position: sticky;
+  right: 0;
+  background: var(--panel);
+  z-index: 10010; /* high to stay above everything */
+  min-width: 160px;
+  white-space: nowrap;
+  text-align: right;
+  padding-right: 8px; /* closer to the edge */
+  overflow: visible; /* allow full visibility for buttons */
+}
+/* Keep header above body cells */
+.products-table thead th.actions-col { z-index: 10011; }
+
 /* Variants */
 .variant-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .colors-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.color-item { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+.color-item { display: flex; align-items: center; gap: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
 .color-dot { width: 18px; height: 18px; border-radius: 999px; border: 1px solid #333; }
 .color-actions { margin-left: auto; display: flex; gap: 6px; }
-.sizes-editor { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.size-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
-.size-row { display: grid; /* checkbox | label | input area | qty controls */ grid-template-columns: auto auto 1fr auto; gap: 6px; align-items: center; margin-bottom: 4px; }
-.size-row label { color: var(--muted); font-size: 12px; grid-column: 2; justify-self: end; }
-.size-checkbox { width: 16px; height: 16px; }
-.size-row input[type="number"] { width: 56px; grid-column: 3; justify-self: center; }
-.qty-controls { display: inline-flex; gap: 4px; align-items: center; grid-column: 4; justify-self: start; }
-.qty-btn { background: #f2f2f2; border: 1px solid #d9d9d9; padding: 4px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; width:28px; height:28px; }
+.color-header {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* color name | select-all | clear */
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  justify-items: center; /* center items in their columns for equidistance */
+}
+.color-header .color-name { justify-self: start; font-weight: 600; }
+.select-all-label { justify-self: center; display: inline-flex; align-items: center; gap: 6px; }
+.clear-btn { justify-self: center; }
+.select-all-label { display: inline-flex; align-items: center; gap: 6px; }
+.apply-label { display: inline-flex; align-items: center; gap: 6px; }
+.apply-qty { width: 72px; padding: 6px 8px; }
+.sizes-editor { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.size-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
+ .size-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
+ /* Tighter size-row spacing: smaller gaps and fixed columns so label, input and +/- sit closer */
+ .size-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 4 equal columns: checkbox | caption | input | +/- */
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+/* center each item inside its column so spacing between elements is equal */
+.size-row { justify-items: center; }
+.size-row label { color: var(--muted); font-size: 12px; margin: 0; padding: 0; }
+.size-checkbox { width: 16px; height: 16px; justify-self: center; }
+.size-row input[type="number"] { width: 48px; padding: 6px 8px; justify-self: center; }
+.qty-controls { display: inline-flex; gap: 4px; align-items: center; justify-self: center; }
+ .qty-btn { background: #f2f2f2; border: 1px solid #d9d9d9; padding: 2px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; width:20px; height:20px; font-size: 13px; line-height:1; }
 .qty-btn img { width: 14px; height: 14px; display: block; }
 
 /* Remove native number input spinners */
@@ -145,3 +252,48 @@ input[type=number] {
   .reports-grid { grid-template-columns: 1fr; }
   .modal form { min-width: unset; width: 96vw; }
 }
+
+/* Cart edit modal: force white background with black text so the edit
+   modal appears white with black typography and neutral buttons. The
+   modal element is created with classes `bank-modal cart-edit-modal`.
+   Use !important to override any inline styles the script sets. */
+.bank-modal.cart-edit-modal {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+.bank-modal.cart-edit-modal .bank-modal-close {
+  color: #000000 !important;
+}
+.bank-modal.cart-edit-modal .btn.ghost {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid #ddd !important;
+}
+.bank-modal.cart-edit-modal .btn.primary {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 0 !important;
+}
+.bank-modal.cart-edit-modal .btn.low-stock:not(.primary) {
+  /* keep neutral white/black for low-stock inside this modal */
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid #ddd !important;
+}
+
+/* Ensure all size / gender buttons inside the cart edit modal follow
+   the white/black (neutral) look unless they are the selected primary
+   button which remains black/white. This prevents the global low-stock
+   orange from leaking into the modal. */
+.bank-modal.cart-edit-modal .product-size-btn,
+.bank-modal.cart-edit-modal .gender-btn,
+.bank-modal.cart-edit-modal .btn.ghost {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid #ddd !important;
+}
+.bank-modal.cart-edit-modal .product-size-btn.oos,
+.bank-modal.cart-edit-modal .btn.oos {
+  opacity: 0.45 !important;
+}
+

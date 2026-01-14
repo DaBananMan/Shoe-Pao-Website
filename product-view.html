@@ -1356,9 +1356,15 @@
                 <span class="productview-availability">Availability: <b>In Stock</b></span>
             </div>
             <div class="productview-caption">Delivery/shipping calculated at checkout.</div>
-                <div class="productview-color-row" id="colorOptionsRow" style="display:none;">
+                <div class="productview-color-row" id="colorOptionsRow" style="display:none;align-items:center;">
                     <span class="productview-color-label">Colors:</span>
-                    <div id="colorOptions" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+                    <div id="colorOptions" style="display:flex;gap:8px;flex-wrap:wrap;margin-left:8px;"></div>
+                </div>
+                <div class="productview-gender-row" id="genderOptionsRow" style="display:none;align-items:flex-start;margin-top:8px;">
+                    <div style="display:block;">
+                        <span class="productview-color-label" style="white-space:nowrap;">Gender-Fit:</span>
+                    </div>
+                    <div id="genderOptions" style="display:flex;gap:8px;margin-top:8px;align-items:flex-start;flex-wrap:wrap;"></div>
                 </div>
             <div class="productview-size-label">Select Size</div>
             <div class="productview-size-row">
@@ -1489,7 +1495,7 @@
                     <div class="ar-modal-bottom-desc">Scan the QR code below with your
 phone camera to open the Visual Try
 On page.</div>
-                    <img class="ar-modal-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=ar-filter.html" alt="AR Filter QR Code">
+                    <img class="ar-modal-qr" alt="AR Filter QR Code" />
                 </div>
                 <div class="ar-modal-bottom-col" style="align-items:flex-start;">
                     <div class="ar-modal-dot-row">
@@ -1588,6 +1594,28 @@ On page.</div>
         </div>
         <div style="font-size:11px;color:#666;margin-top:8px;">Note: Women's sizes are approximate conversions and may vary by brand.</div>
     </aside>
+
+    <!-- QR generator: include local generator and fallback rendering so QR always appears offline -->
+    <script src="js/qrcode-generator.js"></script>
+    <script>
+    (function(){
+        // Attempt to render a local QR code into the image element. If generation fails,
+        // fall back to the external QR API URL (best-effort).
+        var img = document.querySelector('.ar-modal-qr');
+        var payload = 'ar-filter.html';
+        function setExternal(){ img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(payload); }
+        try{
+            if(typeof generatePaymentQRCodeDataUrl === 'function'){
+                var data = generatePaymentQRCodeDataUrl(payload, 120);
+                if(data && data.indexOf('data:image') === 0){ img.src = data; }
+                else setExternal();
+            } else {
+                // generator not available yet — try to load after a short delay
+                setTimeout(function(){ try{ var data = (typeof generatePaymentQRCodeDataUrl === 'function') ? generatePaymentQRCodeDataUrl(payload,120) : ''; if(data) img.src = data; else setExternal(); }catch(e){ setExternal(); } }, 50);
+            }
+        }catch(e){ setExternal(); }
+    })();
+    </script>
 
     <script>
     // Wishlist logic
@@ -1773,13 +1801,15 @@ On page.</div>
                             elStock.style.color = '#b71c1c';
                             if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; addBtnEl.textContent = 'Pre-Order'; addBtnEl.dataset.preorder = '1'; }
                         } else {
-                            // Show stock quantity. If stock is low, display a red "LOW STOCK!" label next to the quantity
-                            if (qty < 6) {
+                            // available > 0: if low stock (<6) show explicit LOW STOCK! in red, otherwise show qty
+                            if(Number(qty) < 6){
+                                // show numeric stock and a red LOW STOCK! marker without replacing the count
                                 elStock.innerHTML = 'Stock: ' + qty + ' available <span style="color:#b71c1c;font-weight:700;margin-left:8px;">LOW STOCK!</span>';
+                                elStock.style.color = '';
                             } else {
                                 elStock.textContent = 'Stock: ' + qty + ' available';
+                                elStock.style.color = '';
                             }
-                            elStock.style.color = '';
                             if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; addBtnEl.textContent = 'Add to Cart'; addBtnEl.dataset.preorder = '0'; }
                         }
                     } else if (!eu) {
@@ -1826,17 +1856,18 @@ On page.</div>
                 try{
                     var eu = b.getAttribute('data-eu');
                     var qty = (found && found.sizes && (found.sizes[eu] !== undefined)) ? Number(found.sizes[eu]) : null;
-                    // clear previous state classes
-                    b.classList.remove('low-stock','oos');
-                    if(qty === null){
-                        b.disabled = false;
-                    } else if(qty <= 0){
-                        b.disabled = true;
-                        b.classList.add('oos');
-                    } else {
-                        b.disabled = false;
-                        // Do not change button color for low stock; show 'LOW STOCK!' next to stock line instead
-                    }
+                            // clear previous state classes; preserve only out-of-stock marker
+                            b.classList.remove('oos');
+                            if(qty === null){
+                                b.disabled = false;
+                            } else if(qty <= 0){
+                                b.disabled = true;
+                                b.classList.add('oos');
+                            } else {
+                                // available: keep button enabled and visually neutral (black/white)
+                                b.disabled = false;
+                                // do not add 'low-stock' visual class on the button; low-stock is shown in the stocks line
+                            }
                 }catch(ee){}
             });
         }catch(e){}
@@ -1864,10 +1895,95 @@ On page.</div>
             if(!modelData || !modelData.variants || !modelData.variants.length) return;
             var colorRow = document.getElementById('colorOptionsRow');
             var colorWrap = document.getElementById('colorOptions');
+            var genderWrap = document.getElementById('genderOptions');
+            var genderRow = document.getElementById('genderOptionsRow');
             var centerEl = document.querySelector('.productview-center');
             if(!colorRow || !colorWrap) return;
             colorRow.style.display = '';
+            if(genderRow) genderRow.style.display = '';
             var selectedIndex = 0;
+
+            // Build gender selector buttons from modelData variants' gender-fit
+            try{
+                if(genderWrap){
+                    genderWrap.innerHTML = '';
+                    // collect normalized gender tokens
+                    var gset = new Set();
+                    modelData.variants.forEach(function(v){
+                        try{
+                            var raw = v && v.gender ? v.gender : '';
+                            var parts = [];
+                            if(Array.isArray(raw)) parts = raw.map(function(x){ return (x||'').toString().trim(); }).filter(Boolean);
+                            else {
+                                parts = (raw||'').toString().split(/[,\/|;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+                                if(parts.length === 0){
+                                    var s = (raw||'').toString();
+                                    if(/men/i.test(s)) parts.push('Men');
+                                    if(/women/i.test(s)) parts.push('Women');
+                                    if(/unisex/i.test(s)) parts.push('Unisex');
+                                }
+                            }
+                            parts.forEach(function(p){ if(p){
+                                // canonicalize common tokens
+                                if(/^m(en)?$/i.test(p)) gset.add('Men');
+                                else if(/^w(omen)?$/i.test(p)) gset.add('Women');
+                                else if(/unisex/i.test(p)) gset.add('Unisex');
+                                else gset.add(p);
+                            }});
+                        }catch(_){ }
+                    });
+                    var order = ['Men','Women','Unisex'];
+                    var present = order.filter(function(o){ return gset.has(o); }).concat(Array.from(gset).filter(function(x){ return order.indexOf(x)===-1; }));
+                    // create buttons
+                    present.forEach(function(g){
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'btn ghost product-size-btn gender-btn';
+                        btn.setAttribute('data-gender', g);
+                        btn.textContent = g;
+                        btn.addEventListener('click', function(e){
+                            try{
+                                genderWrap.querySelectorAll('[data-gender]').forEach(function(n){ n.classList.remove('primary'); n.classList.add('ghost'); });
+                                btn.classList.remove('ghost'); btn.classList.add('primary');
+                                // store selection for later (not persisted)
+                                genderWrap.setAttribute('data-selected-gender', g);
+                            }catch(_){}
+                        });
+                        genderWrap.appendChild(btn);
+                    });
+                    // Align gender buttons with the first row of size buttons and add extra spacing
+                    try{
+                        var alignGenderBtns = function(){
+                            var genderOpts = document.getElementById('genderOptions');
+                            var genderRowEl = document.getElementById('genderOptionsRow');
+                            if(!genderOpts || !genderRowEl) return;
+                            try{
+                                // keep label unwrapped and ensure buttons sit directly under the label's left edge
+                                requestAnimationFrame(function(){
+                                    try{
+                                        var captionEl = genderRowEl.querySelector('.productview-color-label');
+                                        if(captionEl){ captionEl.style.whiteSpace = 'nowrap'; captionEl.style.display = 'block'; }
+                                        genderOpts.style.marginLeft = '0px';
+                                        genderOpts.style.marginTop = '8px';
+                                    }catch(_){ }
+                                });
+                            }catch(_){ }
+                        };
+                        // run now and shortly after to account for fonts/images; also on resize
+                        alignGenderBtns();
+                        setTimeout(alignGenderBtns, 120);
+                        window.addEventListener('resize', function(){ setTimeout(alignGenderBtns,60); });
+                    }catch(_){ }
+                    // ensure one button is primary by default (will be overridden by applyVariant when variant has explicit gender)
+                    try{
+                        var anyPrimary = genderWrap.querySelector('[data-gender].primary');
+                        if(!anyPrimary){
+                            var firstBtn = genderWrap.querySelector('[data-gender]');
+                            if(firstBtn){ firstBtn.classList.remove('ghost'); firstBtn.classList.add('primary'); genderWrap.setAttribute('data-selected-gender', firstBtn.getAttribute('data-gender')||''); }
+                        }
+                    }catch(_){ }
+                }
+            }catch(e){}
 
             function formatPrice(n){ return 'P' + Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2}); }
             function applyVariant(variant){
@@ -1903,6 +2019,25 @@ On page.</div>
                 try{
                     document.querySelectorAll('#sizeButtons .product-size-btn').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); });
                 }catch(_){ }
+                // If gender buttons exist, set the active gender to this variant's gender if present
+                try{
+                    if(genderWrap && variant && variant.gender){
+                        var raw = (variant.gender||'').toString();
+                        var parts = raw.split(/[,\/|;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+                        if(parts.length === 0) parts = [raw];
+                        var found = null;
+                        var nodes = Array.from(genderWrap.querySelectorAll('[data-gender]'));
+                        for(var pI=0;pI<parts.length && !found;pI++){
+                            var p = parts[pI];
+                            for(var i=0;i<nodes.length;i++){
+                                if((nodes[i].getAttribute('data-gender')||'').toString().toLowerCase() === p.toLowerCase()) { found = nodes[i]; break; }
+                            }
+                        }
+                        // clear previous selection
+                        genderWrap.querySelectorAll('[data-gender]').forEach(function(gb){ gb.classList.remove('primary'); gb.classList.add('ghost'); });
+                        if(found){ found.classList.remove('ghost'); found.classList.add('primary'); }
+                    }
+                }catch(e){}
                 updateSizeButtons();
                 var sel = document.querySelector('#sizeButtons .product-size-btn.primary');
                 if(sel) selectSize(sel); else { var stockEl = document.getElementById('sizeStock'); if(stockEl) stockEl.textContent=''; var convEl=document.getElementById('sizeConversion'); if(convEl) convEl.textContent='Select a size to see the US equivalent.'; }

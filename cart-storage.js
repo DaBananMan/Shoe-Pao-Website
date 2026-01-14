@@ -6,6 +6,12 @@ function getCart() {
 }
 
 function saveCart(cart) {
+    try{
+        if(Array.isArray(cart) && cart.length === 0){
+            // Helpful debug logging: detect unexpected clears
+            try{ console.warn('Saving empty cart to localStorage', new Error().stack); }catch(_){ }
+        }
+    }catch(_){ }
     localStorage.setItem('cart', JSON.stringify(cart));
 }
 
@@ -144,6 +150,7 @@ function getCartTotals(cart) {
         var packaging = computePackagingFee(cart);
         return { subtotal: subtotal, packaging: packaging, total: subtotal + packaging };
     } catch (e) { return { subtotal:0, packaging:0, total:0 }; }
+
 }
 
 // expose helpers globally
@@ -370,8 +377,7 @@ function renderCartSidebarItems(){
 
 // Open modal to edit a cart item's selectable attributes (color, size). Changes apply only to cart.
 function openCartItemEditor(index){
-    try{
-        var cart = getCart(); if(!cart || !Array.isArray(cart) || !cart[index]) return;
+    var cart = getCart(); if(!cart || !Array.isArray(cart) || !cart[index]) return;
         var item = cart[index];
         // build modal overlay
     var existing = document.getElementById('cartEditModalOverlay'); if(existing) existing.remove();
@@ -422,27 +428,67 @@ function openCartItemEditor(index){
         var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
         var colors = [];
         try{
-            inv.forEach(function(r){ if(!r) return; var match = false; if(item.id && r.id && r.id===item.id) match=true; var name=(item.title||'').toString().toLowerCase(); if(!match && r.name && (r.name||'').toString().toLowerCase().indexOf(name)!==-1) match=true; if(!match && item.brand && r.brand && r.brand.toString().toLowerCase()===item.brand.toString().toLowerCase()) match=true; if(match){ colors.push({color: r.color || r.colorName || r.color || '', image: r.image || r.images && r.images[0] || '' , sizes: r.sizes || {}}); } });
+            inv.forEach(function(r){ if(!r) return; var match = false; if(item.id && r.id && r.id===item.id) match=true; var name=(item.title||'').toString().toLowerCase(); if(!match && r.name && (r.name||'').toString().toLowerCase().indexOf(name)!==-1) match=true; if(!match && item.brand && r.brand && r.brand.toString().toLowerCase()===item.brand.toString().toLowerCase()) match=true; if(match){ colors.push({ record: r, color: r.color || r.colorName || r.color || '', image: r.image || (r.images && r.images[0]) || '', sizes: r.sizes || {} }); } });
         }catch(e){}
         // Ensure at least current color present
         if(colors.length === 0){ colors.push({ color: item.color || item.colorName || '', image: item.image || '', sizes: {} }); }
         var colorRow = document.createElement('div'); colorRow.style.marginBottom='10px'; colorRow.innerHTML = '<div style="font-size:0.95rem;margin-bottom:6px;">Colors</div>';
         var colorButtons = document.createElement('div'); colorButtons.style.display='flex'; colorButtons.style.gap='8px';
-        colors.forEach(function(c, ci){ var b = document.createElement('button'); b.className='btn ghost cart-edit-color'; b.textContent = c.color || ('Color ' + (ci+1)); b.setAttribute('data-index', ci);
-            if((item.color||'').toString().toLowerCase() === (c.color||'').toString().toLowerCase()) { b.classList.remove('ghost'); b.classList.add('primary'); modal._selectedColor = ci; }
+        // Build color buttons and try several match strategies so the cart item's
+        // previously-selected color maps reliably to the inventory color entry.
+        colors.forEach(function(c, ci){
+            var b = document.createElement('button');
+            b.className = 'btn ghost cart-edit-color';
+            b.textContent = c.color || ('Color ' + (ci+1));
+            b.setAttribute('data-index', ci);
+            // matching strategies (in order): exact inventory id, normalized color name,
+            // image url filename match
+            try{
+                var matched = false;
+                // 1) match by id if both present
+                if(!matched && item.id && c.record && c.record.id && String(item.id) === String(c.record.id)){
+                    matched = true;
+                }
+                // 2) match by normalized color string
+                var itemColorNorm = (item.color || item.colorName || '').toString().trim().toLowerCase();
+                var cColorNorm = (c.color || '').toString().trim().toLowerCase();
+                if(!matched && itemColorNorm && cColorNorm && itemColorNorm === cColorNorm) matched = true;
+                // 3) match by image url (compare filenames)
+                if(!matched && item.image && c.image){
+                    try{
+                        var a = item.image.split('/').pop().split('?')[0].toLowerCase();
+                        var bfn = c.image.split('/').pop().split('?')[0].toLowerCase();
+                        if(a === bfn) matched = true;
+                    }catch(_){ }
+                }
+                if(matched){ b.classList.remove('ghost'); b.classList.add('primary'); modal._selectedColor = ci; }
+            }catch(e){}
+
             b.onclick = function(){ // mark selected
                 colorButtons.querySelectorAll('button').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); });
-                b.classList.remove('ghost'); b.classList.add('primary'); // update preview image
-                var imgEl = left.querySelector('img'); if(c.image) imgEl.src = c.image; else imgEl.src = item.image || imgEl.src; // store selected index on modal
+                b.classList.remove('ghost'); b.classList.add('primary');
+                // update preview image
+                var imgEl = left.querySelector('img'); if(c.image) imgEl.src = c.image; else imgEl.src = item.image || imgEl.src;
+                // store selected index on modal
                 modal._selectedColor = ci;
                 // update sizes shown for this color
                 renderSizesForColor(ci);
-            }; colorButtons.appendChild(b); });
-        right.appendChild(colorRow); colorRow.appendChild(colorButtons);
+            };
+
+            colorButtons.appendChild(b);
+        });
+    right.appendChild(colorRow); colorRow.appendChild(colorButtons);
+    // Gender-Fit area (will be populated from the inventory record for the selected color)
+    var genderRow = document.createElement('div'); genderRow.style.marginBottom = '8px';
+    genderRow.innerHTML = '<div style="font-size:0.95rem;margin-bottom:6px;">Gender-Fit</div>';
+    var genderWrap = document.createElement('div'); genderWrap.style.display = 'flex'; genderWrap.style.gap = '8px'; genderRow.appendChild(genderWrap);
+    right.appendChild(genderRow);
         // Sizes: use sizes from selected color inventory entry if available, else fallback to first
         var sizesObj = (colors[0] && colors[0].sizes) ? colors[0].sizes : {};
         var sizeRow = document.createElement('div'); sizeRow.style.marginBottom='10px'; sizeRow.innerHTML = '<div style="font-size:0.95rem;margin-bottom:6px;">Sizes</div>';
     var sizeButtons = document.createElement('div'); sizeButtons.style.display='flex'; sizeButtons.style.flexWrap='wrap'; sizeButtons.style.gap='6px';
+    // element that shows numeric stock and low-stock warning
+    var sizeStockDiv = document.createElement('div'); sizeStockDiv.style.fontSize = '0.95rem'; sizeStockDiv.style.marginTop = '6px'; sizeStockDiv.style.color = '#222';
         // collect size keys
         // helper to (re)render sizes for a selected color index
         function renderSizesForColor(colorIndex){
@@ -452,21 +498,57 @@ function openCartItemEditor(index){
                 var keys = Object.keys(sObj || {}).sort(function(a,b){ return Number(a) - Number(b); });
                 if(keys.length === 0){ keys = [ item.size || '' ]; }
                 keys.forEach(function(s){ var available = (sObj && sObj[s] !== undefined) ? Number(sObj[s]) : 0;
-                    var sb = document.createElement('button'); sb.className='btn ghost cart-edit-size'; sb.textContent = s; sb.setAttribute('data-size', s);
+                    var sb = document.createElement('button'); sb.className='btn ghost product-size-btn cart-edit-size'; sb.textContent = s; sb.setAttribute('data-size', s); sb.setAttribute('data-available', String(available));
                     // clear previous state classes
                     sb.classList.remove('low-stock','oos');
                     if(available <= 0){ sb.disabled = true; sb.classList.add('oos'); }
                     else { sb.disabled = false; if(available < 6) sb.classList.add('low-stock'); }
                         if((item.size||'') == s){ sb.classList.remove('ghost'); sb.classList.add('primary'); modal._selectedSize = s; }
-                        sb.onclick = function(){ if(sb.disabled) return; sizeButtons.querySelectorAll('button').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); }); sb.classList.remove('ghost'); sb.classList.add('primary'); modal._selectedSize = s; };
+                        sb.onclick = function(){ if(sb.disabled) return; sizeButtons.querySelectorAll('button').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); }); sb.classList.remove('ghost'); sb.classList.add('primary'); modal._selectedSize = s; updateSizeStockDisplay(s); };
                     sizeButtons.appendChild(sb);
                 });
+                // update stock display for a selected size
+                function updateSizeStockDisplay(selectedSize){
+                    try{
+                        var avail = (sObj && sObj[selectedSize] !== undefined) ? Number(sObj[selectedSize]) : 0;
+                        sizeStockDiv.textContent = 'Stock: ' + (isNaN(avail)?0:avail) + ' available';
+                        if(!isNaN(avail) && avail > 0 && avail < 6){ var warn = document.createElement('span'); warn.style.color = '#c62828'; warn.style.fontWeight = '700'; warn.style.marginLeft = '8px'; warn.textContent = 'LOW STOCK!'; sizeStockDiv.appendChild(warn); }
+                    }catch(e){}
+                }
+                // ensure display reflects initial selection
+                try{ if(modal._selectedSize) updateSizeStockDisplay(modal._selectedSize); else if(keys.length>0) { var sel = (item.size||keys[0]); updateSizeStockDisplay(sel); } }catch(e){}
             }catch(e){ console.error('renderSizesForColor error', e); }
         }
 
         // render sizes for the initially selected color (or default 0)
         renderSizesForColor(modal._selectedColor !== undefined ? modal._selectedColor : 0);
-        right.appendChild(sizeRow); sizeRow.appendChild(sizeButtons);
+        right.appendChild(sizeRow); sizeRow.appendChild(sizeButtons); sizeRow.appendChild(sizeStockDiv);
+        // Render gender buttons from the inventory record for the selected color
+        function renderGenderButtonsForColor(colorIndex){
+            try{
+                genderWrap.innerHTML = '';
+                var rec = (colors[colorIndex] && colors[colorIndex].record) ? colors[colorIndex].record : null;
+                var gset = new Set();
+                if(rec){
+                    try{
+                        if(rec.gender) gset.add(rec.gender);
+                        if(rec.genderFit) gset.add(rec.genderFit);
+                        if(Array.isArray(rec.variants)){
+                            rec.variants.forEach(function(v){ try{ if(v && v.gender) { String(v.gender).split(/[\/,|;]+/).forEach(function(p){ if(p) gset.add(p.trim()); }); } }catch(_){} });
+                        }
+                    }catch(_){ }
+                }
+                var present = Array.from(gset).map(function(p){ return String(p||'').trim(); }).filter(function(x){ return x; });
+                var canonical = present.map(function(p){ if(/^m(en)?$/i.test(p)) return 'Men'; if(/^w(omen)?$/i.test(p)) return 'Women'; if(/unisex/i.test(p)) return 'Unisex'; return p; });
+                var order = ['Men','Women','Unisex'];
+                var unique = order.filter(function(o){ return canonical.indexOf(o)!==-1; }).concat(canonical.filter(function(x){ return order.indexOf(x)===-1; }));
+                unique.forEach(function(g){ var btn = document.createElement('button'); btn.type='button'; btn.className='btn ghost product-size-btn gender-btn'; btn.setAttribute('data-gender', g); btn.textContent = g; btn.onclick = function(){ genderWrap.querySelectorAll('[data-gender]').forEach(function(n){ n.classList.remove('primary'); n.classList.add('ghost'); }); btn.classList.remove('ghost'); btn.classList.add('primary'); modal._selectedGender = g; }; genderWrap.appendChild(btn); });
+                // default selection
+                try{ var initial = item.gender || item.genderFit || null; if(initial){ var match = genderWrap.querySelector('[data-gender="'+initial+'"]'); if(match){ match.classList.remove('ghost'); match.classList.add('primary'); modal._selectedGender = initial; } } else { var any = genderWrap.querySelector('[data-gender]'); if(any){ any.classList.remove('ghost'); any.classList.add('primary'); modal._selectedGender = any.getAttribute('data-gender'); } } }catch(e){}
+            }catch(e){ console.error('renderGenderButtonsForColor error', e); }
+        }
+        // initial gender render
+        renderGenderButtonsForColor(modal._selectedColor !== undefined ? modal._selectedColor : 0);
         // Confirm / Cancel
         var actionsRow = document.createElement('div'); actionsRow.style.display='flex'; actionsRow.style.justifyContent='flex-end'; actionsRow.style.gap='8px'; actionsRow.style.marginTop='12px';
     var cancelBtn = document.createElement('button'); cancelBtn.className='btn ghost'; cancelBtn.textContent='Cancel';
@@ -508,6 +590,8 @@ function openCartItemEditor(index){
                 cart2[index].size = selSize;
                 if(chosen && chosen.image) cart2[index].image = chosen.image;
                 if(chosen && chosen.color) cart2[index].color = chosen.color;
+                // save selected gender-fit if available
+                try{ if(modal._selectedGender) cart2[index].gender = modal._selectedGender; }catch(e){}
                 // ensure quantity doesn't exceed max for new size
                 var max = getMaxAllowedForProduct(cart2[index]);
                 if(cart2[index].quantity && cart2[index].quantity > max) cart2[index].quantity = max;
@@ -515,8 +599,8 @@ function openCartItemEditor(index){
                 renderCartSidebarItems(); renderCartSidebarUI();
                 overlay.remove();
             }catch(e){ console.error('save cart edit', e); overlay.remove(); }
-        };
-    }catch(e){ console.error('openCartItemEditor error', e); }
+    };
+
 }
 // Expose globally for inline event handlers
 window.getCart = getCart;

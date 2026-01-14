@@ -160,6 +160,32 @@
         .order-card-btn:hover {
             background: #5a0000;
         }
+        /* Gear button for order rows (admin) */
+        .order-gear-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .order-gear-btn img {
+            width: 40px;
+            height: 40px;
+            opacity: 0.98;
+        }
+        .order-gear-btn:hover img { opacity: 1; transform: scale(1.02); }
+
+        /* Compact actions cell so Actions column sits closer to Tracking */
+        .actions-cell {
+            padding: 6px 6px;
+            border-bottom: 1px solid #fafafa;
+            min-width: 44px;
+            text-align: right;
+            vertical-align: middle;
+        }
         @media (max-width: 900px) {
             .orders-header, .orders-list {
                 margin-left: 12px;
@@ -227,7 +253,6 @@
                     <table id="ordersTable" style="width:100%;border-collapse:collapse;font-family:'Poppins',Arial,sans-serif;">
                         <thead>
                             <tr style="text-align:left;color:#444;border-bottom:1px solid #eee;">
-                                            <th style="padding:14px 12px;min-width:60px;">No.</th>
                                             <th style="padding:14px 12px;min-width:140px;">Order ID</th>
                                 <th style="padding:14px 12px;min-width:160px;">Customer Name</th>
                                 <th style="padding:14px 12px;min-width:120px;">Date Ordered</th>
@@ -237,6 +262,7 @@
                                 <th style="padding:14px 12px;min-width:100px;">Status</th>
                                 <th style="padding:14px 12px;min-width:140px;">Est. Delivery</th>
                                 <th style="padding:14px 12px;min-width:160px;">Tracking #</th>
+                                <th style="padding:14px 8px;min-width:60px;text-align:right;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="ordersTbody">
@@ -280,7 +306,8 @@
     </div>
 
     <!-- Admin Order Details Modal (matches client order pop-up format) -->
-    <div id="adminOrderModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:9999;align-items:center;justify-content:center;">
+    <!-- z-index increased so the admin modal sits above the site footer (footer uses z-index:99999) -->
+    <div id="adminOrderModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100001;align-items:center;justify-content:center;">
         <div id="adminOrderModal" style="background:#fff;border-radius:18px;box-shadow:0 8px 32px rgba(34,34,34,0.18);padding:28px;min-width:520px;max-width:96vw;">
             <div style="display:flex;align-items:center;justify-content:space-between;">
                 <div style="font-size:1.2rem;font-weight:700;">Order Details</div>
@@ -391,7 +418,6 @@
                     statusHtml = '<span style="color:#b71c1c;font-weight:600;">' + refundLabel + '</span> <button class="refund-review-btn" data-id="' + (row.id||'') + '" style="background:none;border:none;color:#b71c1c;margin-left:8px;cursor:pointer;font-size:1.05rem;">⚠️</button>';
                 }
             tr.innerHTML = `
-                <td style="padding:12px;border-bottom:1px solid #fafafa;">${idx}</td>
                 <td style="padding:12px;border-bottom:1px solid #fafafa;">${row.id}</td>
                 <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(displayName)}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.date)}</td>
@@ -401,9 +427,22 @@
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${statusHtml}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.est)}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${row.tracking}</td>
+                    <td class="actions-cell">
+                        <button class="order-gear-btn" data-id="${row.id}" title="Edit order"><img src="IMAGE/gear_icon.png" alt="Edit"></button>
+                    </td>
                 `;
                 // open modal when clicking a row
                 tr.addEventListener('click', function(){ showOrderModal(row); });
+                // gear button should open the same edit modal but not trigger the row click
+                setTimeout(function(){
+                    var gear = tr.querySelector('.order-gear-btn');
+                    if(gear){
+                        gear.addEventListener('click', function(e){
+                            e.stopPropagation();
+                            try{ showOrderModal(row); }catch(err){ console.error(err); }
+                        });
+                    }
+                }, 0);
                 tbody.appendChild(tr);
             });
             // attach cancel-review and refund-review button handlers
