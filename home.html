@@ -590,24 +590,7 @@
         </div>
     </nav>
     <script>
-    // Ensure a fresh visitor is not treated as signed-in by leftover localStorage.profile entries.
-    document.addEventListener('DOMContentLoaded', function(){
-        try{
-            var pRaw = sessionStorage.getItem('profile') || localStorage.getItem('profile');
-            if(pRaw){
-                try{
-                    var p = JSON.parse(pRaw || '{}');
-                    // If profile exists but wasn't created via the login flow (no remember flag), remove it so visitors start signed out.
-                    if(!p || !p.remember){
-                        localStorage.removeItem('profile');
-                        // also remove any lightweight fallback persisted checkout name
-                        try{ localStorage.removeItem('checkoutCustomerName'); }catch(e){}
-                        console.log('Cleared leftover profile on initial landing to ensure visitor is signed out.');
-                    }
-                }catch(e){ try{ localStorage.removeItem('profile'); }catch(err){} }
-            }
-        }catch(e){}
-    });
+    // Keep stored profile so auth persists across pages.
 
     // Header nav helpers (home)
     function goToSale(){ window.location.href = 'product-list.html?filter=sale'; }
@@ -926,6 +909,7 @@
         localStorage.setItem('productPrice', price);
         localStorage.setItem('productImg', img);
         localStorage.setItem('productBadge', badge);
+        try{ localStorage.setItem('productId', ''); }catch(e){}
         // Build grouped modelData from inventory for product-view
         try{
             var inv = JSON.parse(localStorage.getItem('inventory')||'[]');
@@ -952,6 +936,7 @@
                     })
                 };
                 localStorage.setItem('modelData', JSON.stringify(modelData));
+                try{ localStorage.setItem('productId', (modelData.variants[0] && modelData.variants[0].id) ? modelData.variants[0].id : ''); }catch(e){}
             } else {
                 // Clear modelData if no match to avoid stale variants
                 localStorage.removeItem('modelData');
@@ -976,7 +961,7 @@
     }
     // User page
     function goToUserPage() {
-    try{ var p = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
         window.location.href = 'profile.html';
     }
     // Cart page

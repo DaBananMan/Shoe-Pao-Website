@@ -1406,28 +1406,17 @@
     <button class="productview-ar-btn" onclick="openARModal()">AR Try-On Shoes</button>
     
     <div class="productview-reviews-header">Customer Reviews</div>
-    <div class="productview-reviews-row">
+    <div class="productview-reviews-row" id="productRatingsRow">
         <div class="productview-reviews-left">
-            <div style="font-size:1.08rem;font-weight:600;color:#222;">★★★★★ 5.00 out of 5</div>
-            <div style="font-size:0.98rem;color:#444;">Based on 1 review <span style="color:#222;font-weight:500;">✔️</span></div>
-            <div style="font-size:1.08rem;color:#222;margin-top:8px;">★★★★★</div>
-            <div style="font-size:0.98rem;color:#444;">L.J.S. <span style="font-size:0.92rem;color:#888;">Verified</span></div>
+            <div id="ratingsAvgLine" style="font-size:1.08rem;font-weight:600;color:#222;"></div>
+            <div id="ratingsBasedOn" style="font-size:0.98rem;color:#444;"></div>
+            <div id="ratingsRecent" style="margin-top:10px;"></div>
         </div>
         <div class="productview-reviews-divider"></div>
-        <div class="productview-reviews-center">
-            <div style="font-size:1.08rem;color:#222;">★★★★★</div>
-            <div style="width:120px;height:18px;background:#eee;border-radius:8px;overflow:hidden;">
-                <div style="width:100%;height:100%;background:#222;"></div>
-            </div>
-            <div style="font-size:0.98rem;color:#444;">1</div>
-            <div style="font-size:0.98rem;color:#444;">0</div>
-            <div style="font-size:0.98rem;color:#444;">0</div>
-            <div style="font-size:0.98rem;color:#444;">0</div>
-            <div style="font-size:0.98rem;color:#444;">0</div>
-        </div>
+        <div class="productview-reviews-center" id="ratingsBreakdown"></div>
         <div class="productview-reviews-divider"></div>
         <div class="productview-reviews-right">
-            <button class="productview-review-btn">Write a Review</button>
+            <button class="productview-review-btn" id="writeReviewBtn" type="button">Write a Review</button>
         </div>
     </div>
     <div class="productview-section-divider"></div>
@@ -1719,7 +1708,7 @@ On page.</div>
         window.location.href = 'product-list.html';
     }
     function goToUserPage() {
-    try{ var p = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
         window.location.href = 'profile.html';
     }
     function goToCartPage() {
@@ -1930,6 +1919,80 @@ On page.</div>
 
     // Load product data from localStorage
     window.addEventListener('DOMContentLoaded', function() {
+        function renderRatingsUI(){
+            try{
+                var api = window.ShoePaoRatings;
+                if(!api) return;
+
+                var productId = (localStorage.getItem('productId') || '').trim();
+                var brand = (localStorage.getItem('productBrand') || (document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim();
+                var title = (localStorage.getItem('productTitle') || (document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim();
+
+                var keyPrimary = api.getProductKey({ productId: productId, brand: brand, title: title });
+                var keyFallback = api.getProductKey({ brand: brand, title: title });
+
+                var key = keyPrimary;
+                var summary = api.getSummary(key);
+                if(summary.count === 0 && keyFallback && keyFallback !== keyPrimary){
+                    var s2 = api.getSummary(keyFallback);
+                    if(s2 && s2.count > 0){ key = keyFallback; summary = s2; }
+                }
+                var avg = summary.count ? summary.avg : 0;
+                var avgFixed = summary.count ? avg.toFixed(2) : '0.00';
+                var avgStars = summary.count ? api.starsText(avg) : '☆☆☆☆☆';
+
+                var avgLine = document.getElementById('ratingsAvgLine');
+                if(avgLine) avgLine.textContent = avgStars + ' ' + avgFixed + ' out of 5';
+
+                var basedOn = document.getElementById('ratingsBasedOn');
+                if(basedOn){
+                    if(summary.count === 0) basedOn.textContent = 'No reviews yet.';
+                    else basedOn.textContent = 'Based on ' + summary.count + ' review' + (summary.count===1?'':'s');
+                }
+
+                var recent = document.getElementById('ratingsRecent');
+                if(recent){
+                    var list = api.getRatings(key).slice(0,2);
+                    if(!list.length){
+                        recent.innerHTML = '<div style="font-size:0.95rem;color:#666;">Be the first to review this product.</div>';
+                    } else {
+                        recent.innerHTML = list.map(function(r){
+                            var s = api.starsText(r && r.stars);
+                            var c = (r && r.comment) ? String(r.comment).trim() : '';
+                            var verified = (r && r.orderId) ? ' <span style="font-size:0.92rem;color:#888;">Verified</span>' : '';
+                            var who = (r && r.userEmail) ? String(r.userEmail) : 'Customer';
+                            return '<div style="margin-top:8px;">'
+                                + '<div style="font-size:1.02rem;color:#222;">' + s + '</div>'
+                                + '<div style="font-size:0.95rem;color:#444;">' + who + verified + '</div>'
+                                + (c ? ('<div style="font-size:0.95rem;color:#444;margin-top:4px;">' + c.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>') : '')
+                                + '</div>';
+                        }).join('');
+                    }
+                }
+
+                var breakdownEl = document.getElementById('ratingsBreakdown');
+                if(breakdownEl){
+                    var b = summary.breakdown || {1:0,2:0,3:0,4:0,5:0};
+                    var max = 0;
+                    [5,4,3,2,1].forEach(function(k){ max = Math.max(max, Number(b[k]||0)); });
+                    if(summary.count === 0) max = 1;
+                    breakdownEl.innerHTML = [5,4,3,2,1].map(function(st){
+                        var count = Number(b[st]||0);
+                        var pct = max ? Math.round((count / max) * 100) : 0;
+                        return '<div style="display:flex;align-items:center;gap:10px;margin:6px 0;">'
+                            + '<div style="width:54px;font-size:0.98rem;color:#222;">' + st + '★</div>'
+                            + '<div style="flex:1;height:14px;background:#eee;border-radius:8px;overflow:hidden;">'
+                            + '<div style="width:' + pct + '%;height:100%;background:#222;"></div>'
+                            + '</div>'
+                            + '<div style="width:26px;text-align:right;font-size:0.95rem;color:#444;">' + count + '</div>'
+                            + '</div>';
+                    }).join('');
+                }
+            }catch(e){ /* ignore */ }
+        }
+
+        window.renderProductRatings = renderRatingsUI;
+
         // If navigated from grouped model, prefer modelData
         var modelData = null;
         try{ modelData = JSON.parse(localStorage.getItem('modelData')||'null'); }catch(e){ modelData = null; }
@@ -2048,6 +2111,7 @@ On page.</div>
                     localStorage.setItem('productTitle', variant.name || ((modelData.baseName||'') + (variant.color?(' '+variant.color):'')) );
                     localStorage.setItem('productPrice', formatPrice(variant.price||0));
                     localStorage.setItem('productImg', variant.image || '');
+                    localStorage.setItem('productId', variant.id || '');
                 }catch(e){}
                 // Update UI
                 var bEl = document.getElementById('productBrand'); if(bEl) bEl.textContent = modelData.brand||'';
@@ -2096,6 +2160,7 @@ On page.</div>
                 updateSizeButtons();
                 var sel = document.querySelector('#sizeButtons .product-size-btn.primary');
                 if(sel) selectSize(sel); else { var stockEl = document.getElementById('sizeStock'); if(stockEl) stockEl.textContent=''; var convEl=document.getElementById('sizeConversion'); if(convEl) convEl.textContent='Select a size to see the US equivalent.'; }
+                try{ renderRatingsUI(); }catch(e){}
             }
             function setMainImageSrc(src){
                 try{
@@ -2207,6 +2272,36 @@ On page.</div>
         if (title && !modelData) {
             document.getElementById('productDesc').innerHTML = title + '<br>With Free Socks<br>Sizes: 41 42 43 44 45 / 8 8.5 9.5 10 11 US<br><span style="font-weight:600;">MENS</span>';
         }
+
+        // initial ratings render (non-variant pages)
+        try{ renderRatingsUI(); }catch(e){}
+
+        // update ratings when other tabs add reviews
+        try{ window.addEventListener('ratings:updated', function(){ try{ renderRatingsUI(); }catch(e){} }); }catch(e){}
+
+        // allow writing a review from the product page
+        try{
+            var writeBtn = document.getElementById('writeReviewBtn');
+            if(writeBtn){
+                writeBtn.addEventListener('click', function(){
+                    var api = window.ShoePaoRatings;
+                    if(!api){ alert('Ratings system is unavailable.'); return; }
+                    var stars = prompt('Rate this product (1-5):');
+                    if(stars === null) return;
+                    var s = Number(stars);
+                    if(!isFinite(s) || s < 1 || s > 5){ alert('Please enter a number from 1 to 5.'); return; }
+                    var comment = prompt('Add a comment (optional):') || '';
+                    api.addOrUpdateRating({
+                        productId: (localStorage.getItem('productId')||'').trim(),
+                        brand: (localStorage.getItem('productBrand')||'').trim(),
+                        title: (localStorage.getItem('productTitle')||'').trim(),
+                        stars: s,
+                        comment: comment
+                    });
+                    renderRatingsUI();
+                });
+            }
+        }catch(e){}
     });
     // If page is opened with ?openAR=1 instruct the page to open the AR modal automatically
     (function(){
@@ -2530,9 +2625,11 @@ On page.</div>
                     const priceText = (document.getElementById('productPrice') && document.getElementById('productPrice').textContent) || '';
                     const priceNum = parsePriceToNumber(priceText);
                     const image = (document.getElementById('mainShoeImg') && document.getElementById('mainShoeImg').src) || '';
+                    const productId = (localStorage.getItem('productId') || '').trim();
 
                     // Persist selected EU size number (e.g. '41') in cart item
                     const prod = {
+                        id: productId,
                         title: title,
                         brand: brand,
                         price: priceNum,
@@ -2570,6 +2667,7 @@ On page.</div>
         });
     })();
     </script>
+    <script src="js/ratings-storage.js"></script>
     <script src="cart-storage.js"></script>
 </body>
     

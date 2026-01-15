@@ -66,10 +66,10 @@
       if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
 
       // Handle email-link sign-in callback: if the user clicked an email link to this page,
-      // complete the sign-in. The email may be stored in sessionStorage under 'emailLink_pending'.
+      // complete the sign-in. The email may be stored in localStorage under 'emailLink_pending'.
       if (firebase.auth().isSignInWithEmailLink(window.location.href)) {
         try{
-          let emailForLink = sessionStorage.getItem('emailLink_pending');
+          let emailForLink = localStorage.getItem('emailLink_pending');
           if (!emailForLink) emailForLink = window.prompt('Please confirm your email address for sign-in:');
           if (!emailForLink) { document.getElementById('summary').textContent = 'No email supplied to complete sign-in.'; }
           else {
@@ -82,7 +82,7 @@
                 await db.doc('users/' + u.uid).set({ email: u.email, displayName: u.displayName || '', emailVerified: !!u.emailVerified, role: 'user', createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
               }
             }catch(e){ console.warn('Failed to upsert user after email-link sign-in', e); }
-            try{ sessionStorage.removeItem('emailLink_pending'); sessionStorage.removeItem('pending_signup'); }catch(e){}
+            try{ localStorage.removeItem('emailLink_pending'); localStorage.removeItem('pending_signup'); }catch(e){}
             // redirect after sign-in
             window.location.href = 'home.html';
             return;
@@ -90,7 +90,7 @@
         }catch(e){ console.error('Email-link sign-in failed', e); document.getElementById('summary').textContent = 'Email sign-in failed: ' + (e && e.message ? e.message : e); }
       }
 
-      const pendingRaw = sessionStorage.getItem('pending_signup');
+      const pendingRaw = localStorage.getItem('pending_signup');
       if (!pendingRaw) { window.location.href = 'signup.html'; return; }
       const pending = JSON.parse(pendingRaw || '{}');
       const email = pending.email || '';
@@ -113,7 +113,7 @@
           // they will be signed in (and account created if needed) and we can finalize their profile.
           const actionCodeSettings = { url: window.location.origin + '/verification.html', handleCodeInApp: true };
           await firebase.auth().sendSignInLinkToEmail(pending.email, actionCodeSettings);
-          try { sessionStorage.setItem('emailLink_pending', pending.email); } catch(e){}
+          try { localStorage.setItem('emailLink_pending', pending.email); } catch(e){}
           showEmailModal(pending.email, null, true);
         }catch(err){ console.error('Email-link send error', err); alert('Failed to send verification link: ' + (err && err.message ? err.message : String(err))); optEmail.style.opacity = ''; optSms.style.pointerEvents = ''; }
       });
@@ -161,7 +161,7 @@
           '<p style="margin-top:8px;color:#0066cc;cursor:pointer" id="resendLink">Not in inbox or spam folder? Resend</p>' +
           '<div style="margin-top:12px;text-align:right"><button id="closeEmail" class="btn btn-primary">Close</button></div>';
         overlay.appendChild(modal); document.body.appendChild(overlay);
-        document.getElementById('closeEmail').addEventListener('click', function(){ if(overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); try{ sessionStorage.removeItem('pending_signup'); }catch(e){} window.location.href='login.html'; });
+        document.getElementById('closeEmail').addEventListener('click', function(){ if(overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); try{ localStorage.removeItem('pending_signup'); }catch(e){} window.location.href='login.html'; });
         document.getElementById('resendLink').addEventListener('click', async function(){
           try{
             const u = firebase.auth().currentUser || (await firebase.auth().signInWithEmailAndPassword(email, password)).user;
@@ -203,7 +203,7 @@
             if (!phoneCredential) {
               // Fallback: confirm which returns a phone-signed-in user; we'll use that state to continue
               const userCredential = await confirmationResult.confirm(code);
-              try{ sessionStorage.removeItem('pending_signup'); }catch(e){}
+              try{ localStorage.removeItem('pending_signup'); }catch(e){}
               alert('Phone verified and account created (signed in by phone).');
               window.location.href = 'home.html';
               return;
@@ -228,7 +228,7 @@
               } else { throw createErr; }
             }
 
-            try{ sessionStorage.removeItem('pending_signup'); }catch(e){}
+            try{ localStorage.removeItem('pending_signup'); }catch(e){}
             alert('Phone verified and account created.');
             window.location.href = 'home.html';
           }catch(err){ console.error('OTP confirm failed', err); alert('OTP verification failed: ' + (err && err.message ? err.message : String(err))); }

@@ -624,7 +624,7 @@
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToUserPage() {
         try{
-            var p = JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || 'null');
+            var p = JSON.parse(localStorage.getItem('profile') || 'null');
             if(!p || !p.email) { window.location.href = 'login.html'; return; }
         }catch(e){ window.location.href = 'login.html'; return; }
         window.location.href = 'profile.html';
@@ -972,13 +972,13 @@
             var stored = localStorage.getItem('checkoutRegion');
             if(stored){ sel.value = stored; document.getElementById('checkoutRegionHint').textContent = 'Using selected region: ' + stored; }
             else {
-                var profile = JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || '{}');
+                var profile = JSON.parse(localStorage.getItem('profile') || '{}');
                 var inferred = determineRegion(profile.addressMain, profile.addressDetails);
                 if(inferred) document.getElementById('checkoutRegionHint').textContent = 'Auto-detected region: ' + inferred;
             }
             sel.addEventListener('change', function(){
                 var v = (this.value || '').trim();
-                if(v === ''){ localStorage.removeItem('checkoutRegion'); var profile = JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || '{}'); var inferred = determineRegion(profile.addressMain, profile.addressDetails); document.getElementById('checkoutRegionHint').textContent = 'Auto-detected region: ' + (inferred || 'Luzon'); }
+                if(v === ''){ localStorage.removeItem('checkoutRegion'); var profile = JSON.parse(localStorage.getItem('profile') || '{}'); var inferred = determineRegion(profile.addressMain, profile.addressDetails); document.getElementById('checkoutRegionHint').textContent = 'Auto-detected region: ' + (inferred || 'Luzon'); }
                 else { localStorage.setItem('checkoutRegion', v); document.getElementById('checkoutRegionHint').textContent = 'Using selected region: ' + v; }
                 updateCheckoutShippingDisplay();
             });
@@ -1246,7 +1246,7 @@
                 boxCounts[key] = (boxCounts[key] || 0) + qty;
             });
             var weightKg = Math.max(totalPhysicalWeightKg, totalDimWeightKg);
-            var profile = JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || '{}');
+            var profile = JSON.parse(localStorage.getItem('profile') || '{}');
             // prefer explicit checkout address override
             var overrideAddr = localStorage.getItem('checkoutAddressMain');
             var regionOverride = localStorage.getItem('checkoutRegion');
@@ -1277,9 +1277,9 @@
         }catch(e){ console.error('computeJNTShipping error', e); return 0; }
     }
     
-    // Helper: get active profile (sessionStorage preferred)
+    // Helper: get active profile
     function getActiveProfile(){
-        try{ return JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || '{}'); }catch(e){ return {}; }
+        try{ return JSON.parse(localStorage.getItem('profile') || '{}'); }catch(e){ return {}; }
     }
 
     // Initialize checkout UI from active profile (name, email, address). Falls back to any checkoutAddressMain override.
@@ -1328,23 +1328,33 @@
     // Cart rendering
     function renderCheckoutCart() {
         var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        if(!Array.isArray(cart) || cart.length === 0){
+            try{
+                var snap = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]');
+                if(Array.isArray(snap) && snap.length) cart = snap;
+            }catch(e){}
+        }
         var cartList = document.getElementById('checkoutCartList');
         var subtotal = 0;
         cartList.innerHTML = '';
+        if(!Array.isArray(cart) || cart.length === 0){
+            cartList.innerHTML = '<div style="color:#666;padding:12px 4px;">Your cart is empty.</div>';
+        }
         cart.forEach(function(item) {
             var qty = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
-            var itemTotal = (item.price * qty);
+            var priceNum = (typeof item.price === 'number') ? item.price : Number(String(item.price || '').replace(/[^0-9.]/g,'')) || 0;
+            var itemTotal = (priceNum * qty);
             subtotal += itemTotal;
             var div = document.createElement('div');
             div.className = 'checkout-cart-item';
             div.innerHTML = `
-                <img src="${item.image}" class="checkout-cart-img" alt="${item.title}">
+                <img src="${item.image || 'IMAGE/NIKE1.png'}" class="checkout-cart-img" alt="${item.title || item.name || 'Item'}">
                 <div class="checkout-cart-info">
                     <div class="checkout-cart-title-row">
-                        <span class="checkout-cart-title">${item.title}</span>
-                        <span class="checkout-cart-price">₱${(item.price * qty).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                        <span class="checkout-cart-title">${item.title || item.name || 'Item'}</span>
+                        <span class="checkout-cart-price">₱${(priceNum * qty).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
                     </div>
-                    <div class="checkout-cart-size">Size: ${item.size}</div>
+                    <div class="checkout-cart-size">Size: ${item.size || '-'}</div>
                     <div class="checkout-cart-qty">QTY: ${qty}</div>
                 </div>
             `;
@@ -1373,14 +1383,43 @@
         document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
     window.addEventListener('DOMContentLoaded', function(){
+        // Guard: prevent entering checkout with an empty cart (e.g., via back button)
+        try{
+            var cartGuard = JSON.parse(localStorage.getItem('cart') || '[]');
+            if(!Array.isArray(cartGuard) || cartGuard.length === 0){
+                var shopUrl = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e){ return 'product-list.html'; } })();
+                window.location.replace(shopUrl);
+                return;
+            }
+        }catch(e){
+            var shopUrl2 = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e2){ return 'product-list.html'; } })();
+            window.location.replace(shopUrl2);
+            return;
+        }
         try{ renderCheckoutCart(); }catch(e){}
         try{ initRegionSelector(); }catch(e){}
         try{ initAddressEditor(); }catch(e){}
         try{ initCheckoutProfileDisplay(); }catch(e){}
+        try{
+            var cartSnap = JSON.parse(localStorage.getItem('cart') || '[]');
+            if(Array.isArray(cartSnap) && cartSnap.length){
+                localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartSnap));
+            }
+        }catch(e){}
     });
 
     // Proceed from checkout to payment: persist the chosen delivery/payment and the customer name shown on the page
     function proceedToPayment(){
+        try{
+            var cartNow = JSON.parse(localStorage.getItem('cart') || '[]');
+            if(!Array.isArray(cartNow) || cartNow.length === 0){
+                alert('Your cart is empty.');
+                var shopUrl0 = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e){ return 'product-list.html'; } })();
+                window.location.replace(shopUrl0);
+                return;
+            }
+            localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartNow));
+        }catch(e){}
         try{
             // delivery label
             var deliveryEl = document.querySelector('.checkout-delivery-option.selected .checkout-delivery-label') || document.querySelector('.checkout-delivery-label');
@@ -1415,7 +1454,7 @@
         }catch(e){}
         try{
             // prefer the active profile's name when available
-            var profile = (function(){ try{ return JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || '{}'); }catch(e){ return {}; } })();
+            var profile = (function(){ try{ return JSON.parse(localStorage.getItem('profile') || '{}'); }catch(e){ return {}; } })();
             if(profile && profile.name){
                 localStorage.setItem('checkoutCustomerName', profile.name);
             } else {
@@ -1461,7 +1500,135 @@
             var sel = document.getElementById('checkoutRegionSelect');
             if(sel){ if(sel.value && sel.value !== '') localStorage.setItem('checkoutRegion', sel.value); else localStorage.removeItem('checkoutRegion'); }
         }catch(e){}
-        window.location.href = 'payment.html';
+        // Use replace so Checkout is removed from browser history after continuing
+        persistCheckoutToFirestore().finally(function(){
+            window.location.replace('payment.html');
+        });
+    }
+
+    function ensureFirebaseReady(cb){
+        try{
+            var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+            function loadScript(src){
+                return new Promise(function(resolve, reject){
+                    var s = document.createElement('script');
+                    s.src = src; s.onload = resolve; s.onerror = function(){ reject(new Error('failed to load '+src)); };
+                    document.head.appendChild(s);
+                });
+            }
+            function loadConfig(){
+                if(window.FIREBASE_CONFIG) return Promise.resolve();
+                return loadScript('js/firebase-config.js');
+            }
+            function init(){
+                try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }
+                catch(e){ if(cb) cb(e); }
+            }
+            if(window.firebase && firebase.firestore && firebase.auth){
+                loadConfig().then(function(){ init(); }).catch(function(err){ if(cb) cb(err); });
+                return;
+            }
+            loadConfig().then(function(){
+                return loadScript(base + 'firebase-app-compat.js')
+                    .then(function(){ return loadScript(base + 'firebase-auth-compat.js'); })
+                    .then(function(){ return loadScript(base + 'firebase-firestore-compat.js'); });
+            }).then(function(){ init(); }).catch(function(err){ if(cb) cb(err); });
+        }catch(e){ if(cb) cb(e); }
+    }
+
+    function buildCheckoutPayload(cart){
+        cart = Array.isArray(cart) ? cart : [];
+        var shipping = Number(localStorage.getItem('checkoutShipping') || 0);
+        var shippingLabel = localStorage.getItem('checkoutShippingLabel') || '';
+        var paymentLabel = localStorage.getItem('checkoutPayment') || '';
+        var paymentCode = localStorage.getItem('checkoutPaymentCode') || '';
+        var deliveryLabel = localStorage.getItem('checkoutDelivery') || '';
+        var deliveryCode = localStorage.getItem('checkoutDeliveryCode') || '';
+        var customerName = localStorage.getItem('checkoutCustomerName') || '';
+        var customerEmail = localStorage.getItem('checkoutCustomerEmail') || '';
+        var addressMain = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress') || '';
+        var addressDetails = localStorage.getItem('checkoutAddressDetails') || '';
+
+        var subtotal = 0;
+        cart.forEach(function(it){
+            var qty = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
+            var priceNum = (typeof it.price === 'number') ? it.price : Number(String(it.price || '').replace(/[^0-9.]/g,'')) || 0;
+            subtotal += priceNum * qty;
+        });
+        var total = subtotal + shipping;
+
+        return {
+            status: 'Pending payment',
+            payment_method: paymentCode || paymentLabel || '',
+            paymentMethod: paymentLabel || paymentCode || '',
+            deliveryMethod: deliveryLabel || deliveryCode || '',
+            deliveryCode: deliveryCode || '',
+            shipping_fee: shipping,
+            shipping: shipping,
+            shipping_label: shippingLabel,
+            shippingLabel: shippingLabel,
+            total: total,
+            customerName: customerName,
+            customerEmail: customerEmail,
+            delivery_address: addressMain,
+            addressDetails: addressDetails
+        };
+    }
+
+    function persistCheckoutToFirestore(){
+        return new Promise(function(resolve){
+            try{
+                var cartNow = [];
+                try{ cartNow = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ cartNow = []; }
+                if(!Array.isArray(cartNow) || cartNow.length === 0){
+                    try{ cartNow = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ cartNow = []; }
+                }
+                if(!Array.isArray(cartNow) || cartNow.length === 0) return resolve(false);
+
+                ensureFirebaseReady(function(err){
+                    if(err) return resolve(false);
+                    firebase.auth().onAuthStateChanged(function(user){
+                        if(!user) return resolve(false);
+                        try{
+                            var db = firebase.firestore();
+                            var checkoutRef = db.collection('checkouts').doc(user.uid);
+                            var payload = buildCheckoutPayload(cartNow);
+                            if(!payload.customerEmail && user.email) payload.customerEmail = user.email;
+                            payload.user_id = user.uid;
+                            payload.items = cartNow.map(function(it){
+                                return {
+                                    product_id: it.product_id || it.id || '',
+                                    name: it.name || it.title || '',
+                                    price: Number(it.price || 0),
+                                    qty: Number(it.qty || it.quantity || 1),
+                                    image_url: it.image_url || it.image || '',
+                                    size: it.size || ''
+                                };
+                            });
+
+                            checkoutRef.set(payload, { merge: true }).then(function(){
+                                return checkoutRef.collection('items').get();
+                            }).then(function(snap){
+                                var batch = db.batch();
+                                snap.forEach(function(doc){ batch.delete(doc.ref); });
+                                cartNow.forEach(function(it, idx){
+                                    var itemRef = checkoutRef.collection('items').doc('item-' + idx);
+                                    batch.set(itemRef, {
+                                        product_id: it.product_id || it.id || '',
+                                        name: it.name || it.title || '',
+                                        price: Number(it.price || 0),
+                                        qty: Number(it.qty || it.quantity || 1),
+                                        image_url: it.image_url || it.image || '',
+                                        size: it.size || ''
+                                    });
+                                });
+                                return batch.commit();
+                            }).then(function(){ resolve(true); }).catch(function(){ resolve(false); });
+                        }catch(e){ resolve(false); }
+                    });
+                });
+            }catch(e){ resolve(false); }
+        });
     }
     </script>
     <script src="cart-storage.js"></script>

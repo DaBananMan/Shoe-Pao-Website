@@ -24,7 +24,7 @@
   }
 
   function getActiveProfile(){
-    try{ return safeJsonParse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null', null); }catch(e){ return null; }
+    try{ return safeJsonParse(localStorage.getItem('profile')||'null', null); }catch(e){ return null; }
   }
 
   function getProductKey(input){

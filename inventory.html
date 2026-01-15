@@ -120,18 +120,6 @@
                 </table>
             </div>
 
-            <div class="sales-log">
-                <h2>Sales Log</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th><th>Brand</th><th>Model</th><th>Color</th><th>Size</th><th>Qty</th><th>Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="salesTbody"></tbody>
-                </table>
-            </div>
-
     <!-- Firebase config (paste your web config here). Public keys are fine in client code. -->
     <script>
       window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
@@ -152,6 +140,20 @@
 
     <!-- App script -->
     <script src="inventory-app.js"></script>
+        </section>
+
+        <section id="tab-sales" class="tab">
+            <div class="sales-log">
+                <h2>Sales Log</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th><th>Brand</th><th>Model</th><th>Color</th><th>Size</th><th>Qty</th><th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesTbody"></tbody>
+                </table>
+            </div>
         </section>
 
         <section id="tab-reports" class="tab">

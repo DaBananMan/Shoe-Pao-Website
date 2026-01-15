@@ -344,10 +344,10 @@
                         localStorage.setItem('users', JSON.stringify(users));
                         // If the deleted account matches the currently active profile, clear the profile so no stale session remains
                         try{
-                            var prof = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null');
+                            var prof = JSON.parse(localStorage.getItem('profile')||'null');
                             if(prof && (prof.email||'').toLowerCase() === (em2||'').toLowerCase()){
-                                try{ sessionStorage.removeItem('profile'); sessionStorage.removeItem('profile_updated_at'); }catch(e){}
                                 try{ localStorage.removeItem('profile'); localStorage.removeItem('profile_updated_at'); }catch(e){}
+                                try{ localStorage.removeItem('authToken'); localStorage.removeItem('authTokenUpdatedAt'); }catch(e){}
                             }
                         }catch(e){ /* ignore profile clear errors */ }
                         try{ if(typeof window.renderAccountsTable === 'function'){ window.renderAccountsTable(); } else if(typeof render === 'function'){ render(); } }catch(e){}
