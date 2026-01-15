@@ -563,6 +563,33 @@
                 // reload ordersData from storage to ensure consistency, then refresh view
                 try{ ordersData = JSON.parse(localStorage.getItem('orders') || '[]'); }catch(e){/* ignore */}
                 applySearch();
+                // Also attempt to persist change to Firestore so admin actions propagate in real-time
+                try{
+                    if(window.FIREBASE_CONFIG && window.firebase && firebase.firestore){
+                        if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                        const db = firebase.firestore();
+                        // Use the order id as the document id when possible (legacy migration used order.id as doc id)
+                        // Prefer updating a doc whose document id equals the orderId.
+                        // If that doc doesn't exist, try to find a document where field 'id' == orderId, and update that.
+                        // If neither exists, create/overwrite a top-level doc keyed by orderId so future listeners pick it up.
+                        const payload = Object.assign({}, ordersData.find(o=>String(o.id)===String(orderId)) || {}, { updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        const candidateRef = db.collection('orders').doc(String(orderId));
+                        candidateRef.get().then(snap => {
+                            if(snap.exists){
+                                return candidateRef.set(payload, { merge: true });
+                            }
+                            // fallback: search for a doc where data.id == orderId
+                            return db.collection('orders').where('id','==',String(orderId)).limit(1).get().then(q => {
+                                if(!q.empty){
+                                    const foundDoc = q.docs[0];
+                                    return db.collection('orders').doc(foundDoc.id).set(payload, { merge: true });
+                                }
+                                // last resort: create doc with id == orderId
+                                return candidateRef.set(payload, { merge: true });
+                            });
+                        }).then(()=>{ console.log('Order', orderId, 'updated in Firestore (with fallback logic)'); }).catch(err=>{ console.warn('Failed to update order in Firestore', err); });
+                    }
+                }catch(e){ console.warn('Firestore update skipped', e); }
             }catch(e){console.error(e)}
         }
 
@@ -602,6 +629,50 @@
                 }catch(err){/* ignore */}
             }
         });
+
+        // Attach a realtime Firestore listener to keep the orders table in sync across admins
+        (function attachRealtimeOrders(){
+            try{
+                if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)){
+                    console.log('Firebase not available - realtime orders disabled');
+                    return;
+                }
+                if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                const db = firebase.firestore();
+                // Listen to recent orders; adjust query to suit your dashboard (status filters, date range, limit)
+                const q = db.collection('orders').orderBy('date','desc').limit(500);
+                const unsubscribe = q.onSnapshot(snapshot => {
+                    let changed = false;
+                    snapshot.docChanges().forEach(change => {
+                        const doc = change.doc;
+                        const data = Object.assign({}, doc.data());
+                        // ensure an id field exists for matching (legacy data uses data.id)
+                        if(!data.id) data.id = data.id || doc.id || data.orderId || doc.id;
+                        if(change.type === 'added' || change.type === 'modified'){
+                            const idx = ordersData.findIndex(o => String(o.id) === String(data.id));
+                            if(idx === -1){
+                                ordersData.unshift(data);
+                                changed = true;
+                            } else {
+                                ordersData[idx] = Object.assign({}, ordersData[idx], data);
+                                changed = true;
+                            }
+                        } else if(change.type === 'removed'){
+                            const idx = ordersData.findIndex(o => String(o.id) === String(data.id) || String(o.id) === String(doc.id));
+                            if(idx !== -1){ ordersData.splice(idx,1); changed = true; }
+                        }
+                    });
+                    if(changed){
+                        try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                        applySearch();
+                    }
+                }, err => { console.error('Orders realtime listener error', err); });
+
+                // unsubscribe when page unloads to save reads
+                window.addEventListener('beforeunload', function(){ try{ unsubscribe(); }catch(e){} });
+                console.log('Realtime orders listener attached');
+            }catch(e){ console.warn('Failed to attach realtime orders listener', e); }
+        })();
 
         // Open cancel review modal for a given order id
         function openCancelReviewById(orderId){

@@ -884,6 +884,43 @@
 
         orders.push(order);
         localStorage.setItem('orders', JSON.stringify(orders));
+        // If Firebase is configured, persist the order to Firestore (global orders collection and user's orders)
+        (function(){
+            function ensureFirebaseReady(cb){
+                try{
+                    if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('no firebase config')); return; }
+                    var ready = function(){ try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }catch(e){ if(cb) cb(e); } };
+                    if(window.firebase && firebase.firestore && firebase.auth){ ready(); return; }
+                    var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+                    var scripts = [base + 'firebase-app-compat.js', base + 'firebase-auth-compat.js', base + 'firebase-firestore-compat.js'];
+                    var i = 0;
+                    function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+                    loadNext();
+                }catch(e){ if(cb) cb(e); }
+            }
+            try{
+                ensureFirebaseReady(function(err){
+                    if(err) return; // firebase not configured or failed to load
+                    try{
+                        var db = firebase.firestore();
+                        // save to global orders collection (doc id = order.id)
+                        db.collection('orders').doc(order.id).set(Object.assign({}, order, { createdAt: firebase.firestore.FieldValue.serverTimestamp() })).catch(function(e){ console.warn('failed to save order to global orders', e); });
+                        // if user is signed in, also save under user's orders subcollection and update user doc
+                        var user = firebase.auth().currentUser;
+                        if(user && user.uid){
+                            db.collection('users').doc(user.uid).collection('orders').doc(order.id).set(Object.assign({}, order, { createdAt: firebase.firestore.FieldValue.serverTimestamp() })).catch(function(e){ console.warn('failed to save order to user orders', e); });
+                            db.collection('users').doc(user.uid).set({ lastOrderAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }).catch(function(e){});
+                        } else if(order.customerEmail){
+                            // if not signed in but email present, attempt to store in users/{email} doc (sanitized) — optional
+                            try{
+                                var emailKey = order.customerEmail.replace(/\./g,'_');
+                                db.collection('users').doc(emailKey).collection('orders').doc(order.id).set(Object.assign({}, order, { createdAt: firebase.firestore.FieldValue.serverTimestamp() })).catch(function(e){ console.warn('failed to save order to email-based user doc', e); });
+                            }catch(e){}
+                        }
+                    }catch(e){ console.warn('firebase order save failed', e); }
+                });
+            }catch(e){}
+        })();
         // clear one-time checkout-only fields so address/region are stored only on the order
         try{
             localStorage.removeItem('checkoutAddressMain');

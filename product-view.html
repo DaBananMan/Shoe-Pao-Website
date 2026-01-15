@@ -1646,12 +1646,39 @@ On page.</div>
                     wishlist.push(product);
                     localStorage.setItem('wishlist', JSON.stringify(wishlist));
                     showWishlistPopup('Added to Wishlist!');
+                    // If Firebase is available, also persist wishlist to the user's Firestore document
+                    try{
+                        ensureFirebaseReady(function(err){
+                            if(err) return; // firebase not configured or failed to load
+                            try{
+                                var user = firebase.auth().currentUser;
+                                if(!user) return;
+                                var db = firebase.firestore();
+                                db.doc('users/' + user.uid).set({ wishlist: firebase.firestore.FieldValue.arrayUnion(product) }, { merge: true }).catch(function(e){ console.warn('wishlist save failed', e); });
+                            }catch(e){ console.warn('wishlist firebase error', e); }
+                        });
+                    }catch(e){}
                 } else {
                     showWishlistPopup('Already in Wishlist!');
                 }
             });
         }
     });
+
+    // Ensure Firebase SDKs are loaded and initialized (if FIREBASE_CONFIG is present)
+    function ensureFirebaseReady(cb){
+        try{
+            if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('no firebase config')); return; }
+            var ready = function(){ try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }catch(e){ if(cb) cb(e); } };
+            if(window.firebase && firebase.firestore && firebase.auth){ ready(); return; }
+            // load compat libs sequentially
+            var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+            var scripts = [base + 'firebase-app-compat.js', base + 'firebase-auth-compat.js', base + 'firebase-firestore-compat.js'];
+            var i = 0;
+            function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+            loadNext();
+        }catch(e){ if(cb) cb(e); }
+    }
     // AR Modal functions
     function openARModal() {
         console.log('openARModal called');

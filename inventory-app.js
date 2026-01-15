@@ -1718,6 +1718,65 @@
     if (state.ui.selectedTab === 'settings') renderSettings();
   }
 
+  // Export inventory to a Word-compatible .doc file (HTML document saved with .doc extension)
+  function escapeHtml(str){
+    return (str===undefined || str===null) ? '' : String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function exportInventoryAsWord(){
+    try{
+      const rows = [];
+      state.products.forEach(p => {
+        const colorsArr = Array.isArray(p.colors) ? p.colors : [];
+        (colorsArr||[]).forEach(c => {
+          const sizesMap = {};
+          (Array.isArray(c.sizes)?c.sizes:[]).forEach(s => { sizesMap[String(s.eu)] = Number(s.stock||0); });
+          const total = Object.values(sizesMap).reduce((a,b)=>a+Number(b||0),0);
+          const threshold = effectiveThresholdForProduct(p);
+          // find sizes that meet or fall below the threshold (inclusive)
+          const lowSizes = Object.keys(sizesMap).filter(k => Number(sizesMap[k]) <= Number(threshold));
+          const low = (lowSizes.length > 0) || (total <= Number(threshold));
+          rows.push({ brand: p.brand||'', model: p.model||'', sku: p.sku||'', color: c.name||'', sizes: sizesMap, total: total, threshold: threshold, low: low, lowSizes: lowSizes });
+        });
+        if(!Array.isArray(p.colors) || p.colors.length===0){
+          const sizesMap = {};
+          const total = 0;
+          const threshold = effectiveThresholdForProduct(p);
+          rows.push({ brand: p.brand||'', model: p.model||'', sku: p.sku||'', color: '', sizes: sizesMap, total: total, threshold: threshold, low: false });
+        }
+      });
+
+      const now = new Date();
+      const title = `Inventory Export - ${now.toLocaleString()}`;
+      let html = '<!doctype html><html><head><meta charset="utf-8"><title>'+escapeHtml(title)+'</title>' +
+                 '<style>body{font-family:Arial,Helvetica,sans-serif}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:6px;text-align:left}th{background:#f6f6f6} .low{color:#b71c1c;font-weight:700}</style></head><body>';
+      html += '<h1>'+escapeHtml(title)+'</h1>';
+      html += '<table><thead><tr><th>Brand</th><th>Model</th><th>SKU</th><th>Color</th><th>Sizes</th><th>Total</th><th>Critical Level</th><th>Low Sizes</th><th>Status</th></tr></thead><tbody>';
+      rows.forEach(r => {
+        const sizesText = Object.keys(r.sizes).length ? Object.keys(r.sizes).map(k => escapeHtml(k) + ': ' + escapeHtml(String(r.sizes[k]))).join(', ') : '';
+        const lowSizesText = (r.lowSizes && r.lowSizes.length) ? escapeHtml(r.lowSizes.join(', ')) : '';
+        const status = r.low ? '<span class="low">LOW STOCK</span>' : 'OK';
+        html += '<tr>' +
+                '<td>' + escapeHtml(r.brand) + '</td>' +
+                '<td>' + escapeHtml(r.model) + '</td>' +
+                '<td>' + escapeHtml(r.sku) + '</td>' +
+                '<td>' + escapeHtml(r.color) + '</td>' +
+                '<td>' + sizesText + '</td>' +
+                '<td>' + escapeHtml(String(r.total)) + '</td>' +
+                '<td>' + escapeHtml(String(r.threshold)) + '</td>' +
+                '<td>' + lowSizesText + '</td>' +
+                '<td>' + status + '</td>' +
+                '</tr>';
+      });
+      html += '</tbody></table></body></html>';
+
+      const blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
+      const filename = 'inventory-export-' + now.toISOString().slice(0,19).replace(/[:T]/g,'-') + '.doc';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },1500);
+    }catch(e){ console.error(e); alert('Failed to export inventory. See console for details.'); }
+  }
+
   // Event wiring
   function wireEvents() {
   qsa('.tabs button').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
@@ -1738,6 +1797,7 @@
   const bulkRestockBtn = qs('#bulkRestock'); if (bulkRestockBtn) bulkRestockBtn.addEventListener('click', openBulkRestock);
   const applyBulkRestockBtn = qs('#applyBulkRestockBtn'); if (applyBulkRestockBtn) applyBulkRestockBtn.addEventListener('click', (e) => { e.preventDefault(); applyBulkRestock(); });
   const publishBtn = qs('#publishInventoryBtn'); if (publishBtn) publishBtn.addEventListener('click', (e) => { e.preventDefault(); publishInventoryToStorefront(); });
+  const exportBtn = qs('#exportInventoryBtn'); if (exportBtn) exportBtn.addEventListener('click', (e) => { e.preventDefault(); exportInventoryAsWord(); });
     const bulkPriceMethodSel = qs('#bulkPriceMethod');
     const bulkPriceValueInp = qs('#bulkPriceValue');
     if (bulkPriceMethodSel && bulkPriceValueInp) {
