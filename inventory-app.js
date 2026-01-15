@@ -37,6 +37,17 @@
     return Number.isFinite(n) ? n : fallback;
   };
 
+  // Effective threshold for 'low stock' per product: per-product `criticalLevel` overrides
+  // global settings.lowStockThreshold when present and valid.
+  function effectiveThresholdForProduct(p) {
+    try {
+      const cand = (p && (p.criticalLevel || p.critical_level || p.critical));
+      const n = parseNum(cand, NaN);
+      if (Number.isFinite(n) && n >= 1) return clampNum(Math.floor(n), 1, 999);
+    } catch (e) {}
+    return state.settings && state.settings.lowStockThreshold ? state.settings.lowStockThreshold : 3;
+  }
+
   // SKU generation: SP-BBB-MMMM-XXXX
   function generateProductSKU(brand, model, category) {
     const prefix = 'SP';
@@ -714,7 +725,8 @@
     const filterSize = qs('#filterSize').value;
     const filterStock = qs('#filterStock').value; // '', 'low', 'out', 'in'
     const filterStatus = qs('#filterStatus') ? qs('#filterStatus').value : '';
-    const threshold = state.settings.lowStockThreshold;
+  // Per-product effective threshold will be used in filtering; keep a local var for default
+  const threshold = state.settings.lowStockThreshold;
 
   // Use a guarded products array in case Firestore or imports yielded products without a
   // `colors` array (e.g. when variants are stored separately or permission-denied prevents
@@ -758,7 +770,8 @@
       const total = !filterSize
         ? totalStockForProduct(p)
         : colorsArr.reduce((acc, c) => acc + (Array.isArray(c.sizes) ? c.sizes.reduce((sacc, s) => sacc + (String(s.eu) === filterSize ? s.stock : 0), 0) : 0), 0);
-      const stockStatus = total === 0 ? 'out' : (total <= threshold ? 'low' : 'in');
+      const eff = effectiveThresholdForProduct(p);
+      const stockStatus = total === 0 ? 'out' : (total <= eff ? 'low' : 'in');
       const matchesStock = !filterStock || stockStatus === filterStock;
       const matchesStatus = !filterStatus || p.status === filterStatus;
       return matchesText && matchesBrand && matchesCat && matchesSize && matchesStock && matchesStatus;
@@ -783,7 +796,7 @@
       const displaySku = pick(p, ['sku'], p.id || '');
   const displayStatus = pick(p, ['status','state','availability'], '');
 
-      // colors fallback: try product.colors or variants map (grouped by several possible keys)
+  // colors fallback: try product.colors or variants map (grouped by several possible keys)
       let colorsArr = Array.isArray(p.colors) ? p.colors : [];
       if (!colorsArr.length && firebaseState.variantsByProductId) {
         const map = firebaseState.variantsByProductId;
@@ -794,14 +807,17 @@
         }
       }
 
+      // per-product effective low-stock threshold
+      const eff = effectiveThresholdForProduct(p);
+
       const colors = colorsArr.map(c => {
         const stock = totalStockForColor(c);
-        const status = stock === 0 ? 'out' : (stock <= threshold ? 'low' : 'in');
+        const status = stock === 0 ? 'out' : (stock <= eff ? 'low' : 'in');
         return `<span class="badge ${status}" title="${(availableSizes(c) || []).join(', ') || 'None'}">${c.name} (${stock})</span>`;
       }).join(' ');
 
-      const total = totalStockForProduct(p);
-      const totalStatus = total === 0 ? 'out' : (total <= threshold ? 'low' : 'in');
+  const total = totalStockForProduct(p);
+  const totalStatus = total === 0 ? 'out' : (total <= eff ? 'low' : 'in');
       const price = `₱${(parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0))}`;
       const bulkBox = state.ui.bulkMode ? `<input type="checkbox" class="bulkSel" data-id="${p.id}" ${state.ui.selectedProductIds.has(p.id) ? 'checked' : ''}/>` : '';
       const catDisplay = (p.category || '').trim();
@@ -922,6 +938,8 @@
       pCost.value = p.pricing?.cost || '';
       if (skuEl) skuEl.value = (dom && dom.sku) ? dom.sku : (p.sku || '');
       if (descEl) descEl.value = p.description || '';
+  // populate critical level input (if present on product)
+  try { const crit = (p.criticalLevel !== undefined) ? p.criticalLevel : (p.critical_level !== undefined ? p.critical_level : ''); const critEl = qs('#prodCriticalLevel'); if (critEl) critEl.value = (crit !== undefined && crit !== null) ? String(crit) : ''; } catch(e){}
       // Manual tags
       const manual = Array.isArray(p.tagsManual) ? p.tagsManual : [];
       // If DOM tags were detected, use them to set the manual tag checkboxes so the modal mirrors the table
@@ -958,6 +976,8 @@
   statusSel.value = 'active'; pOrig.value = ''; pSale.value = ''; pCost.value = '';
       if (skuEl) skuEl.value = '';
       if (descEl) descEl.value = '';
+  // clear critical level on Add
+  try { const critEl = qs('#prodCriticalLevel'); if (critEl) critEl.value = ''; } catch(e){}
       // Clear manual tags on add
       const tagNew = qs('#tagNew'); if (tagNew) tagNew.checked = false;
       const tagSale = qs('#tagSale'); if (tagSale) tagSale.checked = false;
@@ -990,6 +1010,7 @@
     const pCost = parseNum(qs('#priceCost').value, 0);
     const skuPreview = (qs('#prodSKU')?.value || '').trim();
     const desc = (qs('#prodDescription')?.value || '').trim();
+  const critVal = qs('#prodCriticalLevel') ? qs('#prodCriticalLevel').value : '';
 
     // Manual tags from modal
     const manual = [];
@@ -1019,6 +1040,14 @@
   p.brand = brand; p.model = model; p.category = cat; p.gender = Array.isArray(genderSel) ? genderSel : [genderSel]; p.status = statusSel;
   p.pricing = p.pricing || { original: 0, sale: 0, cost: 0 };
   p.pricing.original = pOrig; p.pricing.sale = pSale; p.pricing.cost = pCost;
+      // per-product critical level: empty -> unset, numeric -> clamp & set
+      try {
+        if (critVal !== null && String(critVal).trim() !== '') {
+          p.criticalLevel = clampNum(Math.floor(parseNum(critVal, state.settings.lowStockThreshold)), 1, 999);
+        } else {
+          delete p.criticalLevel;
+        }
+      } catch(e) {}
       // Keep existing SKU unless empty; regenerate if missing
       if (!p.sku) p.sku = generateProductSKU(brand, model, cat);
       p.description = desc;
@@ -1039,6 +1068,12 @@
   const newP = newProduct({ brand, model, category: cat, status: statusSel, images: [], pricing: { original: pOrig, sale: pSale, cost: pCost }, description: desc, gender: Array.isArray(genderSel) ? genderSel : [genderSel] });
   newP.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       newP.tagsManual = manual;
+      // set critical level if provided
+      try {
+        if (critVal !== null && String(critVal).trim() !== '') {
+          newP.criticalLevel = clampNum(Math.floor(parseNum(critVal, state.settings.lowStockThreshold)), 1, 999);
+        }
+      } catch(e) {}
       // Copy colors and sizes
       newP.colors = colors.map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), sku: s.sku || '' })) }));
       state.products.push(newP);
@@ -1430,7 +1465,7 @@
     state.products.forEach(p => {
       if (!ids.includes(p.id)) return;
       p.colors.forEach(c => c.sizes.forEach(s => {
-        const isLow = s.stock > 0 && s.stock <= threshold;
+        const isLow = s.stock > 0 && s.stock <= effectiveThresholdForProduct(p);
         const isOut = s.stock === 0;
         const isSize = scope === 'size' && s.eu === size;
         if (scope === 'all' || (scope === 'low' && isLow) || (scope === 'out' && isOut) || isSize) {
@@ -1561,8 +1596,8 @@
     const lowItems = [];
     let lowCount = 0, outCount = 0;
     state.products.forEach(p => p.colors.forEach(c => c.sizes.forEach(s => {
-      if (s.stock === 0) { outCount++; lowItems.push(`<li>${p.brand} ${p.model} - ${c.name} ${s.eu}EU: <span class=\"badge out\">Out</span></li>`); }
-      else if (s.stock <= threshold) { lowCount++; lowItems.push(`<li>${p.brand} ${p.model} - ${c.name} ${s.eu}EU: <span class=\"badge low\">Low (${s.stock})</span></li>`); }
+  if (s.stock === 0) { outCount++; lowItems.push(`<li>${p.brand} ${p.model} - ${c.name} ${s.eu}EU: <span class=\"badge out\">Out</span></li>`); }
+  else if (s.stock <= effectiveThresholdForProduct(p)) { lowCount++; lowItems.push(`<li>${p.brand} ${p.model} - ${c.name} ${s.eu}EU: <span class=\"badge low\">Low (${s.stock})</span></li>`); }
     })));
     if (lowSummary) lowSummary.textContent = `Low: ${lowCount} • Out: ${outCount}`;
     const lowOpen = state.ui.reports.open.low;
@@ -1620,7 +1655,7 @@
     const alerts = [];
     state.products.forEach(p => p.colors.forEach(c => c.sizes.forEach(s => {
       if (s.stock === 0) alerts.push(`<li>Out of stock: ${p.brand} ${p.model} - ${c.name} ${s.eu}EU</li>`);
-      else if (s.stock <= threshold) alerts.push(`<li>Low stock: ${p.brand} ${p.model} - ${c.name} ${s.eu}EU (${s.stock})</li>`);
+      else if (s.stock <= effectiveThresholdForProduct(p)) alerts.push(`<li>Low stock: ${p.brand} ${p.model} - ${c.name} ${s.eu}EU (${s.stock})</li>`);
     })));
     ul.innerHTML = alerts.join('') || '<li>No alerts</li>';
   }
@@ -1660,7 +1695,9 @@
             productId: p.id || '',
             colorId: c.id || '',
             createdAt: p.createdAt || null,
-            gender: p.gender || ''
+            gender: p.gender || '',
+            // include per-product critical level override if defined so storefront can honor it
+            criticalLevel: (p.criticalLevel !== undefined && p.criticalLevel !== null) ? Number(p.criticalLevel) : null
           });
         });
       });

@@ -1786,6 +1786,20 @@ On page.</div>
                             // fallback: match brand
                             found = inv.find(function(i){ return (i.brand||'').toString().toLowerCase() === brand.toLowerCase(); });
                         }
+                        // Additional fallback: try fuzzy/base-model match in case published row names differ by color/formatting.
+                        if(!found && title) {
+                            try{
+                                var normalize = function(s){ return (s||'').toString().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); };
+                                var tNorm = normalize(title);
+                                for(var ii=0; ii<inv.length && !found; ii++){
+                                    var rn = (inv[ii].name||'').toString();
+                                    var rNorm = normalize(rn);
+                                    if(!rNorm) continue;
+                                    // if either name contains the other, treat as match
+                                    if(rNorm.indexOf(tNorm) !== -1 || tNorm.indexOf(rNorm) !== -1){ found = inv[ii]; break; }
+                                }
+                            }catch(_){ }
+                        }
                     }
 
                         if (found && eu) {
@@ -1801,8 +1815,22 @@ On page.</div>
                             elStock.style.color = '#b71c1c';
                             if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; addBtnEl.textContent = 'Pre-Order'; addBtnEl.dataset.preorder = '1'; }
                         } else {
-                            // available > 0: if low stock (<6) show explicit LOW STOCK! in red, otherwise show qty
-                            if(Number(qty) < 6){
+                            // available > 0: determine low-stock threshold. Prefer per-row criticalLevel (published by admin),
+                            // otherwise fall back to default threshold (6) to preserve previous behavior.
+                            var threshold = 6;
+                            try {
+                                if (found && (found.criticalLevel !== undefined && found.criticalLevel !== null)) {
+                                    var parsed = Number(found.criticalLevel);
+                                    if (isFinite(parsed) && parsed > 0) threshold = Math.max(1, Math.floor(parsed));
+                                }
+                            } catch (_) { /* ignore parsing errors and use default */ }
+                            // Coerce to numbers and treat qty <= threshold as low stock (so threshold is inclusive)
+                            var qnum = Number(qty);
+                            var tnum = Number(threshold);
+                            if (!isFinite(qnum)) {
+                                elStock.textContent = 'Stock: ' + qty + ' available';
+                                elStock.style.color = '';
+                            } else if (qnum <= tnum) {
                                 // show numeric stock and a red LOW STOCK! marker without replacing the count
                                 elStock.innerHTML = 'Stock: ' + qty + ' available <span style="color:#b71c1c;font-weight:700;margin-left:8px;">LOW STOCK!</span>';
                                 elStock.style.color = '';
