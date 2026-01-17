@@ -326,7 +326,7 @@
     // Navigation bar functions
     function goToHome() { window.location.href = 'home.html'; }
     function goToProfile() {
-    try{ var p = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
         window.location.href = 'profile.html';
     }
     function goToProductList() { window.location.href = 'product-list.html'; }
@@ -335,7 +335,7 @@
     function goToFAQ() { window.location.href = 'privacy.html'; }
     function goToContact() { window.location.href = 'contact.html'; }
     function goToUserPage() {
-    try{ var p = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
         window.location.href = 'profile.html';
     }
     function goToCartPage() { window.location.href = 'cart.html'; }
@@ -457,6 +457,8 @@
     function signOut() {
         try {
             localStorage.removeItem('profile');
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('authTokenUpdatedAt');
         } catch (e) {
             console.warn('Could not remove profile from localStorage', e);
         }
@@ -468,7 +470,7 @@
     // Populate profile inputs from localStorage if available and auto-save on change
     document.addEventListener('DOMContentLoaded', function(){
         try{
-            var p = JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || 'null');
+            var p = JSON.parse(localStorage.getItem('profile') || 'null');
             if(p){
                 if(document.getElementById('profileName')) document.getElementById('profileName').value = p.name || '';
                 if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = p.email || '';
@@ -512,9 +514,8 @@
         // update UI when profile changes in another tab/window (listen to profile or a timestamp key)
         window.addEventListener('storage', function(e){
             try{
-                if(e.key === 'profile' || e.key === 'profile_updated_at' || e.key === 'profile_updated_at_session'){
-                    // prefer sessionStorage when present, fall back to localStorage
-                    var np = JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || 'null');
+                if(e.key === 'profile' || e.key === 'profile_updated_at'){
+                    var np = JSON.parse(localStorage.getItem('profile') || 'null');
                     if(np){
                         if(document.getElementById('profileName')) document.getElementById('profileName').value = np.name || '';
                         if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = np.email || '';
@@ -567,7 +568,7 @@
         }
         // persist to profile and users list
         try{
-            var p = JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || '{}') || {};
+            var p = JSON.parse(localStorage.getItem('profile') || '{}') || {};
             p.addressMain = addrMain; p.addressDetails = addrDetails;
             localStorage.setItem('profile', JSON.stringify(p));
         }catch(e){}

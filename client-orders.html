@@ -13,18 +13,28 @@
         .orders-header h1{font-size:1.8rem;margin:0}
         .orders-sub{color:#666;margin-top:8px}
         .orders-list{display:flex;flex-wrap:wrap;gap:24px}
-        .order-card{background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(34,34,34,0.07);width:300px;display:flex;flex-direction:column;border:1px solid #eee}
+        .order-card{background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(34,34,34,0.07);width:300px;display:flex;flex-direction:column;border:1px solid #eee;cursor:pointer;transition:transform .15s, box-shadow .15s}
+        .order-card:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(34,34,34,0.12)}
         .order-status-box{background:#f5f5f5;border-radius:8px 8px 0 0;padding:12px 18px;display:flex;align-items:center;gap:12px}
         .order-status-icon{width:28px;height:28px}
         .order-card-img{width:100%;height:180px;object-fit:cover}
         .order-card-divider{height:1.5px;background:#eee;width:100%}
         .order-card-info-row{display:flex;justify-content:space-between;padding:12px 18px 0 18px}
         .order-card-code-row{padding:6px 18px 0 18px;color:#444}
-        .order-card-btn-row{display:flex;gap:8px;padding:12px 18px 18px 18px}
-        .order-card-btn{flex:1;padding:10px;border-radius:22px;border:none;cursor:pointer;font-weight:600}
+        .order-card-btn-row{display:flex;gap:8px;padding:12px 18px 18px 18px;flex-wrap:wrap}
+        .order-card-btn{flex:1;min-width:120px;padding:10px;border-radius:22px;border:none;cursor:pointer;font-weight:600}
         .view-btn{background:#222;color:#fff}
         .cancel-btn{background:#b71c1c;color:#fff}
         .refund-btn{background:#777;color:#fff}
+        .contact-btn{background:#1877f2;color:#fff}
+        .received-btn{background:#2e7d32;color:#fff}
+        .note-row{padding:6px 18px;color:#444;font-size:0.92rem;line-height:1.35}
+        .rating-item{display:flex;gap:12px;align-items:flex-start;border:1px solid #eee;border-radius:14px;padding:12px}
+        .rating-item img{width:56px;height:56px;object-fit:cover;border-radius:12px}
+        .rating-stars{display:flex;gap:6px;margin:6px 0 10px 0}
+        .rating-star{background:transparent;border:none;font-size:22px;line-height:1;cursor:pointer;padding:0;color:#c7c7c7}
+        .rating-star.active{color:#f5a623}
+        .rating-comment{width:100%;border:1px solid #ddd;border-radius:12px;padding:10px;font-family:inherit;font-size:0.98rem;min-height:72px;resize:vertical}
         @media (max-width:760px){.orders-container{padding:12px}.order-card{width:100%}}
     </style>
 </head>
@@ -169,12 +179,33 @@
         </div>
     </div>
 
+    <!-- Rating Modal Overlay (Order Received) -->
+    <div id="ratingModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:10002;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:20px;max-width:760px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div id="ratingModalTitle" style="font-weight:700;font-size:1.05rem;">Rate your order</div>
+                <button onclick="closeRatingModal()" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+            </div>
+            <div style="margin-bottom:10px;color:#444;">Select a star rating (1–5) and add an optional comment for each item.</div>
+            <div id="ratingItems" style="display:flex;flex-direction:column;gap:12px;max-height:54vh;overflow:auto;padding-right:4px;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button onclick="closeRatingModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Cancel</button>
+                <button onclick="submitRatings()" style="background:#222;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;">Submit Rating</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="js/ratings-storage.js"></script>
+
     <script>
     // Render order cards from localStorage.cart (client-side orders page)
     (function(){
         // Require a signed-in profile for this page — don't allow anonymous viewing of all orders
         try{
-            var __p_check = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null');
+            var __p_check = JSON.parse(localStorage.getItem('profile')||'null');
             if(!__p_check || !__p_check.email){ window.location.href = 'login.html'; return; }
         }catch(e){ window.location.href = 'login.html'; return; }
         function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:0}); }
@@ -207,31 +238,256 @@
         }
 
         // Wrapper helpers that operate by order id (safe when rendering filtered lists)
-        window.openOrderModalById = function(id){ var idx = findOrderIndexById(id); if(idx === -1) return; openOrderModal(idx); }
+        window.openOrderModalById = function(id){
+            if(!id) return;
+            try{
+                if(window.location && String(window.location.origin||'').startsWith('http')){
+                    window.location.href = 'orders/' + encodeURIComponent(id);
+                } else {
+                    window.location.href = 'order-detail.html?orderId=' + encodeURIComponent(id);
+                }
+            }catch(e){ window.location.href = 'order-detail.html?orderId=' + encodeURIComponent(id); }
+        }
         window.requestCancelOrderById = function(id){ var idx = findOrderIndexById(id); if(idx === -1) return; requestCancelOrder(idx); }
         window.requestRefundOrderById = function(id){ var idx = findOrderIndexById(id); if(idx === -1) return; requestRefundOrder(idx); }
 
-        // Mark the order as received (Delivered) from the client side
-        window.markOrderReceivedById = function(id){
+        // Contact seller (Facebook page)
+        window.contactSeller = function(orderId){
             try{
-                var orders = JSON.parse(localStorage.getItem('orders')||'[]');
-                var idx = orders.findIndex(function(o){ return (o && (o.id||'')) === id; });
-                if(idx === -1) return;
-                orders[idx].status = 'delivered';
-                try{ localStorage.setItem('orders', JSON.stringify(orders)); }catch(e){ console.error('persist failed', e); }
-                renderOrders();
-                // If order modal is open for this id, refresh it
-                var overlay = document.getElementById('orderModalOverlay');
-                if(overlay && overlay.style.display === 'flex'){
-                    var currentIdText = (document.getElementById('orderModalId')||{}).textContent || '';
-                    var m = currentIdText.match(/Order ID:\s*(\S+)/);
-                    var currentId = m ? m[1] : null;
-                    if(currentId === id){
-                        var newIdx = orders.findIndex(function(o){ return (o && (o.id||'')) === id; });
-                        if(newIdx !== -1){ openOrderModal(newIdx); }
-                    }
+                var fb = (window.SHOE_PAO_FACEBOOK_PAGE_URL || localStorage.getItem('shoePaoFacebookPageUrl') || '').trim();
+                if(!fb) fb = 'https://www.facebook.com/search/top/?q=' + encodeURIComponent('Shoe Pao');
+                window.open(fb, '_blank', 'noopener');
+            }catch(e){
+                try{ window.location.href = 'https://www.facebook.com/'; }catch(_){ }
+            }
+        };
+
+        // Rating modal flow (for delivered orders)
+        var _ratingModalOrderId = null;
+
+        function _getActiveProfile(){
+            try{ return JSON.parse(localStorage.getItem('profile')||'null'); }catch(e){ return null; }
+        }
+
+        function _normalizeText(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
+
+        function _resolveProductIdByName(brand, title){
+            try{
+                if(!title) return '';
+                var products = JSON.parse(localStorage.getItem('products')||'[]');
+                if(Array.isArray(products)){
+                    var t = _normalizeText(title);
+                    var b = _normalizeText(brand);
+                    var match = products.find(function(p){
+                        if(!p) return false;
+                        var pn = _normalizeText(p.name || p.title);
+                        if(!pn || pn !== t) return false;
+                        if(!b) return true;
+                        return _normalizeText(p.brand) === b;
+                    });
+                    if(match && match.id) return String(match.id);
                 }
+            }catch(e){}
+            try{
+                var inv = JSON.parse(localStorage.getItem('inventory')||'[]');
+                if(Array.isArray(inv)){
+                    var t2 = _normalizeText(title);
+                    var b2 = _normalizeText(brand);
+                    var match2 = inv.find(function(p){
+                        if(!p) return false;
+                        var pn = _normalizeText(p.name || p.title);
+                        if(!pn || pn !== t2) return false;
+                        if(!b2) return true;
+                        return _normalizeText(p.brand) === b2;
+                    });
+                    if(match2 && match2.id) return String(match2.id);
+                }
+            }catch(e){}
+            return '';
+        }
+
+        function _setStarsActive(wrapper, stars){
+            var s = Number(stars||0);
+            if(!isFinite(s)) s = 0;
+            wrapper.dataset.stars = String(s);
+            var btns = wrapper.querySelectorAll('.rating-star');
+            btns.forEach(function(b){
+                var n = Number(b.getAttribute('data-star')||0);
+                if(n && n <= s) b.classList.add('active');
+                else b.classList.remove('active');
+            });
+        }
+
+        function _escapeHtml(text){
+            return String(text||'')
+              .replace(/&/g,'&amp;')
+              .replace(/</g,'&lt;')
+              .replace(/>/g,'&gt;')
+              .replace(/"/g,'&quot;')
+              .replace(/'/g,'&#39;');
+        }
+
+        window.openRatingModalById = function(orderId){
+            try{
+                var api = window.ShoePaoRatings;
+                if(!api){ alert('Ratings system is not loaded.'); return; }
+
+                var orders = JSON.parse(localStorage.getItem('orders')||'[]');
+                var order = Array.isArray(orders) ? orders.find(function(o){ return (o && (o.id||'')) === orderId; }) : null;
+                if(!order) return;
+
+                var profile = _getActiveProfile() || {};
+                var userEmail = String(profile.email||'').trim().toLowerCase();
+
+                _ratingModalOrderId = orderId;
+                var overlay = document.getElementById('ratingModalOverlay');
+                var itemsEl = document.getElementById('ratingItems');
+                if(!overlay || !itemsEl) return;
+                itemsEl.innerHTML = '';
+
+                var rawItems = Array.isArray(order.items) ? order.items : [];
+                var byKey = {};
+                rawItems.forEach(function(it){
+                    if(!it) return;
+                    var title = (it.title || it.name || it.productName || it.itemName || '').trim();
+                    var brand = (it.brand || it.productBrand || '').trim();
+                    var productId = String(it.id || it.productId || it.variantId || it.sku || '').trim();
+                    if(!productId) productId = _resolveProductIdByName(brand, title);
+
+                    var key = api.getProductKey({ productId: productId, brand: brand, title: title });
+                    var qty = Number(it.quantity || it.qty || 1);
+                    if(!isFinite(qty) || qty <= 0) qty = 1;
+                    if(!byKey[key]){
+                        byKey[key] = {
+                            key: key,
+                            productId: productId,
+                            brand: brand,
+                            title: title,
+                            image: (it.image || it.img || it.productImg || '').trim(),
+                            qty: qty
+                        };
+                    } else {
+                        byKey[key].qty += qty;
+                        if(!byKey[key].image && (it.image || it.img || it.productImg)) byKey[key].image = (it.image || it.img || it.productImg);
+                    }
+                });
+
+                var keys = Object.keys(byKey);
+                if(keys.length === 0){
+                    itemsEl.innerHTML = '<div style="color:#666;">No items found for this order.</div>';
+                }
+
+                keys.forEach(function(k){
+                    var info = byKey[k];
+                    var existing = null;
+                    try{
+                        existing = api.getRatings(k).find(function(r){
+                            if(!r) return false;
+                            if(String(r.orderId||'') !== orderId) return false;
+                            if(userEmail && String(r.userEmail||'').toLowerCase() !== userEmail) return false;
+                            return true;
+                        }) || null;
+                    }catch(e){ existing = null; }
+
+                    var initialStars = existing ? Number(existing.stars||0) : 0;
+                    var initialComment = existing && existing.comment ? String(existing.comment) : '';
+
+                    var wrap = document.createElement('div');
+                    wrap.className = 'rating-item';
+                    wrap.dataset.productKey = info.key;
+                    wrap.dataset.productId = info.productId || '';
+                    wrap.dataset.brand = info.brand || '';
+                    wrap.dataset.title = info.title || '';
+                    wrap.dataset.stars = String(initialStars || 0);
+
+                    var displayTitle = _escapeHtml(info.title || 'Product');
+                    if(info.qty && info.qty > 1) displayTitle += ' <span style="color:#666;">(x' + info.qty + ')</span>';
+                    var img = info.image ? ('<img src="' + _escapeHtml(info.image) + '" alt="' + displayTitle + '">') : ('<div style="width:56px;height:56px;border-radius:10px;background:#eee;"></div>');
+
+                    wrap.innerHTML = ''
+                      + '<div>' + img + '</div>'
+                      + '<div style="flex:1;min-width:0;">'
+                      +   '<div style="font-weight:600;color:#222;">' + displayTitle + '</div>'
+                      +   '<div class="rating-stars" role="group" aria-label="Rating">'
+                      +     '<button type="button" class="rating-star" data-star="1" aria-label="1 star">★</button>'
+                      +     '<button type="button" class="rating-star" data-star="2" aria-label="2 stars">★</button>'
+                      +     '<button type="button" class="rating-star" data-star="3" aria-label="3 stars">★</button>'
+                      +     '<button type="button" class="rating-star" data-star="4" aria-label="4 stars">★</button>'
+                      +     '<button type="button" class="rating-star" data-star="5" aria-label="5 stars">★</button>'
+                      +   '</div>'
+                      +   '<textarea class="rating-comment" placeholder="Write a comment (optional)"></textarea>'
+                      + '</div>';
+
+                    var ta = wrap.querySelector('textarea');
+                    if(ta) ta.value = initialComment;
+
+                    wrap.querySelectorAll('.rating-star').forEach(function(btn){
+                        btn.addEventListener('click', function(){
+                            var n = Number(btn.getAttribute('data-star')||0);
+                            _setStarsActive(wrap, n);
+                        });
+                    });
+
+                    _setStarsActive(wrap, initialStars);
+                    itemsEl.appendChild(wrap);
+                });
+
+                overlay.style.display = 'flex';
             }catch(e){ console.error(e); }
+        };
+
+        window.closeRatingModal = function(){
+            var overlay = document.getElementById('ratingModalOverlay');
+            if(overlay) overlay.style.display = 'none';
+            _ratingModalOrderId = null;
+            try{ var itemsEl = document.getElementById('ratingItems'); if(itemsEl) itemsEl.innerHTML = ''; }catch(e){}
+        };
+
+        window.submitRatings = function(){
+            try{
+                var api = window.ShoePaoRatings;
+                if(!api){ alert('Ratings system is not loaded.'); return; }
+                if(!_ratingModalOrderId){ window.closeRatingModal(); return; }
+
+                var profile = _getActiveProfile() || {};
+                var userEmail = String(profile.email||'').trim().toLowerCase();
+
+                var itemsEl = document.getElementById('ratingItems');
+                if(!itemsEl) return;
+                var rows = Array.prototype.slice.call(itemsEl.querySelectorAll('.rating-item'));
+                if(!rows.length){ window.closeRatingModal(); return; }
+
+                var wroteAny = false;
+                rows.forEach(function(row){
+                    var stars = Number(row.dataset.stars||0);
+                    if(!isFinite(stars) || stars <= 0) return;
+                    wroteAny = true;
+                    var commentEl = row.querySelector('textarea');
+                    var comment = commentEl ? String(commentEl.value||'').trim() : '';
+                    api.addOrUpdateRating({
+                        productKey: row.dataset.productKey,
+                        productId: row.dataset.productId,
+                        brand: row.dataset.brand,
+                        title: row.dataset.title,
+                        stars: stars,
+                        comment: comment,
+                        orderId: _ratingModalOrderId,
+                        userEmail: userEmail
+                    });
+                });
+
+                if(!wroteAny){ alert('Please select a star rating.'); return; }
+                window.closeRatingModal();
+                alert('Thanks! Your rating has been submitted.');
+            }catch(e){
+                console.error(e);
+                alert('Could not submit rating. Please try again.');
+            }
+        };
+
+        // Marking orders is handled server-side; client view is read-only.
+        window.markOrderReceivedById = function(){
+            alert('Order updates are handled by the courier.');
         }
 
         // Return a representative image URL from an order's items (first non-empty image), fallback to placeholder
@@ -241,53 +497,70 @@
                 for(var i=0;i<order.items.length;i++){
                     var it = order.items[i];
                     if(it && it.image && (''+it.image).trim().length) return it.image;
+                    if(it && it.image_url && (''+it.image_url).trim().length) return it.image_url;
                 }
                 return 'IMAGE/NIKE1.png';
             }catch(e){ return 'IMAGE/NIKE1.png'; }
         }
 
-        // Render orders from localStorage.orders (client order history)
+        function ensureFirebaseReady(cb){
+            try{
+                if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('Firebase not configured')); return; }
+                var ready = function(){
+                    try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }
+                    catch(e){ if(cb) cb(e); }
+                };
+                if(window.firebase && firebase.firestore){ ready(); return; }
+                var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+                var scripts = [base + 'firebase-app-compat.js', base + 'firebase-firestore-compat.js'];
+                var i = 0;
+                function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+                loadNext();
+            }catch(e){ if(cb) cb(e); }
+        }
+
+        // Render orders from Firestore (client order history)
         function renderOrders(){
-            const orders = JSON.parse(localStorage.getItem('orders')||'[]');
-            const profile = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'{}') || {};
             const container = document.getElementById('ordersList');
             container.innerHTML='';
-            if(!orders || orders.length===0){ container.innerHTML='<div style="color:#666">You have no orders yet.</div>'; return; }
+            const profile = JSON.parse(localStorage.getItem('profile')||'{}') || {};
+            const email = (profile && profile.email) ? profile.email : '';
 
-            // If a non-admin user is signed in, only show orders that belong to their email.
-            let visibleOrders = orders;
-            try{
-                if(profile && profile.email && String((profile.role||'')).toLowerCase() !== 'admin'){
-                    const email = (profile.email||'').toLowerCase();
-                    visibleOrders = orders.filter(function(o){
-                        const candidates = [o.email, o.customerEmail, o.checkoutEmail, o.customerName];
-                        if(o.profile && o.profile.email) candidates.push(o.profile.email);
-                        if(o.customer && o.customer.email) candidates.push(o.customer.email);
-                        return candidates.some(c => (c||'').toLowerCase() === email);
-                    });
-                }
-            }catch(e){ /* ignore filter errors and show all */ }
-
-            if(!visibleOrders || visibleOrders.length === 0){ container.innerHTML='<div style="color:#666">You have no orders yet.</div>'; return; }
-
-            visibleOrders.forEach((order, idx)=>{
-                const itemCount = order.items.reduce((s,it)=>s + (it.quantity||it.qty||1), 0);
-                const firstImage = getOrderRepresentativeImage(order);
+            ensureFirebaseReady(function(err){
+                if(err){ container.innerHTML='<div style="color:#b71c1c">Firebase not configured.</div>'; return; }
+                try{
+                    var db = firebase.firestore();
+                    var query = db.collection('orders').orderBy('created_at','desc');
+                    if(email) query = query.where('customerEmail','==', email);
+                    query.get().then(function(snapshot){
+                        if(snapshot.empty){ container.innerHTML='<div style="color:#666">You have no orders yet.</div>'; return; }
+                        var orders = snapshot.docs.map(function(d){ return d.data(); });
+                        return Promise.all(orders.map(function(o){
+                            return db.collection('orders').doc(o.id).collection('items').get().then(function(itemsSnap){
+                                o.items = itemsSnap.docs.map(function(it){ return it.data(); });
+                                return o;
+                            }).catch(function(){ o.items = []; return o; });
+                        })).then(function(fullOrders){
+                            fullOrders.forEach(function(order){
+                                const itemCount = (order.items || []).reduce((s,it)=>s + (it.qty||it.quantity||1), 0);
+                                const firstImage = getOrderRepresentativeImage(order);
                 // derive a short shipping snippet for card display
                 var shortAddr = '';
-                if(order.shippingAddress){
-                    shortAddr = order.shippingAddress.replace(/\s+/g, ' ').trim();
+                if(order.delivery_address){
+                    shortAddr = order.delivery_address.replace(/\s+/g, ' ').trim();
                     if(shortAddr.length > 60) shortAddr = shortAddr.substring(0,57) + '...';
-                } else if(order.shippingRegion){
-                    shortAddr = order.shippingRegion;
-                } else if(order.deliveryLabel){
-                    shortAddr = order.deliveryLabel;
+                } else if(order.courier_name){
+                    shortAddr = order.courier_name;
                 }
-                const card = document.createElement('div'); card.className='order-card';
+                const card = document.createElement('div');
+                card.className='order-card';
+                card.setAttribute('role','button');
+                card.setAttribute('tabindex','0');
+                const statusNorm = String(order.status||'').toLowerCase().trim();
                 card.innerHTML = `
                     <div class="order-status-box">
                         <img src="IMAGE/PendingIcon.png" class="order-status-icon" alt="${titleCase(order.status)}">
-                        <div style="display:flex;flex-direction:column;"><span style="font-weight:600">${titleCase(order.status)}</span><span style="font-size:0.92rem;color:#666">${titleCase(new Date(order.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))}</span></div>
+                        <div style="display:flex;flex-direction:column;"><span style="font-weight:600">${titleCase(order.status)}</span><span style="font-size:0.92rem;color:#666">${titleCase(new Date(order.created_at || order.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))}</span></div>
                     </div>
                     <img src="${firstImage}" class="order-card-img" alt="Order Image">
                     <div class="order-card-divider"></div>
@@ -296,14 +569,31 @@
                     ${ shortAddr ? ('<div style="padding:6px 18px;color:#666;font-size:0.95rem;">Ship to: ' + shortAddr + '</div>') : '' }
                     ${ order.est ? ('<div style="padding:6px 18px;color:#444;font-size:0.95rem;font-weight:600;">Est. Delivery: ' + order.est + '</div>') : '' }
                         ${ isCancellationRevoked(order) ? ('<div style="padding:6px 18px;color:#b71c1c;font-weight:600;">Cancel Request Was Revoked</div>') : '' }
+                        ${ statusNorm === 'shipped' ? ('<div class="note-row">Have questions to this order? Contact us at <b>Shoe Pao Facebook Page</b>.</div>') : '' }
                         <div class="order-card-btn-row">
-                        <button class="order-card-btn view-btn" onclick="openOrderModalById('${order.id}')">View Order</button>
-                        ${ (String(order.status||'').toLowerCase() !== 'shipped' && String(order.status||'').toLowerCase() !== 'delivered') ? (`<button class="order-card-btn cancel-btn" onclick="requestCancelOrderById('${order.id}')">Cancel</button>`) : '' }
-                        <button class="order-card-btn refund-btn" onclick="requestRefundOrderById('${order.id}')">Refund</button>
-                        ${ String(order.status||'').toLowerCase() === 'shipped' ? (`<button class="order-card-btn view-btn" onclick="markOrderReceivedById('${order.id}')">Order Received</button>`) : '' }
+                        ${ statusNorm === 'shipped' ? (`<button class="order-card-btn contact-btn" onclick="contactSeller('${order.id}')">Contact Seller</button>`) : '' }
+                        ${ statusNorm === 'delivered' ? (`<button class="order-card-btn contact-btn" onclick="contactSeller('${order.id}')">Contact Seller</button>`) : '' }
                     </div>
                 `;
+                card.addEventListener('click', function(e){
+                    try{ if(e && e.target && e.target.closest && e.target.closest('button')) return; }catch(ex){}
+                    openOrderModalById(order.id);
+                });
+                card.addEventListener('keydown', function(e){
+                    if(e.key === 'Enter' || e.key === ' '){
+                        e.preventDefault();
+                        openOrderModalById(order.id);
+                    }
+                });
                 container.appendChild(card);
+                            });
+                        });
+                    }).catch(function(){
+                        container.innerHTML = '<div style="color:#b71c1c">Unable to load orders right now.</div>';
+                    });
+                }catch(e){
+                    container.innerHTML = '<div style="color:#b71c1c">Unable to load orders right now.</div>';
+                }
             });
         }
 
@@ -316,39 +606,12 @@
                 var params = new URLSearchParams(window.location.search);
                 var openId = params.get('open');
                 if(openId){
-                    var orders = JSON.parse(localStorage.getItem('orders')||'[]');
-                    var idx = orders.findIndex(function(o){ return (o.id||'') === openId; });
-                    if(idx !== -1){
-                        // ensure render completed then open modal
-                        setTimeout(function(){ openOrderModal(idx); }, 120);
-                    }
+                    openOrderModalById(openId);
                 }
             }catch(e){/* ignore */}
         });
 
-        // Listen for orders changes from other tabs/windows (so admin updates reflect here)
-        window.addEventListener('storage', function(e){
-            if(e.key === 'orders'){
-                try{
-                    renderOrders();
-                    // If the order modal is open, refresh its contents for the same Order ID
-                    var overlay = document.getElementById('orderModalOverlay');
-                    if(overlay && overlay.style.display === 'flex'){
-                        var currentIdText = (document.getElementById('orderModalId')||{}).textContent || '';
-                        var m = currentIdText.match(/Order ID:\s*(\S+)/);
-                        var currentId = m ? m[1] : null;
-                        if(currentId){
-                            var orders = JSON.parse(localStorage.getItem('orders') || '[]');
-                            var idx = orders.findIndex(function(o){ return o.id === currentId; });
-                            if(idx !== -1){
-                                // reopen modal for this order index so updated est/payment show
-                                openOrderModal(idx);
-                            }
-                        }
-                    }
-                }catch(err){/* ignore */}
-            }
-        });
+        // Orders are loaded from the server; no local storage sync needed.
 
         window.removeOrder = function(idx){
             var orders = JSON.parse(localStorage.getItem('orders')||'[]');
@@ -554,7 +817,7 @@
             if(!order) return;
             document.getElementById('orderModalId').textContent = 'Order ID: ' + order.id;
             // customer name: prefer currently logged-in profile.name, fall back to order snapshot or checkout fallback
-            var activeProfile = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'{}') || {};
+            var activeProfile = JSON.parse(localStorage.getItem('profile')||'{}') || {};
             var customerName = (activeProfile && activeProfile.name) ? activeProfile.name : (order.customerName || localStorage.getItem('checkoutCustomerName') || '');
             document.getElementById('orderModalCustomer').textContent = customerName ? ('Customer: ' + customerName) : '';
             document.getElementById('orderModalName').textContent = 'Order Date: ' + new Date(order.date).toLocaleString();
@@ -633,7 +896,7 @@
     // Navigation bar functions (from profile.html) to match profile header behavior
     function goToHome() { window.location.href = 'home.html'; }
     function goToProfile() {
-    try{ var p = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
         window.location.href = 'profile.html';
     }
     function goToProductList() { window.location.href = 'product-list.html'; }
@@ -642,7 +905,7 @@
     function goToFAQ() { window.location.href = 'privacy.html'; }
     function goToContact() { window.location.href = 'contact.html'; }
     function goToUserPage() {
-    try{ var p = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
         window.location.href = 'profile.html';
     }
     function goToCartPage() { window.location.href = 'cart.html'; }

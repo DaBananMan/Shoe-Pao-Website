@@ -88,6 +88,31 @@
             try{ var params = new URLSearchParams(window.location.search); return params.get(name); }catch(e){ return null; }
         }
 
+        function persistProfile(profile){
+            try{ localStorage.setItem('profile', JSON.stringify(profile||{})); }catch(e){}
+            try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        }
+
+        function persistAuthTokenFromUser(user){
+            try{
+                if(user && user.getIdToken){
+                    user.getIdToken().then(function(token){
+                        try{ localStorage.setItem('authToken', token); localStorage.setItem('authTokenUpdatedAt', String(Date.now())); }catch(e){}
+                        try{ window.AUTH_TOKEN = token; }catch(e){}
+                    }).catch(function(){});
+                }
+            }catch(e){}
+        }
+
+        function persistLocalAuthToken(email){
+            try{
+                var t = 'local:' + btoa(String(email||'') + ':' + String(Date.now()));
+                localStorage.setItem('authToken', t);
+                localStorage.setItem('authTokenUpdatedAt', String(Date.now()));
+                window.AUTH_TOKEN = t;
+            }catch(e){}
+        }
+
         function handleLogin(e){
             e.preventDefault();
             var email = (document.getElementById('email').value||'').trim();
@@ -117,7 +142,8 @@
                         }
                     } catch (e) { console.warn('Could not upsert user doc on login', e); }
                     const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'password' };
-                    try { sessionStorage.setItem('profile', JSON.stringify(profile)); sessionStorage.setItem('profile_updated_at', String(Date.now())); } catch(e){}
+                    persistProfile(profile);
+                    persistAuthTokenFromUser(user);
                     const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
                     // route admin by email for compatibility with local logic
                     const role = (email.trim().toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
@@ -135,7 +161,8 @@
             if(!matched){ errEl.style.display='block'; errEl.textContent='Invalid credentials (local fallback).'; return; }
             var profile = { email: email.trim().toLowerCase(), role: role, loggedAt: Date.now(), remember: true };
             if(matched){ profile.name = matched.name || ((matched.firstName||'') + (matched.lastName ? (' ' + matched.lastName) : '')).trim() || ''; profile.firstName = matched.firstName || ''; profile.lastName = matched.lastName || ''; profile.phone = matched.phone || ''; profile.addressMain = matched.addressMain || ''; profile.addressDetails = matched.addressDetails || ''; }
-            try{ sessionStorage.setItem('profile', JSON.stringify(profile)); sessionStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+            persistProfile(profile);
+            persistLocalAuthToken(profile.email);
             var ret = getQueryParam('return'); if(ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e) {} }
             if(role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
         }
@@ -177,7 +204,8 @@
                         }
                     } catch (e) { console.warn('Failed to upsert social sign-in user doc', e); }
                     const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || '' };
-                    try { sessionStorage.setItem('profile', JSON.stringify(profile)); sessionStorage.setItem('profile_updated_at', String(Date.now())); } catch (e) {}
+                    persistProfile(profile);
+                    persistAuthTokenFromUser(user);
                     const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
                     // Basic routing
                     const role = (user.email && user.email.toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';

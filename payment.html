@@ -171,12 +171,12 @@
         }
         #bankDetailsInline input[type="text"] { line-height: 1.2; }
         #bankDetailsInline label { margin-bottom: 6px; display: block; }
-    /* spacing between bank details and upload proof header */
-    #bankDetailsInline { margin-bottom: 18px; }
-    /* space above upload proof section when shown (helps separate from QR or bank details) */
-    #bankActions { margin-top: 18px; }
-    .download-qr-btn { background:#222;color:#fff;border:none;border-radius:10px;padding:8px 12px;font-size:0.95rem;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.08); }
-    .download-qr-btn:disabled { opacity:0.6; cursor:not-allowed; }
+        /* spacing between bank details and upload proof header */
+        #bankDetailsInline { margin-bottom: 18px; }
+        /* space above upload proof section when shown (helps separate from QR or bank details) */
+        #bankActions { margin-top: 18px; }
+        .download-qr-btn { background:#222;color:#fff;border:none;border-radius:10px;padding:8px 12px;font-size:0.95rem;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+        .download-qr-btn:disabled { opacity:0.6; cursor:not-allowed; }
         /* Right side cart summary */
         .payment-cart-list {
             display: flex;
@@ -317,7 +317,6 @@
                     </ul>
                 </div>
                 <div style="margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:8px;">
-                    <!-- QR image (place a QR file at IMAGE/QR_PH.png or update src as needed) -->
                     <img id="paymentQRImage" src="IMAGE/QR_PH.png" alt="QR PH" style="width:220px;height:220px;border-radius:12px;border:1px solid #eee;object-fit:contain;background:#fff;" data-attempt="" />
                     <div id="paymentQRFallback" style="font-size:0.95rem;color:#666;display:none;margin-top:8px;">QR image not available. Scan with your banking app or enter the reference number below.</div>
                     <div style="margin-top:8px;">
@@ -329,7 +328,7 @@
 
             <div id="bankInstructions" style="display:none;">
                 <div class="payment-divider"></div>
-                <div class="payment-method-title">💳 For Bank Transfer (BDO)</div>
+                <div class="payment-method-title">≡ƒÆ│ For Bank Transfer (BDO)</div>
                 <div class="payment-method-list">
                     <ul>
                         <li>Bank Name: BDO Unibank, Inc.</li>
@@ -337,7 +336,7 @@
                         <li>Account Number: 0045 6789 1234</li>
                     </ul>
                 </div>
-                <div class="payment-method-title">💳 For Bank Transfer (BPI)</div>
+                <div class="payment-method-title">≡ƒÆ│ For Bank Transfer (BPI)</div>
                 <div class="payment-method-list">
                     <ul>
                         <li>Bank Name: Bank of the Philippine Islands (BPI)</li>
@@ -453,8 +452,15 @@
     function goToBrands() { window.location.href = 'product-list.html#brands'; }
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToUserPage() {
-    try{ var p = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
+        ensureFirebaseReady(function(err){
+            if(err){ window.location.href = 'login.html'; return; }
+            try{
+                firebase.auth().onAuthStateChanged(function(user){
+                    if(!user){ window.location.href = 'login.html'; return; }
+                    window.location.href = 'profile.html';
+                });
+            }catch(e){ window.location.href = 'login.html'; }
+        });
     }
     function goToCartPage() { window.location.href = 'cart.html'; }
     function toggleSearchBox() {
@@ -472,36 +478,156 @@
             }
         }
     }
-    // Cart rendering
-    function renderPaymentCart() {
-        var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    let checkoutUnsub = null;
+    let itemsUnsub = null;
+    let currentCheckout = null;
+    let currentItems = [];
+    let usingLocalCheckoutFallback = false;
+
+    function getLocalCheckoutSnapshot(){
+        try{
+            var items = [];
+            try{ items = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ items = []; }
+            if(!Array.isArray(items) || items.length === 0){
+                try{ items = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ items = []; }
+            }
+            if(!Array.isArray(items) || items.length === 0) return null;
+
+            var shipping = Number(localStorage.getItem('checkoutShipping') || 0);
+            var shippingLabel = localStorage.getItem('checkoutShippingLabel') || '';
+            var paymentLabel = localStorage.getItem('checkoutPayment') || '';
+            var paymentCode = localStorage.getItem('checkoutPaymentCode') || '';
+            var deliveryLabel = localStorage.getItem('checkoutDelivery') || '';
+            var deliveryCode = localStorage.getItem('checkoutDeliveryCode') || '';
+            var customerName = localStorage.getItem('checkoutCustomerName') || '';
+            var customerEmail = localStorage.getItem('checkoutCustomerEmail') || '';
+            var addressMain = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress') || '';
+            var addressDetails = localStorage.getItem('checkoutAddressDetails') || '';
+
+            var subtotal = 0;
+            items.forEach(function(it){
+                var qty = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
+                var priceNum = (typeof it.price === 'number') ? it.price : Number(String(it.price || '').replace(/[^0-9.]/g,'')) || 0;
+                subtotal += priceNum * qty;
+            });
+
+            return {
+                items: items,
+                checkout: {
+                    status: 'Pending payment',
+                    payment_method: paymentCode || paymentLabel || '',
+                    paymentMethod: paymentLabel || paymentCode || '',
+                    deliveryMethod: deliveryCode || deliveryLabel || '',
+                    shipping_fee: shipping,
+                    shipping: shipping,
+                    shipping_label: shippingLabel,
+                    shippingLabel: shippingLabel,
+                    total: subtotal + shipping,
+                    customerName: customerName,
+                    customerEmail: customerEmail,
+                    delivery_address: addressMain,
+                    addressDetails: addressDetails
+                }
+            };
+        }catch(e){ return null; }
+    }
+
+    function ensureCheckoutFromLocalStorage(user){
+        return new Promise(function(resolve){
+            try{
+                if(!user || !firebase || !firebase.firestore) return resolve(false);
+                var localSnap = getLocalCheckoutSnapshot();
+                if(!localSnap || !localSnap.items || localSnap.items.length === 0) return resolve(false);
+                var db = firebase.firestore();
+                var checkoutRef = db.collection('checkouts').doc(user.uid);
+                checkoutRef.get().then(function(doc){
+                    if(doc.exists) return resolve(false);
+                    var checkoutData = localSnap.checkout || {};
+                    checkoutData.user_id = user.uid;
+                    if(!checkoutData.customerEmail && user.email) checkoutData.customerEmail = user.email;
+                    checkoutData.items = localSnap.items.map(function(it){
+                        return {
+                            product_id: it.product_id || it.id || '',
+                            name: it.name || it.title || '',
+                            price: Number(it.price || 0),
+                            qty: Number(it.qty || it.quantity || 1),
+                            image_url: it.image_url || it.image || '',
+                            size: it.size || ''
+                        };
+                    });
+                    checkoutRef.set(checkoutData, { merge: true }).then(function(){
+                        var batch = db.batch();
+                        localSnap.items.forEach(function(it){
+                            var itemRef = checkoutRef.collection('items').doc();
+                            batch.set(itemRef, {
+                                product_id: it.product_id || it.id || '',
+                                name: it.name || it.title || '',
+                                price: Number(it.price || 0),
+                                qty: Number(it.qty || it.quantity || 1),
+                                image_url: it.image_url || it.image || '',
+                                size: it.size || ''
+                            });
+                        });
+                        return batch.commit();
+                    }).then(function(){ resolve(true); }).catch(function(){ resolve(false); });
+                }).catch(function(){ resolve(false); });
+            }catch(e){ resolve(false); }
+        });
+    }
+
+    function formatPHP(n){
+        try { return new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(Number(n||0)); }
+        catch(e){ return '₱' + Number(n||0).toFixed(2); }
+    }
+
+    function renderPaymentFromCheckout(){
         var cartList = document.getElementById('paymentCartList');
         var subtotal = 0;
         cartList.innerHTML = '';
-        cart.forEach(function(item) {
+
+        if(!currentCheckout){
+            var localSnap = getLocalCheckoutSnapshot();
+            if(localSnap && localSnap.items && localSnap.items.length){
+                usingLocalCheckoutFallback = true;
+                currentCheckout = localSnap.checkout || null;
+                currentItems = localSnap.items || [];
+            }
+        }
+
+        if(!currentCheckout){
+            cartList.innerHTML = '<div style="color:#666;padding:12px 4px;">No active checkout found.</div>';
+            document.getElementById('paymentSubtotal').textContent = formatPHP(0);
+            document.getElementById('paymentTotal').textContent = formatPHP(0);
+            var btn0 = document.getElementById('placeOrderBtn'); if(btn0) btn0.disabled = true;
+            return;
+        }
+
+        if(!currentItems || currentItems.length === 0){
+            cartList.innerHTML = '<div style="color:#666;padding:12px 4px;">No items in checkout.</div>';
+        }
+
+        currentItems.forEach(function(item){
             var qty = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
-            var itemTotal = (item.price * qty);
-            subtotal += itemTotal;
+            var priceNum = (typeof item.price === 'number') ? item.price : Number(String(item.price || '').replace(/[^0-9.]/g,'')) || 0;
+            subtotal += priceNum * qty;
             var div = document.createElement('div');
             div.className = 'payment-cart-item';
             div.innerHTML = `
-                <img src="${item.image}" class="payment-cart-img" alt="${item.title}">
+                <img src="${item.image_url || item.image || 'IMAGE/NIKE1.png'}" class="payment-cart-img" alt="${item.name || item.title || 'Item'}">
                 <div class="payment-cart-info">
                     <div class="payment-cart-title-row">
-                        <span class="payment-cart-title">${item.title}</span>
-                        <span class="payment-cart-price">₱${(item.price * qty).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                        <span class="payment-cart-title">${item.name || item.title || 'Item'}</span>
+                        <span class="payment-cart-price">${formatPHP(priceNum * qty)}</span>
                     </div>
-                    <div class="payment-cart-size">Size: ${item.size}</div>
+                    <div class="payment-cart-size">Size: ${item.size || '-'}</div>
                     <div class="payment-cart-qty">QTY: ${qty}</div>
                 </div>
             `;
             cartList.appendChild(div);
         });
-        document.getElementById('paymentSubtotal').textContent = '₱' + subtotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-        // read shipping price computed at checkout (if any)
-        var shipping = Number(localStorage.getItem('checkoutShipping') || 0);
-        var shippingLabel = localStorage.getItem('checkoutShippingLabel') || '';
-        // ensure there's an element to show shipping (create if missing)
+
+        var shipping = Number(currentCheckout.shipping_fee || currentCheckout.shipping || 0);
+        var shippingLabel = currentCheckout.shipping_label || currentCheckout.shippingLabel || '';
         var shipEl = document.getElementById('paymentShippingRow');
         if(!shipEl){
             shipEl = document.createElement('div');
@@ -510,23 +636,64 @@
             shipEl.innerHTML = `<div class="payment-cart-summary-label" id="paymentShippingLabel">Shipping</div><div class="payment-cart-summary-value" id="paymentShippingValue">₱0.00</div>`;
             var rightCol = document.querySelector('.payment-right');
             if(rightCol){
-                // insert shipping row before total row if possible
                 var ref = document.getElementById('paymentTotalRow') || null;
                 if(ref) ref.parentNode.insertBefore(shipEl, ref);
                 else rightCol.appendChild(shipEl);
             }
         }
         document.getElementById('paymentShippingLabel').textContent = shippingLabel ? ('Shipping: ' + shippingLabel) : 'Shipping';
-        document.getElementById('paymentShippingValue').textContent = '₱' + shipping.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-        // Packaging fee is included in checkoutShipping for J&T — do not display packaging separately here
+        document.getElementById('paymentShippingValue').textContent = formatPHP(shipping);
+
         try{
             var pkgEl = document.getElementById('paymentPackagingValue'); if(pkgEl) pkgEl.style.display = 'none';
             var pkgRow = document.getElementById('paymentPackagingRow'); if(pkgRow) pkgRow.style.display = 'none';
         }catch(e){}
-        // Show total as subtotal + shipping (shipping already includes any packaging for J&T)
-        document.getElementById('paymentTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+
+        document.getElementById('paymentSubtotal').textContent = formatPHP(subtotal);
+        document.getElementById('paymentTotal').textContent = formatPHP(subtotal + shipping);
+
+        var btn = document.getElementById('placeOrderBtn');
+        if(btn) btn.disabled = (!currentItems || currentItems.length === 0);
+
+        try{
+            var labelEl = document.getElementById('paymentMethodLabel');
+            var bankEl = document.getElementById('paymentMethodBank');
+            if(labelEl){
+                var displayLabel = currentCheckout.payment_method || currentCheckout.paymentMethod || '(not chosen)';
+                labelEl.textContent = 'Payment: ' + displayLabel;
+            }
+            if(bankEl){
+                var bank = currentCheckout.bank || currentCheckout.bank_name || '';
+                if(bank){ bankEl.style.display = 'block'; bankEl.textContent = 'Bank: ' + bank; }
+                else { bankEl.style.display = 'none'; }
+            }
+        }catch(e){}
+        try{ updatePaymentMethodUI(); }catch(e){}
     }
-    window.addEventListener('DOMContentLoaded', renderPaymentCart);
+
+    function subscribeToCheckout(uid){
+        if(checkoutUnsub) try{ checkoutUnsub(); }catch(e){}
+        if(itemsUnsub) try{ itemsUnsub(); }catch(e){}
+        var db = firebase.firestore();
+        var checkoutRef = db.collection('checkouts').doc(uid);
+        checkoutUnsub = checkoutRef.onSnapshot(function(doc){
+            if(!doc.exists){
+                currentCheckout = null; currentItems = [];
+                renderPaymentFromCheckout();
+                return;
+            }
+            currentCheckout = doc.data() || {};
+            // If items are embedded, use them as a fallback when subcollection is empty
+            if(Array.isArray(currentCheckout.items) && currentCheckout.items.length && (!currentItems || currentItems.length === 0)){
+                currentItems = currentCheckout.items.slice();
+            }
+            renderPaymentFromCheckout();
+        });
+        itemsUnsub = checkoutRef.collection('items').onSnapshot(function(snap){
+            currentItems = snap.docs.map(function(d){ return d.data(); });
+            renderPaymentFromCheckout();
+        });
+    }
 
     // Helper: generate a QR image URL via public API for payment payloads
     function generatePaymentQRUrl(payload, size){
@@ -575,62 +742,43 @@
         }catch(e){ if(document.getElementById('downloadPaymentQRBtn')){ document.getElementById('downloadPaymentQRBtn').disabled = false; document.getElementById('downloadPaymentQRBtn').textContent = 'Download QR'; } console.error('downloadPaymentQR error', e); alert('Unable to download QR.'); }
     }
 
-        // Show/hide instruction blocks depending on chosen payment method
-        document.addEventListener('DOMContentLoaded', function(){
+        function normalizePaymentCode(codeOrLabel){
+            if(!codeOrLabel) return '';
+            var s = String(codeOrLabel).toLowerCase();
+            if(s === 'qr_ph' || s.indexOf('qr') !== -1 || s.indexOf('scan') !== -1) return 'qr_ph';
+            if(s === 'bank_transfer' || s.indexOf('bank') !== -1) return 'bank_transfer';
+            if(s === 'cod' || s.indexOf('cash') !== -1) return 'cod';
+            return codeOrLabel;
+        }
+
+        function updatePaymentMethodUI(){
             try{
-                var code = (localStorage.getItem('checkoutPaymentCode') || '').toLowerCase();
-                // normalize labels that might be stored instead of codes
-                if(!code){ var lbl = (localStorage.getItem('checkoutPayment')||'').toLowerCase(); if(lbl.indexOf('qr')!==-1) code='qr_ph'; if(lbl.indexOf('bank')!==-1) code='bank_transfer'; if(lbl.indexOf('cash')!==-1) code='cod'; }
+                var method = currentCheckout ? (currentCheckout.payment_method || currentCheckout.paymentMethod || '') : '';
+                var code = normalizePaymentCode(method);
                 var qrEl = document.getElementById('qrInstructions');
                 var bankEl = document.getElementById('bankInstructions');
                 var bankActions = document.getElementById('bankActions');
-                // inline bank details section (replaces the old modal)
                 var bankDetailsInline = document.getElementById('bankDetailsInline');
                 var codEl = document.getElementById('codInstructions');
-                // hide all first
                 if(qrEl) qrEl.style.display = 'none';
                 if(bankEl) bankEl.style.display = 'none';
                 if(bankActions) bankActions.style.display = 'none';
                 if(bankDetailsInline) bankDetailsInline.style.display = 'none';
                 if(codEl) codEl.style.display = 'none';
-                // hide the top caption (bank-transfer guidance) when COD is selected
                 var payCaption = document.querySelector('.payment-caption');
                 if(payCaption) payCaption.style.display = (code === 'cod') ? 'none' : '';
-                // show based on code
+
                 if(code === 'qr_ph'){
                     if(qrEl) qrEl.style.display = '';
-                    // also show upload + reference block (bankActions) so users can upload proof and enter ref for QR PH
                     if(bankActions) bankActions.style.display = '';
-                        // Attempt to load a QR image data/url saved in localStorage (checkoutQR).
-                        // If none exists, generate a QR image URL via public QR API to avoid 404 when the static
-                        // `IMAGE/QR_PH.png` file is missing on the server.
-                        try{
-                            var qrImg = document.getElementById('paymentQRImage');
-                            var storedQR = localStorage.getItem('checkoutQR');
-                            if(qrImg){
-                                                if(storedQR){
-                                                    qrImg.src = storedQR;
-                                                } else {
-                                                    // generate a short, non-sensitive payload for the QR
-                                                    var payload = localStorage.getItem('checkoutPaymentPayload') || ('SHOEPAO:' + Date.now());
-                                                    var generated = generatePaymentQRUrl(payload, 240);
-                                                    if(generated) qrImg.src = generated;
-                                                }
-                                qrImg.style.display = '';
-                                // on error, attempt a packaged image once; otherwise show the fallback message
-                                qrImg.onerror = function(){
-                                    try{
-                                        if(!qrImg.dataset.attempt || qrImg.dataset.attempt === ''){
-                                            qrImg.dataset.attempt = 'fallback';
-                                            qrImg.src = 'IMAGE/QR_PH.png';
-                                        } else {
-                                            qrImg.style.display = 'none';
-                                            var fb = document.getElementById('paymentQRFallback'); if(fb) fb.style.display = 'block';
-                                        }
-                                    }catch(e){}
-                                };
-                            }
-                        }catch(e){}
+                    try{
+                        var qrImg = document.getElementById('paymentQRImage');
+                        var payload = (currentCheckout && (currentCheckout.payment_payload || currentCheckout.referenceNumber)) ? (currentCheckout.payment_payload || currentCheckout.referenceNumber) : ('SHOEPAO:' + Date.now());
+                        if(qrImg){
+                            qrImg.src = generatePaymentQRUrl(payload, 240);
+                            qrImg.style.display = '';
+                        }
+                    }catch(e){}
                 } else if(code === 'bank_transfer'){
                     if(bankEl) bankEl.style.display = '';
                     if(bankActions) bankActions.style.display = '';
@@ -638,12 +786,10 @@
                 } else if(code === 'cod'){
                     if(codEl) codEl.style.display = '';
                 }
-                // Toggle a body-level class so CSS can place left-column items nearer the footer
                 try{ if(code === 'cod') document.body.classList.add('cod-selected'); else document.body.classList.remove('cod-selected'); }catch(e){}
-                // Reference number constraints (GCash QR vs Bank Transfer)
                 try{ updateReferenceFieldConstraints(code); }catch(e){}
-            }catch(e){ /* ignore */ }
-        });
+            }catch(e){}
+        }
 
         // Update referenceNumber input placeholder and maxlength based on payment method code
         function updateReferenceFieldConstraints(code){
@@ -699,56 +845,6 @@
             }catch(err){ console.error('updateReferenceFieldConstraints error', err); }
         }
 
-        // Listen for storage events so if payment selection changes elsewhere we update the field
-        window.addEventListener('storage', function(e){
-            if(e.key === 'checkoutPaymentCode' || e.key === 'checkoutPayment'){
-                var code = (localStorage.getItem('checkoutPaymentCode') || '').toLowerCase();
-                if(!code){ var lbl = (localStorage.getItem('checkoutPayment')||'').toLowerCase(); if(lbl.indexOf('qr')!==-1) code='qr_ph'; if(lbl.indexOf('bank')!==-1) code='bank_transfer'; if(lbl.indexOf('cash')!==-1) code='cod'; }
-                try{ 
-                    // update constraints
-                    updateReferenceFieldConstraints(code);
-                    // also show/hide the visible blocks in case payment selection changed in another tab
-                    var qrEl = document.getElementById('qrInstructions');
-                    var bankEl = document.getElementById('bankInstructions');
-                    var bankActions = document.getElementById('bankActions');
-                    var bankDetailsInline = document.getElementById('bankDetailsInline');
-                    var codEl = document.getElementById('codInstructions');
-                    if(qrEl) qrEl.style.display = 'none';
-                    if(bankEl) bankEl.style.display = 'none';
-                    if(bankActions) bankActions.style.display = 'none';
-                    if(bankDetailsInline) bankDetailsInline.style.display = 'none';
-                    if(codEl) codEl.style.display = 'none';
-                    // hide the top caption (bank-transfer guidance) when COD is selected
-                    var payCaption = document.querySelector('.payment-caption');
-                    if(payCaption) payCaption.style.display = (code === 'cod') ? 'none' : '';
-                    if(code === 'qr_ph'){
-                        if(qrEl) qrEl.style.display = '';
-                        if(bankActions) bankActions.style.display = '';
-                        // ensure qr image uses stored data if available and reset any fallback message
-                        try{
-                            var qrImg = document.getElementById('paymentQRImage');
-                            var storedQR = localStorage.getItem('checkoutQR');
-                            var fb = document.getElementById('paymentQRFallback'); if(fb) fb.style.display = 'none';
-                            if(qrImg){
-                                qrImg.dataset.attempt = '';
-                                if(storedQR){ qrImg.src = storedQR; }
-                                else { var payload = localStorage.getItem('checkoutPaymentPayload') || ('SHOEPAO:' + Date.now()); qrImg.src = generatePaymentQRUrl(payload, 240); }
-                                qrImg.style.display = '';
-                            }
-                        }catch(e){}
-                    } else if(code === 'bank_transfer'){
-                        if(bankEl) bankEl.style.display = '';
-                        if(bankActions) bankActions.style.display = '';
-                        if(bankDetailsInline) bankDetailsInline.style.display = '';
-                    } else if(code === 'cod'){
-                        if(codEl) codEl.style.display = '';
-                    }
-                    // Toggle a body-level class so CSS can place left-column items nearer the footer
-                    try{ if(code === 'cod') document.body.classList.add('cod-selected'); else document.body.classList.remove('cod-selected'); }catch(e){}
-                }catch(e){}
-            }
-        });
-
     // Place order: persist cart into orders[] and clear cart
     function generateOrderId() {
         var d = new Date();
@@ -757,465 +853,152 @@
     function generateTracking() {
         return 'TR' + Math.floor(Math.random()*90000000 + 10000000);
     }
+    function ensureFirebaseReady(cb){
+        try{
+            if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('Firebase not configured')); return; }
+            var ready = function(){
+                try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }
+                catch(e){ if(cb) cb(e); }
+            };
+            if(window.firebase && firebase.firestore && firebase.auth){ ready(); return; }
+            var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+            var scripts = [base + 'firebase-app-compat.js', base + 'firebase-auth-compat.js', base + 'firebase-firestore-compat.js'];
+            var i = 0;
+            function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+            loadNext();
+        }catch(e){ if(cb) cb(e); }
+    }
+
     function placeOrder() {
-        var cart = JSON.parse(localStorage.getItem('cart') || '[]');
-        if (!cart || cart.length === 0) {
-            alert('Your cart is empty.');
+        var btn = document.getElementById('placeOrderBtn');
+        if(btn) btn.disabled = true;
+        if(!currentCheckout || !currentItems || currentItems.length === 0){
+            alert('No active checkout found.');
+            if(btn) btn.disabled = false;
             return;
         }
-        var subtotal = 0;
-        var items = cart.map(function(it){
-            var qty = (typeof it.qty === 'number') ? it.qty : (typeof it.quantity === 'number' ? it.quantity : 1);
-            subtotal += it.price * qty;
-            return Object.assign({}, it, { quantity: qty });
-        });
-        // determine selected payment method code & label - prefer checkout selection stored in localStorage
-        var selectedPaymentCode = localStorage.getItem('checkoutPaymentCode') || '';
-        // if there's no checkout selection (legacy), try to read any on-page radios
-        if(!selectedPaymentCode){
-            var radios = document.querySelectorAll('input[name="paymentMethod"]');
-            radios.forEach(function(r){ if(r.checked){ selectedPaymentCode = r.value || selectedPaymentCode; } });
-        }
-        // normalize selectedPaymentCode in case legacy labels were used
-        function normalizePaymentCode(codeOrLabel){
-            if(!codeOrLabel) return '';
-            var s = String(codeOrLabel).toLowerCase();
-            if(s === 'qr_ph' || s.indexOf('qr') !== -1 || s.indexOf('scan') !== -1) return 'qr_ph';
-            if(s === 'bank_transfer' || s.indexOf('bank') !== -1) return 'bank_transfer';
-            if(s === 'cod' || s.indexOf('cash') !== -1 || s.indexOf('cash on delivery') !== -1) return 'cod';
-            return codeOrLabel;
-        }
-        selectedPaymentCode = normalizePaymentCode(selectedPaymentCode);
-    // bank selection: prefer checkout-stored bank (if previously saved), else read any on-page bank choice
-    var bankChoice = localStorage.getItem('checkoutBank') || '';
-    if(!bankChoice){ bankChoice = (document.querySelector('input[name="bankChoice"]:checked')||{}).value || ''; }
-        // map code -> human label
-        function mapPaymentLabel(code, bank){
-            var c = normalizePaymentCode(code);
-            if(!c) return (localStorage.getItem('checkoutPayment')||'');
-            if(c === 'qr_ph') return 'QR PH';
-            if(c === 'bank_transfer') return bank ? ('Bank Transfer ('+bank+')') : 'Bank Transfer';
-            if(c === 'cod') return 'Cash on Delivery';
-            return code;
-        }
-    var selectedPaymentLabel = mapPaymentLabel(selectedPaymentCode, bankChoice);
-        // delivery method from checkout (persisted earlier) - both code and label
-        var deliveryCode = localStorage.getItem('checkoutDeliveryCode') || '';
-        var deliveryLabel = localStorage.getItem('checkoutDelivery') || '';
-    // try to read customer name from saved profile, otherwise from checkout
-    var profile = JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || '{}');
-    var customerName = (profile && profile.name) ? profile.name : (localStorage.getItem('checkoutCustomerName') || '');
-        var shippingCost = Number(localStorage.getItem('checkoutShipping') || 0);
-        // packaging is already included in shippingCost for J&T; do not add it again to the order total
-        var packagingCost = 0;
-        var shippingAddress = (localStorage.getItem('checkoutAddressMain') || '').trim();
-        if(!shippingAddress){
-            // fallback to profile
-            var profile = JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || '{}');
-            if(profile && (profile.addressMain || profile.addressDetails)){
-                shippingAddress = (profile.addressMain || '') + (profile.addressDetails ? (', ' + profile.addressDetails) : '');
-            }
-        }
-        var shippingRegion = (localStorage.getItem('checkoutRegion') || '').trim();
-
-        var order = {
-            id: generateOrderId(),
-            tracking: generateTracking(),
-            date: new Date().toISOString(),
-            status: 'Pending',
-            items: items,
-            subtotal: subtotal,
-            packaging: packagingCost,
-            shipping: shippingCost,
-            total: subtotal + shippingCost,
-            paymentCode: selectedPaymentCode,
-            paymentLabel: selectedPaymentLabel,
-            referenceNumber: (document.getElementById('referenceNumber') ? document.getElementById('referenceNumber').value : ''),
-            customerName: customerName,
-            // Add explicit customer identifiers so orders can be associated with user accounts
-            customerEmail: (profile && profile.email) ? profile.email : (localStorage.getItem('checkoutCustomerEmail') || ''),
-            customerPhone: (profile && profile.phone) ? profile.phone : (localStorage.getItem('checkoutCustomerPhone') || ''),
-            // keep a snapshot of the profile that placed the order (if available)
-            profile: (profile && Object.keys(profile).length) ? profile : undefined,
-            deliveryCode: deliveryCode,
-            deliveryLabel: deliveryLabel,
-            deliveryMethod: deliveryLabel
-        };
-        // attach the shipping address & region to the order (saved with order only)
-        if(shippingAddress) order.shippingAddress = shippingAddress;
-        if(shippingRegion) order.shippingRegion = shippingRegion;
-        var orders = JSON.parse(localStorage.getItem('orders') || '[]');
-        // Before saving the order, decrement inventory counts for purchased items
-        // Also collect any inventory-level estimated delivery values (invRow.est) to attach to the order
-        try {
-            var inventory = JSON.parse(localStorage.getItem('inventory') || '[]');
-            var estSet = new Set();
-            if (Array.isArray(inventory) && inventory.length) {
-                items.forEach(function(it){
-                    try {
-                        var qty = Number(it.quantity || it.qty || 0);
-                        var size = (it.size || '').toString();
-                        // find matching inventory row by id/name/brand
-                        var invRow = null;
-                        if (it.id) invRow = inventory.find(function(r){ return r.id === it.id; });
-                        if(!invRow) invRow = inventory.find(function(r){ return (r.name||'').toString().trim() === (it.title||'').toString().trim(); });
-                        if(!invRow) invRow = inventory.find(function(r){ return (r.name||'').toString().toLowerCase().indexOf((it.title||'').toString().toLowerCase()) !== -1; });
-                        if(!invRow && it.brand) invRow = inventory.find(function(r){ return (r.brand||'').toString().toLowerCase() === (it.brand||'').toString().toLowerCase(); });
-                        // collect est if present on inventory row
-                        if(invRow && invRow.est){ try{ var v = (invRow.est||'').toString().trim(); if(v) estSet.add(v); }catch(e){}
-                        }
-                        if (invRow && invRow.sizes && size) {
-                            var currentStock = Number(invRow.sizes[size] || 0);
-                            var newStock = currentStock - qty;
-                            if (isNaN(newStock) || newStock < 0) newStock = 0;
-                            invRow.sizes[size] = newStock;
-                        }
-                    } catch(e) { }
-                });
-                localStorage.setItem('inventory', JSON.stringify(inventory));
-            }
-            // attach inventory-est to order if any values collected
-            try{
-                var estArr = Array.from(estSet);
-                if(estArr.length === 1){ order.est = estArr[0]; }
-                else if(estArr.length > 1){ order.est = estArr.join(' • '); }
-            }catch(e){}
-        } catch (e) { /* ignore inventory update errors */ }
-
-        orders.push(order);
-        localStorage.setItem('orders', JSON.stringify(orders));
-        // If Firebase is configured, persist the order to Firestore (global orders collection and user's orders)
-        (function(){
-            function ensureFirebaseReady(cb){
+        ensureFirebaseReady(function(err){
+            if(err){ alert('Firebase not configured. Please set Firebase config.'); if(btn) btn.disabled = false; return; }
+            firebase.auth().onAuthStateChanged(function(user){
+                if(!user){ alert('Please sign in to place your order.'); if(btn) btn.disabled = false; return; }
                 try{
-                    if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('no firebase config')); return; }
-                    var ready = function(){ try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }catch(e){ if(cb) cb(e); } };
-                    if(window.firebase && firebase.firestore && firebase.auth){ ready(); return; }
-                    var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
-                    var scripts = [base + 'firebase-app-compat.js', base + 'firebase-auth-compat.js', base + 'firebase-firestore-compat.js'];
-                    var i = 0;
-                    function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
-                    loadNext();
-                }catch(e){ if(cb) cb(e); }
-            }
-            try{
-                ensureFirebaseReady(function(err){
-                    if(err) return; // firebase not configured or failed to load
-                    try{
-                        var db = firebase.firestore();
-                        // save to global orders collection (doc id = order.id)
-                        db.collection('orders').doc(order.id).set(Object.assign({}, order, { createdAt: firebase.firestore.FieldValue.serverTimestamp() })).catch(function(e){ console.warn('failed to save order to global orders', e); });
-                        // if user is signed in, also save under user's orders subcollection and update user doc
-                        var user = firebase.auth().currentUser;
-                        if(user && user.uid){
-                            db.collection('users').doc(user.uid).collection('orders').doc(order.id).set(Object.assign({}, order, { createdAt: firebase.firestore.FieldValue.serverTimestamp() })).catch(function(e){ console.warn('failed to save order to user orders', e); });
-                            db.collection('users').doc(user.uid).set({ lastOrderAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }).catch(function(e){});
-                        } else if(order.customerEmail){
-                            // if not signed in but email present, attempt to store in users/{email} doc (sanitized) — optional
-                            try{
-                                var emailKey = order.customerEmail.replace(/\./g,'_');
-                                db.collection('users').doc(emailKey).collection('orders').doc(order.id).set(Object.assign({}, order, { createdAt: firebase.firestore.FieldValue.serverTimestamp() })).catch(function(e){ console.warn('failed to save order to email-based user doc', e); });
-                            }catch(e){}
-                        }
-                    }catch(e){ console.warn('firebase order save failed', e); }
-                });
-            }catch(e){}
-        })();
-        // clear one-time checkout-only fields so address/region are stored only on the order
-        try{
-            localStorage.removeItem('checkoutAddressMain');
-            localStorage.removeItem('checkoutRegion');
-            localStorage.removeItem('checkoutShipping');
-            localStorage.removeItem('checkoutShippingLabel');
-            localStorage.removeItem('checkoutPackaging');
-            // also clear delivery/payment transient keys
-            localStorage.removeItem('checkoutDelivery');
-            localStorage.removeItem('checkoutDeliveryCode');
-            localStorage.removeItem('checkoutPayment');
-            localStorage.removeItem('checkoutPaymentCode');
-            localStorage.removeItem('checkoutCustomerName');
-            localStorage.removeItem('checkoutBank');
-        }catch(e){}
-        // clear cart
-        localStorage.setItem('cart', JSON.stringify([]));
-        // navigate to client orders page
-        window.location.href = 'client-orders.html';
+                    var db = firebase.firestore();
+                    var checkoutRef = db.collection('checkouts').doc(user.uid);
+                    checkoutRef.get().then(function(doc){
+                        if(!doc.exists){ throw new Error('Checkout not found'); }
+                        var checkoutData = doc.data() || {};
+                        var orderId = generateOrderId();
+                        var orderRef = db.collection('orders').doc(orderId);
+                        var orderPayload = {
+                            id: orderId,
+                            user_id: user.uid,
+                            customerEmail: user.email || checkoutData.customerEmail || '',
+                            status: checkoutData.status || 'Order placed',
+                            total: Number(checkoutData.total || 0),
+                            shipping_fee: Number(checkoutData.shipping_fee || checkoutData.shipping || 0),
+                            discount: Number(checkoutData.discount || 0),
+                            payment_method: checkoutData.payment_method || checkoutData.paymentMethod || '',
+                            created_at: firebase.firestore.FieldValue.serverTimestamp(),
+                            delivery_address: checkoutData.delivery_address || checkoutData.shippingAddress || '',
+                            recipient_name: checkoutData.recipient_name || checkoutData.customerName || '',
+                            recipient_phone: checkoutData.recipient_phone || '',
+                            courier_name: checkoutData.courier_name || checkoutData.deliveryMethod || '',
+                            tracking_number: checkoutData.tracking_number || ''
+                        };
+
+                        return checkoutRef.collection('items').get().then(function(itemsSnap){
+                            var batch = db.batch();
+                            batch.set(orderRef, orderPayload, { merge: true });
+
+                            if(itemsSnap.empty && Array.isArray(currentItems) && currentItems.length){
+                                currentItems.forEach(function(it){
+                                    var itemRef = orderRef.collection('items').doc();
+                                    batch.set(itemRef, {
+                                        product_id: it.product_id || it.id || '',
+                                        name: it.name || it.title || '',
+                                        price: Number(it.price || 0),
+                                        qty: Number(it.qty || it.quantity || 1),
+                                        image_url: it.image_url || it.image || ''
+                                    });
+                                });
+                            } else {
+                                itemsSnap.docs.forEach(function(d){
+                                    var itemRef = orderRef.collection('items').doc(d.id);
+                                    batch.set(itemRef, d.data());
+                                    batch.delete(d.ref);
+                                });
+                            }
+
+                            var trackRef = orderRef.collection('tracking').doc();
+                            batch.set(trackRef, { status: 'Order placed', message: 'Order placed', timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+                            batch.delete(checkoutRef);
+
+                            return batch.commit().then(function(){
+                                window.location.replace('order-detail.html?orderId=' + encodeURIComponent(orderId));
+                            });
+                        });
+                    }).catch(function(e){
+                        console.error(e);
+                        alert('Could not place order. Please try again.\n' + (e && e.message ? e.message : ''));
+                        if(btn) btn.disabled = false;
+                    });
+                }catch(e){
+                    console.error(e);
+                    alert('Could not place order. Please try again.\n' + (e && e.message ? e.message : ''));
+                    if(btn) btn.disabled = false;
+                }
+            });
+        });
     }
+
     document.addEventListener('DOMContentLoaded', function(){
         var btn = document.getElementById('placeOrderBtn');
         if (btn) btn.addEventListener('click', placeOrder);
-        // Populate payment summary from Checkout selections
-        try{
-            var checkoutPaymentCode = localStorage.getItem('checkoutPaymentCode') || '';
-            var checkoutPaymentLabel = localStorage.getItem('checkoutPayment') || '';
-            var checkoutBank = localStorage.getItem('checkoutBank') || '';
-            var labelEl = document.getElementById('paymentMethodLabel');
-            var bankEl = document.getElementById('paymentMethodBank');
-            if(labelEl){
-                var displayLabel = checkoutPaymentLabel || (checkoutPaymentCode ? (checkoutPaymentCode === 'qr_ph' ? 'QR PH' : (checkoutPaymentCode === 'bank_transfer' ? 'Bank Transfer' : (checkoutPaymentCode === 'cod' ? 'Cash on Delivery' : checkoutPaymentCode))) : '(not chosen)');
-                labelEl.textContent = 'Payment: ' + displayLabel;
+
+        ensureFirebaseReady(function(err){
+            if(err){
+                var cartList = document.getElementById('paymentCartList');
+                if(cartList) cartList.innerHTML = '<div style="color:#b71c1c;padding:12px 4px;">Firebase not configured.</div>';
+                return;
             }
-            if(bankEl){
-                if(checkoutBank){ bankEl.style.display = 'block'; bankEl.textContent = 'Bank: ' + checkoutBank; }
-                else { bankEl.style.display = 'none'; }
-            }
-        }catch(e){}
+            firebase.auth().onAuthStateChanged(function(user){
+                if(!user){
+                    var cartList2 = document.getElementById('paymentCartList');
+                    if(cartList2) cartList2.innerHTML = '<div style="color:#b71c1c;padding:12px 4px;">Please sign in to continue.</div>';
+                    var btn2 = document.getElementById('placeOrderBtn'); if(btn2) btn2.disabled = true;
+                    return;
+                }
+                ensureCheckoutFromLocalStorage(user).finally(function(){
+                    subscribeToCheckout(user.uid);
+                });
+            });
+        });
     });
     </script>
     <!-- Inline bank details (shown on payment page when Bank Transfer is selected) -->
-    
-    <script src="cart-storage.js"></script>
-    <!-- ===== Cart Overlay + Sidebar HTML (universal) ===== -->
-    <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
-    <aside id="cartSidebar" class="cart-sidebar" aria-hidden="true" role="complementary">
-        <div class="cart-header-row">
-            <div>
-                <span class="cart-header-title">Cart (<span id="cartCount">0</span>)</span>
-            </div>
-            <button id="closeCartBtn" class="cart-close" aria-label="Close cart"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
-        </div>
-        <div class="cart-divider"></div>
-        <div id="cartItems" class="cart-items">
-            <div class="cart-empty">Your cart is empty</div>
-        </div>
-        <div class="cart-divider"></div>
-        <div class="cart-subtotal-row">
-            <span class="cart-subtotal-label">Subtotal</span>
-            <span id="cartSubtotal" class="cart-subtotal-value">₱0.00</span>
-        </div>
-        <button id="checkoutBtn" class="cart-checkout-btn">Checkout</button>
-    </aside>
-    <!-- ===== Cart Sidebar Behavior (universal) ===== -->
-    <script>
-    (function(){
-        let cart = JSON.parse(localStorage.getItem('cart') || '[]');
-        function parsePriceToNumber(priceText) {
-            if (!priceText) return 0;
-            var v = priceText.replace(/[^0-9.]/g, '');
-            return parseFloat(v || 0);
-        }
-        function formatPHP(amount) {
-            try {
-                return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
-            } catch (e) {
-                return '₱' + Number(amount).toFixed(2);
-            }
-        }
-        function saveCartToLocalStorage() {
-            localStorage.setItem('cart', JSON.stringify(cart));
-        }
-        const cartOverlay = document.getElementById('cartOverlay');
-        const cartSidebar = document.getElementById('cartSidebar');
-        const cartItemsContainer = document.getElementById('cartItems');
-        const cartCountEl = document.getElementById('cartCount');
-        const cartSubtotalEl = document.getElementById('cartSubtotal');
-        const closeCartBtn = document.getElementById('closeCartBtn');
-        const checkoutBtn = document.getElementById('checkoutBtn');
-        function getNavCartButton() {
-            const img = document.querySelector('img[alt="Cart"]');
-            if (!img) return null;
-            return img.closest('button');
-        }
-        function openCartSidebar() {
-            cartOverlay.classList.add('show');
-            cartSidebar.classList.add('open');
-            document.body.style.overflow = 'hidden';
-            cartSidebar.setAttribute('aria-hidden', 'false');
-            cartOverlay.setAttribute('aria-hidden', 'false');
-        }
-        function closeCartSidebar() {
-            cartOverlay.classList.remove('show');
-            cartSidebar.classList.remove('open');
-            document.body.style.overflow = '';
-            cartSidebar.setAttribute('aria-hidden', 'true');
-            cartOverlay.setAttribute('aria-hidden', 'true');
-        }
-        function renderCart() {
-            cartItemsContainer.innerHTML = '';
-            if (cart.length === 0) {
-                const empty = document.createElement('div');
-                empty.className = 'cart-empty';
-                empty.textContent = 'Your cart is empty';
-                cartItemsContainer.appendChild(empty);
-                cartCountEl.textContent = 0;
-                cartSubtotalEl.textContent = formatPHP(0);
-                saveCartToLocalStorage();
-                return;
-            }
-            let subtotal = 0;
-            let totalQty = 0;
-            cart.forEach((item, index) => {
-                subtotal += item.price * item.quantity;
-                totalQty += item.quantity;
-                const box = document.createElement('div');
-                box.className = 'cart-item-box';
-                const img = document.createElement('img');
-                img.className = 'cart-item-img';
-                img.src = item.image || 'IMAGE/NIKE1.png';
-                img.alt = item.title || 'Product';
-                const middle = document.createElement('div');
-                middle.className = 'cart-item-middle';
-                const title = document.createElement('div');
-                title.className = 'cart-item-title';
-                title.textContent = item.title;
-                const brand = document.createElement('div');
-                brand.className = 'cart-item-brand';
-                brand.textContent = item.brand;
-                const size = document.createElement('div');
-                size.className = 'cart-item-size';
-                size.textContent = 'Size: ' + (item.size || '');
-                const qtyControls = document.createElement('div');
-                qtyControls.className = 'cart-quantity-controls';
-                const lessenBtn = document.createElement('button');
-                lessenBtn.className = 'qty-btn decrease';
-                lessenBtn.setAttribute('data-index', index);
-                const lessenImg = document.createElement('img');
-                lessenImg.src = 'IMAGE/LessenBTN.png';
-                lessenImg.alt = '-';
-                lessenImg.style.width = '22px';
-                lessenImg.style.height = '22px';
-                lessenBtn.appendChild(lessenImg);
-                const qtyText = document.createElement('span');
-                qtyText.className = 'cart-item-qty';
-                qtyText.textContent = item.quantity;
-                const addBtn = document.createElement('button');
-                addBtn.className = 'qty-btn increase';
-                addBtn.setAttribute('data-index', index);
-                const addImg = document.createElement('img');
-                addImg.src = 'IMAGE/AddBTN.png';
-                addImg.alt = '+';
-                addImg.style.width = '22px';
-                addImg.style.height = '22px';
-                addBtn.appendChild(addImg);
-                qtyControls.appendChild(lessenBtn);
-                qtyControls.appendChild(qtyText);
-                qtyControls.appendChild(addBtn);
-                middle.appendChild(title);
-                middle.appendChild(brand);
-                middle.appendChild(size);
-                middle.appendChild(qtyControls);
-                const removeBtn = document.createElement('button');
-                removeBtn.className = 'cart-item-remove';
-                removeBtn.setAttribute('data-index', index);
-                const trashImg = document.createElement('img');
-                trashImg.src = 'IMAGE/TrashIcon.png';
-                trashImg.alt = 'Remove';
-                trashImg.style.width = '18px';
-                trashImg.style.height = '18px';
-                removeBtn.appendChild(trashImg);
-                const priceEl = document.createElement('div');
-                priceEl.className = 'cart-item-price';
-                priceEl.textContent = formatPHP(item.price * item.quantity);
-                box.appendChild(img);
-                box.appendChild(middle);
-                box.appendChild(removeBtn);
-                box.appendChild(priceEl);
-                cartItemsContainer.appendChild(box);
-            });
-            cartCountEl.textContent = totalQty;
-            cartSubtotalEl.textContent = formatPHP(subtotal);
-            attachCartEvents();
-        }
-        function attachCartEvents() {
-            document.querySelectorAll('.qty-btn.decrease').forEach(btn => {
-                btn.onclick = function(e) {
-                    const idx = parseInt(btn.getAttribute('data-index'), 10);
-                    if (!isNaN(idx) && cart[idx]) {
-                        if (cart[idx].quantity > 1) {
-                            cart[idx].quantity--;
-                        }
-                        renderCart();
-                        saveCartToLocalStorage();
-                    }
-                };
-            });
-            document.querySelectorAll('.qty-btn.increase').forEach(btn => {
-                btn.onclick = function(e) {
-                    const idx = parseInt(btn.getAttribute('data-index'), 10);
-                    if (!isNaN(idx) && cart[idx]) {
-                            try {
-                                var item = cart[idx];
-                                var current = Number(item.quantity || 0);
-                                var maxAllowed = (window.getMaxAllowedForProduct && typeof window.getMaxAllowedForProduct === 'function') ? window.getMaxAllowedForProduct(item) : 3;
-                                if (current >= maxAllowed) {
-                                    alert('Limit reached: you can only buy up to ' + maxAllowed + ' of this size.');
-                                    return;
-                                }
-                                cart[idx].quantity++;
-                            } catch (err) {
-                                cart[idx].quantity++;
-                            }
-                            renderCart();
-                            saveCartToLocalStorage();
-                    }
-                };
-            });
-            document.querySelectorAll('.cart-item-remove').forEach(btn => {
-                btn.onclick = function(e) {
-                    const idx = parseInt(btn.getAttribute('data-index'), 10);
-                    if (!isNaN(idx)) {
-                        cart.splice(idx, 1);
-                        renderCart();
-                        saveCartToLocalStorage();
-                    }
-                };
-            });
-        }
-        document.addEventListener('DOMContentLoaded', function() {
-            const navCartBtn = getNavCartButton();
-            if (navCartBtn) {
-                navCartBtn.removeAttribute('onclick');
-                navCartBtn.addEventListener('click', function(e){
-                    e.preventDefault();
-                    openCartSidebar();
-                });
-            }
-            if (closeCartBtn) closeCartBtn.addEventListener('click', closeCartSidebar);
-            if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
-            renderCart();
-            if (checkoutBtn) {
-                checkoutBtn.addEventListener('click', function(){
-                    window.location.href = 'checkout.html';
-                });
-            }
-        });
-
-        // Open bank modal when the payment summary is clicked and the selected method is bank_transfer
-        document.addEventListener('DOMContentLoaded', function(){
-            try{
-                var pmSummary = document.getElementById('paymentMethodSummary');
-                if(pmSummary){
-                    pmSummary.style.cursor = 'pointer';
-                    pmSummary.addEventListener('click', function(e){
-                        e.preventDefault();
-                        var code = (localStorage.getItem('checkoutPaymentCode') || '').toLowerCase();
-                        if(!code){ var lbl = (localStorage.getItem('checkoutPayment')||'').toLowerCase(); if(lbl.indexOf('bank') !== -1) code = 'bank_transfer'; }
-                        if(code === 'bank_transfer'){
-                            // open the modal
-                            if(typeof openBankModal === 'function') openBankModal();
-                        }
-                    });
-                }
-                // also make the small bank label clickable
-                var bankLabel = document.getElementById('paymentMethodBank');
-                if(bankLabel){ bankLabel.style.cursor = 'pointer'; bankLabel.addEventListener('click', function(){ if(typeof openBankModal === 'function') openBankModal(); }); }
-            }catch(e){/* ignore */}
-        });
-    })();
-    </script>
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
         <script>
+        function updateCheckoutFields(fields){
+            try{
+                var user = firebase.auth().currentUser;
+                if(!user) return;
+                return firebase.firestore().collection('checkouts').doc(user.uid).set(fields || {}, { merge: true });
+            }catch(e){}
+        }
+
         // Bank details inline behavior
         function openBankModal(){
-            // show inline bank details instead of a modal
             var el = document.getElementById('bankDetailsInline');
             if(!el) return;
-            // preload saved values into the fields
             try{
-                var sel = document.getElementById('bankSelect'); if(sel && localStorage.getItem('checkoutBank')) sel.value = localStorage.getItem('checkoutBank');
-                var at = document.getElementById('acctTypeSelect'); if(at && localStorage.getItem('checkoutBankAcctType')) at.value = localStorage.getItem('checkoutBankAcctType');
-                var an = document.getElementById('acctNameInput'); if(an) an.value = localStorage.getItem('checkoutBankAcctName') || '';
-                var anum = document.getElementById('acctNumberInput'); if(anum) anum.value = localStorage.getItem('checkoutBankAcctNumber') || '';
-                var note = document.getElementById('bankNote'); if(note) note.value = localStorage.getItem('checkoutBankNote') || '';
+                var sel = document.getElementById('bankSelect'); if(sel) sel.value = (currentCheckout && (currentCheckout.bank || currentCheckout.bank_name)) || '';
+                var at = document.getElementById('acctTypeSelect'); if(at) at.value = (currentCheckout && currentCheckout.bank_acct_type) || '';
+                var an = document.getElementById('acctNameInput'); if(an) an.value = (currentCheckout && currentCheckout.bank_acct_name) || '';
+                var anum = document.getElementById('acctNumberInput'); if(anum) anum.value = (currentCheckout && currentCheckout.bank_acct_number) || '';
+                var note = document.getElementById('bankNote'); if(note) note.value = (currentCheckout && currentCheckout.bank_note) || '';
             }catch(e){}
             el.style.display = '';
             try{ el.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){}
@@ -1227,24 +1010,24 @@
 
             // Auto-save bank detail fields as the user types or changes selections
             [
-                { id: 'bankSelect', key: 'checkoutBank' },
-                { id: 'acctTypeSelect', key: 'checkoutBankAcctType' },
-                { id: 'acctNameInput', key: 'checkoutBankAcctName' },
-                { id: 'acctNumberInput', key: 'checkoutBankAcctNumber' },
-                { id: 'bankNote', key: 'checkoutBankNote' }
+                { id: 'bankSelect', key: 'bank' },
+                { id: 'acctTypeSelect', key: 'bank_acct_type' },
+                { id: 'acctNameInput', key: 'bank_acct_name' },
+                { id: 'acctNumberInput', key: 'bank_acct_number' },
+                { id: 'bankNote', key: 'bank_note' }
             ].forEach(function(mapping){
                 try{
                     var el = document.getElementById(mapping.id);
                     if(!el) return;
                     // save on change
-                    el.addEventListener('change', function(){ try{ localStorage.setItem(mapping.key, this.value || ''); var bankEl = document.getElementById('paymentMethodBank'); if(bankEl){ var b = localStorage.getItem('checkoutBank')||''; var at = localStorage.getItem('checkoutBankAcctType')||''; if(b){ bankEl.style.display='block'; bankEl.textContent = 'Bank: ' + b + (at ? ' ('+at+')' : ''); } } }catch(e){} });
+                    el.addEventListener('change', function(){ updateCheckoutFields({ [mapping.key]: this.value || '' }); });
                     // also save on input for immediate persistence and enforce constraints for certain fields
                     if(mapping.id === 'acctNumberInput'){
-                        el.addEventListener('input', function(){ try{ this.value = this.value.replace(/\D/g,'').slice(0,12); localStorage.setItem(mapping.key, this.value || ''); }catch(e){} });
+                        el.addEventListener('input', function(){ try{ this.value = this.value.replace(/\D/g,'').slice(0,12); updateCheckoutFields({ [mapping.key]: this.value || '' }); }catch(e){} });
                     } else if(mapping.id === 'acctNameInput'){
-                        el.addEventListener('input', function(){ try{ if(this.value && this.value.length > 30) this.value = this.value.slice(0,30); localStorage.setItem(mapping.key, this.value || ''); }catch(e){} });
+                        el.addEventListener('input', function(){ try{ if(this.value && this.value.length > 30) this.value = this.value.slice(0,30); updateCheckoutFields({ [mapping.key]: this.value || '' }); }catch(e){} });
                     } else if(mapping.id === 'bankNote'){
-                        el.addEventListener('input', function(){ try{ if(this.value && this.value.length > 60) this.value = this.value.slice(0,60); localStorage.setItem(mapping.key, this.value || ''); }catch(e){} });
+                        el.addEventListener('input', function(){ try{ if(this.value && this.value.length > 60) this.value = this.value.slice(0,60); updateCheckoutFields({ [mapping.key]: this.value || '' }); }catch(e){} });
                     } else {
                         // for selects etc. keep change handler only
                     }
@@ -1273,8 +1056,7 @@
                     reader.onload = function(ev){
                         try{
                             var data = ev.target.result;
-                            localStorage.setItem('checkoutProof', data);
-                            localStorage.setItem('checkoutProofName', f.name);
+                            updateCheckoutFields({ payment_proof: data, payment_proof_name: f.name });
                             // show preview
                             if(f.type && f.type.indexOf('image/') === 0){
                                 uploadThumb.innerHTML = '<img src="'+data+'" style="width:100%;height:100%;object-fit:cover;">';
@@ -1290,21 +1072,8 @@
                 });
             }
             if(removeBtn){
-                removeBtn.addEventListener('click', function(e){ e.preventDefault(); localStorage.removeItem('checkoutProof'); localStorage.removeItem('checkoutProofName'); if(uploadPreview) uploadPreview.style.display='none'; if(uploadThumb) uploadThumb.innerHTML=''; if(uploadBtn) uploadBtn.textContent = '+ Upload Proof of Payment'; if(uploadInput) uploadInput.value = ''; });
+                removeBtn.addEventListener('click', function(e){ e.preventDefault(); updateCheckoutFields({ payment_proof: firebase.firestore.FieldValue.delete(), payment_proof_name: firebase.firestore.FieldValue.delete() }); if(uploadPreview) uploadPreview.style.display='none'; if(uploadThumb) uploadThumb.innerHTML=''; if(uploadBtn) uploadBtn.textContent = '+ Upload Proof of Payment'; if(uploadInput) uploadInput.value = ''; });
             }
-
-            // If there's an existing uploaded proof in localStorage, show it
-            try{
-                var existing = localStorage.getItem('checkoutProof');
-                var existingName = localStorage.getItem('checkoutProofName');
-                if(existing && existingName){
-                    if(uploadThumb && existing.indexOf('data:image') === 0){ uploadThumb.innerHTML = '<img src="'+existing+'" style="width:100%;height:100%;object-fit:cover;">'; }
-                    else if(uploadThumb){ uploadThumb.innerHTML = '<div style="font-size:0.9rem;padding:6px;color:#666;">FILE</div>'; }
-                    if(uploadName) uploadName.textContent = existingName;
-                    if(uploadPreview) uploadPreview.style.display = 'flex';
-                    if(uploadBtn) uploadBtn.textContent = 'Change proof';
-                }
-            }catch(e){}
                 });
                 </script>
 
@@ -1328,4 +1097,5 @@
             </div>
         </div>
     </footer>
+</body>
 </html>

@@ -23,6 +23,21 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Orders (dev-only)
+    match /orders/{orderId} {
+      allow read, write: if true;
+
+      // Items subcollection
+      match /items/{itemId} {
+        allow read, write: if true;
+      }
+
+      // Tracking subcollection
+      match /tracking/{trackingId} {
+        allow read, write: if true;
+      }
+    }
+
     // By default deny everything else
     match /{document=**} {
       allow read, write: if false;

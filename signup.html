@@ -355,7 +355,7 @@ function handleSignup(e){
         if(window.FIREBASE_CONFIG && window.firebase && window.firebase.auth){
             try{
                 const pending = { email, password, firstName, lastName, phone, addressMain, addressDetails };
-                try { sessionStorage.setItem('pending_signup', JSON.stringify(pending)); } catch(e) { console.warn('Could not persist pending signup in sessionStorage', e); }
+                try { localStorage.setItem('pending_signup', JSON.stringify(pending)); } catch(e) { console.warn('Could not persist pending signup in localStorage', e); }
                 window.location.href = 'verification.html';
             }catch(err){ console.error('Signup redirect error', err); alert('Signup failed: ' + (err && err.message ? err.message : String(err))); }
             return;
@@ -368,7 +368,8 @@ function handleSignup(e){
             if(existing){ existing.firstName = firstName || existing.firstName; existing.lastName = lastName || existing.lastName; existing.name = ((existing.firstName||'') + (existing.lastName?(' ' + existing.lastName):'')).trim() || existing.name; existing.phone = phone || existing.phone; if(password) existing.password = password; if(addressMain) existing.addressMain = addressMain; if(addressDetails) existing.addressDetails = addressDetails; }
             else { var newUser = { email, password, firstName, lastName, name: ((firstName||'') + (lastName?(' ' + lastName):'')).trim(), phone, role:'user', registeredAt: Date.now() }; if(addressMain) newUser.addressMain = addressMain; if(addressDetails) newUser.addressDetails = addressDetails; users.push(newUser); }
             localStorage.setItem('users', JSON.stringify(users));
-            sessionStorage.setItem('profile', JSON.stringify({ name: (firstName + (lastName ? (' ' + lastName) : '')).trim() || '', email, phone, addressMain: addressMain || '', addressDetails: addressDetails || '' }));
+            try{ localStorage.setItem('profile', JSON.stringify({ name: (firstName + (lastName ? (' ' + lastName) : '')).trim() || '', email, phone, addressMain: addressMain || '', addressDetails: addressDetails || '' })); localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+            try{ var t = 'local:' + btoa(String(email||'') + ':' + String(Date.now())); localStorage.setItem('authToken', t); localStorage.setItem('authTokenUpdatedAt', String(Date.now())); window.AUTH_TOKEN = t; }catch(e){}
         }catch(e){ console.warn('Could not save new user (local fallback)', e); }
         window.location.href = 'home.html';
     })();
@@ -396,7 +397,15 @@ function signInWithProvider(name) {
                 }
             } catch (e) { console.warn('Failed to upsert social sign-in user doc', e); }
             const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || '' };
-            try { sessionStorage.setItem('profile', JSON.stringify(profile)); sessionStorage.setItem('profile_updated_at', String(Date.now())); } catch (e) {}
+            try { localStorage.setItem('profile', JSON.stringify(profile)); localStorage.setItem('profile_updated_at', String(Date.now())); } catch (e) {}
+            try{
+                if(user && user.getIdToken){
+                    user.getIdToken().then(function(token){
+                        try{ localStorage.setItem('authToken', token); localStorage.setItem('authTokenUpdatedAt', String(Date.now())); }catch(e){}
+                        try{ window.AUTH_TOKEN = token; }catch(e){}
+                    }).catch(function(){});
+                }
+            }catch(e){}
             const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
             // Basic routing
             const role = (user.email && user.email.toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
@@ -490,7 +499,15 @@ function showVerificationOverlay(email, password, meta) {
                         if (!payload.createdAt) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
                         await firebase.firestore().doc('users/' + u.uid).set(payload, { merge: true });
                     } catch(e){ console.warn('Failed to upsert user doc after verification', e); }
-                    try { sessionStorage.setItem('profile', JSON.stringify({ email: u.email, name: u.displayName || (meta && (meta.firstName || '') + ' ' + (meta.lastName || '')) || '', uid: u.uid })); } catch(e){}
+                    try { localStorage.setItem('profile', JSON.stringify({ email: u.email, name: u.displayName || (meta && (meta.firstName || '') + ' ' + (meta.lastName || '')) || '', uid: u.uid })); localStorage.setItem('profile_updated_at', String(Date.now())); } catch(e){}
+                    try{
+                        if(u && u.getIdToken){
+                            u.getIdToken().then(function(token){
+                                try{ localStorage.setItem('authToken', token); localStorage.setItem('authTokenUpdatedAt', String(Date.now())); }catch(e){}
+                                try{ window.AUTH_TOKEN = token; }catch(e){}
+                            }).catch(function(){});
+                        }
+                    }catch(e){}
                     // remove overlay and handler
                     window.removeEventListener('beforeunload', beforeUnloadHandler);
                     if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);

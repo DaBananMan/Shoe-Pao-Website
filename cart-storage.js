@@ -1,6 +1,14 @@
 // cart-storage.js
 // Universal cart storage logic for all pages
 
+// Restore auth token for pages that rely on window.AUTH_TOKEN
+try{
+    if(typeof window !== 'undefined' && !window.AUTH_TOKEN){
+        var _t = localStorage.getItem('authToken');
+        if(_t) window.AUTH_TOKEN = _t;
+    }
+}catch(e){}
+
 function getCart() {
     return JSON.parse(localStorage.getItem('cart') || '[]');
 }
@@ -13,12 +21,15 @@ function saveCart(cart) {
         }
     }catch(_){ }
     localStorage.setItem('cart', JSON.stringify(cart));
+    try{
+        localStorage.setItem('checkoutCartSnapshot', JSON.stringify(Array.isArray(cart) ? cart : []));
+    }catch(e){}
 }
 
 function addToCart(product) {
     // Require user to be signed in before adding to cart.
     try {
-    var profile = null; try{ profile = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null'); }catch(e){ profile = null; }
+    var profile = null; try{ profile = JSON.parse(localStorage.getItem('profile')||'null'); }catch(e){ profile = null; }
         if(!profile || !profile.email){
             // Save an optional return URL so user can come back after login
             try{ var returnUrl = window.location.pathname + window.location.search; }catch(e){ var returnUrl = '' }
@@ -278,12 +289,12 @@ document.addEventListener('DOMContentLoaded', function(){
 
 // --- Session integrity helpers -------------------------------------------------
 // Ensure pages restored from bfcache or visited via back/forward validate the active session
-function getActiveProfile(){ try{ return JSON.parse(sessionStorage.getItem('profile') || localStorage.getItem('profile') || 'null'); }catch(e){ return null; } }
+function getActiveProfile(){ try{ return JSON.parse(localStorage.getItem('profile') || 'null'); }catch(e){ return null; } }
 
 // Sign out helper that clears session-scoped profile and replaces the current history entry
 window.signOut = function(){
-    try{ sessionStorage.removeItem('profile'); sessionStorage.removeItem('profile_updated_at'); }catch(e){}
     try{ localStorage.removeItem('profile'); localStorage.removeItem('profile_updated_at'); }catch(e){}
+    try{ localStorage.removeItem('authToken'); localStorage.removeItem('authTokenUpdatedAt'); }catch(e){}
     // Replace current location so back won't return to a page that assumes the previous profile
     try{ window.location.replace('login.html'); }catch(e){ window.location.href = 'login.html'; }
 };
