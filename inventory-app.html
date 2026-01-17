@@ -203,6 +203,21 @@
         <div id="initialColorsList" class="colors-list"></div>
         <div id="initialSizesEditor" class="sizes-editor"></div>
       </div>
+      <div id="arSection">
+        <h3>AR:</h3>
+        <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap:8px;">
+          <label style="display:flex;align-items:center;gap:8px;"><input id="prodAREnabled" type="checkbox" /> Enable AR for this product</label>
+          <div></div>
+          <label style="grid-column:1 / -1;">
+            <div class="field-title">AR Lens Group ID</div>
+            <input id="prodARGroup" placeholder="Lens group id (UUID)" />
+          </label>
+          <label style="grid-column:1 / -1;">
+            <div class="field-title">AR API Token (optional)</div>
+            <input id="prodARToken" placeholder="API token (overrides site default)" />
+          </label>
+        </div>
+      </div>
       <div class="modal-actions">
         <button type="button" id="cancelProductBtn" value="cancel" class="secondary">Cancel</button>
         <button id="saveProductBtn" value="default" class="primary">Save</button>

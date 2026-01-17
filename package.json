@@ -4,7 +4,8 @@
   "description": "Build helper to produce a UMD bundle for CameraKit + AR wrapper for ShoePao",
   "private": true,
   "scripts": {
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "dev-proxy": "node dev-proxy/proxy.js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^26.0.0",
@@ -13,11 +14,15 @@
     "rollup-plugin-terser": "^7.0.2"
   },
   "dependencies": {
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.6",
     "@snap/camera-kit": "*",
     "@supabase/supabase-js": "^2.90.1",
     "firebase": "^12.7.0",
     "firebase-admin": "^13.6.0",
-    "minimist": "^1.2.8"
+    "minimist": "^1.2.8",
+    "node-fetch": "^2.6.7",
+    "cheerio": "^1.0.0-rc.12"
   },
   "main": "AR.js",
   "keywords": [],

@@ -968,6 +968,13 @@
       // Hide initial variant builder on edit; use Variants modal instead
       const initSec = qs('#initialVariantSection'); if (initSec) initSec.style.display = 'none';
       state.ui.productModalColors = [];
+      // populate AR fields if present on product
+      try {
+        const ar = p.ar || {};
+        const arEnabledEl = qs('#prodAREnabled'); if (arEnabledEl) arEnabledEl.checked = !!ar.enabled;
+        const arGroupEl = qs('#prodARGroup'); if (arGroupEl) arGroupEl.value = ar.groupId || ar.group || '';
+        const arTokenEl = qs('#prodARToken'); if (arTokenEl) arTokenEl.value = ar.apiToken || ar.token || '';
+      } catch (e) {}
     } else {
   brand.value = ''; model.value = ''; cat.value = '';
   if (genderMen) genderMen.checked = false;
@@ -989,6 +996,8 @@
       state.ui.productModalImages = [];
       renderImagesList();
       renderInitialVariants();
+      // clear AR inputs on Add
+      try { const arEnabledEl = qs('#prodAREnabled'); if (arEnabledEl) arEnabledEl.checked = false; const arGroupEl = qs('#prodARGroup'); if (arGroupEl) arGroupEl.value = ''; const arTokenEl = qs('#prodARToken'); if (arTokenEl) arTokenEl.value = ''; } catch(e){}
     }
 
     dlg.showModal();
@@ -1053,6 +1062,19 @@
       p.description = desc;
   p.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       p.tagsManual = manual;
+      // read AR settings from modal
+      try {
+        const arEnabled = !!(qs('#prodAREnabled') && qs('#prodAREnabled').checked);
+        const arGroup = (qs('#prodARGroup') && qs('#prodARGroup').value) ? String(qs('#prodARGroup').value).trim() : '';
+        const arToken = (qs('#prodARToken') && qs('#prodARToken').value) ? String(qs('#prodARToken').value).trim() : '';
+        if (arEnabled || arGroup || arToken) {
+          p.ar = Object.assign({}, p.ar || {}, { enabled: !!arEnabled });
+          if (arGroup) p.ar.groupId = arGroup;
+          if (arToken) p.ar.apiToken = arToken;
+        } else {
+          delete p.ar;
+        }
+      } catch(e) {}
       // Sync to Firestore when available
       if (firebaseState.enabled) {
         upsertProductToFirestore(p).then(() => syncVariantsForProduct(p));
@@ -1076,6 +1098,17 @@
       } catch(e) {}
       // Copy colors and sizes
       newP.colors = colors.map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), sku: s.sku || '' })) }));
+      // Read AR inputs for newly created product
+      try {
+        const arEnabled = !!(qs('#prodAREnabled') && qs('#prodAREnabled').checked);
+        const arGroup = (qs('#prodARGroup') && qs('#prodARGroup').value) ? String(qs('#prodARGroup').value).trim() : '';
+        const arToken = (qs('#prodARToken') && qs('#prodARToken').value) ? String(qs('#prodARToken').value).trim() : '';
+        if (arEnabled || arGroup || arToken) {
+          newP.ar = { enabled: !!arEnabled };
+          if (arGroup) newP.ar.groupId = arGroup;
+          if (arToken) newP.ar.apiToken = arToken;
+        }
+      } catch(e) {}
       state.products.push(newP);
       // Sync created product and its variants to Firestore when available
       if (firebaseState.enabled) {

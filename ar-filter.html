@@ -72,8 +72,51 @@
 </head>
 <body>
   <div class="ar-ui">
-  <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" class="ar-logo" id="arLogo" style="cursor:pointer;pointer-events:auto;">
-  <div class="ar-header" id="arHeader" style="cursor:pointer;pointer-events:auto;" role="link" tabindex="0">Shoe Pao AR</div>
+  <!-- Development-only: rewrite CameraKit API calls to the local dev proxy so we avoid CORS
+       This intercepts fetch and XHR and rewrites requests targeting the camera-kit API
+       to the local proxy at http://localhost:3000/camera-kit-api.
+       Remove or disable this in production. -->
+  <script>
+    (function(){
+  // If you changed the proxy port, update this value or set window._shoePaoAR.proxyBase before the module loads.
+  const PROXY_BASE = (window._shoePaoAR && window._shoePaoAR.proxyBase) ? window._shoePaoAR.proxyBase : 'http://localhost:3001/camera-kit-api';
+      const REMOTE_HOST = 'camera-kit-api.snapar.com';
+
+      // Wrap fetch
+      if (window.fetch) {
+        const _fetch = window.fetch.bind(window);
+        window.fetch = function(input, init){
+          try{
+            let url = (typeof input === 'string') ? input : (input && input.url) || '';
+            if (url && url.indexOf(REMOTE_HOST) !== -1) {
+              // Replace the host with the local proxy base
+              const replaced = url.replace('https://' + REMOTE_HOST, PROXY_BASE).replace('http://' + REMOTE_HOST, PROXY_BASE);
+              if (replaced) {
+                url = replaced;
+                if (typeof input === 'string') input = url; else input = new Request(url, input);
+              }
+            }
+          }catch(e){ /* ignore */ }
+          return _fetch(input, init);
+        };
+      }
+
+      // Wrap XMLHttpRequest open to rewrite URLs
+      try{
+        const _open = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url){
+          try{
+            if (typeof url === 'string' && url.indexOf(REMOTE_HOST) !== -1) {
+              url = url.replace('https://' + REMOTE_HOST, PROXY_BASE).replace('http://' + REMOTE_HOST, PROXY_BASE);
+            }
+          }catch(e){}
+          return _open.apply(this, [method, url].concat(Array.prototype.slice.call(arguments,2)));
+        };
+      }catch(e){ /* ignore */ }
+    })();
+  </script>
+  <!-- model-viewer for Web AR (Quick Look on iOS, WebXR on supported Android browsers) -->
+  <script type="module" src="./dist/ar.umd.js"></script>
   </div>
   <div class="camera-border-box">
     <!-- model-viewer sits above the video; if a 3D model URL is provided (localStorage.productModel)
@@ -174,8 +217,14 @@
           if (window.startARSession && typeof window.startARSession === 'function') {
             status.textContent = 'Starting CameraKit AR session...';
             try {
+              // pick up per-product AR overrides from localStorage if present
+              const groupId = localStorage.getItem('productARGroupId') || null;
+              const apiToken = localStorage.getItem('productARToken') || null;
+              const opts = { cameraType: 'back', mirror: false };
+              if (groupId) opts.groupId = groupId;
+              if (apiToken) opts.apiToken = apiToken;
               // attempt to mount the live output in the video placeholder
-              await window.startARSession('#camera', { cameraType: 'back', mirror: false });
+              await window.startARSession('#camera', opts);
               status.textContent = 'CameraKit AR running.';
               return; // done
             } catch (arErr) {

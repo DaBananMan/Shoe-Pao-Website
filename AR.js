@@ -5,8 +5,10 @@
 // and fall back to trying a UMD bundle injected via a <script> tag.
 
 // Configuration (replace these with your real values if needed)
-const AR_API_TOKEN = 'eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzY4Mzk3ODE2LCJzdWIiOiJiYjc3YjkxMC1jZjI5LTRjNmEtOTA0ZS01YzQ3OWY0YTE4MzJ-U1RBR0lOR35iY2FiM2NkYS1mYjkzLTRiM2QtYjY0ZS1jNGQyNDIxMDNjODYifQ.WjHoloZXYkELt_pOHSVBHVMBCVF56-ddVZR6tX4mGHY'
-const AR_GROUP_ID = '7beeec19-bcc9-47fe-b1e8-97d0783e252c'
+// These are defaults used when a per-call apiToken/groupId are not supplied.
+// Staging/dev API token (supplied by user). Use only for dev/staging.
+let DEFAULT_AR_API_TOKEN = 'eyJhbGciOiJIUzI1NiIsImtpZCI6IkNhbnZhc1MyU0hNQUNQcm9kIiwidHlwIjoiSldUIn0.eyJhdWQiOiJjYW52YXMtY2FudmFzYXBpIiwiaXNzIjoiY2FudmFzLXMyc3Rva2VuIiwibmJmIjoxNzYzNTE2MDY3LCJzdWIiOiI2MTk0ZWUzNi0zZTVjLTQwODMtOWRkYy0zNzIzYTdjY2U0OGJ-U1RBR0lOR341NmU2NzFmNC04YTg3LTRkMzAtODQ3ZC1mOTg0YTFjNTkzNGIifQ.kt8hfIKsMUUI80dqpfUaHa-NgyagEdZQzd1s1-BAays'
+let DEFAULT_AR_GROUP_ID = '7beeec19-bcc9-47fe-b1e8-97d0783e252c'
 
 // Keep reference to active session and stream so we can stop later
 window._shoePaoAR = window._shoePaoAR || { session: null, stream: null }
@@ -105,8 +107,11 @@ async function startARSession(container, options) {
             throw new Error('CameraKit not available. Ensure @snap/camera-kit is bundled or available via a UMD script.')
         }
         const { bootstrapCameraKit, createMediaStreamSource, Transform2D } = cameraKitModule
+            // Allow per-call override of apiToken/groupId via options. Fall back to defaults.
+            const apiToken = (options && options.apiToken) || (window._shoePaoAR && window._shoePaoAR.config && window._shoePaoAR.config.apiToken) || DEFAULT_AR_API_TOKEN
+            const groupId = (options && (options.groupId || options.group)) || (window._shoePaoAR && window._shoePaoAR.config && window._shoePaoAR.config.groupId) || DEFAULT_AR_GROUP_ID
 
-        const cameraKit = await bootstrapCameraKit({ apiToken: AR_API_TOKEN })
+            const cameraKit = await bootstrapCameraKit({ apiToken: apiToken })
     const session = await cameraKit.createSession()
 
     // determine container element
@@ -146,8 +151,17 @@ async function startARSession(container, options) {
 
     // load lenses and apply first lens in the group
     try {
-        const { lenses } = await cameraKit.lensRepository.loadLensGroups([AR_GROUP_ID])
-        if (Array.isArray(lenses) && lenses.length) session.applyLens(lenses[0])
+        const { lenses } = await cameraKit.lensRepository.loadLensGroups([groupId])
+        if (Array.isArray(lenses) && lenses.length) {
+            // allow selecting a specific lens id if provided via options.lensId
+            if (options && options.lensId) {
+                const pick = lenses.find(l => l && (l.id === options.lensId || l.lensId === options.lensId || l.name === options.lensId));
+                if (pick) session.applyLens(pick);
+                else session.applyLens(lenses[0]);
+            } else {
+                session.applyLens(lenses[0])
+            }
+        }
     } catch (e) {
         // non-fatal: lens load may fail if id invalid
         console.warn('Lens load failed', e)

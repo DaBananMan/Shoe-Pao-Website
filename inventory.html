@@ -120,6 +120,18 @@
                 </table>
             </div>
 
+            <div class="sales-log">
+                <h2>Sales Log</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th><th>Brand</th><th>Model</th><th>Color</th><th>Size</th><th>Qty</th><th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesTbody"></tbody>
+                </table>
+            </div>
+
     <!-- Firebase config (paste your web config here). Public keys are fine in client code. -->
     <script>
       window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
@@ -140,20 +152,6 @@
 
     <!-- App script -->
     <script src="inventory-app.js"></script>
-        </section>
-
-        <section id="tab-sales" class="tab">
-            <div class="sales-log">
-                <h2>Sales Log</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th><th>Brand</th><th>Model</th><th>Color</th><th>Size</th><th>Qty</th><th>Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="salesTbody"></tbody>
-                </table>
-            </div>
         </section>
 
         <section id="tab-reports" class="tab">
@@ -314,6 +312,21 @@
                 <div id="initialColorsList" class="colors-list"></div>
                 <div id="initialSizesEditor" class="sizes-editor"></div>
             </div>
+                    <div id="arSection">
+                        <h3>AR:</h3>
+                        <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap:8px;">
+                            <label style="display:flex;align-items:center;gap:8px;"><input id="prodAREnabled" type="checkbox" /> Enable AR for this product</label>
+                            <div></div>
+                            <label style="grid-column:1 / -1;">
+                                <div class="field-title">AR Lens Group ID</div>
+                                <input id="prodARGroup" placeholder="Lens group id (UUID)" />
+                            </label>
+                            <label style="grid-column:1 / -1;">
+                                <div class="field-title">AR API Token (optional)</div>
+                                <input id="prodARToken" placeholder="API token (overrides site default)" />
+                            </label>
+                        </div>
+                    </div>
             <div class="modal-actions">
                 <button type="button" id="cancelProductBtn" value="cancel" class="secondary">Cancel</button>
                 <button id="saveProductBtn" value="default" class="primary">Save</button>
