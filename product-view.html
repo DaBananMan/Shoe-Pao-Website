@@ -1,0 +1,2660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product View - SHOEPAO</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background: #fff;
+            margin: 0;
+            padding: 0;
+            color: #222;
+        }
+        .homepage-header {
+            padding-left: 32px !important;
+            padding-right: 32px !important;
+        }
+        .productview-main {
+            padding-left: 12px; /* reduced left padding to move content closer to left edge */
+            padding-right: 12px;
+        }
+        .search-input {
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            color: #222;
+        }
+        .search-input:focus {
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+        .search-input::-webkit-input-placeholder {
+            color: #888;
+            opacity: 1;
+        }
+        .search-input:-ms-input-placeholder {
+            color: #888;
+            opacity: 1;
+        }
+        .search-input::placeholder {
+            color: #888;
+            opacity: 1;
+        }
+        .productview-main {
+            display: flex;
+            flex-direction: row;
+            gap: 48px;
+            max-width: 1200px;
+            /* align container to the left with a small 12px gap from viewport edge */
+            margin: 48px 0 0 12px;
+            min-height: 480px;
+            position: relative; /* needed so the sizing guide can be positioned relative to this container */
+        }
+        .productview-left {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            align-items: flex-end;
+        }
+        .productview-thumb {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 12px;
+            background: #f7f7f7;
+            cursor: pointer;
+            border: 2px solid #eee;
+        }
+        .productview-center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 380px;
+            min-height: 380px;
+            position: relative;
+        }
+        .productview-main-img {
+            width: 380px;
+            height: 380px;
+            /* use contain to avoid cropping/zooming important product details
+               (keeps image aspect ratio and shows whole shoe); center it */
+            object-fit: contain;
+            object-position: center;
+            border-radius: 18px;
+            background: #f7f7f7;
+            padding: 8px; /* slight inner padding so edges aren't flush when contain adds empty space */
+            transition: opacity 0.35s ease;
+        }
+        .productview-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            min-width: 340px;
+        }
+        .productview-brand {
+            font-size: 1.08rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .productview-title {
+            font-size: 2.1rem;
+            font-weight: 700;
+            color: #222;
+            margin-bottom: 2px;
+        }
+        .productview-price-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+        }
+        .productview-price-col { display:flex; align-items: baseline; gap:10px }
+        .productview-color-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap }
+        .productview-color-label { font-size:1.05rem; font-weight:500; color:#222 }
+        .productview-color-swatch { width:36px; height:36px; border-radius:50%; border:2px solid #ddd; overflow:hidden; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:box-shadow .18s,border-color .18s; background:#f7f7f7 }
+        .productview-color-swatch img { width:100%; height:100%; object-fit:cover }
+        .productview-color-swatch.selected { border-color:#222; box-shadow:0 0 0 2px #2222 }
+        .productview-color-item { display:flex; flex-direction:column; align-items:center; gap:4px }
+        .productview-color-name { font-size:0.85rem; color:#444; max-width:78px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+        .productview-price {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #222;
+        }
+        .productview-price-range { font-size:0.95rem; font-weight:500; color:#555; display:none }
+        .productview-availability {
+            font-size: 1.05rem;
+            color: #222;
+            transform: translateX(-10px); /* slightly nudge availability left */
+        }
+        .productview-availability b {
+            font-weight: 600;
+        }
+        .productview-caption {
+            font-size: 0.98rem;
+            color: #444;
+            margin-bottom: 2px;
+        }
+        .productview-size-label {
+            font-size: 1.05rem;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        .productview-size-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .productview-size-conversion {
+            font-size: 0.98rem;
+            color: #555;
+            margin-top: 6px;
+        }
+        .productview-size-conversion b {
+            color: #222;
+            font-weight: 600;
+        }
+        .productview-size-dropdown {
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #e6e6e6;
+            background: #fff;
+            font-size: 1.05rem;
+            color: #222;
+            width: 220px;
+        }
+        .productview-size-stock {
+            font-size: 0.95rem;
+            color: #666;
+            margin-top: 6px;
+        }
+    /* right-side sizing guide panel (moved left and enlarged on wide screens) */
+    /* Shifted left (from the right edge) and increased width/font so it appears larger
+       while still remaining part of the page flow. Kept no shadow and slightly larger padding. */
+    #rightSizingGuide { position: absolute; right: 220px; top: calc(360px - 10vh); width: 420px; background: #fff; border: 1px solid #d0d0d0; border-radius: 14px; box-shadow: none; padding: 16px; z-index: 1000; font-family: 'Poppins', Arial, sans-serif; max-height: calc(100vh - 160px); overflow: auto }
+    /* header fills the container edges and has no bottom radius so no corners show */
+    #rightSizingGuide .sg-title { display: block; margin: -16px -16px 12px -16px; padding: 18px 20px; background: #222; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 14px; border-radius: 14px 14px 0 0; box-sizing: border-box }
+    #rightSizingGuide table { width: 100%; border-collapse: collapse; font-size: 14px }
+    #rightSizingGuide td, #rightSizingGuide th { padding: 8px 10px; text-align: center; color: #222 }
+    #rightSizingGuide th { color: #666; font-weight: 700; font-size: 13px }
+    /* sizing guide row highlight */
+    #rightSizingGuide .sg-row { cursor: default }
+    #rightSizingGuide .sg-selected { background: #f6f0ea; border-radius: 4px }
+    @media (max-width:1100px){ #rightSizingGuide{display:none} }
+        .productview-size-row .input-label {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            font-size: 1.05rem;
+            color: #222;
+            padding: 8px 6px;
+            height: 42px;
+        }
+        .productview-size-btn {
+            background: #eee;
+            color: #222;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 22px;
+            font-size: 1.05rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .productview-size-btn.selected {
+            background: #222;
+            color: #fff;
+        }
+        .productview-action-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        .productview-cart-btn {
+            background: #111;
+            color: #fff;
+            border: none;
+            border-radius: 22px;
+            padding: 12px 38px;
+            font-size: 1.08rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .productview-cart-btn:hover {
+            background: #b71c1c;
+        }
+        .productview-wishlist {
+            width: 66px;
+            height: 66px;
+            background: none !important;
+            border: none !important;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            box-shadow: none !important;
+            outline: none !important;
+            transition: filter 0.18s;
+        }
+        .productview-wishlist:hover {
+            background: none !important;
+            box-shadow: none !important;
+        }
+        .productview-wishlist:hover img {
+            /* Deep red: #990000 */
+            filter: invert(13%) sepia(99%) saturate(7492%) hue-rotate(357deg) brightness(90%) contrast(110%);
+        }
+        /* Review icon button (placed to the right of wishlist) */
+        .productview-review-icon {
+            width: 66px;
+            height: 66px;
+            background: none !important;
+            border: none !important;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            box-shadow: none !important;
+            outline: none !important;
+            transition: filter 0.18s;
+        }
+        .productview-review-icon:hover img {
+            filter: invert(13%) sepia(99%) saturate(7492%) hue-rotate(357deg) brightness(90%) contrast(110%);
+        }
+        /* shared icon sizing so wishlist and review match exactly */
+        .productview-icon { width: 66px; height: 66px; display: flex; align-items: center; justify-content: center; padding: 0; background: none !important; border: none !important }
+        .productview-icon img { width: 54px; height: 54px; object-fit: contain }
+        .wishlist-popup {
+            position: fixed;
+            left: 50%;
+            top: 48px;
+            transform: translateX(-50%);
+            background: #8B0000;
+            color: #fff;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 1.08rem;
+            font-weight: 500;
+            padding: 16px 32px;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(34,34,34,0.18);
+            z-index: 100000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .wishlist-popup.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .productview-divider {
+            width: 100%; /* restored full width for Description header divider */
+            height: 2px;
+            background: #eee;
+            margin: 18px 0 12px 0; /* align with normal flow of the right column */
+        }
+        .productview-desc-label {
+            font-size: 1.08rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .productview-desc {
+            font-size: 0.98rem;
+            color: #444;
+            line-height: 1.6;
+        }
+        .productview-ar-caption {
+            text-align: center;
+            font-size: 1.08rem;
+            color: #222;
+            margin: 32px 0 18px 0;
+        }
+        .productview-ar-btn {
+            display: block;
+            margin: 0 auto 32px auto;
+            background: #111;
+            color: #fff;
+            border: none;
+            border-radius: 22px;
+            padding: 12px 38px;
+            font-size: 1.08rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .productview-ar-btn:hover {
+            background: #b71c1c;
+        }
+        .productview-section-divider {
+            width: 90vw;
+            height: 2px;
+            background: #eee;
+            margin: 48px auto 32px auto;
+        }
+        .productview-sizing-header {
+            text-align: center;
+            font-size: 1.7rem;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 24px;
+        }
+        .productview-sizing-img {
+            display: block;
+            margin: 0 auto 32px auto;
+            width: 680px;
+            max-width: 98vw;
+            height: auto;
+        }
+        .productview-reviews-header {
+            text-align: left;
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 18px;
+            padding-left: 32px;
+            padding-right: 32px;
+        }
+        .productview-reviews-row {
+            display: flex;
+            gap: 48px;
+            align-items: flex-start;
+            margin-bottom: 32px;
+            padding-left: 32px;
+            padding-right: 32px;
+        }
+        .productview-reviews-left {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .productview-reviews-divider {
+            width: 2px;
+            height: 120px;
+            background: #eee;
+            margin: 0 24px;
+        }
+        .productview-reviews-center {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .productview-reviews-right {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        .productview-review-btn {
+            background: #111;
+            color: #fff;
+            border: none;
+            border-radius: 22px;
+            padding: 12px 38px;
+            font-size: 1.08rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .productview-review-btn:hover {
+            background: #b71c1c;
+        }
+        .productview-recommend-header {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 18px;
+            padding-left: 32px;
+            padding-right: 32px;
+        }
+        .productview-recommend-row {
+            display: flex;
+            gap: 32px;
+            justify-content: flex-start;
+            margin-left: 0;
+            margin-bottom: 48px;
+            padding-left: 32px;
+            padding-right: 32px;
+        }
+        .productview-card {
+            background: none;
+            border: none;
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+        .productview-card-img-box {
+            position: relative;
+            width: 320px;
+            height: 210px;
+            border-radius: 0;
+            overflow: hidden;
+        }
+        .productview-card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .productview-card-badge-new {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: #222;
+            color: #fff;
+            font-size: 0.98rem;
+            font-weight: 500;
+            border-radius: 12px;
+            padding: 4px 18px;
+            z-index: 2;
+        }
+        .productview-card-info-box {
+            background: #f7f7f7;
+            border-radius: 0;
+            padding: 16px 18px 12px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .productview-card-info-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.08rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .productview-card-brand {
+            font-weight: 600;
+        }
+        .productview-card-price {
+            font-weight: 500;
+            color: #222;
+        }
+        .productview-card-info-bottom {
+            font-size: 0.98rem;
+            color: #444;
+        }
+
+        /* ===== override: KEEP AR MODAL HIDDEN BY DEFAULT (important) =====
+           This override ensures the overlay is hidden initially even if an
+           external stylesheet contains a .ar-modal-overlay { display:flex !important; } */
+        .ar-modal-overlay {
+            display: none !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            background: rgba(34,34,34,0.45) !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 99999 !important;
+        }
+
+        /* keep existing modal styling fallback here (if external CSS exists it will be consistent) */
+        .ar-modal {
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(34,34,34,0.18);
+            padding: 32px 38px 28px 38px;
+            min-width: 420px;
+            max-width: 98vw;
+            min-height: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            position: relative;
+            align-items: stretch;
+            outline: none;
+        }
+        .ar-modal-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+        }
+        .ar-modal-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #222;
+        }
+        .ar-modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        .ar-modal-desc {
+            font-size: 1.08rem;
+            color: #444;
+            text-align: center;
+        }
+        .ar-modal-divider {
+            width: 100%;
+            height: 2px;
+            background: #eee;
+            margin: 12px 0;
+        }
+        .ar-modal-bottom-row {
+            display: flex;
+            gap: 32px;
+            justify-content: space-between;
+            margin-top: 12px;
+        }
+        .ar-modal-bottom-col {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 180px;
+        }
+        .ar-modal-dot-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ar-modal-dot {
+            width: 8px;
+            height: 8px;
+            background: #b71c1c;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .ar-modal-bottom-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #222;
+        }
+        .ar-modal-bottom-desc {
+            font-size: 0.98rem;
+            color: #444;
+        }
+        .ar-modal-qr {
+            width: 120px;
+            height: 120px;
+            margin-top: 8px;
+            border-radius: 12px;
+            background: #f7f7f7;
+        }
+        .ar-modal-mobile-btn {
+            background: #b71c1c;
+            color: #fff;
+            border: none;
+            border-radius: 18px;
+            padding: 10px 28px;
+            font-size: 1.08rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+        .ar-modal-mobile-btn:hover {
+            background: #222;
+        }
+
+        /* ====== ADDED CART OVERLAY & SIDEBAR STYLES (necessary additions) ====== */
+        .cart-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(34,34,34,0.45);
+            display: none;
+            z-index: 99998;
+        }
+        .cart-overlay.show {
+            display: block;
+        }
+        .cart-sidebar {
+            position: fixed;
+            top: 0;
+            right: -440px; /* hidden by default */
+            width: 420px;
+            max-width: 98vw;
+            height: 100vh;
+            background: #fff;
+            box-shadow: -12px 0 32px rgba(34,34,34,0.18);
+            z-index: 99999;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: right 0.28s ease;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .cart-sidebar.open {
+            right: 0;
+        }
+        .cart-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .cart-header-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #222;
+        }
+        .cart-close {
+            background: none;
+            border: none;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+        .cart-divider {
+            height: 2px;
+            background: #eee;
+            width: 100%;
+            margin: 4px 0 8px 0;
+        }
+        .cart-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            max-height: 340px;
+            padding-right: 8px;
+        }
+        .cart-item-box {
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid #f0f0f0;
+            padding: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            position: relative;
+        }
+        .cart-item-img {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 8px;
+            background: #f7f7f7;
+            flex-shrink: 0;
+        }
+        .cart-item-middle {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex: 1;
+            min-width: 0;
+        }
+        .cart-item-title {
+            font-weight: 600;
+            font-size: 0.99rem;
+            color: #222;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .cart-item-brand {
+            font-size: 0.93rem;
+            color: #666;
+        }
+        .cart-item-size {
+            font-size: 0.92rem;
+            color: #444;
+        }
+        .cart-quantity-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .qty-btn {
+            background: none;
+            border: none;
+            width: 34px;
+            height: 34px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+        .cart-item-remove {
+            position: absolute;
+            top: 8px;
+            /* position computed from CSS variables in .cart-item-box so spacing matches the edit button */
+            right: calc(var(--edit-gap) + var(--edit-width) + var(--edit-gap));
+            background: none;
+            border: none;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cart-item-price {
+            position: absolute;
+            right: 12px;
+            bottom: 8px;
+            font-weight: 600;
+            color: #222;
+        }
+        .cart-subtotal-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #222;
+            padding-top: 6px;
+        }
+        .cart-checkout-btn {
+            background: #111;
+            color: #fff;
+            border: none;
+            border-radius: 24px;
+            padding: 12px 18px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            width: 100%;
+        }
+        .cart-empty {
+            color: #666;
+            font-size: 0.98rem;
+            padding: 18px 0;
+            text-align: center;
+        }
+        /* ====== END CART STYLES ====== */
+
+        .homepage-header > div,
+        .homepage-header > a,
+        .homepage-header > span,
+        .homepage-header > button {
+            padding-top: 14.22px; /* 12px + 2% of 12px = 12px * 1.185 = 14.22px */
+            padding-bottom: 14.22px;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+        /* Sticky footer layout for product-list.html */
+        .productlist-body {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .productlist-main-content {
+            flex: 1 0 auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .footer, footer {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+        }
+        /* Ensure footer stays at bottom if content is short */
+        /* .productlist-content min-height removed to fix sticky footer white space */
+
+        .productlist-content {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+            min-height: 0 !important;
+        }
+
+        .productlist-main {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+            min-height: 0 !important;
+        }
+        /* Sticky Footer Layout for Product List */
+        body, html {
+            margin: 0;
+            padding: 0;
+        }
+        .main-wrapper {
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex: 1;
+        }
+        .productlist-caption-row {
+            margin-bottom: 2px !important;
+        }
+        .productlist-grid {
+            margin-top: 0 !important;
+        }
+        .productlist-caption-row {
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .productlist-grid {
+            margin-top: 0;
+        }
+        .productlist-caption-row {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            display: flex;
+            align-items: flex-end;
+            min-height: 0;
+        }
+        .productlist-caption {
+            font-size: 1.15rem;
+            font-weight: 500;
+            color: #222;
+            margin-bottom: 0;
+        }
+        /* --- POPPINS FONT USAGE FOR LOGIN AND SIGNUP PAGE --- */
+        @font-face {
+            font-family: 'Poppins';
+            src: url('FONT/Poppins-Regular.ttf') format('truetype');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Poppins';
+            src: url('FONT/Poppins-Medium.ttf') format('truetype');
+            font-weight: 500;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Poppins';
+            src: url('FONT/Poppins-SemiBold.ttf') format('truetype');
+            font-weight: 600;
+            font-style: normal;
+        }
+        [class^="search-input"], .search-input {
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            color: #222;
+        }
+
+        .search-input:focus {
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+
+        .search-input::-webkit-input-placeholder {
+            color: #888;
+            opacity: 1;
+        }
+        .search-input:-ms-input-placeholder {
+            color: #888;
+            opacity: 1;
+        }
+        .search-input::placeholder {
+            color: #888;
+            opacity: 1;
+        }
+        body {
+            background: #fff;
+            font-family: 'Poppins', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .form-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            max-width: 480px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .form-section > * {
+            width: 100%;
+            max-width: 400px;
+        }
+        /* Center the signup form and logo as a unit */
+        .toggle-password {
+            display: inline-flex;
+            align-items: center;
+            /* Center the signup form and logo */
+            gap: 4px;
+        }
+        .password-label-row {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+        .password-label-row .input-label {
+            margin: 0;
+            text-align: left;
+            flex: 1;
+        }
+        .password-label-row .toggle-password {
+            text-align: right;
+            flex: 0;
+        }
+        .password-row {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toggle-password {
+            align-self: flex-end;
+            margin-bottom: 4px;
+            cursor: pointer;
+            font-size: 0.95em;
+            color: #555;
+        }
+        .container {
+            max-width: 400px;
+            margin: 60px auto;
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .logo {
+            width: 90px;
+            margin-bottom: 24px;
+        }
+
+        .login-header {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 1rem;
+            border: none !important;
+            outline: none;
+            width: 220px;
+            padding: 6px 0;
+        }
+        .subheader {
+            font-size: 0.95rem;
+            color: #444;
+            margin-bottom: 22px;
+            text-align: center;
+        }
+        .signup-link {
+            text-decoration: underline;
+            color: #222;
+            cursor: pointer;
+        }
+
+        .login-form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .input-label {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 0.95rem;
+            color: #222;
+            margin-bottom: 4px;
+            margin-left: 2px;
+            text-align: left;
+        }
+        .input-box {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            outline: none;
+            box-sizing: border-box;
+            background: #fff;
+        }
+        .input-box:focus {
+            border-color: #a00;
+        }
+        .password-row {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+        .toggle-password {
+            font-size: 0.95rem;
+            color: #444;
+            margin-left: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .forgot-row {
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+            margin-top: -10px;
+            margin-bottom: 18px;
+        }
+        .forgot-link {
+            font-size: 0.95rem;
+            color: #222;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .login-btn {
+            width: 100%;
+            padding: 10px 0;
+            background: #222;
+            color: #fff;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 22px;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-weight: 500;
+        }
+        .login-btn:hover {
+            background: #a00;
+        }
+        /* --- SIGNUP PAGE LAYOUT --- */
+        .signup-wrapper {
+            display: flex;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+            gap: 60px;
+        }
+        .logo-section {
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-end;
+            padding-top: 60px;
+            padding-left: 60px;
+            min-width: 260px;
+        }
+        .logo-section img {
+            width: 120px;
+            height: auto;
+        }
+        .form-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            max-width: 480px;
+            width: 100%;
+            margin: 0 auto;
+            transform: translateX(-190px); /* Move form 40% more left from previous (-136px) */
+        }
+        .form-section > * {
+            width: 100%;
+            max-width: 400px;
+        }
+        .signup-header {
+            align-self: flex-start;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 32px;
+            color: #222;
+            margin-left: 40px; /* Move heading 10% more to the right */
+        }
+        .name-row {
+            display: flex;
+            gap: 16px;
+            width: 100%;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        .input-label {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 0.95rem;
+            color: #444;
+            font-weight: 500;
+            margin-bottom: 6px;
+            text-align: left;
+        }
+        .input-box, .phone-row {
+            margin-bottom: 18px;
+            font-size: 1rem;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .password-instruction {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 18px;
+            margin-top: -10px;
+            font-weight: 400;
+        }
+        .checkbox-row {
+            margin-bottom: 10px;
+        }
+        .checkbox-row label {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 0.97rem;
+            color: #222;
+            font-weight: 400;
+        }
+        .signup-action-row {
+            display: flex;
+            align-items: center;
+            margin-top: 28px;
+            width: 100%;
+            flex-wrap: nowrap;
+            gap: 16px;
+        }
+        .signup-btn {
+            background: #000;
+            color: #fff;
+            border: none;
+            border-radius: 24px;
+            padding: 10px 28px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-right: 0;
+            transition: background 0.2s;
+            font-family: 'Poppins', Arial, sans-serif;
+            white-space: nowrap;
+            min-width: 110px;
+        }
+        .signup-btn:hover {
+            background: #b71c1c;
+        }
+        .login-link-row {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 0.98rem;
+            color: #222;
+            font-weight: 400;
+            white-space: nowrap;
+        }
+        .login-link-row a {
+            text-decoration: underline;
+            color: #222;
+            cursor: pointer;
+            font-size: 1rem;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-weight: 400;
+            white-space: nowrap;
+        }
+        /* --- END SIGNUP PAGE LAYOUT --- */
+        /* --- SIGNUP PAGE FONT AND FONT SIZE --- */
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .signup-header {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 2rem;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 32px;
+        }
+        .input-label {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 0.95rem;
+            color: #444;
+            font-weight: 500;
+            margin-bottom: 6px;
+            text-align: left;
+        }
+        .input-box, .phone-input {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 1rem;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 18px;
+            background: #fff;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .input-box:focus, .phone-input:focus {
+            border-color: #b71c1c;
+        }
+        .password-instruction {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 18px;
+            margin-top: -10px;
+        }
+        .checkbox-row label {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 0.97rem;
+            color: #222;
+        }
+        .signup-btn {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+        .login-link-row {
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 1rem;
+            color: #222;
+        }
+        .login-link-row a {
+            text-decoration: underline;
+            color: #222;
+            cursor: pointer;
+            font-size: 1rem;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        /* --- END SIGNUP PAGE FONT AND FONT SIZE --- */
+        /* --- PHONE NUMBER DIVIDER --- */
+        .phone-row {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+            height: 44px;
+            position: relative;
+            overflow: hidden;
+        }
+        .phone-prefix {
+            color: #444;
+            font-size: 1rem;
+            pointer-events: none;
+            margin-left: -2px; /* move +63 8% more right from previous -13px */
+            margin-right: 12px;
+            white-space: nowrap;
+            z-index: 2;
+        }
+        .phone-divider {
+            width: 1px;
+            height: 60%;
+            background: #ccc;
+            margin: 0 12px 0 0;
+            display: inline-block;
+            z-index: 2;
+        }
+        .phone-input {
+            border: none;
+            outline: none;
+            font-size: 1rem;
+            background: transparent;
+            flex: 1;
+            letter-spacing: 2px;
+            padding-left: 93px; /* keep previous right adjustment */
+            height: 100%;
+            text-align: left;
+            z-index: 1;
+            position: relative;
+            top: 7px; /* move up by 40% from previous 35px */
+            left: -37px; /* move input 40% left */
+        }
+        .phone-input:focus {
+            border: none;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <!-- ...existing code from product-list.html nav bar... -->
+    <nav class="homepage-header">
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+            <div style="display:flex;align-items:center;gap:26.6px;">
+                <a href="home.html" style="display:flex;align-items:center;gap:26.6px;text-decoration:none;color:inherit;">
+                    <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" style="height:38px;width:auto;cursor:pointer;">
+                    <span class="header-caption" style="font-size:1.18rem;font-weight:600;color:#b71c1c;cursor:pointer;">Shoe Pao Footwear</span>
+                </a>
+                <span class="header-link" onclick="scrollToSection('sale')">Sale</span>
+                <span class="header-link" onclick="scrollToSection('new-arrivals')">New Arrivals</span>
+                <span class="header-link" onclick="scrollToSection('brands')">Brands</span>
+                <span class="header-link" onclick="goToProductList()">Shop All</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:18px;">
+                <button class="header-icon-btn" onclick="toggleSearchBox()" style="background:none;border:none;padding:0;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/SEARCHICON.png" class="header-icon" alt="Search"></button>
+                <button class="header-icon-btn" onclick="goToUserPage()" style="background:none;border:none;padding:0;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/USERICON.png" class="header-icon" alt="User"></button>
+                <button class="header-icon-btn" onclick="goToCartPage()" style="background:none;border:none;padding:0;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/CARTICON.png" class="header-icon" alt="Cart"></button>
+            </div>
+        </div>
+        <div class="search-box" id="searchBox" style="display:none;position:absolute;top:72px;right:80px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px 16px;z-index:101;">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)">
+        </div>
+    </nav>
+    <!-- Main Product Area -->
+    <div class="productview-main">
+        <div class="productview-left">
+            <img src="IMAGE/NIKE1.png" class="productview-thumb" alt="Nike Angle 1">
+            <img src="IMAGE/NIKE1.png" class="productview-thumb" style="transform: scaleX(-1);" alt="Nike Angle 2">
+            <img src="IMAGE/NIKE1BACKV.png" class="productview-thumb" alt="Nike Back View">
+            <img src="IMAGE/NIKE1ANGLEDV.png" class="productview-thumb" alt="Nike Angled View">
+        </div>
+        <div class="productview-center">
+            <img src="IMAGE/NIKE1.png" class="productview-main-img" id="mainShoeImg" alt="Main Shoe">
+            <img src="IMAGE/NIKE1.png" class="productview-main-img" id="mainShoeImgOverlay" alt="Main Shoe Preview" style="position:absolute;opacity:0;pointer-events:none;">
+        </div>
+        <div class="productview-right">
+            <div class="productview-brand" id="productBrand">Nike</div>
+            <div class="productview-title" id="productTitle">Nike P6000 Shadow</div>
+            <div class="productview-price-row">
+                <div class="productview-price-col">
+                    <span class="productview-price" id="productPrice">₱2,395.00</span>
+                    <span class="productview-price-range" id="productPriceRange">From ₱0.00</span>
+                </div>
+                <span class="productview-availability">Availability: <b>In Stock</b></span>
+            </div>
+            <div class="productview-caption">Delivery/shipping calculated at checkout.</div>
+                <div class="productview-color-row" id="colorOptionsRow" style="display:none;align-items:center;">
+                    <span class="productview-color-label">Colors:</span>
+                    <div id="colorOptions" style="display:flex;gap:8px;flex-wrap:wrap;margin-left:8px;"></div>
+                </div>
+                <div class="productview-gender-row" id="genderOptionsRow" style="display:none;align-items:flex-start;margin-top:8px;">
+                    <div style="display:block;">
+                        <span class="productview-color-label" style="white-space:nowrap;">Gender-Fit:</span>
+                    </div>
+                    <div id="genderOptions" style="display:flex;gap:8px;margin-top:8px;align-items:flex-start;flex-wrap:wrap;"></div>
+                </div>
+            <div class="productview-size-label">Select Size</div>
+            <div class="productview-size-row">
+                <div id="sizeButtons" style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <button type="button" class="btn ghost product-size-btn" data-eu="36">36 EU</button>
+                    <button type="button" class="btn ghost product-size-btn" data-eu="37">37 EU</button>
+                    <button type="button" class="btn ghost product-size-btn" data-eu="38">38 EU</button>
+                    <button type="button" class="btn ghost product-size-btn" data-eu="39">39 EU</button>
+                    <button type="button" class="btn ghost product-size-btn" data-eu="40">40 EU</button>
+                    <button type="button" class="btn ghost product-size-btn" data-eu="41">41 EU</button>
+                    <button type="button" class="btn ghost product-size-btn" data-eu="42">42 EU</button>
+                    <button type="button" class="btn ghost product-size-btn" data-eu="43">43 EU</button>
+                    <button type="button" class="btn ghost product-size-btn" data-eu="44">44 EU</button>
+                    <button type="button" class="btn ghost product-size-btn" data-eu="45">45 EU</button>
+                </div>
+            </div>
+            <div class="productview-size-conversion" id="sizeConversion">Select a size to see the US equivalent.</div>
+            <div id="sizeStock" class="productview-size-stock"></div>
+            <div class="productview-action-row">
+                <button class="productview-cart-btn">Add to Cart</button>
+                    <button class="productview-wishlist productview-icon" id="wishlistBtn" title="Add to Wishlist"><img src="IMAGE/WISHLISTICON.png" alt="Wishlist" style="width:54px;height:54px;object-fit:contain;"></button>
+                    <button class="productview-review-icon productview-icon" id="reviewBtn" title="Write a Review" onclick="scrollToReviews()"><img src="IMAGE/REVIEWICON.jpg" alt="Review" style="width:54px;height:54px;object-fit:contain;"></button>
+                <div id="wishlistPopup" class="wishlist-popup">Added to Wishlist!</div>
+            </div>
+            <div class="productview-divider"></div>
+            <div class="productview-desc-label">Description</div>
+            <div class="productview-desc" id="productDesc">
+                Nike P6000 Shadow PHP1399<br>
+                With Free Socks<br>
+                Sizes: 41 42 43 44 45 / 8 8.5 9.5 10 11 US<br>
+                <span style="font-weight:600;">MENS</span>
+            </div>
+            
+        </div>
+    </div>
+    <div class="productview-ar-caption">
+        Virtually try your preferred shoes to see<br>how it looks on you!
+    </div>
+    <button class="productview-ar-btn" onclick="openARModal()">AR Try-On Shoes</button>
+    
+    <div class="productview-reviews-header">Customer Reviews</div>
+    <div class="productview-reviews-row">
+        <div class="productview-reviews-left">
+            <div style="font-size:1.08rem;font-weight:600;color:#222;">★★★★★ 5.00 out of 5</div>
+            <div style="font-size:0.98rem;color:#444;">Based on 1 review <span style="color:#222;font-weight:500;">✔️</span></div>
+            <div style="font-size:1.08rem;color:#222;margin-top:8px;">★★★★★</div>
+            <div style="font-size:0.98rem;color:#444;">L.J.S. <span style="font-size:0.92rem;color:#888;">Verified</span></div>
+        </div>
+        <div class="productview-reviews-divider"></div>
+        <div class="productview-reviews-center">
+            <div style="font-size:1.08rem;color:#222;">★★★★★</div>
+            <div style="width:120px;height:18px;background:#eee;border-radius:8px;overflow:hidden;">
+                <div style="width:100%;height:100%;background:#222;"></div>
+            </div>
+            <div style="font-size:0.98rem;color:#444;">1</div>
+            <div style="font-size:0.98rem;color:#444;">0</div>
+            <div style="font-size:0.98rem;color:#444;">0</div>
+            <div style="font-size:0.98rem;color:#444;">0</div>
+            <div style="font-size:0.98rem;color:#444;">0</div>
+        </div>
+        <div class="productview-reviews-divider"></div>
+        <div class="productview-reviews-right">
+            <button class="productview-review-btn">Write a Review</button>
+        </div>
+    </div>
+    <div class="productview-section-divider"></div>
+    <div class="productview-recommend-header">You may also like</div>
+    <div class="productview-recommend-row">
+        <div class="productview-card">
+            <div class="productview-card-img-box">
+                <img src="IMAGE/NIKE1.png" class="productview-card-img" alt="Nike P6000 Shadow">
+                <span class="productview-card-badge-new">New</span>
+            </div>
+            <div class="productview-card-info-box">
+                <div class="productview-card-info-top">
+                    <span class="productview-card-brand">Nike</span>
+                    <span class="productview-card-price">₱2,395.00</span>
+                </div>
+                <div class="productview-card-info-bottom">Nike P6000 Shadow</div>
+            </div>
+        </div>
+        <div class="productview-card">
+            <div class="productview-card-img-box">
+                <img src="IMAGE/NIKE2.png" class="productview-card-img" alt="Nike Airmax TN Camo">
+                <span class="productview-card-badge-new">New</span>
+            </div>
+            <div class="productview-card-info-box">
+                <div class="productview-card-info-top">
+                    <span class="productview-card-brand">Nike</span>
+                    <span class="productview-card-price">₱2,395.00</span>
+                </div>
+                <div class="productview-card-info-bottom">Nike Airmax TN Camo</div>
+            </div>
+        </div>
+        <div class="productview-card">
+            <div class="productview-card-img-box">
+                <img src="IMAGE/NIKE3.png" class="productview-card-img" alt="Nike GT CUT 2 LEAP HIGH">
+                <span class="productview-card-badge-new">New</span>
+            </div>
+            <div class="productview-card-info-box">
+                <div class="productview-card-info-top">
+                    <span class="productview-card-brand">Nike</span>
+                    <span class="productview-card-price">₱2,395.00</span>
+                </div>
+                <div class="productview-card-info-bottom">Nike GT CUT 2 LEAP HIGH</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- AR Try-On Modal (inside body for proper overlay) -->
+    <div id="arModalOverlay" class="ar-modal-overlay">
+        <div class="ar-modal">
+            <div class="ar-modal-header-row">
+                <span class="ar-modal-title">AR Visual Shoe Try-on</span>
+                <button class="ar-modal-close" onclick="closeARModal()"><img src="IMAGE/X.png" alt="Close"></button>
+            </div>
+            <div class="ar-modal-desc">
+                Experience our <b>Virtual Shoe Try-on</b> using your phone’s camera!<br>
+                See how the shoes look on you in real time before checking out.
+            </div>
+            <div class="ar-modal-divider"></div>
+            <div class="ar-modal-bottom-row">
+                <div class="ar-modal-bottom-col" style="align-items:flex-start;">
+                    <div class="ar-modal-dot-row">
+                        <span class="ar-modal-dot"></span>
+                        <span class="ar-modal-bottom-title">Using a desktop?</span>
+                    </div>
+                    <div class="ar-modal-bottom-desc">Scan the QR code below with your
+phone camera to open the Visual Try
+On page.</div>
+                    <img class="ar-modal-qr" alt="AR Filter QR Code" />
+                </div>
+                <div class="ar-modal-bottom-col" style="align-items:flex-start;">
+                    <div class="ar-modal-dot-row">
+                        <span class="ar-modal-dot"></span>
+                        <span class="ar-modal-bottom-title">Using a Mobile Phone already?</span>
+                    </div>
+                    <div class="ar-modal-bottom-desc">Just click the button to launch the try-on feature instantly.</div>
+                    <button class="ar-modal-mobile-btn" onclick="goToARFilter()">Click here!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== ADDED: Cart Overlay + Sidebar HTML (necessary additions) ===== -->
+    <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
+
+    <aside id="cartSidebar" class="cart-sidebar" aria-hidden="true" role="complementary">
+        <div class="cart-header-row">
+            <div>
+                <span class="cart-header-title">Cart (<span id="cartCount">0</span>)</span>
+            </div>
+            <button id="closeCartBtn" class="cart-close" aria-label="Close cart"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+        </div>
+        <div class="cart-divider"></div>
+
+        <div id="cartItems" class="cart-items">
+            <div class="cart-empty">Your cart is empty</div>
+        </div>
+
+        <div class="cart-divider"></div>
+
+        <div class="cart-subtotal-row">
+            <span class="cart-subtotal-label">Subtotal</span>
+            <span id="cartSubtotal" class="cart-subtotal-value">₱0.00</span>
+        </div>
+
+        <!-- Packaging fee row (will be shown when applicable) -->
+        <div id="cartPackagingRow" class="cart-subtotal-row" style="display:none;">
+            <span class="cart-subtotal-label">Packaging Fee</span>
+            <span id="cartPackagingValue" class="cart-subtotal-value">₱0.00</span>
+        </div>
+
+        <!-- Total row -->
+        <div id="cartTotalRow" class="cart-subtotal-row" style="margin-top:8px;">
+            <span class="cart-subtotal-label">Total</span>
+            <span id="cartTotalValue" class="cart-subtotal-value">₱0.00</span>
+        </div>
+
+        <button id="checkoutBtn" class="cart-checkout-btn">Checkout</button>
+    </aside>
+
+    <!-- Right-side sizing guide (fixed on wide screens) -->
+    <aside id="rightSizingGuide" aria-hidden="false">
+        <div class="sg-title">Sizing Guide</div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+            <div style="flex:1">
+                <div style="font-weight:700;font-size:12px;color:#444;margin-bottom:6px;">Mens</div>
+                <table>
+                    <thead>
+                        <tr><th>EU</th><th>US</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr class="sg-row" data-eu="36"><td>36</td><td>5</td></tr>
+                        <tr class="sg-row" data-eu="37"><td>37</td><td>5.5</td></tr>
+                        <tr class="sg-row" data-eu="38"><td>38</td><td>6.5</td></tr>
+                        <tr class="sg-row" data-eu="39"><td>39</td><td>7</td></tr>
+                        <tr class="sg-row" data-eu="40"><td>40</td><td>7.5</td></tr>
+                        <tr class="sg-row" data-eu="41"><td>41</td><td>8</td></tr>
+                        <tr class="sg-row" data-eu="42"><td>42</td><td>8.5</td></tr>
+                        <tr class="sg-row" data-eu="43"><td>43</td><td>9.5</td></tr>
+                        <tr class="sg-row" data-eu="44"><td>44</td><td>10</td></tr>
+                        <tr class="sg-row" data-eu="45"><td>45</td><td>11</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div style="flex:1">
+                <div style="font-weight:700;font-size:12px;color:#444;margin-bottom:6px;">Womens</div>
+                <table>
+                    <thead>
+                        <tr><th>EU</th><th>US</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr class="sg-row" data-eu="36"><td>36</td><td>6</td></tr>
+                        <tr class="sg-row" data-eu="37"><td>37</td><td>6.5</td></tr>
+                        <tr class="sg-row" data-eu="38"><td>38</td><td>7.5</td></tr>
+                        <tr class="sg-row" data-eu="39"><td>39</td><td>8</td></tr>
+                        <tr class="sg-row" data-eu="40"><td>40</td><td>8.5</td></tr>
+                        <tr class="sg-row" data-eu="41"><td>41</td><td>9</td></tr>
+                        <tr class="sg-row" data-eu="42"><td>42</td><td>9.5</td></tr>
+                        <tr class="sg-row" data-eu="43"><td>43</td><td>10.5</td></tr>
+                        <tr class="sg-row" data-eu="44"><td>44</td><td>11</td></tr>
+                        <tr class="sg-row" data-eu="45"><td>45</td><td>12</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div style="font-size:11px;color:#666;margin-top:8px;">Note: Women's sizes are approximate conversions and may vary by brand.</div>
+    </aside>
+
+    <!-- QR generator: include local generator and fallback rendering so QR always appears offline -->
+    <script src="js/qrcode-generator.js"></script>
+    <script>
+    (function(){
+        // Attempt to render a local QR code into the image element. If generation fails,
+        // fall back to the external QR API URL (best-effort).
+        var img = document.querySelector('.ar-modal-qr');
+        var payload = 'ar-filter.html';
+        function setExternal(){ img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(payload); }
+        try{
+            if(typeof generatePaymentQRCodeDataUrl === 'function'){
+                var data = generatePaymentQRCodeDataUrl(payload, 120);
+                if(data && data.indexOf('data:image') === 0){ img.src = data; }
+                else setExternal();
+            } else {
+                // generator not available yet — try to load after a short delay
+                setTimeout(function(){ try{ var data = (typeof generatePaymentQRCodeDataUrl === 'function') ? generatePaymentQRCodeDataUrl(payload,120) : ''; if(data) img.src = data; else setExternal(); }catch(e){ setExternal(); } }, 50);
+            }
+        }catch(e){ setExternal(); }
+    })();
+    </script>
+
+    <script>
+    // Wishlist logic
+    function showWishlistPopup(msg) {
+        var popup = document.getElementById('wishlistPopup');
+        popup.textContent = msg || 'Added to Wishlist!';
+        popup.classList.add('show');
+        setTimeout(function(){ popup.classList.remove('show'); }, 1800);
+    }
+    function getProductDataForWishlist() {
+        // You may want to adjust these selectors/logic to match your actual product data structure
+        var img = document.querySelector('.productview-main-img')?.src || 'IMAGE/NIKE1.png';
+        var brand = document.querySelector('.productview-brand')?.textContent?.trim() || 'Nike';
+        var title = document.querySelector('.productview-title')?.textContent?.trim() || 'Product';
+        var price = document.querySelector('.productview-price')?.textContent?.trim() || '₱0.00';
+        var sale = !!document.querySelector('.productview-price-old');
+        return { image: img, brand: brand, title: title, price: price, sale: sale };
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        var wishlistBtn = document.getElementById('wishlistBtn');
+        if (wishlistBtn) {
+            wishlistBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var product = getProductDataForWishlist();
+                var wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]');
+                // Prevent duplicates by title+brand
+                if (!wishlist.some(function(item){ return item.title === product.title && item.brand === product.brand; })) {
+                    wishlist.push(product);
+                    localStorage.setItem('wishlist', JSON.stringify(wishlist));
+                    showWishlistPopup('Added to Wishlist!');
+                    // If Firebase is available, also persist wishlist to the user's Firestore document
+                    try{
+                        ensureFirebaseReady(function(err){
+                            if(err) return; // firebase not configured or failed to load
+                            try{
+                                var user = firebase.auth().currentUser;
+                                if(!user) return;
+                                var db = firebase.firestore();
+                                db.doc('users/' + user.uid).set({ wishlist: firebase.firestore.FieldValue.arrayUnion(product) }, { merge: true }).catch(function(e){ console.warn('wishlist save failed', e); });
+                            }catch(e){ console.warn('wishlist firebase error', e); }
+                        });
+                    }catch(e){}
+                } else {
+                    showWishlistPopup('Already in Wishlist!');
+                }
+            });
+        }
+    });
+
+    // Ensure Firebase SDKs are loaded and initialized (if FIREBASE_CONFIG is present)
+    function ensureFirebaseReady(cb){
+        try{
+            if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('no firebase config')); return; }
+            var ready = function(){ try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }catch(e){ if(cb) cb(e); } };
+            if(window.firebase && firebase.firestore && firebase.auth){ ready(); return; }
+            // load compat libs sequentially
+            var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+            var scripts = [base + 'firebase-app-compat.js', base + 'firebase-auth-compat.js', base + 'firebase-firestore-compat.js'];
+            var i = 0;
+            function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+            loadNext();
+        }catch(e){ if(cb) cb(e); }
+    }
+    // AR Modal functions
+    function openARModal() {
+        console.log('openARModal called');
+        var overlay = document.getElementById('arModalOverlay');
+        // set display with important to override possible external !important rules
+        overlay.style.setProperty('display', 'flex', 'important');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeARModal() {
+        var overlay = document.getElementById('arModalOverlay');
+        overlay.style.setProperty('display', 'none', 'important');
+        document.body.style.overflow = '';
+        // stop any running AR session if available
+        try { if (window.stopARSession && typeof window.stopARSession === 'function') window.stopARSession(); } catch (e) { console.error(e); }
+    }
+    function goToARFilter() {
+        // Open the AR modal and attempt to start the AR session using product-specific AR settings when available.
+        openARModal();
+        try {
+            // Try to discover per-product AR settings. Support several embedding strategies:
+            // 1) window.PRODUCT_DATA = { ar: { enabled, groupId, apiToken, lensId } }
+            // 2) an element with id="product" and data-ar-* attributes
+            var ar = null;
+            try { if (window.PRODUCT_DATA && window.PRODUCT_DATA.ar) ar = window.PRODUCT_DATA.ar; } catch(e){}
+            try {
+                if (!ar) {
+                    var pel = document.getElementById('product');
+                    if (pel && pel.dataset) {
+                        if (pel.dataset.arEnabled === 'true' || pel.dataset.arEnabled === '1') ar = ar || {};
+                        if (pel.dataset.arGroup) ar = ar || {};
+                        if (pel.dataset.arToken) ar = ar || {};
+                        if (ar) {
+                            ar.enabled = ar.enabled || (pel.dataset.arEnabled === 'true' || pel.dataset.arEnabled === '1');
+                            ar.groupId = ar.groupId || pel.dataset.arGroup || pel.dataset.argroup;
+                            ar.apiToken = ar.apiToken || pel.dataset.arToken || pel.dataset.artoken;
+                            ar.lensId = ar.lensId || pel.dataset.arLens;
+                        }
+                    }
+                }
+            } catch(e){}
+
+            // As a last resort, check meta tags
+            try {
+                if (!ar) {
+                    var mg = document.querySelector('meta[name="product-ar-group"]');
+                    var mt = document.querySelector('meta[name="product-ar-token"]');
+                    if (mg && (mg.content || '').trim()) { ar = ar || {}; ar.groupId = mg.content.trim(); }
+                    if (mt && (mt.content || '').trim()) { ar = ar || {}; ar.apiToken = mt.content.trim(); }
+                }
+            } catch(e){}
+
+            // If AR is enabled for this product, prefer product settings
+            if (ar && (ar.enabled === true || ar.enabled === 'true')) {
+                // store to localStorage for ar-filter fallback and also pass to startARSession if available
+                try { if (ar.groupId) localStorage.setItem('productARGroupId', ar.groupId); if (ar.apiToken) localStorage.setItem('productARToken', ar.apiToken); } catch(e){}
+                if (window.startARSession && typeof window.startARSession === 'function') {
+                    window.startARSession(null, { cameraType: 'front', mirror: true, apiToken: ar.apiToken, groupId: ar.groupId, lensId: ar.lensId }).catch(function(err){
+                        console.error('startARSession failed', err);
+                        window.location.href = 'ar-filter.html';
+                    });
+                    return;
+                }
+            }
+            // If no per-product AR or startARSession not present, attempt to start with defaults
+            if (window.startARSession && typeof window.startARSession === 'function') {
+                window.startARSession(null, { cameraType: 'front', mirror: true }).catch(function(err){
+                    console.error('startARSession failed', err);
+                    window.location.href = 'ar-filter.html';
+                });
+                return;
+            }
+        } catch (e) { console.error(e); }
+        // fallback behavior: navigate to ar-filter page
+        window.location.href = 'ar-filter.html';
+    }
+    // Navigation bar functions
+    function scrollToSection(sectionId) {
+        window.location.href = 'home.html#' + sectionId;
+    }
+    function goToProductList() {
+        window.location.href = 'product-list.html';
+    }
+    function goToUserPage() {
+    try{ var p = JSON.parse(sessionStorage.getItem('profile')||localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
+    }
+    function goToCartPage() {
+        window.location.href = 'cart.html';
+    }
+    function toggleSearchBox() {
+        var box = document.getElementById('searchBox');
+        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+        if (box.style.display === 'block') {
+            document.getElementById('searchInput').focus();
+        }
+    }
+    
+    // Smooth-scroll down to the reviews header on the product page
+    function scrollToReviews() {
+        try {
+            var el = document.querySelector('.productview-reviews-header');
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // attempt to focus for accessibility
+                try { el.setAttribute('tabindex', '-1'); el.focus(); } catch(e){}
+                return;
+            }
+            // fallback to reviews row
+            var alt = document.querySelector('.productview-reviews-row');
+            if (alt) alt.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (e) {
+            // no-op
+        }
+    }
+    // no nav sizing guide handlers (sizing guide moved inline)
+    function searchKeyDown(e) {
+        if (e.key === 'Enter') {
+            window.location.href = 'product-list.html?search=' + encodeURIComponent(e.target.value);
+        }
+    }
+    // Size selection (works for select element or fallback elements)
+    function selectSize(el) {
+        try {
+            var eu = null;
+            // if a select was passed
+            if (el && el.tagName && el.tagName.toLowerCase() === 'select') {
+                eu = el.value || null;
+            } else if (el && (el.textContent || el.innerText)) {
+                var txt = (el.textContent || el.innerText || '').trim();
+                var m = txt.match(/\d+(?:\.\d+)?/);
+                eu = m ? m[0] : null;
+            }
+
+            var conv = {
+                '36': '5',
+                '37': '5.5',
+                '38': '6.5',
+                '39': '7',
+                '40': '7.5',
+                '41': '8',
+                '42': '8.5',
+                '43': '9.5',
+                '44': '10',
+                '45': '11'
+            };
+
+            var elConv = document.getElementById('sizeConversion');
+            var elStock = document.getElementById('sizeStock');
+
+            if (elConv) {
+                if (eu && conv[eu]) {
+                    elConv.innerHTML = 'EU <b>' + eu + '</b> = US <b>' + conv[eu] + '</b>';
+                } else if (eu) {
+                    elConv.textContent = 'EU ' + eu + ' — US size not available';
+                } else {
+                    elConv.textContent = 'Select a size to see the US equivalent.';
+                }
+            }
+
+            // Lookup inventory for available quantity for this product and size
+            if (elStock) {
+                try {
+                    var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                    var title = (localStorage.getItem('productTitle') || (document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim();
+                    var brand = (localStorage.getItem('productBrand') || (document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim();
+                    var found = null;
+                    if (Array.isArray(inv) && inv.length) {
+                        // try exact name match first
+                        found = inv.find(function(i){ return (i.name||'').toString().trim() === title; });
+                        if(!found) {
+                            // try contains title
+                            found = inv.find(function(i){ return title && (i.name||'').toString().toLowerCase().indexOf(title.toLowerCase()) !== -1; });
+                        }
+                        if(!found && brand) {
+                            // fallback: match brand
+                            found = inv.find(function(i){ return (i.brand||'').toString().toLowerCase() === brand.toLowerCase(); });
+                        }
+                        // Additional fallback: try fuzzy/base-model match in case published row names differ by color/formatting.
+                        if(!found && title) {
+                            try{
+                                var normalize = function(s){ return (s||'').toString().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); };
+                                var tNorm = normalize(title);
+                                for(var ii=0; ii<inv.length && !found; ii++){
+                                    var rn = (inv[ii].name||'').toString();
+                                    var rNorm = normalize(rn);
+                                    if(!rNorm) continue;
+                                    // if either name contains the other, treat as match
+                                    if(rNorm.indexOf(tNorm) !== -1 || tNorm.indexOf(rNorm) !== -1){ found = inv[ii]; break; }
+                                }
+                            }catch(_){ }
+                        }
+                    }
+
+                        if (found && eu) {
+                        var qty = (found.sizes && (found.sizes[eu] !== undefined)) ? Number(found.sizes[eu]) : null;
+                        var addBtnEl = document.querySelector('.productview-cart-btn');
+                        if (qty === null) {
+                            elStock.textContent = 'Stock: not available for this size';
+                            if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; addBtnEl.textContent = 'Add to Cart'; addBtnEl.dataset.preorder = '0'; }
+                            elStock.style.color = '';
+                        } else if (qty <= 0) {
+                            // Out of stock: allow pre-order
+                            elStock.textContent = 'Out of stock — available for pre-order';
+                            elStock.style.color = '#b71c1c';
+                            if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; addBtnEl.textContent = 'Pre-Order'; addBtnEl.dataset.preorder = '1'; }
+                        } else {
+                            // available > 0: determine low-stock threshold. Prefer per-row criticalLevel (published by admin),
+                            // otherwise fall back to default threshold (6) to preserve previous behavior.
+                            var threshold = 6;
+                            try {
+                                if (found && (found.criticalLevel !== undefined && found.criticalLevel !== null)) {
+                                    var parsed = Number(found.criticalLevel);
+                                    if (isFinite(parsed) && parsed > 0) threshold = Math.max(1, Math.floor(parsed));
+                                }
+                            } catch (_) { /* ignore parsing errors and use default */ }
+                            // Coerce to numbers and treat qty <= threshold as low stock (so threshold is inclusive)
+                            var qnum = Number(qty);
+                            var tnum = Number(threshold);
+                            if (!isFinite(qnum)) {
+                                elStock.textContent = 'Stock: ' + qty + ' available';
+                                elStock.style.color = '';
+                            } else if (qnum <= tnum) {
+                                // show numeric stock and a red LOW STOCK! marker without replacing the count
+                                elStock.innerHTML = 'Stock: ' + qty + ' available <span style="color:#b71c1c;font-weight:700;margin-left:8px;">LOW STOCK!</span>';
+                                elStock.style.color = '';
+                            } else {
+                                elStock.textContent = 'Stock: ' + qty + ' available';
+                                elStock.style.color = '';
+                            }
+                            if(addBtnEl) { addBtnEl.disabled = false; addBtnEl.style.opacity = ''; addBtnEl.textContent = 'Add to Cart'; addBtnEl.dataset.preorder = '0'; }
+                        }
+                    } else if (!eu) {
+                        elStock.textContent = '';
+                    } else {
+                        elStock.textContent = 'Stock: inventory data not found';
+                    }
+                } catch (e) {
+                    elStock.textContent = '';
+                }
+            }
+
+            // Highlight matching size row(s) in the right-side sizing guide (if present)
+            try {
+                // clear previous selection
+                document.querySelectorAll('#rightSizingGuide .sg-selected').forEach(function(r){ r.classList.remove('sg-selected'); });
+                if (eu) {
+                    document.querySelectorAll('#rightSizingGuide .sg-row[data-eu="' + eu + '"]').forEach(function(r){ r.classList.add('sg-selected'); });
+                }
+            } catch (xx) {
+                // ignore
+            }
+
+        } catch (e) {
+            // silent
+        }
+    }
+
+    // Update the size buttons' enabled/disabled state based on inventory for this product
+    function updateSizeButtons(){
+        try{
+            var btns = document.querySelectorAll('#sizeButtons .product-size-btn');
+            if(!btns || !btns.length) return;
+            var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+            var title = (localStorage.getItem('productTitle') || (document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim();
+            var brand = (localStorage.getItem('productBrand') || (document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim();
+            var found = null;
+            if (Array.isArray(inv) && inv.length) {
+                found = inv.find(function(i){ return (i.name||'').toString().trim() === title; });
+                if(!found){ found = inv.find(function(i){ return title && (i.name||'').toString().toLowerCase().indexOf(title.toLowerCase()) !== -1; }); }
+                if(!found && brand){ found = inv.find(function(i){ return (i.brand||'').toString().toLowerCase() === brand.toLowerCase(); }); }
+            }
+            btns.forEach(function(b){
+                try{
+                    var eu = b.getAttribute('data-eu');
+                    var qty = (found && found.sizes && (found.sizes[eu] !== undefined)) ? Number(found.sizes[eu]) : null;
+                            // clear previous state classes; preserve only out-of-stock marker
+                            b.classList.remove('oos');
+                            if(qty === null){
+                                b.disabled = false;
+                            } else if(qty <= 0){
+                                b.disabled = true;
+                                b.classList.add('oos');
+                            } else {
+                                // available: keep button enabled and visually neutral (black/white)
+                                b.disabled = false;
+                                // do not add 'low-stock' visual class on the button; low-stock is shown in the stocks line
+                            }
+                }catch(ee){}
+            });
+        }catch(e){}
+    }
+
+    // Load product data from localStorage
+    window.addEventListener('DOMContentLoaded', function() {
+        // If navigated from grouped model, prefer modelData
+        var modelData = null;
+        try{ modelData = JSON.parse(localStorage.getItem('modelData')||'null'); }catch(e){ modelData = null; }
+
+        var brand = localStorage.getItem('productBrand');
+        var title = localStorage.getItem('productTitle');
+        var price = localStorage.getItem('productPrice');
+        var img = localStorage.getItem('productImg');
+        var badge = localStorage.getItem('productBadge');
+        if (brand) document.getElementById('productBrand').textContent = brand;
+        if (title) document.getElementById('productTitle').textContent = title;
+        if (price) document.getElementById('productPrice').textContent = price;
+        var mainImgEl = document.getElementById('mainShoeImg');
+        if (img) mainImgEl.src = img;
+
+        // Color variants rendering (grouped model)
+        (function(){
+            if(!modelData || !modelData.variants || !modelData.variants.length) return;
+            var colorRow = document.getElementById('colorOptionsRow');
+            var colorWrap = document.getElementById('colorOptions');
+            var genderWrap = document.getElementById('genderOptions');
+            var genderRow = document.getElementById('genderOptionsRow');
+            var centerEl = document.querySelector('.productview-center');
+            if(!colorRow || !colorWrap) return;
+            colorRow.style.display = '';
+            if(genderRow) genderRow.style.display = '';
+            var selectedIndex = 0;
+
+            // Build gender selector buttons from modelData variants' gender-fit
+            try{
+                if(genderWrap){
+                    genderWrap.innerHTML = '';
+                    // collect normalized gender tokens
+                    var gset = new Set();
+                    modelData.variants.forEach(function(v){
+                        try{
+                            var raw = v && v.gender ? v.gender : '';
+                            var parts = [];
+                            if(Array.isArray(raw)) parts = raw.map(function(x){ return (x||'').toString().trim(); }).filter(Boolean);
+                            else {
+                                parts = (raw||'').toString().split(/[,\/|;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+                                if(parts.length === 0){
+                                    var s = (raw||'').toString();
+                                    if(/men/i.test(s)) parts.push('Men');
+                                    if(/women/i.test(s)) parts.push('Women');
+                                    if(/unisex/i.test(s)) parts.push('Unisex');
+                                }
+                            }
+                            parts.forEach(function(p){ if(p){
+                                // canonicalize common tokens
+                                if(/^m(en)?$/i.test(p)) gset.add('Men');
+                                else if(/^w(omen)?$/i.test(p)) gset.add('Women');
+                                else if(/unisex/i.test(p)) gset.add('Unisex');
+                                else gset.add(p);
+                            }});
+                        }catch(_){ }
+                    });
+                    var order = ['Men','Women','Unisex'];
+                    var present = order.filter(function(o){ return gset.has(o); }).concat(Array.from(gset).filter(function(x){ return order.indexOf(x)===-1; }));
+                    // create buttons
+                    present.forEach(function(g){
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'btn ghost product-size-btn gender-btn';
+                        btn.setAttribute('data-gender', g);
+                        btn.textContent = g;
+                        btn.addEventListener('click', function(e){
+                            try{
+                                genderWrap.querySelectorAll('[data-gender]').forEach(function(n){ n.classList.remove('primary'); n.classList.add('ghost'); });
+                                btn.classList.remove('ghost'); btn.classList.add('primary');
+                                // store selection for later (not persisted)
+                                genderWrap.setAttribute('data-selected-gender', g);
+                            }catch(_){}
+                        });
+                        genderWrap.appendChild(btn);
+                    });
+                    // Align gender buttons with the first row of size buttons and add extra spacing
+                    try{
+                        var alignGenderBtns = function(){
+                            var genderOpts = document.getElementById('genderOptions');
+                            var genderRowEl = document.getElementById('genderOptionsRow');
+                            if(!genderOpts || !genderRowEl) return;
+                            try{
+                                // keep label unwrapped and ensure buttons sit directly under the label's left edge
+                                requestAnimationFrame(function(){
+                                    try{
+                                        var captionEl = genderRowEl.querySelector('.productview-color-label');
+                                        if(captionEl){ captionEl.style.whiteSpace = 'nowrap'; captionEl.style.display = 'block'; }
+                                        genderOpts.style.marginLeft = '0px';
+                                        genderOpts.style.marginTop = '8px';
+                                    }catch(_){ }
+                                });
+                            }catch(_){ }
+                        };
+                        // run now and shortly after to account for fonts/images; also on resize
+                        alignGenderBtns();
+                        setTimeout(alignGenderBtns, 120);
+                        window.addEventListener('resize', function(){ setTimeout(alignGenderBtns,60); });
+                    }catch(_){ }
+                    // ensure one button is primary by default (will be overridden by applyVariant when variant has explicit gender)
+                    try{
+                        var anyPrimary = genderWrap.querySelector('[data-gender].primary');
+                        if(!anyPrimary){
+                            var firstBtn = genderWrap.querySelector('[data-gender]');
+                            if(firstBtn){ firstBtn.classList.remove('ghost'); firstBtn.classList.add('primary'); genderWrap.setAttribute('data-selected-gender', firstBtn.getAttribute('data-gender')||''); }
+                        }
+                    }catch(_){ }
+                }
+            }catch(e){}
+
+            function formatPrice(n){ return 'P' + Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2}); }
+            function applyVariant(variant){
+                try{
+                    // Update legacy keys so stock/size helpers work
+                    localStorage.setItem('productBrand', modelData.brand||'');
+                    localStorage.setItem('productTitle', variant.name || ((modelData.baseName||'') + (variant.color?(' '+variant.color):'')) );
+                    localStorage.setItem('productPrice', formatPrice(variant.price||0));
+                    localStorage.setItem('productImg', variant.image || '');
+                }catch(e){}
+                // Update UI
+                var bEl = document.getElementById('productBrand'); if(bEl) bEl.textContent = modelData.brand||'';
+                var tEl = document.getElementById('productTitle'); if(tEl) tEl.textContent = localStorage.getItem('productTitle')||variant.name||'';
+                var pEl = document.getElementById('productPrice'); if(pEl) pEl.textContent = formatPrice(variant.price||0);
+                if(variant.image){ setMainImageSrc(variant.image); }
+                // update thumbnails to use same image for now
+                document.querySelectorAll('.productview-thumb').forEach(function(th){ th.src = variant.image || th.src; });
+                // flip for Nike
+                try {
+                    var mEl = document.getElementById('mainShoeImg');
+                    var mOv = document.getElementById('mainShoeImgOverlay');
+                    if ((modelData.brand||'').toLowerCase().indexOf('nike')!==-1) {
+                        if(mEl) mEl.style.transform = 'scaleX(-1)';
+                        if(mOv) mOv.style.transform = 'scaleX(-1)';
+                        document.querySelectorAll('.productview-thumb').forEach(function(t){ t.style.transform = 'scaleX(-1)'; t.style.transformOrigin = 'center'; });
+                    } else {
+                        if(mEl) mEl.style.transform = '';
+                        if(mOv) mOv.style.transform = '';
+                        document.querySelectorAll('.productview-thumb').forEach(function(t){ t.style.transform = ''; });
+                    }
+                }catch(e){}
+                // Reset size selection and refresh availability for this variant
+                try{
+                    document.querySelectorAll('#sizeButtons .product-size-btn').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); });
+                }catch(_){ }
+                // If gender buttons exist, set the active gender to this variant's gender if present
+                try{
+                    if(genderWrap && variant && variant.gender){
+                        var raw = (variant.gender||'').toString();
+                        var parts = raw.split(/[,\/|;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+                        if(parts.length === 0) parts = [raw];
+                        var found = null;
+                        var nodes = Array.from(genderWrap.querySelectorAll('[data-gender]'));
+                        for(var pI=0;pI<parts.length && !found;pI++){
+                            var p = parts[pI];
+                            for(var i=0;i<nodes.length;i++){
+                                if((nodes[i].getAttribute('data-gender')||'').toString().toLowerCase() === p.toLowerCase()) { found = nodes[i]; break; }
+                            }
+                        }
+                        // clear previous selection
+                        genderWrap.querySelectorAll('[data-gender]').forEach(function(gb){ gb.classList.remove('primary'); gb.classList.add('ghost'); });
+                        if(found){ found.classList.remove('ghost'); found.classList.add('primary'); }
+                    }
+                }catch(e){}
+                updateSizeButtons();
+                var sel = document.querySelector('#sizeButtons .product-size-btn.primary');
+                if(sel) selectSize(sel); else { var stockEl = document.getElementById('sizeStock'); if(stockEl) stockEl.textContent=''; var convEl=document.getElementById('sizeConversion'); if(convEl) convEl.textContent='Select a size to see the US equivalent.'; }
+            }
+            function setMainImageSrc(src){
+                try{
+                    var base = document.getElementById('mainShoeImg');
+                    var over = document.getElementById('mainShoeImgOverlay');
+                    if(!base || !over){ if(base){ base.src = src; } return; }
+                    over.style.transition = 'none'; over.style.opacity = '0'; over.src = src;
+                    over.onload = function(){
+                        over.onload = null;
+                        requestAnimationFrame(function(){ over.style.transition = 'opacity 0.35s ease'; over.style.opacity = '1'; });
+                        setTimeout(function(){ base.src = src; over.style.opacity = '0'; }, 420);
+                    };
+                }catch(_){}
+            }
+
+            // Show price range (From ₱...) if variants have different prices
+            try{
+                var prices = modelData.variants.map(function(v){ return Number(v.price||0); });
+                var minP = Math.min.apply(null, prices);
+                var maxP = Math.max.apply(null, prices);
+                var pr = document.getElementById('productPriceRange');
+                if(pr){
+                    if(isFinite(minP) && isFinite(maxP) && minP !== maxP){ pr.style.display = 'inline'; pr.textContent = 'From ' + formatPrice(minP); }
+                    else { pr.style.display = 'none'; }
+                }
+            }catch(e){}
+
+            // Build swatches with color name
+            colorWrap.innerHTML = '';
+            modelData.variants.forEach(function(v, idx){
+                var item = document.createElement('div'); item.className = 'productview-color-item';
+                var sw = document.createElement('button');
+                sw.type = 'button';
+                sw.className = 'productview-color-swatch';
+                sw.title = v.color || v.name || 'Color';
+                var imgEl = document.createElement('img'); imgEl.alt = v.color||'color'; imgEl.src = v.image || 'IMAGE/NIKE1.png';
+                sw.appendChild(imgEl);
+                sw.addEventListener('click', function(){
+                    // set selected state
+                    document.querySelectorAll('.productview-color-swatch').forEach(function(x){ x.classList.remove('selected'); });
+                    sw.classList.add('selected');
+                    selectedIndex = idx;
+                    applyVariant(v);
+                });
+                // pause shuffle and preview on swatch hover
+                sw.addEventListener('mouseenter', function(){ stopVariantShuffle(); setMainImageSrc(v.image || imgEl.src); });
+                sw.addEventListener('mouseleave', function(){ if((centerEl && centerEl.matches(':hover')) || colorRow.matches(':hover')) startVariantShuffle(); else stopVariantShuffle(); });
+                var lbl = document.createElement('div'); lbl.className = 'productview-color-name'; lbl.textContent = v.color || (function(){ var nm = (v.name||'').toString(); var col=(v.color||'').toString(); try{ if(col){ var esc = col.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); var re = new RegExp('\\s*' + esc + '\\s*$', 'i'); return nm.replace(re,'').trim(); } }catch(_){} return nm; })();
+                item.appendChild(sw);
+                item.appendChild(lbl);
+                colorWrap.appendChild(item);
+                if(idx === 0){ sw.classList.add('selected'); }
+            });
+
+            // Initialize with first variant
+            applyVariant(modelData.variants[0]);
+
+            // Variant image shuffle on hover of main image or color row
+            var shuffleTimer = null; var shuffleIdx = 0;
+            function startVariantShuffle(){
+                if(shuffleTimer) return;
+                if(!modelData.variants || modelData.variants.length <= 1) return;
+                shuffleIdx = Math.max(0, selectedIndex);
+                shuffleTimer = setInterval(function(){
+                    shuffleIdx = (shuffleIdx + 1) % modelData.variants.length;
+                    var vv = modelData.variants[shuffleIdx];
+                    setMainImageSrc(vv.image || '');
+                }, 1200);
+            }
+            function stopVariantShuffle(){ if(shuffleTimer){ clearInterval(shuffleTimer); shuffleTimer = null; } try{ var vv = modelData.variants[selectedIndex]; setMainImageSrc((vv && vv.image) ? vv.image : (document.getElementById('mainShoeImg')||{}).src); }catch(_){} }
+            if(centerEl){ centerEl.addEventListener('mouseenter', startVariantShuffle); centerEl.addEventListener('mouseleave', stopVariantShuffle); }
+            colorRow.addEventListener('mouseenter', startVariantShuffle);
+            colorRow.addEventListener('mouseleave', stopVariantShuffle);
+        })();
+        // wire up size buttons to behave like the edit modal size buttons
+            try{
+            var sizeButtons = document.querySelectorAll('#sizeButtons .product-size-btn');
+            sizeButtons.forEach(function(b){
+                b.addEventListener('click', function(){
+                    if(b.disabled) return; // respect disabled state
+                    // remove primary from all buttons but preserve other state classes (low-stock/oos)
+                    sizeButtons.forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); });
+                    // mark this as primary and remove ghost
+                    b.classList.remove('ghost');
+                    b.classList.add('primary');
+                    // run existing select logic
+                    selectSize(b);
+                });
+            });
+            // initialize availability and pre-selection
+            updateSizeButtons();
+            var sel = document.querySelector('#sizeButtons .product-size-btn.primary');
+            if(!sel){ /* no-op */ } else { selectSize(sel); }
+        }catch(e){}
+        // If no grouped model (fallback), keep existing Nike flip behavior
+        if(!modelData){
+            try {
+                if (brand && brand.toString().toLowerCase().indexOf('nike') !== -1) {
+                    mainImgEl.style.transform = 'scaleX(-1)';
+                    document.querySelectorAll('.productview-thumb').forEach(function(t){ t.style.transform = 'scaleX(-1)'; t.style.transformOrigin = 'center'; });
+                } else {
+                    mainImgEl.style.transform = '';
+                    document.querySelectorAll('.productview-thumb').forEach(function(t){ t.style.transform = ''; });
+                }
+            } catch (e) { /* ignore */ }
+        }
+        // Optionally update badge
+        // Description
+        if (title && !modelData) {
+            document.getElementById('productDesc').innerHTML = title + '<br>With Free Socks<br>Sizes: 41 42 43 44 45 / 8 8.5 9.5 10 11 US<br><span style="font-weight:600;">MENS</span>';
+        }
+    });
+    // If page is opened with ?openAR=1 instruct the page to open the AR modal automatically
+    (function(){
+        try{
+            var params = new URLSearchParams(window.location.search);
+            if(params.get('openAR') === '1'){
+                // Defer to allow the DOM to fully initialize
+                setTimeout(function(){ try{ openARModal(); }catch(e){} }, 250);
+            }
+        }catch(e){}
+    })();
+    // If inventory is changed in another tab or by admin, refresh displayed stock for selected size
+    window.addEventListener('storage', function(e){
+        try {
+            if (e.key === 'inventory') {
+                // refresh size buttons availability and re-run select logic for current selection
+                updateSizeButtons();
+                var btn = document.querySelector('#sizeButtons .product-size-btn.primary');
+                if (btn) selectSize(btn);
+            }
+        } catch (ex) { }
+    });
+    </script>
+
+    <!-- ===== ADDED: Cart Sidebar Behavior (necessary additions) ===== -->
+    <script>
+    (function(){
+        // cart data structure
+        let cart = window.getCart ? window.getCart() : [];
+
+        // helpers
+        function parsePriceToNumber(priceText) {
+            if (!priceText) return 0;
+            // remove any non-digit/period characters (also removes comma, currency symbol)
+            var v = priceText.replace(/[^0-9.]/g, '');
+            return parseFloat(v || 0);
+        }
+        function formatPHP(amount) {
+            try {
+                return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+            } catch (e) {
+                // fallback
+                return '₱' + Number(amount).toFixed(2);
+            }
+        }
+        function saveCartToLocalStorage() {
+            localStorage.setItem('cart', JSON.stringify(cart));
+        }
+
+        // DOM refs
+        const cartOverlay = document.getElementById('cartOverlay');
+        const cartSidebar = document.getElementById('cartSidebar');
+        const cartItemsContainer = document.getElementById('cartItems');
+        const cartCountEl = document.getElementById('cartCount');
+        const cartSubtotalEl = document.getElementById('cartSubtotal');
+        const closeCartBtn = document.getElementById('closeCartBtn');
+        const checkoutBtn = document.getElementById('checkoutBtn');
+
+        // find nav cart button (the one with image alt="Cart")
+        function getNavCartButton() {
+            const img = document.querySelector('img[alt="Cart"]');
+            if (!img) return null;
+            return img.closest('button');
+        }
+
+        function openCartSidebar() {
+            cartOverlay.classList.add('show');
+            cartSidebar.classList.add('open');
+            document.body.style.overflow = 'hidden';
+            cartSidebar.setAttribute('aria-hidden', 'false');
+            cartOverlay.setAttribute('aria-hidden', 'false');
+        }
+        function closeCartSidebar() {
+            cartOverlay.classList.remove('show');
+            cartSidebar.classList.remove('open');
+            document.body.style.overflow = '';
+            cartSidebar.setAttribute('aria-hidden', 'true');
+            cartOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function renderCart() {
+            // Always reload cart from storage before rendering
+            cart = window.getCart ? window.getCart() : [];
+            cartItemsContainer.innerHTML = '';
+            if (cart.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'cart-empty';
+                empty.textContent = 'Your cart is empty';
+                cartItemsContainer.appendChild(empty);
+                cartCountEl.textContent = 0;
+                cartSubtotalEl.textContent = formatPHP(0);
+                saveCartToLocalStorage();
+                return;
+            }
+
+            // compute subtotal and total qty
+            let subtotal = 0;
+            let totalQty = 0;
+
+            cart.forEach((item, index) => {
+                const qty = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
+                subtotal += item.price * qty;
+                totalQty += qty;
+
+                const box = document.createElement('div');
+                box.className = 'cart-item-box';
+
+                // left image
+                const img = document.createElement('img');
+                img.className = 'cart-item-img';
+                img.src = item.image || 'IMAGE/NIKE1.png';
+                img.alt = item.title || 'Product';
+
+                // middle
+                const middle = document.createElement('div');
+                middle.className = 'cart-item-middle';
+                const title = document.createElement('div');
+                title.className = 'cart-item-title';
+                title.textContent = item.title + (item.preOrder ? ' (Pre-Order)' : '');
+                const brand = document.createElement('div');
+                brand.className = 'cart-item-brand';
+                brand.textContent = item.brand;
+                const size = document.createElement('div');
+                size.className = 'cart-item-size';
+                // Display only the selected EU size number (e.g. '41')
+                size.textContent = item.size ? item.size : '';
+
+                const qtyControls = document.createElement('div');
+                qtyControls.className = 'cart-quantity-controls';
+
+                const lessenBtn = document.createElement('button');
+                lessenBtn.className = 'qty-btn decrease';
+                lessenBtn.setAttribute('data-index', index);
+                const lessenImg = document.createElement('img');
+                lessenImg.src = 'IMAGE/LessenBTN.png';
+                lessenImg.alt = '-';
+                lessenImg.style.width = '22px';
+                lessenImg.style.height = '22px';
+                lessenBtn.appendChild(lessenImg);
+
+                const qtyText = document.createElement('span');
+                qtyText.className = 'cart-item-qty';
+                qtyText.textContent = qty;
+
+                const addBtn = document.createElement('button');
+                addBtn.className = 'qty-btn increase';
+                addBtn.setAttribute('data-index', index);
+                const addImg = document.createElement('img');
+                addImg.src = 'IMAGE/AddBTN.png';
+                addImg.alt = '+';
+                addImg.style.width = '22px';
+                addImg.style.height = '22px';
+                addBtn.appendChild(addImg);
+
+                qtyControls.appendChild(lessenBtn);
+                qtyControls.appendChild(qtyText);
+                qtyControls.appendChild(addBtn);
+
+                middle.appendChild(title);
+                middle.appendChild(brand);
+                middle.appendChild(size);
+                middle.appendChild(qtyControls);
+
+                // remove/trash and price on right
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'cart-item-remove';
+                removeBtn.setAttribute('data-index', index);
+                const trashImg = document.createElement('img');
+                trashImg.src = 'IMAGE/TrashIcon.png';
+                trashImg.alt = 'Remove';
+                trashImg.style.width = '18px';
+                trashImg.style.height = '18px';
+                removeBtn.appendChild(trashImg);
+
+                const priceEl = document.createElement('div');
+                priceEl.className = 'cart-item-price';
+                priceEl.textContent = formatPHP(item.price * qty);
+
+                box.appendChild(img);
+                box.appendChild(middle);
+                box.appendChild(removeBtn);
+                box.appendChild(priceEl);
+
+                cartItemsContainer.appendChild(box);
+            });
+
+            cartCountEl.textContent = totalQty;
+            cartSubtotalEl.textContent = formatPHP(subtotal);
+
+            // Update packaging fee and total if helper exists (or compute locally)
+            try {
+                var totals = (window.getCartTotals && typeof window.getCartTotals === 'function') ? window.getCartTotals(cart) : (function(){ var p = (window.computePackagingFee && typeof window.computePackagingFee === 'function') ? window.computePackagingFee(cart) : 0; return { subtotal: subtotal, packaging: p, total: subtotal + p }; })();
+                var pkgRow = document.getElementById('cartPackagingRow');
+                var pkgVal = document.getElementById('cartPackagingValue');
+                if (pkgVal) pkgVal.textContent = formatPHP(totals.packaging);
+                if (pkgRow) {
+                    pkgRow.style.display = (totals.packaging && totals.packaging > 0) ? '' : 'none';
+                }
+                // Cart modal should show only the shoes total (subtotal). Shipping/packaging handled at checkout.
+                var totalVal = document.getElementById('cartTotalValue');
+                if (totalVal) totalVal.textContent = formatPHP(totals.subtotal);
+            } catch (e) { /* ignore any UI update errors */ }
+
+            // attach events
+            attachCartEvents();
+        }
+
+        function attachCartEvents() {
+            // decrease
+            document.querySelectorAll('.qty-btn.decrease').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        // Use qty if present, else quantity
+                        if (typeof cart[idx].qty === 'number') {
+                            if (cart[idx].qty > 1) {
+                                cart[idx].qty--;
+                            }
+                        } else if (typeof cart[idx].quantity === 'number') {
+                            if (cart[idx].quantity > 1) {
+                                cart[idx].quantity--;
+                            }
+                        }
+                        saveCartToLocalStorage();
+                        renderCart();
+                    }
+                };
+            });
+            // increase
+            document.querySelectorAll('.qty-btn.increase').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        try {
+                            var item = cart[idx];
+                            var current = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
+                            var maxAllowed = (window.getMaxAllowedForProduct && typeof window.getMaxAllowedForProduct === 'function') ? window.getMaxAllowedForProduct(item) : 3;
+                            if (current >= maxAllowed) {
+                                // show inline small message
+                                var cStockEl = document.getElementById('sizeStock');
+                                if (cStockEl) { cStockEl.style.color = '#b71c1c'; cStockEl.textContent = 'Limit reached: you can only buy up to ' + maxAllowed + ' of this size.'; }
+                                else alert('Limit reached: you can only buy up to ' + maxAllowed + ' of this size.');
+                                return;
+                            }
+                            // increment
+                            if (typeof cart[idx].qty === 'number') {
+                                cart[idx].qty++;
+                            } else if (typeof cart[idx].quantity === 'number') {
+                                cart[idx].quantity++;
+                            } else {
+                                cart[idx].qty = current + 1;
+                            }
+                            saveCartToLocalStorage();
+                            renderCart();
+                        } catch (e) { /* fallback to previous behavior */
+                            if (typeof cart[idx].qty === 'number') { cart[idx].qty++; }
+                            else if (typeof cart[idx].quantity === 'number') { cart[idx].quantity++; }
+                            saveCartToLocalStorage(); renderCart();
+                        }
+                    }
+                };
+            });
+            // remove
+            document.querySelectorAll('.cart-item-remove').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx)) {
+                        cart.splice(idx, 1);
+                        saveCartToLocalStorage();
+                        renderCart();
+                    }
+                };
+            });
+        }
+
+        // Hook nav cart button (remove its inline navigation and replace with open sidebar)
+        document.addEventListener('DOMContentLoaded', function() {
+            const navCartBtn = getNavCartButton();
+            if (navCartBtn) {
+                navCartBtn.removeAttribute('onclick');
+                navCartBtn.addEventListener('click', function(e){
+                    e.preventDefault();
+                    openCartSidebar();
+                });
+            }
+
+            if (closeCartBtn) closeCartBtn.addEventListener('click', closeCartSidebar);
+            if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
+
+            // Always render cart on page load
+            if (typeof renderCart === 'function') {
+                renderCart();
+            }
+
+            // Add to Cart button
+            const addToCartBtn = document.querySelector('.productview-cart-btn');
+            if (addToCartBtn) {
+                addToCartBtn.addEventListener('click', function(e){
+                    // Read selected EU size from the size buttons (if present)
+                    var selectedBtn = document.querySelector('#sizeButtons .product-size-btn.primary');
+                    var selectedEU = '';
+                    if (selectedBtn) selectedEU = (selectedBtn.getAttribute('data-eu') || '').toString().trim();
+
+                    // If no size selected, prevent adding and show an inline hint
+                    var elStock = document.getElementById('sizeStock');
+                    if (!selectedEU) {
+                        if (elStock) {
+                            elStock.style.color = '#b71c1c';
+                            elStock.textContent = 'Please select a size before adding to cart.';
+                        } else {
+                            alert('Please select a size before adding to cart.');
+                        }
+                        return;
+                    } else {
+                        // clear any previous error message
+                        if (elStock) { elStock.style.color = ''; elStock.textContent = ''; }
+                    }
+
+                    const title = (document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '';
+                    const brand = (document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '';
+                    const priceText = (document.getElementById('productPrice') && document.getElementById('productPrice').textContent) || '';
+                    const priceNum = parsePriceToNumber(priceText);
+                    const image = (document.getElementById('mainShoeImg') && document.getElementById('mainShoeImg').src) || '';
+
+                    // Persist selected EU size number (e.g. '41') in cart item
+                    const prod = {
+                        title: title,
+                        brand: brand,
+                        price: priceNum,
+                        size: selectedEU,
+                        image: image,
+                        qty: 1,
+                        preOrder: (addToCartBtn.dataset.preorder === '1') ? true : false,
+                        preOrderMax: 3
+                    };
+                    // If this page has a grouped model with variants, try to persist the currently-selected
+                    // variant's id/color and any selected gender so the cart/order captures them.
+                    try{
+                        var mv = (typeof modelData !== 'undefined' && modelData) ? modelData : (window.modelData || null);
+                        if(mv && Array.isArray(mv.variants) && typeof selectedIndex === 'number'){
+                            var variant = mv.variants[selectedIndex] || null;
+                            if(variant){
+                                prod.id = variant.id || variant.sku || variant.productId || prod.id || '';
+                                prod.color = variant.color || variant.name || prod.color || '';
+                                // prefer explicit gender selection stored on the gender options wrapper
+                                var genderEl = document.getElementById('genderOptions');
+                                var selectedGender = '';
+                                if(genderEl) selectedGender = genderEl.getAttribute('data-selected-gender') || '';
+                                // fall back to variant.gender when no explicit selection present
+                                if(!selectedGender && variant.gender) selectedGender = variant.gender;
+                                if(selectedGender) prod.gender = selectedGender;
+                                // ensure image reflects the variant image if available
+                                if(variant.image) prod.image = variant.image;
+                            }
+                        }
+                    }catch(e){ /* non-fatal */ }
+                    if (window.addToCart) {
+                        var res = window.addToCart(prod);
+                        if (res && res.success) {
+                            if (typeof renderCart === 'function') {
+                                cart = window.getCart ? window.getCart() : [];
+                                renderCart();
+                            }
+                            openCartSidebar();
+                        } else {
+                            // show inline message when add failed
+                            var msg = 'Unable to add to cart.';
+                            if (res && res.reason === 'out_of_stock') msg = 'This size is out of stock.';
+                            else if (res && res.reason === 'max_reached') msg = 'You can only add up to ' + (res.maxAllowed || 1) + ' of this size.';
+                            if (elStock) { elStock.style.color = '#b71c1c'; elStock.textContent = msg; }
+                            else alert(msg);
+                        }
+                    }
+                });
+            }
+
+            if (checkoutBtn) {
+                checkoutBtn.addEventListener('click', function(){
+                    window.location.href = 'checkout.html';
+                });
+            }
+        });
+    })();
+    </script>
+    <script src="cart-storage.js"></script>
+</body>
+    
+    <footer class="footer-section">
+        <div class="site-container">
+            <div class="footer-row">
+                <div class="footer-left">
+                    <div class="footer-header">Have questions?</div>
+                    <div class="footer-subheader">Contact us at our facebook page</div>
+                    <div class="footer-subheader" style="margin-top:18px;">Or via phone/email</div>
+                    <div class="footer-divider"></div>
+                    <div class="footer-note">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br><br>© 2025 Shoe Pao Footwear. All rights reserved.</div>
+                </div>
+                <div class="footer-right">
+                    <a href="about-us.html" class="footer-link">About Us</a>
+                    <a href="shipping.html" class="footer-link">Shipping</a>
+                    <a href="returns.html" class="footer-link">Returns & Exchanges</a>
+                    <a href="privacy.html" class="footer-link">Privacy Policy</a>
+                    <a href="terms.html" class="footer-link">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+</html>

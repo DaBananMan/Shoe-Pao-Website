@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Shoe Pao AR</title>
+  <!-- model-viewer for Web AR (Quick Look on iOS, WebXR on supported Android browsers) -->
+  <script type="module" src="./dist/ar.umd.js"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #fff;
+      font-family: 'Poppins', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .camera-border-box {
+      margin-top: 28px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      /* Responsive sizing: grows on larger screens but fits mobile */
+      width: min(92vw, 980px);
+      height: min(78vh, 760px);
+      border: 4px solid #222;
+      border-radius: 18px;
+      background: #000;
+      overflow: hidden;
+      box-sizing: border-box;
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      max-height: 900px;
+    }
+    .ar-logo {
+      margin-top: 32px;
+      margin-bottom: 12px;
+      height: 56px;
+      width: auto;
+      z-index: 2;
+      position: relative;
+    }
+    .ar-header {
+      color: #222;
+      font-size: 2.1rem;
+      font-weight: 700;
+      margin-bottom: 18px;
+      z-index: 2;
+      position: relative;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    #camera {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 14px;
+      background: #000;
+      display: block;
+    }
+    .ar-ui {
+      position: relative;
+      z-index: 3;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="ar-ui">
+  <!-- Development-only: rewrite CameraKit API calls to the local dev proxy so we avoid CORS
+       This intercepts fetch and XHR and rewrites requests targeting the camera-kit API
+       to the local proxy at http://localhost:3000/camera-kit-api.
+       Remove or disable this in production. -->
+  <script>
+    (function(){
+  // If you changed the proxy port, update this value or set window._shoePaoAR.proxyBase before the module loads.
+  const PROXY_BASE = (window._shoePaoAR && window._shoePaoAR.proxyBase) ? window._shoePaoAR.proxyBase : 'http://localhost:3001/camera-kit-api';
+      const REMOTE_HOST = 'camera-kit-api.snapar.com';
+
+      // Wrap fetch
+      if (window.fetch) {
+        const _fetch = window.fetch.bind(window);
+        window.fetch = function(input, init){
+          try{
+            let url = (typeof input === 'string') ? input : (input && input.url) || '';
+            if (url && url.indexOf(REMOTE_HOST) !== -1) {
+              // Replace the host with the local proxy base
+              const replaced = url.replace('https://' + REMOTE_HOST, PROXY_BASE).replace('http://' + REMOTE_HOST, PROXY_BASE);
+              if (replaced) {
+                url = replaced;
+                if (typeof input === 'string') input = url; else input = new Request(url, input);
+              }
+            }
+          }catch(e){ /* ignore */ }
+          return _fetch(input, init);
+        };
+      }
+
+      // Wrap XMLHttpRequest open to rewrite URLs
+      try{
+        const _open = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url){
+          try{
+            if (typeof url === 'string' && url.indexOf(REMOTE_HOST) !== -1) {
+              url = url.replace('https://' + REMOTE_HOST, PROXY_BASE).replace('http://' + REMOTE_HOST, PROXY_BASE);
+            }
+          }catch(e){}
+          return _open.apply(this, [method, url].concat(Array.prototype.slice.call(arguments,2)));
+        };
+      }catch(e){ /* ignore */ }
+    })();
+  </script>
+  <!-- model-viewer for Web AR (Quick Look on iOS, WebXR on supported Android browsers) -->
+  <script type="module" src="./dist/ar.umd.js"></script>
+  </div>
+  <div class="camera-border-box">
+    <!-- model-viewer sits above the video; if a 3D model URL is provided (localStorage.productModel)
+         we'll show the model-viewer and let it handle AR. Otherwise the video fallback will run. -->
+    <model-viewer id="mv"
+                  style="width:100%;height:100%;border-radius:14px;display:none;"
+                  alt="3D shoe model"
+                  shadow-intensity="1"
+                  camera-controls
+                  environment-image="neutral"
+                  ar
+                  ar-scale="auto"
+                  ios-src=""
+                  ></model-viewer>
+
+    <video id="camera" autoplay playsinline style="width:100%;height:100%;border-radius:14px;object-fit:cover;display:block;"></video>
+  </div>
+  <script>
+    // Click on AR logo should return user to last viewed product if available
+    window.goBackToProduct = function(){
+      try{
+        var title = localStorage.getItem('productTitle');
+        if(title && title.trim().length>0){
+          window.location.href = 'product-view.html';
+          return;
+        }
+      }catch(e){}
+      window.location.href = 'product-list.html';
+    };
+    // attach to logo and header if present (make header keyboard-accessible too)
+    document.addEventListener('DOMContentLoaded', function(){
+      var logo = document.getElementById('arLogo');
+      if(logo) logo.addEventListener('click', window.goBackToProduct);
+      var hdr = document.getElementById('arHeader');
+      if(hdr){
+        hdr.addEventListener('click', window.goBackToProduct);
+        hdr.style.cursor = 'pointer';
+        hdr.setAttribute('role','link');
+        hdr.tabIndex = 0;
+        hdr.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.goBackToProduct(); } });
+      }
+    });
+  </script>
+  <script type="module">
+    // Create a visible status box immediately so users see progress even if imports fail
+    const status = document.createElement('div');
+    status.style.position = 'fixed';
+    status.style.left = '12px';
+    status.style.bottom = '12px';
+    status.style.background = 'rgba(0,0,0,0.6)';
+    status.style.color = '#fff';
+    status.style.padding = '8px 12px';
+    status.style.borderRadius = '8px';
+    status.style.fontSize = '13px';
+    status.style.zIndex = '9999';
+    status.textContent = 'Initializing AR...';
+    document.body.appendChild(status);
+
+    // Elements
+    const cameraEl = document.getElementById('camera');
+    const mv = document.getElementById('mv');
+
+    // Utility to show/hide model-viewer vs video
+    function showModelViewer(src, iosSrc) {
+      if (!src) return false;
+      mv.src = src;
+      if (iosSrc) mv.setAttribute('ios-src', iosSrc);
+      mv.style.display = 'block';
+      cameraEl.style.display = 'none';
+      return true;
+    }
+
+    async function startFallbackCamera(){
+      try{
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia not supported');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        cameraEl.srcObject = stream;
+        await cameraEl.play();
+        cameraEl.style.display = 'block';
+        mv.style.display = 'none';
+        status.textContent = 'Camera running (fallback).';
+        return true;
+      }catch(e){
+        console.error('Fallback camera failed', e);
+        status.textContent = 'Camera unavailable. Check permissions and HTTPS.';
+        try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: e && e.message, stack: e && e.stack, time: (new Date()).toISOString(), fallback:true })); }catch(_){}
+        return false;
+      }
+    }
+
+    (async function(){
+      try{
+        // Try to load the optional AR.js module and start a CameraKit session first.
+        // If that succeeds, we won't run the fallback camera.
+        try {
+          // dynamic import; path is relative to this file
+          await import('./AR.js');
+          if (window.startARSession && typeof window.startARSession === 'function') {
+            status.textContent = 'Starting CameraKit AR session...';
+            try {
+              // pick up per-product AR overrides from localStorage if present
+              const groupId = localStorage.getItem('productARGroupId') || null;
+              const apiToken = localStorage.getItem('productARToken') || null;
+              const opts = { cameraType: 'back', mirror: false };
+              if (groupId) opts.groupId = groupId;
+              if (apiToken) opts.apiToken = apiToken;
+              // attempt to mount the live output in the video placeholder
+              await window.startARSession('#camera', opts);
+              status.textContent = 'CameraKit AR running.';
+              return; // done
+            } catch (arErr) {
+              console.warn('startARSession failed', arErr);
+              // continue to next fallback
+            }
+          }
+        } catch (modErr) {
+          // module import failed or not available — continue to model-viewer/fallback
+          console.warn('AR module import failed (continuing to fallback):', modErr);
+        }
+
+        // If we reach here, CameraKit wasn't started. Prefer 3D model if present.
+        const modelUrl = localStorage.getItem('productModel');
+        const iosUrl = localStorage.getItem('productModelIOS'); // optional USDZ for iOS Quick Look
+
+        if (modelUrl) {
+          status.textContent = 'Loading 3D model...';
+          // show model-viewer and enable AR button (model-viewer adds its own AR affordance)
+          showModelViewer(modelUrl, iosUrl || '');
+          status.textContent = '3D model ready — tap the AR icon to place in your space.';
+          // Ensure model-viewer has aria-label for accessibility
+          mv.setAttribute('aria-label', localStorage.getItem('productTitle') || '3D Shoe');
+          return;
+        }
+
+        // No model found — run camera fallback so users can still see themselves
+        status.textContent = 'No 3D model found — running camera fallback.';
+        await startFallbackCamera();
+      }catch(err){
+        console.error('AR init error', err);
+        status.textContent = 'AR initialization error — see console for details.';
+        try{ localStorage.setItem('lastARInitError', JSON.stringify({ message: err && err.message, stack: err && err.stack, time: (new Date()).toISOString() })); }catch(_){ }
+        await startFallbackCamera();
+      }
+    })();
+
+    // Expose a small helper to let other pages set the model and open this page in model-viewer mode.
+    window.loadModelAndOpenAR = function(modelSrc, iosSrc){
+      try{
+        if (modelSrc) localStorage.setItem('productModel', modelSrc);
+        if (iosSrc) localStorage.setItem('productModelIOS', iosSrc);
+        // reload to pick up the new model (simpler than dynamic switching for older browsers)
+        window.location.reload();
+      }catch(e){ console.warn(e); }
+    };
+  </script>
+</body>
+</html>
