@@ -111,9 +111,22 @@
         try { return new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(Number(n||0)); }
         catch(e){ return '₱' + Number(n||0).toFixed(2); }
       }
+      function toDateValue(value){
+        if(!value) return null;
+        try{
+          if(typeof value.toDate === 'function') return value.toDate();
+          if(typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+          if(typeof value._seconds === 'number') return new Date(value._seconds * 1000);
+        }catch(e){ /* ignore */ }
+        try{ return new Date(value); }catch(e){ return null; }
+      }
       function formatDateTime(iso){
         if(!iso) return '';
-        try{ return new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return String(iso); }
+        try{
+          var d = toDateValue(iso);
+          if(!d) return String(iso);
+          return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+        }catch(e){ return String(iso); }
       }
       function getOrderId(){
         try{
@@ -138,17 +151,27 @@
         else el.classList.add('badge-pending');
         el.textContent = status || 'Pending';
       }
-      function renderTimeline(events, currentStatus){
+      function renderTimeline(events, currentStatus, order){
         var host = document.getElementById('trackingTimeline');
         if(!host) return;
         host.innerHTML = '';
         var steps = ['Order placed','Preparing','Picked up','In transit','Out for delivery','Delivered'];
+        var statusNorm = String(currentStatus || '').toLowerCase();
+        var prevStatus = String((order && (order.previousStatus || (order.cancelRequest && order.cancelRequest.previousStatus))) || '').toLowerCase();
+        var isCancelled = statusNorm.indexOf('cancel') !== -1 || (order && order.cancelRequest && order.cancelRequest.approvedAt);
+        if(isCancelled){
+          if(prevStatus === 'confirmed'){
+            steps = ['Order placed','Preparing','Order cancelled'];
+          } else {
+            steps = ['Order placed','Order cancelled'];
+          }
+        }
         var map = {};
         (events || []).forEach(function(ev){
           var key = String(ev.status || ev.message || '').trim();
           if(key) map[key.toLowerCase()] = ev;
         });
-        var currentKey = String(currentStatus || '').toLowerCase();
+        var currentKey = isCancelled ? 'order cancelled' : String(currentStatus || '').toLowerCase();
         steps.forEach(function(step){
           var ev = map[step.toLowerCase()] || null;
           var isActive = currentKey && currentKey === step.toLowerCase();
@@ -184,6 +207,36 @@
         el.textContent = msg;
       }
 
+      function normalizeDeliveryAddressFromAddressObject(addressObject){
+        if(!addressObject) return null;
+        return {
+          fullName: addressObject.fullName || '',
+          phone: addressObject.phone || '',
+          postalCode: addressObject.postalCode || '',
+          region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+          province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+          city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+          barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+          street: addressObject.street || addressObject.line1 || ''
+        };
+      }
+
+      function normalizeDeliveryAddressFromString(addressText){
+        if(!addressText) return null;
+        return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+      }
+
+      function formatDeliveryAddressText(addrObj){
+        if(!addrObj) return '';
+        var parts = [];
+        if(addrObj.street) parts.push(addrObj.street);
+        if(addrObj.barangay) parts.push(addrObj.barangay);
+        if(addrObj.city) parts.push(addrObj.city);
+        if(addrObj.province) parts.push(addrObj.province);
+        if(addrObj.region) parts.push(addrObj.region);
+        return parts.join(', ');
+      }
+
       var orderId = getOrderId();
       if(!orderId){
         showError('Missing order id.');
@@ -215,9 +268,10 @@
         document.getElementById('trackingPill').textContent = 'Tracking: ' + (order.tracking_number || order.tracking || '—');
         document.getElementById('paymentPill').textContent = 'Payment: ' + (order.payment_method || order.paymentLabel || '—');
 
-        var address = order.delivery_address || order.shippingAddress || '';
-        var recipient = order.recipient_name || order.customerName || '';
-        var phone = order.recipient_phone || order.customerPhone || '';
+        var deliveryAddrObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+        var address = formatDeliveryAddressText(deliveryAddrObj) || order.delivery_address || order.shippingAddress || '';
+        var recipient = deliveryAddrObj && deliveryAddrObj.fullName ? deliveryAddrObj.fullName : (order.recipient_name || order.customerName || '');
+        var phone = deliveryAddrObj && deliveryAddrObj.phone ? deliveryAddrObj.phone : (order.recipient_phone || order.customerPhone || '');
         document.getElementById('addressBlock').innerHTML = '<div style="font-weight:600">' + (recipient || 'Recipient') + '</div>' +
           (phone ? '<div class="muted">' + phone + '</div>' : '') +
           '<div style="margin-top:6px">' + (address || '—') + '</div>';
@@ -238,7 +292,7 @@
         document.getElementById('summaryDiscount').textContent = formatPHP(discountVal);
         document.getElementById('summaryTotal').textContent = formatPHP(totalVal);
 
-        renderTimeline(tracking, order.status);
+        renderTimeline(tracking, order.status, order);
         renderItems(items);
       }
 
@@ -255,6 +309,15 @@
             var orderSnap = results[0];
             if(!orderSnap.exists){ showError('Order not found'); return; }
             var order = orderSnap.data() || {};
+            try{
+              if(!order.deliveryAddress){
+                var computedAddr = normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+                if(computedAddr){
+                  order.deliveryAddress = computedAddr;
+                  orderDoc.set({ deliveryAddress: computedAddr }, { merge: true });
+                }
+              }
+            }catch(e){ /* ignore migration errors */ }
             var items = results[1].docs.map(function(d){ return d.data(); });
             var tracking = results[2].docs.map(function(d){ return d.data(); });
             renderOrder(order, items, tracking);

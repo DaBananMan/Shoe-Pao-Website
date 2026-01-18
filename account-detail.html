@@ -267,6 +267,38 @@
         function formatPHP(n){ return 'PHP ' + Number(n||0).toLocaleString(); }
         function titleCase(str){ if(!str && str !== 0) return ''; return String(str).split(/(\s+)/).map(token=>{ if(/\s+/.test(token)) return token; if(!/[a-zA-Z]/.test(token.charAt(0))) return token; return token.charAt(0).toUpperCase() + token.slice(1); }).join(''); }
 
+        function normalizeDeliveryAddressFromAddressObject(addressObject){
+            if(!addressObject) return null;
+            return {
+                region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+                province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+                city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+                barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+                street: addressObject.street || addressObject.line1 || ''
+            };
+        }
+
+        function normalizeDeliveryAddressFromString(addressText){
+            if(!addressText) return null;
+            return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+        }
+
+        function formatDeliveryAddressText(addrObj){
+            if(!addrObj) return '';
+            var parts = [];
+            if(addrObj.street) parts.push(addrObj.street);
+            if(addrObj.barangay) parts.push(addrObj.barangay);
+            if(addrObj.city) parts.push(addrObj.city);
+            if(addrObj.province) parts.push(addrObj.province);
+            if(addrObj.region) parts.push(addrObj.region);
+            return parts.join(', ');
+        }
+
+        function getOrderDeliveryAddressText(order){
+            var deliveryObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+            return formatDeliveryAddressText(deliveryObj) || order.delivery_address || order.shippingAddress || '';
+        }
+
         window.openOrderModal = function(idx){
             var orders = JSON.parse(localStorage.getItem('orders')||'[]');
             var order = orders[idx];
@@ -280,7 +312,8 @@
             if(!paymentLabel && order.paymentCode){ if(order.paymentCode === 'qr_ph') paymentLabel = 'QR PH'; else if(order.paymentCode === 'bank_transfer') paymentLabel = 'Bank Transfer'; else if(order.paymentCode === 'cod') paymentLabel = 'Cash on Delivery'; }
             document.getElementById('orderModalPayment').textContent = paymentLabel ? ('Payment: ' + paymentLabel) : '';
             var addrTxt = '';
-            if(order.shippingAddress){ addrTxt += 'Ship to: ' + order.shippingAddress; }
+            var addrText = getOrderDeliveryAddressText(order);
+            if(addrText){ addrTxt += 'Ship to: ' + addrText; }
             if(order.shippingRegion){ addrTxt += (addrTxt ? ' — ' : '') + 'Region: ' + order.shippingRegion; }
             if(order.tracking){ addrTxt += (addrTxt ? '\n' : '') + 'Tracking #: ' + order.tracking; }
             document.getElementById('orderModalAddress').textContent = addrTxt;

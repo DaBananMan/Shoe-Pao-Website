@@ -98,6 +98,15 @@
             width: 22px;
             height: 22px;
         }
+        .profile-address-editor { background:#f7f7f7; border-radius:12px; padding:14px; }
+        .address-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+        .address-field { display:flex; flex-direction:column; gap:6px; }
+        .address-field-full { grid-column: 1 / -1; }
+        .address-label { font-size:0.92rem; color:#444; }
+        .address-field input, .address-field select { padding:10px 12px; border:1px solid #ddd; border-radius:10px; font-size:1rem; font-family:inherit; background:#fff; }
+        .address-field select:disabled { background:#f0f0f0; color:#888; }
+        .address-hint { font-size:0.9rem; color:#666; margin-top:8px; }
+        @media (max-width: 700px) { .address-grid { grid-template-columns: 1fr; } }
         .profile-phone-row {
             display: flex;
             align-items: center;
@@ -267,13 +276,47 @@
             <div class="profile-address-details" id="profileAddressDetails">QUEZON CITY, 1118, PH</div>
         </div>
         <div class="profile-address-plus" onclick="addAddress()"><img src="IMAGE/Plus.png" alt="Plus">Use a different address</div>
-        <div id="profileAddressEditor" style="display:none;margin-top:10px"> 
+        <div id="profileAddressEditor" class="profile-address-editor" style="display:none;margin-top:10px"> 
             <div class="profile-label">Edit address</div>
-            <textarea id="profileAddressTextarea" rows="3" class="profile-input" placeholder="Enter full shipping address (street, barangay, city/province, postal code)"></textarea>
+            <div class="address-grid">
+                <label class="address-field address-field-full">
+                    <span class="address-label">Region</span>
+                    <select id="profileRegionSelect" aria-label="Region">
+                        <option value="">Select region</option>
+                    </select>
+                </label>
+                <label class="address-field">
+                    <span class="address-label">Province</span>
+                    <select id="profileProvinceSelect" aria-label="Province" disabled>
+                        <option value="">Select province</option>
+                    </select>
+                </label>
+                <label class="address-field">
+                    <span class="address-label">City / Municipality</span>
+                    <select id="profileCitySelect" aria-label="City or municipality" disabled>
+                        <option value="">Select city/municipality</option>
+                    </select>
+                </label>
+                <label class="address-field">
+                    <span class="address-label">Barangay</span>
+                    <select id="profileBarangaySelect" aria-label="Barangay" disabled>
+                        <option value="">Select barangay</option>
+                    </select>
+                </label>
+                <label class="address-field address-field-full">
+                    <span class="address-label">Street / Building / House No.</span>
+                    <input id="profileStreetInput" type="text" placeholder="House no., Street, Subdivision" />
+                </label>
+                <label class="address-field">
+                    <span class="address-label">Postal code</span>
+                    <input id="profilePostalInput" type="text" placeholder="e.g. 1118" />
+                </label>
+            </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
                 <button id="profileAddressCancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer">Cancel</button>
                 <button id="profileAddressSave" style="padding:8px 12px;border-radius:8px;border:0;background:#000;color:#fff;cursor:pointer">Save</button>
             </div>
+            <div id="profileAddressHint" class="address-hint">Select region to load PSGC provinces and cities.</div>
         </div>
         <div class="profile-section-divider"></div>
         <div class="profile-label">Contact Number</div>
@@ -381,6 +424,355 @@
             el.innerHTML = '<img src="IMAGE/ToggleHideButton.png" alt="Hide"> Hide';
         }
     }
+
+    function normalizeDeliveryAddressFromString(addressText){
+        if(!addressText) return null;
+        return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+    }
+
+    function formatDeliveryAddressText(addrObj){
+        if(!addrObj) return '';
+        var parts = [];
+        if(addrObj.street) parts.push(addrObj.street);
+        if(addrObj.barangay) parts.push(addrObj.barangay);
+        if(addrObj.city) parts.push(addrObj.city);
+        if(addrObj.province) parts.push(addrObj.province);
+        if(addrObj.region) parts.push(addrObj.region);
+        return parts.join(', ');
+    }
+
+    function deriveAddressLinesFromDeliveryAddress(addrObj){
+        if(!addrObj) return { main: '', details: '' };
+        var main = addrObj.street || '';
+        var details = [addrObj.barangay, addrObj.city, addrObj.province, addrObj.region].filter(Boolean).join(', ');
+        if(!main && details){
+            main = details;
+            details = '';
+        }
+        return { main: main, details: details };
+    }
+
+    function getProfileDeliveryAddressFromFields(){
+        var mainEl = document.getElementById('profileAddressMain');
+        var detEl = document.getElementById('profileAddressDetails');
+        var main = mainEl ? mainEl.textContent.trim() : '';
+        var details = detEl ? detEl.textContent.trim() : '';
+        var merged = [main, details].filter(Boolean).join(', ');
+        return normalizeDeliveryAddressFromString(merged);
+    }
+
+    function renderProfileAddressFromObject(addrObj){
+        var mainEl = document.getElementById('profileAddressMain');
+        var detEl = document.getElementById('profileAddressDetails');
+        if(!mainEl || !detEl) return;
+        if(!addrObj){
+            mainEl.textContent = '';
+            detEl.textContent = '';
+            return;
+        }
+        var derived = deriveAddressLinesFromDeliveryAddress(addrObj);
+        mainEl.textContent = derived.main;
+        detEl.textContent = derived.details;
+    }
+
+    var PSGC_BASE = 'https://psgc.cloud/api';
+    function fetchPSGC(url){
+        return new Promise(function(resolve, reject){
+            try{
+                var cacheKey = 'psgc_cache_' + url;
+                var cached = localStorage.getItem(cacheKey);
+                if(cached){
+                    try{ var parsed = JSON.parse(cached); if(parsed && parsed.data && parsed.ts && (Date.now() - parsed.ts) < (7*24*60*60*1000)) return resolve(parsed.data); }catch(e){}
+                }
+                fetch(url, { headers: { 'Accept': 'application/json' } })
+                    .then(function(res){ return res.json(); })
+                    .then(function(data){
+                        try{ localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: data })); }catch(e){}
+                        resolve(data);
+                    })
+                    .catch(function(err){ reject(err); });
+            }catch(e){ reject(e); }
+        });
+    }
+    function toOptionItem(item){ return { code: item.code || item.psgc || item.id || '', name: item.name || item.regionName || item.provinceName || item.cityName || item.municipalityName || '' }; }
+    function fillSelect(select, items, placeholder){
+        if(!select) return;
+        select.innerHTML = '';
+        var opt = document.createElement('option');
+        opt.value = ''; opt.textContent = placeholder || 'Select';
+        select.appendChild(opt);
+        (items || []).forEach(function(it){
+            var o = document.createElement('option');
+            o.value = it.code; o.textContent = it.name; o.dataset.name = it.name; select.appendChild(o);
+        });
+    }
+    function setSelectDisabled(select, disabled){ if(!select) return; select.disabled = !!disabled; if(disabled) select.value = ''; }
+    function selectOptionByName(select, name){
+        if(!select || !name) return false;
+        var n = String(name || '').toLowerCase();
+        var opts = Array.prototype.slice.call(select.options || []);
+        for(var i=0;i<opts.length;i++){
+            if(String(opts[i].textContent || '').toLowerCase() === n){
+                select.value = opts[i].value; return true;
+            }
+        }
+        return false;
+    }
+
+    function getProfileAddressObjectFromEditor(){
+        var regionSel = document.getElementById('profileRegionSelect');
+        var provinceSel = document.getElementById('profileProvinceSelect');
+        var citySel = document.getElementById('profileCitySelect');
+        var brgySel = document.getElementById('profileBarangaySelect');
+        var streetEl = document.getElementById('profileStreetInput');
+        var postalEl = document.getElementById('profilePostalInput');
+        var region = regionSel && regionSel.value ? regionSel.options[regionSel.selectedIndex].textContent : '';
+        var province = provinceSel && provinceSel.value ? provinceSel.options[provinceSel.selectedIndex].textContent : '';
+        var city = citySel && citySel.value ? citySel.options[citySel.selectedIndex].textContent : '';
+        var barangay = brgySel && brgySel.value ? brgySel.options[brgySel.selectedIndex].textContent : '';
+        var street = streetEl ? streetEl.value.trim() : '';
+        var postalCode = postalEl ? postalEl.value.trim() : '';
+        return { region: region, province: province, city: city, barangay: barangay, street: street, postalCode: postalCode };
+    }
+
+    function initProfileAddressEditor(){
+        var regionSel = document.getElementById('profileRegionSelect');
+        var provinceSel = document.getElementById('profileProvinceSelect');
+        var citySel = document.getElementById('profileCitySelect');
+        var brgySel = document.getElementById('profileBarangaySelect');
+        var hint = document.getElementById('profileAddressHint');
+        if(!regionSel || !provinceSel || !citySel || !brgySel) return;
+
+        var storedProfile = null;
+        try{ storedProfile = JSON.parse(localStorage.getItem('profile') || 'null'); }catch(e){ storedProfile = null; }
+        var storedAddr = storedProfile && storedProfile.deliveryAddress ? storedProfile.deliveryAddress : null;
+        if(storedAddr){
+            var streetEl = document.getElementById('profileStreetInput');
+            if(streetEl) streetEl.value = storedAddr.street || '';
+            var postalEl = document.getElementById('profilePostalInput');
+            if(postalEl) postalEl.value = storedAddr.postalCode || '';
+        }
+
+        function resetChildren(){
+            fillSelect(provinceSel, [], 'Select province');
+            fillSelect(citySel, [], 'Select city/municipality');
+            fillSelect(brgySel, [], 'Select barangay');
+            setSelectDisabled(provinceSel, true);
+            setSelectDisabled(citySel, true);
+            setSelectDisabled(brgySel, true);
+        }
+
+        function loadProvincesOrCities(regionCode, preselect){
+            resetChildren();
+            if(!regionCode) return;
+            if(hint) hint.textContent = 'Loading provinces...';
+            fetchPSGC(PSGC_BASE + '/regions/' + encodeURIComponent(regionCode) + '/provinces')
+                .then(function(list){
+                    var provinces = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                    if(provinces.length){
+                        fillSelect(provinceSel, provinces, 'Select province');
+                        setSelectDisabled(provinceSel, false);
+                        if(preselect && preselect.province){
+                            if(selectOptionByName(provinceSel, preselect.province)){
+                                loadCitiesByProvince(provinceSel.value, preselect);
+                            }
+                        }
+                        if(hint) hint.textContent = 'Select province to load cities.';
+                    } else {
+                        setSelectDisabled(provinceSel, true);
+                        if(hint) hint.textContent = 'Loading cities...';
+                        loadCitiesByRegion(regionCode, preselect);
+                    }
+                })
+                .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC provinces.'; });
+        }
+
+        function loadCitiesByProvince(provinceCode, preselect){
+            fillSelect(citySel, [], 'Select city/municipality');
+            fillSelect(brgySel, [], 'Select barangay');
+            setSelectDisabled(citySel, true);
+            setSelectDisabled(brgySel, true);
+            if(!provinceCode) return;
+            if(hint) hint.textContent = 'Loading cities...';
+            fetchPSGC(PSGC_BASE + '/provinces/' + encodeURIComponent(provinceCode) + '/cities-municipalities')
+                .then(function(list){
+                    var cities = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                    fillSelect(citySel, cities, 'Select city/municipality');
+                    setSelectDisabled(citySel, false);
+                    if(preselect && preselect.city){
+                        if(selectOptionByName(citySel, preselect.city)){
+                            loadBarangays(citySel.value, preselect);
+                        }
+                    }
+                    if(hint) hint.textContent = 'Select city to load barangays.';
+                })
+                .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC cities.'; });
+        }
+
+        function loadCitiesByRegion(regionCode, preselect){
+            fillSelect(citySel, [], 'Select city/municipality');
+            fillSelect(brgySel, [], 'Select barangay');
+            setSelectDisabled(citySel, true);
+            setSelectDisabled(brgySel, true);
+            if(!regionCode) return;
+            fetchPSGC(PSGC_BASE + '/regions/' + encodeURIComponent(regionCode) + '/cities-municipalities')
+                .then(function(list){
+                    var cities = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                    fillSelect(citySel, cities, 'Select city/municipality');
+                    setSelectDisabled(citySel, false);
+                    if(preselect && preselect.city){
+                        if(selectOptionByName(citySel, preselect.city)){
+                            loadBarangays(citySel.value, preselect);
+                        }
+                    }
+                    if(hint) hint.textContent = 'Select city to load barangays.';
+                })
+                .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC cities.'; });
+        }
+
+        function loadBarangays(cityCode, preselect){
+            fillSelect(brgySel, [], 'Select barangay');
+            setSelectDisabled(brgySel, true);
+            if(!cityCode) return;
+            if(hint) hint.textContent = 'Loading barangays...';
+            fetchPSGC(PSGC_BASE + '/cities-municipalities/' + encodeURIComponent(cityCode) + '/barangays')
+                .then(function(list){
+                    var brgys = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                    fillSelect(brgySel, brgys, 'Select barangay');
+                    setSelectDisabled(brgySel, false);
+                    if(preselect && preselect.barangay){ selectOptionByName(brgySel, preselect.barangay); }
+                    if(hint) hint.textContent = 'Barangay loaded.';
+                })
+                .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC barangays.'; });
+        }
+
+        regionSel.addEventListener('change', function(){
+            var code = (this.value || '').trim();
+            resetChildren();
+            loadProvincesOrCities(code);
+        });
+        provinceSel.addEventListener('change', function(){
+            var code = (this.value || '').trim();
+            fillSelect(citySel, [], 'Select city/municipality');
+            fillSelect(brgySel, [], 'Select barangay');
+            setSelectDisabled(citySel, true);
+            setSelectDisabled(brgySel, true);
+            loadCitiesByProvince(code);
+        });
+        citySel.addEventListener('change', function(){
+            var code = (this.value || '').trim();
+            fillSelect(brgySel, [], 'Select barangay');
+            setSelectDisabled(brgySel, true);
+            loadBarangays(code);
+        });
+
+        fetchPSGC(PSGC_BASE + '/regions').then(function(list){
+            var regions = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+            fillSelect(regionSel, regions, 'Select region');
+            setSelectDisabled(regionSel, false);
+            if(storedAddr && storedAddr.region){
+                if(selectOptionByName(regionSel, storedAddr.region)){
+                    loadProvincesOrCities(regionSel.value, storedAddr);
+                }
+            }
+        }).catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC regions.'; });
+    }
+
+    function ensureFirebaseReady(cb){
+        try{
+            var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+            function loadScript(src){
+                return new Promise(function(resolve, reject){
+                    var s = document.createElement('script');
+                    s.src = src; s.onload = resolve; s.onerror = function(){ reject(new Error('failed to load '+src)); };
+                    document.head.appendChild(s);
+                });
+            }
+            function loadConfig(){
+                if(window.FIREBASE_CONFIG) return Promise.resolve();
+                return loadScript('js/firebase-config.js');
+            }
+            function init(){
+                try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }
+                catch(e){ if(cb) cb(e); }
+            }
+            if(window.firebase && firebase.firestore && firebase.auth){
+                loadConfig().then(function(){ init(); }).catch(function(err){ if(cb) cb(err); });
+                return;
+            }
+            loadConfig().then(function(){
+                return loadScript(base + 'firebase-app-compat.js')
+                    .then(function(){ return loadScript(base + 'firebase-auth-compat.js'); })
+                    .then(function(){ return loadScript(base + 'firebase-firestore-compat.js'); });
+            }).then(function(){ init(); }).catch(function(err){ if(cb) cb(err); });
+        }catch(e){ if(cb) cb(e); }
+    }
+
+    function upsertProfileToFirestore(profile){
+        try{
+            ensureFirebaseReady(function(err){
+                if(err) return;
+                firebase.auth().onAuthStateChanged(function(user){
+                    if(!user || !user.uid) return;
+                    try{
+                        var db = firebase.firestore();
+                        var userDoc = db.doc('users/' + user.uid);
+                        var payload = {
+                            email: profile.email || user.email || '',
+                            name: profile.name || '',
+                            phone: profile.phone || '',
+                            addressMain: profile.addressMain || '',
+                            addressDetails: profile.addressDetails || '',
+                            deliveryAddress: profile.deliveryAddress || null,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        };
+                        userDoc.set(payload, { merge: true }).catch(function(){});
+                    }catch(e){ /* ignore */ }
+                });
+            });
+        }catch(e){ /* ignore */ }
+    }
+
+    function syncProfileFromFirestore(){
+        try{
+            ensureFirebaseReady(function(err){
+                if(err) return;
+                firebase.auth().onAuthStateChanged(function(user){
+                    if(!user || !user.uid) return;
+                    try{
+                        var db = firebase.firestore();
+                        db.doc('users/' + user.uid).get().then(function(doc){
+                            if(!doc || !doc.exists) return;
+                            var data = doc.data() || {};
+                            var local = {};
+                            try{ local = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ local = {}; }
+                            var merged = {
+                                uid: user.uid,
+                                email: data.email || local.email || user.email || '',
+                                name: data.name || data.displayName || local.name || '',
+                                phone: data.phone || local.phone || '',
+                                addressMain: data.addressMain || local.addressMain || '',
+                                addressDetails: data.addressDetails || local.addressDetails || '',
+                                deliveryAddress: data.deliveryAddress || local.deliveryAddress || null
+                            };
+                            localStorage.setItem('profile', JSON.stringify(merged));
+                            localStorage.setItem('profile_updated_at', String(Date.now()));
+                            if(document.getElementById('profileName')) document.getElementById('profileName').value = merged.name || '';
+                            if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = merged.email || '';
+                            if(merged.deliveryAddress){
+                                renderProfileAddressFromObject(merged.deliveryAddress);
+                            } else {
+                                if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = merged.addressMain || '';
+                                if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = merged.addressDetails || '';
+                            }
+                            if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = merged.phone || '';
+                            try{ initProfileAddressEditor(); }catch(e){}
+                        }).catch(function(){});
+                    }catch(e){ /* ignore */ }
+                });
+            });
+        }catch(e){ /* ignore */ }
+    }
     // Save profile (persist to localStorage)
     function saveProfile() {
         var name = document.getElementById('profileName').value.trim();
@@ -397,15 +789,24 @@
                 return;
             }
         }
+        var deliveryAddress = getProfileAddressObjectFromEditor();
+        if(deliveryAddress && (deliveryAddress.street || deliveryAddress.city || deliveryAddress.barangay || deliveryAddress.region || deliveryAddress.province)){
+            var derived = deriveAddressLinesFromDeliveryAddress(deliveryAddress);
+            addressMain = derived.main;
+            addressDetails = derived.details;
+        }
         var profile = {
             name: name,
             email: email,
             addressMain: addressMain,
             addressDetails: addressDetails,
-            phone: phone
+            phone: phone,
+            deliveryAddress: deliveryAddress
         };
         try {
             localStorage.setItem('profile', JSON.stringify(profile));
+            try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+            try{ upsertProfileToFirestore(profile); }catch(e){}
             // also update users list so admin/accounts page reflects changes
             try{
                 var users = JSON.parse(localStorage.getItem('users') || '[]');
@@ -421,6 +822,7 @@
                             users[i].phone = profile.phone || users[i].phone;
                             users[i].addressMain = profile.addressMain || users[i].addressMain;
                             users[i].addressDetails = profile.addressDetails || users[i].addressDetails;
+                            users[i].deliveryAddress = profile.deliveryAddress || users[i].deliveryAddress;
                             found = true;
                             break;
                         }
@@ -474,11 +876,19 @@
             if(p){
                 if(document.getElementById('profileName')) document.getElementById('profileName').value = p.name || '';
                 if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = p.email || '';
-                if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = p.addressMain || '';
-                if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = p.addressDetails || '';
+                if(p.deliveryAddress){
+                    renderProfileAddressFromObject(p.deliveryAddress);
+                } else {
+                    if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = p.addressMain || '';
+                    if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = p.addressDetails || '';
+                }
                 if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = p.phone || '';
             }
         }catch(err){/* ignore parse errors */}
+
+        try{ syncProfileFromFirestore(); }catch(e){}
+
+        try{ initProfileAddressEditor(); }catch(e){}
 
         // Debounced autosave when user types in profile fields so orders can pick up the name
         function debounce(fn, wait){
@@ -496,12 +906,14 @@
             var addrMainEl = document.getElementById('profileAddressMain');
             var addrDetEl = document.getElementById('profileAddressDetails');
             var phoneEl = document.getElementById('profilePhone');
+            var deliveryAddress = getProfileDeliveryAddressFromFields();
             var profile = {
                 name: nameEl ? nameEl.value.trim() : '',
                 email: emailEl ? emailEl.value.trim() : '',
                 addressMain: addrMainEl ? addrMainEl.textContent.trim() : '',
                 addressDetails: addrDetEl ? addrDetEl.textContent.trim() : '',
-                phone: phoneEl ? phoneEl.value.trim() : ''
+                phone: phoneEl ? phoneEl.value.trim() : '',
+                deliveryAddress: deliveryAddress
             };
             try{ localStorage.setItem('profile', JSON.stringify(profile)); }catch(e){/* ignore */}
         }
@@ -519,8 +931,12 @@
                     if(np){
                         if(document.getElementById('profileName')) document.getElementById('profileName').value = np.name || '';
                         if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = np.email || '';
-                        if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = np.addressMain || '';
-                        if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = np.addressDetails || '';
+                        if(np.deliveryAddress){
+                            renderProfileAddressFromObject(np.deliveryAddress);
+                        } else {
+                            if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = np.addressMain || '';
+                            if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = np.addressDetails || '';
+                        }
                         if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = np.phone || '';
                     }
                 }
@@ -530,15 +946,13 @@
     // Add address (stub)
     function addAddress() {
         var editor = document.getElementById('profileAddressEditor');
-        var ta = document.getElementById('profileAddressTextarea');
         var main = document.getElementById('profileAddressMain');
         var details = document.getElementById('profileAddressDetails');
         if(!editor) return;
         if(editor.style.display === 'none' || editor.style.display === ''){
             // open and preload from current address
-            ta.value = (main ? main.textContent.trim() : '') + (details && details.textContent ? ('\n' + details.textContent.trim()) : '');
+            try{ initProfileAddressEditor(); }catch(e){}
             editor.style.display = 'block';
-            ta.focus();
             // wire buttons
             var saveBtn = document.getElementById('profileAddressSave');
             var cancelBtn = document.getElementById('profileAddressCancel');
@@ -550,27 +964,23 @@
     }
 
     function saveProfileAddress(){
-        var ta = document.getElementById('profileAddressTextarea');
-        var val = (ta ? ta.value.trim() : '');
         var main = document.getElementById('profileAddressMain');
         var details = document.getElementById('profileAddressDetails');
         var editor = document.getElementById('profileAddressEditor');
-        var addrMain = '';
-        var addrDetails = '';
-        if(val){
-            addrMain = val.split('\n')[0] || val;
-            addrDetails = val.split('\n').slice(1).join(', ') || '';
-            if(main) main.textContent = addrMain;
-            if(details) details.textContent = addrDetails;
-        } else {
-            if(main) main.textContent = '';
-            if(details) details.textContent = '';
-        }
+        var addrObj = getProfileAddressObjectFromEditor();
+        var derived = deriveAddressLinesFromDeliveryAddress(addrObj);
+        var addrMain = derived.main || '';
+        var addrDetails = derived.details || '';
+        if(main) main.textContent = addrMain;
+        if(details) details.textContent = addrDetails;
         // persist to profile and users list
         try{
             var p = JSON.parse(localStorage.getItem('profile') || '{}') || {};
             p.addressMain = addrMain; p.addressDetails = addrDetails;
+            p.deliveryAddress = addrObj;
             localStorage.setItem('profile', JSON.stringify(p));
+            try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+            try{ upsertProfileToFirestore(p); }catch(e){}
         }catch(e){}
         try{
             var users = JSON.parse(localStorage.getItem('users') || '[]') || [];
@@ -580,6 +990,7 @@
                     if((users[i].email||'').toLowerCase() === email){
                         users[i].addressMain = addrMain || users[i].addressMain;
                         users[i].addressDetails = addrDetails || users[i].addressDetails;
+                        users[i].deliveryAddress = addrObj || users[i].deliveryAddress;
                         break;
                     }
                 }

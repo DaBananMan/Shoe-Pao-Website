@@ -7,9 +7,6 @@
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- Leaflet for map-based address picker -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body {
             font-family: 'Poppins', Arial, sans-serif;
@@ -267,26 +264,61 @@
         .checkout-payment-radio {
             margin-top: 2px;
         }
-        /* address suggestion box */
-        .address-suggestions-box {
-            position: absolute;
-            left: 0;
-            right: 0;
+        /* PSGC address editor */
+        .address-editor { background:#f7f7f7; border-radius:16px; padding:16px; }
+        .address-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+        .address-field { display:flex; flex-direction:column; gap:6px; }
+        .address-field-full { grid-column: 1 / -1; }
+        .address-label { font-size:0.92rem; color:#444; }
+        .address-field input, .address-field select { padding:10px 12px; border:1px solid #ddd; border-radius:10px; font-size:1rem; font-family:inherit; background:#fff; }
+        .address-field select:disabled { background:#f0f0f0; color:#888; }
+        .address-actions { margin-top:12px; display:flex; gap:8px; align-items:center; }
+        .address-secondary-btn { padding:8px 12px; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer; }
+        .address-hint { font-size:0.9rem; color:#666; margin-top:8px; }
+        @media (max-width: 700px) { .address-grid { grid-template-columns: 1fr; } }
+        /* Address book modal */
+        .address-book-overlay, .address-editor-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 120000;
+            padding: 24px;
+        }
+        .address-book-overlay.show, .address-editor-overlay.show { display: flex; }
+        .address-book-modal, .address-editor-modal {
+            width: 820px;
+            max-width: calc(100vw - 48px);
             background: #fff;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-            z-index: 120;
-            max-height: 220px;
-            overflow: auto;
-            font-size: 0.95rem;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+            position: relative;
         }
-        .address-suggestion-item {
-            padding: 8px 10px;
+        .address-book-header h3 { margin: 0 0 6px 0; font-size: 1.2rem; }
+        .address-book-header p { margin: 0 0 16px 0; color: #555; font-size: 0.95rem; }
+        .address-book-close {
+            position: absolute;
+            right: 12px;
+            top: 10px;
+            background: none;
+            border: none;
+            font-size: 18px;
             cursor: pointer;
-            border-bottom: 1px solid #f2f2f2;
         }
-        .address-suggestion-item:hover { background:#fafafa; }
+        .address-book-list { display: flex; flex-direction: column; gap: 12px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+        .address-book-item { border: 1px solid #eee; border-radius: 12px; padding: 12px 14px; display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+        .address-book-item.selected { border-color: #b71c1c; box-shadow: 0 0 0 1px #b71c1c inset; }
+        .address-book-meta { display:flex; flex-direction:column; gap:4px; }
+        .address-book-title { font-weight: 600; font-size: 1rem; }
+        .address-book-sub { font-size: 0.92rem; color: #555; }
+        .address-book-badge { display:inline-flex; padding:2px 8px; border-radius:999px; background:#f5f5f5; font-size:0.78rem; color:#666; width:fit-content; }
+        .address-book-actions { display:flex; gap:8px; justify-content:flex-start; margin-top:16px; }
+        .address-book-item-actions { display:flex; gap:8px; align-items:center; }
+        .address-inline-btn { padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer; font-size:0.9rem; }
+        .address-inline-btn.primary { background:#111; color:#fff; border-color:#111; }
         .checkout-payment-label {
             font-size: 1.05rem;
             font-weight: 500;
@@ -486,56 +518,70 @@
                         <span class="checkout-address-main">Jemar Eden, BLK 69 LOT 18 Fairview</span><br>
                         <span class="checkout-address-details">QUEZON CITY, 1118, PH</span>
                     </div>
-                    <button class="checkout-address-menu-btn" onclick="toggleAddressMenu(event)"><img src="IMAGE/X.png" alt="Menu" style="width:22px;height:22px;"></button>
-                    <div class="checkout-address-menu" id="addressMenu">
-                        <span style="padding:8px 12px;cursor:pointer;" onclick="editAddress()">Edit</span>
-                        <span style="padding:8px 12px;cursor:pointer;" onclick="deleteAddress()">Delete</span>
-                    </div>
                 </div>
             </div>
-            <div class="checkout-add-address-row" id="addressEditorRow">
+            <div class="checkout-add-address-row" id="addressEditorRow" onclick="openAddressBookModal()" role="button" tabindex="0">
                 <img src="IMAGE/Plus.png" alt="Add">
                 <span id="addressEditorToggleLabel">Use a different address</span>
-                <button id="openAddressEditorBtn" type="button" style="margin-left:12px;padding:6px 10px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;">Edit</button>
             </div>
 
-            <div id="checkoutAddressEditor" style="margin-top:8px;display:none;">
-                <div class="checkout-section-title">Delivery region</div>
-                <select id="checkoutRegionSelect" aria-label="Delivery region" style="padding:8px 10px;border-radius:8px;border:1px solid #ddd;width:100%;max-width:360px;">
-                    <option value="">Auto detect (use address)</option>
-                    <option value="Manila">Manila</option>
-                    <option value="Luzon">Luzon (Provinces)</option>
-                    <option value="Visayas">Visayas</option>
-                    <option value="Mindanao">Mindanao</option>
-                    <option value="Island">Island / Palawan</option>
-                </select>
-                <div id="checkoutRegionHint" style="font-size:0.92rem;color:#666;margin-top:6px;">Auto detect will use the shipping address to pick a region.</div>
-
-                <div style="margin-top:10px;">
-                    <div class="checkout-section-title">Full shipping address</div>
-                    <textarea id="checkoutAddressInput" rows="3" placeholder="Enter full shipping address (street, barangay, city/province, postal code)" style="width:100%;padding:8px;border-radius:8px;border:1px solid #ddd;font-family:inherit;"></textarea>
-                    <div id="addressSuggestions" style="position:relative;margin-top:6px;display:block;"></div>
-                    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
-                        <button id="saveAddressBtn" class="checkout-proceed-btn" style="max-width:160px;padding:8px 12px;">Save address</button>
-                        <button id="openMapBtn" type="button" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;">Pick on map</button>
-                        <button id="cancelAddressBtn" type="button" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;">Cancel</button>
-                    </div>
+            <div id="checkoutAddressEditor" class="address-editor" style="margin-top:8px;display:none;">
+                <div class="checkout-section-title">Shipping address</div>
+                <div class="address-grid">
+                    <label class="address-field">
+                        <span class="address-label">Full name</span>
+                        <input id="checkoutFullName" type="text" placeholder="e.g. Jemar Eden" />
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Phone number</span>
+                        <input id="checkoutPhone" type="tel" placeholder="09xx xxx xxxx" />
+                    </label>
+                    <label class="address-field address-field-full">
+                        <span class="address-label">Region</span>
+                        <select id="checkoutRegionSelect" aria-label="Region">
+                            <option value="">Select region</option>
+                        </select>
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Province</span>
+                        <select id="checkoutProvinceSelect" aria-label="Province" disabled>
+                            <option value="">Select province</option>
+                        </select>
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">City / Municipality</span>
+                        <select id="checkoutCitySelect" aria-label="City or municipality" disabled>
+                            <option value="">Select city/municipality</option>
+                        </select>
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Barangay</span>
+                        <select id="checkoutBarangaySelect" aria-label="Barangay" disabled>
+                            <option value="">Select barangay</option>
+                        </select>
+                    </label>
+                    <label class="address-field address-field-full">
+                        <span class="address-label">Street / Building / House No.</span>
+                        <input id="checkoutStreet" type="text" placeholder="House no., Street, Subdivision" />
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Postal code</span>
+                        <input id="checkoutPostal" type="text" placeholder="e.g. 1118" />
+                    </label>
+                    <label class="address-field address-field-full">
+                        <span class="address-label">Additional notes (optional)</span>
+                        <input id="checkoutNotes" type="text" placeholder="Landmarks, delivery notes" />
+                    </label>
                 </div>
-            </div>
-
-            <!-- Map modal for selecting location (Leaflet) -->
-            <div id="mapModal" class="qr-modal-overlay" style="display:none;">
-                <div class="qr-modal" role="dialog" aria-modal="true" style="max-width:900px;">
-                    <button class="qr-modal-close" aria-label="Close" onclick="closeMapModal()">✕</button>
-                    <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
-                        <h3 style="margin:0;">Pick delivery location on map</h3>
-                        <div id="mapPicker" style="height:400px;border-radius:8px;overflow:hidden;background:#eee;"></div>
-                        <div style="display:flex;gap:8px;justify-content:flex-end;">
-                            <button id="confirmMapPickBtn" class="qr-modal-complete">Use this location</button>
-                            <button class="qr-modal-cancel" onclick="closeMapModal()">Cancel</button>
-                        </div>
-                    </div>
+                <label class="address-field" style="margin-top:8px;flex-direction:row;align-items:center;gap:8px;">
+                    <input id="checkoutDefaultAddressToggle" type="checkbox" />
+                    <span class="address-label" style="margin:0;">Set as default address</span>
+                </label>
+                <div class="address-actions">
+                    <button id="saveAddressBtn" class="checkout-proceed-btn" style="max-width:160px;padding:8px 12px;">Save address</button>
+                    <button id="cancelAddressBtn" type="button" class="address-secondary-btn">Cancel</button>
                 </div>
+                <div id="checkoutRegionHint" class="address-hint">Select region to load PSGC provinces and cities.</div>
             </div>
             <div class="checkout-divider"></div>
             <div class="checkout-delivery-method-title">Delivery method</div>
@@ -616,6 +662,28 @@
             </div>
         </div>
     </div>
+    <!-- Address book modal -->
+    <div id="addressBookOverlay" class="address-book-overlay" aria-hidden="true">
+        <div class="address-book-modal" role="dialog" aria-modal="true" aria-label="Saved addresses">
+            <button class="address-book-close" onclick="closeAddressBookModal()" aria-label="Close">✕</button>
+            <div class="address-book-header">
+                <h3>Saved addresses</h3>
+                <p>Select an address to use for this checkout.</p>
+            </div>
+            <div id="addressBookList" class="address-book-list"></div>
+            <div class="address-book-actions">
+                <button class="address-inline-btn" onclick="openAddressEditorModal(null)">+Add new address</button>
+                <button class="address-secondary-btn" onclick="closeAddressBookModal()">Close</button>
+            </div>
+        </div>
+    </div>
+    <!-- Address editor modal -->
+    <div id="addressEditorOverlay" class="address-editor-overlay" aria-hidden="true">
+        <div class="address-editor-modal" role="dialog" aria-modal="true" aria-label="Edit address">
+            <button class="address-book-close" onclick="closeAddressEditorModal()" aria-label="Close">✕</button>
+            <div id="addressEditorHost"></div>
+        </div>
+    </div>
     <script>
     // Navigation bar functions (copied from product-list.html)
     function goToSale() { window.location.href = 'product-list.html?sale=1'; }
@@ -655,22 +723,15 @@
         }
     }
     // Address menu
-    function toggleAddressMenu(e) {
-        e.stopPropagation();
-        var menu = document.getElementById('addressMenu');
-        menu.classList.toggle('show');
-        document.addEventListener('click', function handler(ev) {
-            if (!menu.contains(ev.target)) {
-                menu.classList.remove('show');
-                document.removeEventListener('click', handler);
-            }
-        });
-    }
-    function editAddress() {
-        alert('Edit address functionality coming soon.');
-    }
     function deleteAddress() {
-        alert('Delete address functionality coming soon.');
+        try{
+            localStorage.removeItem('checkoutAddressObject');
+            localStorage.removeItem('checkoutAddressMain');
+            localStorage.removeItem('checkoutAddressDetails');
+            localStorage.removeItem('checkoutAddress');
+            initCheckoutProfileDisplay();
+            try{ updateCheckoutShippingDisplay(); }catch(e){}
+        }catch(e){ /* ignore */ }
     }
     // Delivery method selection
     function selectDeliveryMethod(el, idx) {
@@ -883,6 +944,16 @@
         return 'Luzon';
     }
 
+    function psgcRegionToShippingRegion(regionName){
+        var n = (regionName || '').toLowerCase();
+        if(!n) return '';
+        if(n.indexOf('ncr') !== -1 || n.indexOf('national capital') !== -1 || n.indexOf('metro manila') !== -1) return 'Manila';
+        if(n.indexOf('mimaropa') !== -1 || n.indexOf('palawan') !== -1) return 'Island';
+        if(n.indexOf('visayas') !== -1) return 'Visayas';
+        if(n.indexOf('mindanao') !== -1 || n.indexOf('barmm') !== -1 || n.indexOf('bangsamoro') !== -1) return 'Mindanao';
+        return 'Luzon';
+    }
+
     var JNTRates = {
         'Luzon': [
             // Rates are "from Luzon" to destination regions
@@ -962,252 +1033,313 @@
         }catch(e){ /* ignore */ }
     }
     
-    // Address editor + map picker
-    var _mapInstance = null;
-    var _mapMarker = null;
-    function initRegionSelector(){
-        try{
-            var sel = document.getElementById('checkoutRegionSelect');
-            if(!sel) return;
-            var stored = localStorage.getItem('checkoutRegion');
-            if(stored){ sel.value = stored; document.getElementById('checkoutRegionHint').textContent = 'Using selected region: ' + stored; }
-            else {
-                var profile = JSON.parse(localStorage.getItem('profile') || '{}');
-                var inferred = determineRegion(profile.addressMain, profile.addressDetails);
-                if(inferred) document.getElementById('checkoutRegionHint').textContent = 'Auto-detected region: ' + inferred;
+    // PSGC address selector (Shopee-style cascading dropdowns)
+    var PSGC_BASE = 'https://psgc.cloud/api';
+    function fetchPSGC(url){
+        return new Promise(function(resolve, reject){
+            try{
+                var cacheKey = 'psgc_cache_' + url;
+                var cached = localStorage.getItem(cacheKey);
+                if(cached){
+                    try{ var parsed = JSON.parse(cached); if(parsed && parsed.data && parsed.ts && (Date.now() - parsed.ts) < (7*24*60*60*1000)) return resolve(parsed.data); }catch(e){}
+                }
+                fetch(url, { headers: { 'Accept': 'application/json' } })
+                    .then(function(res){ return res.json(); })
+                    .then(function(data){
+                        try{ localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: data })); }catch(e){}
+                        resolve(data);
+                    })
+                    .catch(function(err){ reject(err); });
+            }catch(e){ reject(e); }
+        });
+    }
+    function toOptionItem(item){ return { code: item.code || item.psgc || item.id || '', name: item.name || item.regionName || item.provinceName || item.cityName || item.municipalityName || '' }; }
+    function fillSelect(select, items, placeholder){
+        if(!select) return;
+        select.innerHTML = '';
+        var opt = document.createElement('option');
+        opt.value = ''; opt.textContent = placeholder || 'Select';
+        select.appendChild(opt);
+        (items || []).forEach(function(it){
+            var o = document.createElement('option');
+            o.value = it.code; o.textContent = it.name; o.dataset.name = it.name; select.appendChild(o);
+        });
+    }
+    function setSelectDisabled(select, disabled){ if(!select) return; select.disabled = !!disabled; if(disabled) select.value = ''; }
+    function selectOptionByName(select, name){
+        if(!select || !name) return false;
+        var n = String(name || '').toLowerCase();
+        var opts = Array.prototype.slice.call(select.options || []);
+        for(var i=0;i<opts.length;i++){
+            if(String(opts[i].textContent || '').toLowerCase() === n){
+                select.value = opts[i].value; return true;
             }
-            sel.addEventListener('change', function(){
-                var v = (this.value || '').trim();
-                if(v === ''){ localStorage.removeItem('checkoutRegion'); var profile = JSON.parse(localStorage.getItem('profile') || '{}'); var inferred = determineRegion(profile.addressMain, profile.addressDetails); document.getElementById('checkoutRegionHint').textContent = 'Auto-detected region: ' + (inferred || 'Luzon'); }
-                else { localStorage.setItem('checkoutRegion', v); document.getElementById('checkoutRegionHint').textContent = 'Using selected region: ' + v; }
-                updateCheckoutShippingDisplay();
-            });
-        }catch(e){ console.error('initRegionSelector error', e); }
+        }
+        return false;
     }
 
     function initAddressEditor(){
         try{
-            var openBtn = document.getElementById('openAddressEditorBtn');
             var editor = document.getElementById('checkoutAddressEditor');
             var saveBtn = document.getElementById('saveAddressBtn');
             var cancelBtn = document.getElementById('cancelAddressBtn');
-            var openMapBtn = document.getElementById('openMapBtn');
-            var textarea = document.getElementById('checkoutAddressInput');
-            var suggestionsContainer = document.getElementById('addressSuggestions');
+            var regionSel = document.getElementById('checkoutRegionSelect');
+            var provinceSel = document.getElementById('checkoutProvinceSelect');
+            var citySel = document.getElementById('checkoutCitySelect');
+            var brgySel = document.getElementById('checkoutBarangaySelect');
             var addrLabel = document.querySelector('.checkout-address-main');
             var addrDetails = document.querySelector('.checkout-address-details');
-            // preload from stored override if present
-            var storedAddr = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress');
-            if(storedAddr) textarea.value = storedAddr;
-            openBtn && openBtn.addEventListener('click', function(){ editor.style.display = (editor.style.display === 'none') ? 'block' : 'none'; });
-            cancelBtn && cancelBtn.addEventListener('click', function(){ editor.style.display = 'none'; });
-            // suggestions handling
-            function clearSuggestions(){ if(suggestionsContainer) suggestionsContainer.innerHTML = ''; }
-            function renderSuggestions(list){
-                if(!suggestionsContainer) return;
-                suggestionsContainer.innerHTML = '';
-                if(!list || !list.length) return;
-                var box = document.createElement('div'); box.className = 'address-suggestions-box';
-                list.forEach(function(it){
-                    var row = document.createElement('div'); row.className = 'address-suggestion-item';
-                    row.textContent = it.display_name;
-                    row.addEventListener('click', function(){
-                        // set textarea to selected suggestion and place marker
-                        textarea.value = it.display_name;
-                        clearSuggestions();
-                        // place marker immediately if map ready
-                        try{ if(_mapInstance){ if(_mapMarker) _mapInstance.removeLayer(_mapMarker); _mapMarker = L.marker([it.lat, it.lon]).addTo(_mapInstance); _mapInstance.setView([it.lat, it.lon], 12); } }catch(e){}
-                    });
-                    box.appendChild(row);
-                });
-                suggestionsContainer.appendChild(box);
+            var hint = document.getElementById('checkoutRegionHint');
+
+            cancelBtn && cancelBtn.addEventListener('click', function(){ closeAddressEditorModal(); });
+
+            function prefillFromObject(obj){
+                if(!obj) return;
+                if(document.getElementById('checkoutFullName')) document.getElementById('checkoutFullName').value = obj.fullName || '';
+                if(document.getElementById('checkoutPhone')) document.getElementById('checkoutPhone').value = obj.phone || '';
+                if(document.getElementById('checkoutStreet')) document.getElementById('checkoutStreet').value = obj.street || '';
+                if(document.getElementById('checkoutPostal')) document.getElementById('checkoutPostal').value = obj.postalCode || '';
+                if(document.getElementById('checkoutNotes')) document.getElementById('checkoutNotes').value = obj.notes || '';
             }
 
-            var suggestDebounced = debounce(function(q){
-                if(!q || q.length < 3){ clearSuggestions(); return; }
-                searchAddresses(q, 5).then(function(list){ renderSuggestions(list); }).catch(function(){ clearSuggestions(); });
-            }, 450);
+            // preload stored address object if present
+            var storedObj = null;
+            try{ storedObj = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ storedObj = null; }
+            if(storedObj){ prefillFromObject(storedObj); }
 
-            textarea && textarea.addEventListener('input', function(e){
-                var v = (this.value || '').trim();
-                suggestDebounced(v);
-                // also try to forward geocode and update map pin after user pauses typing
-                geocodeDebounced(v);
-            });
-
-            // hide suggestions when clicking outside
-            document.addEventListener('click', function(ev){ if(suggestionsContainer && !suggestionsContainer.contains(ev.target) && ev.target !== textarea){ clearSuggestions(); } });
-
-            // debounce for geocoding to update map marker
-            var geocodeDebounced = debounce(function(q){
-                if(!q || q.length < 6) return; // require slightly longer input
-                forwardGeocode(q).then(function(latlng){
-                    if(latlng && latlng.length===2){
-                        try{ if(_mapInstance){ if(_mapMarker) _mapInstance.removeLayer(_mapMarker); _mapMarker = L.marker(latlng).addTo(_mapInstance); _mapInstance.setView(latlng, 12); } }catch(e){}
-                    }
-                }).catch(function(){});
-            }, 800);
-
-            // when user presses ArrowDown from textarea, focus first suggestion
-            textarea && textarea.addEventListener('keydown', function(e){
-                if(e.key === 'ArrowDown'){
-                    var first = suggestionsContainer && suggestionsContainer.querySelector('.address-suggestion-item');
-                    if(first){ first.focus(); e.preventDefault(); }
+            // load regions
+            fetchPSGC(PSGC_BASE + '/regions').then(function(list){
+                var regions = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                fillSelect(regionSel, regions, 'Select region');
+                setSelectDisabled(regionSel, false);
+                if(storedObj && storedObj.region && storedObj.region.code){
+                    regionSel.value = storedObj.region.code;
+                    loadProvincesOrCities(regionSel.value, storedObj);
                 }
+            }).catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC regions.'; });
+
+            function resetChildren(){
+                fillSelect(provinceSel, [], 'Select province');
+                fillSelect(citySel, [], 'Select city/municipality');
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(provinceSel, true);
+                setSelectDisabled(citySel, true);
+                setSelectDisabled(brgySel, true);
+            }
+
+            function loadProvincesOrCities(regionCode, preselectObj){
+                resetChildren();
+                if(!regionCode) return;
+                if(hint) hint.textContent = 'Loading provinces...';
+                fetchPSGC(PSGC_BASE + '/regions/' + encodeURIComponent(regionCode) + '/provinces')
+                    .then(function(list){
+                        var provinces = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                        if(provinces.length){
+                            fillSelect(provinceSel, provinces, 'Select province');
+                            setSelectDisabled(provinceSel, false);
+                            if(preselectObj && preselectObj.province){
+                                if(preselectObj.province.code){
+                                    provinceSel.value = preselectObj.province.code;
+                                    loadCitiesByProvince(preselectObj.province.code, preselectObj);
+                                } else if(selectOptionByName(provinceSel, preselectObj.province)) {
+                                    loadCitiesByProvince(provinceSel.value, preselectObj);
+                                }
+                            }
+                            if(hint) hint.textContent = 'Select province to load cities.';
+                        } else {
+                            // NCR and independent cities: load cities directly
+                            setSelectDisabled(provinceSel, true);
+                            if(hint) hint.textContent = 'Loading cities...';
+                            loadCitiesByRegion(regionCode, preselectObj);
+                        }
+                    })
+                    .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC provinces.'; });
+            }
+
+            function loadCitiesByProvince(provinceCode, preselectObj){
+                fillSelect(citySel, [], 'Select city/municipality');
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(citySel, true);
+                setSelectDisabled(brgySel, true);
+                if(!provinceCode) return;
+                if(hint) hint.textContent = 'Loading cities...';
+                fetchPSGC(PSGC_BASE + '/provinces/' + encodeURIComponent(provinceCode) + '/cities-municipalities')
+                    .then(function(list){
+                        var cities = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                        fillSelect(citySel, cities, 'Select city/municipality');
+                        setSelectDisabled(citySel, false);
+                        if(preselectObj && preselectObj.city){
+                            if(preselectObj.city.code){
+                                citySel.value = preselectObj.city.code;
+                                loadBarangays(preselectObj.city.code, preselectObj);
+                            } else if(selectOptionByName(citySel, preselectObj.city)) {
+                                loadBarangays(citySel.value, preselectObj);
+                            }
+                        }
+                        if(hint) hint.textContent = 'Select city to load barangays.';
+                    })
+                    .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC cities.'; });
+            }
+
+            function loadCitiesByRegion(regionCode, preselectObj){
+                fillSelect(citySel, [], 'Select city/municipality');
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(citySel, true);
+                setSelectDisabled(brgySel, true);
+                if(!regionCode) return;
+                fetchPSGC(PSGC_BASE + '/regions/' + encodeURIComponent(regionCode) + '/cities-municipalities')
+                    .then(function(list){
+                        var cities = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                        fillSelect(citySel, cities, 'Select city/municipality');
+                        setSelectDisabled(citySel, false);
+                        if(preselectObj && preselectObj.city){
+                            if(preselectObj.city.code){
+                                citySel.value = preselectObj.city.code;
+                                loadBarangays(preselectObj.city.code, preselectObj);
+                            } else if(selectOptionByName(citySel, preselectObj.city)) {
+                                loadBarangays(citySel.value, preselectObj);
+                            }
+                        }
+                        if(hint) hint.textContent = 'Select city to load barangays.';
+                    })
+                    .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC cities.'; });
+            }
+
+            function loadBarangays(cityCode, preselectObj){
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(brgySel, true);
+                if(!cityCode) return;
+                if(hint) hint.textContent = 'Loading barangays...';
+                fetchPSGC(PSGC_BASE + '/cities-municipalities/' + encodeURIComponent(cityCode) + '/barangays')
+                    .then(function(list){
+                        var brgys = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                        fillSelect(brgySel, brgys, 'Select barangay');
+                        setSelectDisabled(brgySel, false);
+                        if(preselectObj && preselectObj.barangay){
+                            if(preselectObj.barangay.code){
+                                brgySel.value = preselectObj.barangay.code;
+                            } else { selectOptionByName(brgySel, preselectObj.barangay); }
+                        }
+                        if(hint) hint.textContent = 'Barangay loaded.';
+                    })
+                    .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC barangays.'; });
+            }
+
+            regionSel && regionSel.addEventListener('change', function(){
+                var code = (this.value || '').trim();
+                resetChildren();
+                loadProvincesOrCities(code);
+                updateCheckoutShippingDisplay();
             });
+            provinceSel && provinceSel.addEventListener('change', function(){
+                var code = (this.value || '').trim();
+                fillSelect(citySel, [], 'Select city/municipality');
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(citySel, true);
+                setSelectDisabled(brgySel, true);
+                loadCitiesByProvince(code);
+                updateCheckoutShippingDisplay();
+            });
+            citySel && citySel.addEventListener('change', function(){
+                var code = (this.value || '').trim();
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(brgySel, true);
+                loadBarangays(code);
+                updateCheckoutShippingDisplay();
+            });
+            brgySel && brgySel.addEventListener('change', function(){ updateCheckoutShippingDisplay(); });
+
+            window.checkoutAddressEditorApi = {
+                loadAddress: function(obj){
+                    if(!obj) return;
+                    prefillFromObject(obj);
+                    if(obj.region && obj.region.code){
+                        regionSel.value = obj.region.code;
+                        loadProvincesOrCities(obj.region.code, obj);
+                    } else if(obj.region) {
+                        if(selectOptionByName(regionSel, obj.region)){
+                            loadProvincesOrCities(regionSel.value, obj);
+                        }
+                    }
+                },
+                reset: function(){
+                    prefillFromObject({ fullName:'', phone:'', street:'', postalCode:'', notes:'' });
+                    if(regionSel){ regionSel.value = ''; }
+                    resetChildren();
+                }
+            };
 
             saveBtn && saveBtn.addEventListener('click', function(e){
                 e.preventDefault();
-                var val = (textarea.value || '').trim();
-                if(val){
-                    localStorage.setItem('checkoutAddressMain', val);
-                    // also update visible address fields
-                    if(addrLabel) addrLabel.textContent = val.split('\n')[0] || val;
-                    if(addrDetails) addrDetails.textContent = val.split('\n').slice(1).join(', ') || '';
-                    // try to geocode and store coords for map centering
-                    forwardGeocode(val).then(function(latlng){
-                        if(latlng && latlng.length===2){
-                            localStorage.setItem('checkoutAddressCoords', JSON.stringify({lat:latlng[0], lon:latlng[1]}));
-                        } else {
-                            localStorage.removeItem('checkoutAddressCoords');
-                        }
-                    }).catch(function(){ localStorage.removeItem('checkoutAddressCoords'); });
-                } else {
-                    localStorage.removeItem('checkoutAddressMain');
+                var obj = getCheckoutAddressObject();
+                if(!obj || !obj.region || !obj.city || !obj.barangay || !obj.street){
+                    alert('Please complete the address fields (region, city, barangay, street).');
+                    return;
                 }
-                editor.style.display = 'none';
+                handleAddressEditorSave(obj);
+                if(addrLabel) addrLabel.textContent = obj.line1 || 'EMPTY';
+                if(addrDetails) addrDetails.textContent = obj.line2 || '';
+                closeAddressEditorModal();
                 updateCheckoutShippingDisplay();
             });
-            openMapBtn && openMapBtn.addEventListener('click', function(e){ openMapModal(); });
         }catch(e){ console.error('initAddressEditor error', e); }
     }
 
-    function openMapModal(){
-        var overlay = document.getElementById('mapModal');
-        if(!overlay) return;
-        overlay.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-        // initialize map if not done
-        setTimeout(function(){ if(!_mapInstance) initMapPicker(); }, 50);
-    }
-    function closeMapModal(){
-        var overlay = document.getElementById('mapModal');
-        if(!overlay) return;
-        overlay.style.display = 'none';
-        document.body.style.overflow = '';
-    }
-
-    function initMapPicker(){
-        try{
-            var container = document.getElementById('mapPicker');
-            if(!container) return;
-            // default center: within Philippines bounds
-            // approximate center and zoom that fits the Philippines
-            var philCenter = [12.8797, 121.7740]; // Philippines centroid
-            _mapInstance = L.map('mapPicker').setView(philCenter, 6);
-            // constrain to Philippines bounds (approx)
-            var philBounds = L.latLngBounds([4.5,116.0], [19.5,127.5]);
-            _mapInstance.setMaxBounds(philBounds);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(_mapInstance);
-            _mapInstance.on('click', function(e){
-                if(_mapMarker) _mapInstance.removeLayer(_mapMarker);
-                _mapMarker = L.marker(e.latlng).addTo(_mapInstance);
-                // reverse geocode
-                reverseGeocode(e.latlng.lat, e.latlng.lng).then(function(addr){
-                    var ta = document.getElementById('checkoutAddressInput');
-                    if(ta) ta.value = addr || (e.latlng.lat + ', ' + e.latlng.lng);
-                }).catch(function(){ /* ignore */ });
-            });
-
-            // if there's an address in the editor, attempt forward geocoding to place marker
-            setTimeout(function(){
-                try{
-                    var ta = document.getElementById('checkoutAddressInput');
-                    var initial = (ta && ta.value) ? ta.value.trim() : (localStorage.getItem('checkoutAddressMain') || '');
-                    if(initial){
-                        forwardGeocode(initial).then(function(latlng){
-                            if(latlng){
-                                if(_mapMarker) _mapInstance.removeLayer(_mapMarker);
-                                _mapMarker = L.marker(latlng).addTo(_mapInstance);
-                                _mapInstance.setView(latlng, 12);
-                            }
-                        }).catch(function(){ /* ignore */ });
-                    }
-                }catch(e){}
-            }, 350);
-            var confirmBtn = document.getElementById('confirmMapPickBtn');
-            confirmBtn && confirmBtn.addEventListener('click', function(){
-                // use marker position if present, else center
-                var latlng = _mapMarker ? _mapMarker.getLatLng() : _mapInstance.getCenter();
-                reverseGeocode(latlng.lat, latlng.lng).then(function(addr){
-                    var ta = document.getElementById('checkoutAddressInput');
-                    if(ta) ta.value = addr || (latlng.lat + ', ' + latlng.lng);
-                    closeMapModal();
-                }).catch(function(){
-                    var ta = document.getElementById('checkoutAddressInput');
-                    if(ta) ta.value = latlng.lat + ', ' + latlng.lng;
-                    closeMapModal();
-                });
-            });
-        }catch(e){ console.error('initMapPicker error', e); }
-    }
-
-    function reverseGeocode(lat, lon){
-        return new Promise(function(resolve, reject){
-            try{
-                var url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon);
-                fetch(url, { headers: { 'Accept': 'application/json' } }).then(function(res){ return res.json(); }).then(function(data){
-                    if(data && data.display_name) resolve(data.display_name);
-                    else resolve('');
-                }).catch(function(err){ reject(err); });
-            }catch(e){ reject(e); }
-        });
-    }
-
-    function forwardGeocode(query){
-        return new Promise(function(resolve, reject){
-            try{
-                if(!query) return resolve(null);
-                var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=ph&limit=1&q=' + encodeURIComponent(query);
-                fetch(url, { headers: { 'Accept': 'application/json' } }).then(function(res){ return res.json(); }).then(function(data){
-                    if(Array.isArray(data) && data.length){
-                        var d = data[0];
-                        var lat = parseFloat(d.lat);
-                        var lon = parseFloat(d.lon);
-                        if(!isNaN(lat) && !isNaN(lon)) return resolve([lat, lon]);
-                    }
-                    resolve(null);
-                }).catch(function(err){ reject(err); });
-            }catch(e){ reject(e); }
-        });
-    }
-
-    // search for multiple address suggestions (returns array of {display_name, lat, lon})
-    function searchAddresses(query, limit){
-        limit = limit || 5;
-        return new Promise(function(resolve, reject){
-            try{
-                if(!query) return resolve([]);
-                var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=ph&limit=' + encodeURIComponent(limit) + '&q=' + encodeURIComponent(query);
-                fetch(url, { headers: { 'Accept': 'application/json' } }).then(function(res){ return res.json(); }).then(function(data){
-                    if(!Array.isArray(data)) return resolve([]);
-                    var out = data.map(function(d){ return { display_name: d.display_name, lat: parseFloat(d.lat), lon: parseFloat(d.lon) }; }).filter(function(x){ return x && !isNaN(x.lat) && !isNaN(x.lon); });
-                    resolve(out);
-                }).catch(function(err){ resolve([]); });
-            }catch(e){ resolve([]); }
-        });
-    }
-
-    function debounce(fn, wait){
-        var t = null;
-        return function(){
-            var ctx = this, args = arguments;
-            clearTimeout(t);
-            t = setTimeout(function(){ fn.apply(ctx, args); }, wait);
+    // Returns structured address object for checkout
+    function getCheckoutAddressObject(){
+        var regionSel = document.getElementById('checkoutRegionSelect');
+        var provinceSel = document.getElementById('checkoutProvinceSelect');
+        var citySel = document.getElementById('checkoutCitySelect');
+        var brgySel = document.getElementById('checkoutBarangaySelect');
+        var region = regionSel && regionSel.value ? { code: regionSel.value, name: regionSel.options[regionSel.selectedIndex].textContent } : null;
+        var province = provinceSel && provinceSel.value ? { code: provinceSel.value, name: provinceSel.options[provinceSel.selectedIndex].textContent } : null;
+        var city = citySel && citySel.value ? { code: citySel.value, name: citySel.options[citySel.selectedIndex].textContent } : null;
+        var barangay = brgySel && brgySel.value ? { code: brgySel.value, name: brgySel.options[brgySel.selectedIndex].textContent } : null;
+        var fullName = (document.getElementById('checkoutFullName') && document.getElementById('checkoutFullName').value || '').trim();
+        var phone = (document.getElementById('checkoutPhone') && document.getElementById('checkoutPhone').value || '').trim();
+        var street = (document.getElementById('checkoutStreet') && document.getElementById('checkoutStreet').value || '').trim();
+        var postalCode = (document.getElementById('checkoutPostal') && document.getElementById('checkoutPostal').value || '').trim();
+        var notes = (document.getElementById('checkoutNotes') && document.getElementById('checkoutNotes').value || '').trim();
+        var line2Parts = [];
+        if(barangay && barangay.name) line2Parts.push(barangay.name);
+        if(city && city.name) line2Parts.push(city.name);
+        if(province && province.name) line2Parts.push(province.name);
+        if(region && region.name) line2Parts.push(region.name);
+        if(postalCode) line2Parts.push(postalCode);
+        var line1 = (fullName ? fullName + ', ' : '') + (street || '');
+        var line2 = line2Parts.join(', ');
+        return {
+            fullName: fullName,
+            phone: phone,
+            street: street,
+            postalCode: postalCode,
+            notes: notes,
+            region: region,
+            province: province,
+            city: city,
+            barangay: barangay,
+            line1: line1,
+            line2: line2
         };
+    }
+
+    function isDeliveryAddressComplete(obj){
+        if(!obj) return false;
+        var regionName = obj.region && obj.region.name ? obj.region.name : (obj.region || '');
+        var cityName = obj.city && obj.city.name ? obj.city.name : (obj.city || '');
+        var barangayName = obj.barangay && obj.barangay.name ? obj.barangay.name : (obj.barangay || '');
+        var street = obj.street || obj.line1 || '';
+        return !!(String(regionName || '').trim()) && !!(String(cityName || '').trim()) && !!(String(barangayName || '').trim()) && !!(String(street || '').trim());
+    }
+
+    function getBestCheckoutAddressObject(){
+        var current = null;
+        try{ current = getCheckoutAddressObject(); }catch(e){ current = null; }
+        var stored = null;
+        try{ stored = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ stored = null; }
+        if(isDeliveryAddressComplete(current)) return current;
+        if(isDeliveryAddressComplete(stored)) return stored;
+        return current || stored;
     }
 
     // enhance computeJNTShipping to prefer explicit checkout overrides
@@ -1247,10 +1379,16 @@
             });
             var weightKg = Math.max(totalPhysicalWeightKg, totalDimWeightKg);
             var profile = JSON.parse(localStorage.getItem('profile') || '{}');
-            // prefer explicit checkout address override
             var overrideAddr = localStorage.getItem('checkoutAddressMain');
-            var regionOverride = localStorage.getItem('checkoutRegion');
-            var destRegion = regionOverride || (overrideAddr ? determineRegion(overrideAddr, '') : determineRegion(profile.addressMain, profile.addressDetails));
+            var destRegion = '';
+            try{
+                var addrObj = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null');
+                if(addrObj && addrObj.region){
+                    if(addrObj.region.name) destRegion = psgcRegionToShippingRegion(addrObj.region.name);
+                    else destRegion = psgcRegionToShippingRegion(addrObj.region);
+                }
+            }catch(e){}
+            if(!destRegion){ destRegion = (overrideAddr ? determineRegion(overrideAddr, '') : determineRegion(profile.addressMain, profile.addressDetails)); }
             // shipping should be calculated from Luzon origin (change requested)
             var originRegion = 'Luzon';
             function computeRate(originRegion, destRegion, weightKg){
@@ -1282,6 +1420,387 @@
         try{ return JSON.parse(localStorage.getItem('profile') || '{}'); }catch(e){ return {}; }
     }
 
+    var addressBookEditingId = null;
+    var addressBookSelectedId = null;
+
+    function generateAddressId(){ return 'addr_' + Date.now() + '_' + Math.floor(Math.random() * 1000000); }
+
+    function normalizeAddressEntry(entry){
+        if(!entry) return entry;
+        var line2Parts = [];
+        var brgyName = entry.barangay && entry.barangay.name ? entry.barangay.name : entry.barangay;
+        var cityName = entry.city && entry.city.name ? entry.city.name : entry.city;
+        var provName = entry.province && entry.province.name ? entry.province.name : entry.province;
+        var regName = entry.region && entry.region.name ? entry.region.name : entry.region;
+        if(brgyName) line2Parts.push(brgyName);
+        if(cityName) line2Parts.push(cityName);
+        if(provName) line2Parts.push(provName);
+        if(regName) line2Parts.push(regName);
+        if(entry.postalCode) line2Parts.push(entry.postalCode);
+        entry.line1 = entry.line1 || ((entry.fullName ? entry.fullName + ', ' : '') + (entry.street || ''));
+        entry.line2 = entry.line2 || line2Parts.join(', ');
+        return entry;
+    }
+
+    function getProfileAddressBook(){
+        var profile = getActiveProfile() || {};
+        var addresses = Array.isArray(profile.addresses) ? profile.addresses.slice() : [];
+        var defaultId = profile.defaultAddressId || '';
+        return { profile: profile, addresses: addresses, defaultId: defaultId };
+    }
+
+    function deriveProfileFieldsFromEntry(entry){
+        var brgyName = entry.barangay && entry.barangay.name ? entry.barangay.name : entry.barangay;
+        var cityName = entry.city && entry.city.name ? entry.city.name : entry.city;
+        var provName = entry.province && entry.province.name ? entry.province.name : entry.province;
+        var regName = entry.region && entry.region.name ? entry.region.name : entry.region;
+        var details = [brgyName, cityName, provName, regName, entry.postalCode].filter(Boolean).join(', ');
+        return {
+            addressMain: entry.street || entry.line1 || '',
+            addressDetails: details
+        };
+    }
+
+    function ensureProfileAddresses(){
+        var data = getProfileAddressBook();
+        var profile = data.profile;
+        var addresses = data.addresses;
+        var defaultId = data.defaultId;
+        if(!addresses.length){
+            if(profile && (profile.deliveryAddress || profile.addressMain)){
+                var legacyAddr = profile.deliveryAddress || normalizeDeliveryAddressFromString(profile.addressMain || '');
+                var entry = {
+                    id: generateAddressId(),
+                    fullName: legacyAddr.fullName || '',
+                    phone: profile.phone || '',
+                    street: legacyAddr.street || profile.addressMain || '',
+                    postalCode: legacyAddr.postalCode || '',
+                    notes: '',
+                    region: legacyAddr.region || '',
+                    province: legacyAddr.province || '',
+                    city: legacyAddr.city || '',
+                    barangay: legacyAddr.barangay || ''
+                };
+                normalizeAddressEntry(entry);
+                addresses.push(entry);
+                defaultId = entry.id;
+            }
+        }
+        if(addresses.length && !defaultId){
+            defaultId = addresses[0].id;
+        }
+        profile.addresses = addresses;
+        profile.defaultAddressId = defaultId;
+        if(defaultId){
+            for(var i=0;i<addresses.length;i++){
+                addresses[i].isDefault = (addresses[i].id === defaultId);
+            }
+        }
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        upsertProfileAddressBookToFirestore(profile);
+        return { profile: profile, addresses: addresses, defaultId: defaultId };
+    }
+
+    function upsertProfileAddressBookToFirestore(profile){
+        try{
+            ensureFirebaseReady(function(err){
+                if(err) return;
+                firebase.auth().onAuthStateChanged(function(user){
+                    if(!user || !user.uid) return;
+                    try{
+                        var db = firebase.firestore();
+                        var payload = {
+                            email: profile.email || user.email || '',
+                            name: profile.name || '',
+                            phone: profile.phone || '',
+                            addressMain: profile.addressMain || '',
+                            addressDetails: profile.addressDetails || '',
+                            deliveryAddress: profile.deliveryAddress || null,
+                            addresses: profile.addresses || [],
+                            defaultAddressId: profile.defaultAddressId || '',
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        };
+                        db.doc('users/' + user.uid).set(payload, { merge: true }).catch(function(){});
+                    }catch(e){ /* ignore */ }
+                });
+            });
+        }catch(e){ /* ignore */ }
+    }
+
+    function applyEntryToCheckout(entry){
+        if(!entry) return;
+        normalizeAddressEntry(entry);
+        try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(entry)); }catch(e){}
+        localStorage.setItem('checkoutAddressMain', entry.line1 || entry.street || '');
+        localStorage.setItem('checkoutAddressDetails', entry.line2 || '');
+        addressBookSelectedId = entry.id || null;
+        initCheckoutProfileDisplay();
+        try{ updateCheckoutShippingDisplay(); }catch(e){}
+    }
+
+    function renderAddressBookList(){
+        var data = ensureProfileAddresses();
+        var addresses = data.addresses || [];
+        var defaultId = data.defaultId || '';
+        var list = document.getElementById('addressBookList');
+        if(!list) return;
+        list.innerHTML = '';
+        if(!addresses.length){
+            list.innerHTML = '<div style="color:#666;">No saved addresses yet.</div>';
+            return;
+        }
+        addresses.forEach(function(entry){
+            normalizeAddressEntry(entry);
+            var item = document.createElement('div');
+            item.className = 'address-book-item' + ((addressBookSelectedId && entry.id === addressBookSelectedId) ? ' selected' : '');
+            var meta = document.createElement('div');
+            meta.className = 'address-book-meta';
+            var title = document.createElement('div');
+            title.className = 'address-book-title';
+            title.textContent = entry.line1 || 'Unnamed address';
+            var sub = document.createElement('div');
+            sub.className = 'address-book-sub';
+            sub.textContent = entry.line2 || '';
+            meta.appendChild(title);
+            meta.appendChild(sub);
+            if(entry.id === defaultId){
+                var badge = document.createElement('span');
+                badge.className = 'address-book-badge';
+                badge.textContent = 'Default';
+                meta.appendChild(badge);
+            }
+
+            var actions = document.createElement('div');
+            actions.className = 'address-book-item-actions';
+            var useBtn = document.createElement('button');
+            useBtn.className = 'address-inline-btn primary';
+            useBtn.textContent = 'Use';
+            useBtn.onclick = function(){ applyEntryToCheckout(entry); closeAddressBookModal(); };
+            var editBtn = document.createElement('button');
+            editBtn.className = 'address-inline-btn';
+            editBtn.textContent = 'Edit';
+            editBtn.onclick = function(){ openAddressEditorModal(entry.id); };
+            var delBtn = document.createElement('button');
+            delBtn.className = 'address-inline-btn';
+            delBtn.textContent = 'Delete';
+            delBtn.onclick = function(){ confirmDeleteAddress(entry.id); };
+            actions.appendChild(useBtn);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+
+            item.appendChild(meta);
+            item.appendChild(actions);
+            list.appendChild(item);
+        });
+    }
+
+    function openAddressBookModal(){
+        try{
+            var current = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null');
+            addressBookSelectedId = current && current.id ? current.id : null;
+        }catch(e){ addressBookSelectedId = null; }
+        renderAddressBookList();
+        var overlay = document.getElementById('addressBookOverlay');
+        if(overlay){ overlay.classList.add('show'); overlay.setAttribute('aria-hidden','false'); document.body.style.overflow = 'hidden'; }
+    }
+
+    function closeAddressBookModal(){
+        var overlay = document.getElementById('addressBookOverlay');
+        if(overlay){ overlay.classList.remove('show'); overlay.setAttribute('aria-hidden','true'); }
+        document.body.style.overflow = '';
+    }
+
+    function openAddressEditorModal(addressId){
+        addressBookEditingId = addressId || null;
+        closeAddressBookModal();
+        var overlay = document.getElementById('addressEditorOverlay');
+        var editor = document.getElementById('checkoutAddressEditor');
+        if(overlay){ overlay.classList.add('show'); overlay.setAttribute('aria-hidden','false'); document.body.style.overflow = 'hidden'; }
+        if(editor){ editor.style.display = 'block'; }
+        var data = ensureProfileAddresses();
+        var entry = null;
+        if(addressBookEditingId){
+            entry = (data.addresses || []).find(function(a){ return a.id === addressBookEditingId; }) || null;
+        }
+        if(window.checkoutAddressEditorApi){
+            if(entry){ window.checkoutAddressEditorApi.loadAddress(entry); }
+            else { window.checkoutAddressEditorApi.reset(); }
+        }
+        var toggle = document.getElementById('checkoutDefaultAddressToggle');
+        if(toggle){ toggle.checked = !!(entry && entry.id === data.defaultId); }
+    }
+
+    function closeAddressEditorModal(){
+        var overlay = document.getElementById('addressEditorOverlay');
+        var editor = document.getElementById('checkoutAddressEditor');
+        if(overlay){ overlay.classList.remove('show'); overlay.setAttribute('aria-hidden','true'); }
+        if(editor){ editor.style.display = 'none'; }
+        document.body.style.overflow = '';
+        addressBookEditingId = null;
+    }
+
+    function confirmDeleteAddress(addressId){
+        if(!addressId) return;
+        if(!confirm('Delete this address?')) return;
+        var data = ensureProfileAddresses();
+        var addresses = (data.addresses || []).filter(function(a){ return a.id !== addressId; });
+        var profile = data.profile || {};
+        if(profile.defaultAddressId === addressId){ profile.defaultAddressId = addresses[0] ? addresses[0].id : ''; }
+        if(addressBookSelectedId === addressId){ addressBookSelectedId = null; deleteAddress(); }
+        profile.addresses = addresses;
+        profile.addresses.forEach(function(a){ a.isDefault = (a.id === profile.defaultAddressId); });
+        if(profile.defaultAddressId){
+            var defEntry = addresses.find(function(a){ return a.id === profile.defaultAddressId; });
+            if(defEntry){
+                var fields = deriveProfileFieldsFromEntry(defEntry);
+                profile.addressMain = fields.addressMain;
+                profile.addressDetails = fields.addressDetails;
+                profile.deliveryAddress = normalizeDeliveryAddressFromAddressObject(defEntry);
+            }
+        }
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        upsertProfileAddressBookToFirestore(profile);
+        renderAddressBookList();
+    }
+
+    function handleAddressEditorSave(obj){
+        normalizeAddressEntry(obj);
+        try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(obj)); }catch(e){}
+        localStorage.setItem('checkoutAddressMain', obj.line1 || '');
+        localStorage.setItem('checkoutAddressDetails', obj.line2 || '');
+
+        var data = ensureProfileAddresses();
+        var profile = data.profile || {};
+        var addresses = data.addresses || [];
+        var isDefault = false;
+        var toggle = document.getElementById('checkoutDefaultAddressToggle');
+        if(toggle) isDefault = !!toggle.checked;
+
+        if(addressBookEditingId){
+            for(var i=0;i<addresses.length;i++){
+                if(addresses[i].id === addressBookEditingId){
+                    obj.id = addressBookEditingId;
+                    obj.isDefault = isDefault;
+                    addresses[i] = obj;
+                    break;
+                }
+            }
+        } else {
+            obj.id = generateAddressId();
+            obj.isDefault = isDefault;
+            addresses.push(obj);
+            addressBookEditingId = obj.id;
+        }
+
+        if(isDefault){
+            profile.defaultAddressId = obj.id;
+            addresses.forEach(function(a){ a.isDefault = (a.id === obj.id); });
+            var fields = deriveProfileFieldsFromEntry(obj);
+            profile.addressMain = fields.addressMain;
+            profile.addressDetails = fields.addressDetails;
+            profile.deliveryAddress = normalizeDeliveryAddressFromAddressObject(obj);
+        }
+
+        profile.addresses = addresses;
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        upsertProfileAddressBookToFirestore(profile);
+        addressBookSelectedId = obj.id;
+        renderAddressBookList();
+    }
+
+    function deriveCheckoutAddressObjectFromProfile(profile){
+        profile = profile || {};
+        var addr = profile.deliveryAddress || null;
+        if(!addr && profile.addressMain){
+            addr = normalizeDeliveryAddressFromString(profile.addressMain);
+            if(profile.addressDetails){
+                var parts = String(profile.addressDetails || '').split(',');
+                addr.barangay = addr.barangay || (parts[0] || '').trim();
+            }
+        }
+        addr = addr || { region: '', province: '', city: '', barangay: '', street: '' };
+        var baseStreet = addr.street || profile.addressMain || '';
+        var fullName = addr.fullName || '';
+        var line1 = (fullName ? (fullName + ', ') : '') + (baseStreet || '');
+        var line2Parts = [addr.barangay, addr.city, addr.province, addr.region, addr.postalCode].filter(Boolean);
+        return {
+            fullName: fullName,
+            phone: profile.phone || '',
+            street: addr.street || '',
+            postalCode: addr.postalCode || '',
+            notes: '',
+            region: addr.region || '',
+            province: addr.province || '',
+            city: addr.city || '',
+            barangay: addr.barangay || '',
+            line1: line1,
+            line2: line2Parts.join(', ')
+        };
+    }
+
+    function syncProfileFromFirestoreForCheckout(){
+        try{
+            ensureFirebaseReady(function(err){
+                if(err) return;
+                firebase.auth().onAuthStateChanged(function(user){
+                    if(!user || !user.uid) return;
+                    try{
+                        var db = firebase.firestore();
+                        db.doc('users/' + user.uid).get().then(function(doc){
+                            if(!doc || !doc.exists) return;
+                            var data = doc.data() || {};
+                            var local = {};
+                            try{ local = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ local = {}; }
+                            var merged = {
+                                uid: user.uid,
+                                email: data.email || local.email || user.email || '',
+                                name: data.name || data.displayName || local.name || '',
+                                phone: data.phone || local.phone || '',
+                                addressMain: data.addressMain || local.addressMain || '',
+                                addressDetails: data.addressDetails || local.addressDetails || '',
+                                deliveryAddress: data.deliveryAddress || local.deliveryAddress || null,
+                                addresses: Array.isArray(data.addresses) ? data.addresses : (local.addresses || []),
+                                defaultAddressId: data.defaultAddressId || local.defaultAddressId || ''
+                            };
+                            localStorage.setItem('profile', JSON.stringify(merged));
+                            localStorage.setItem('profile_updated_at', String(Date.now()));
+
+                            var hasCheckoutOverride = !!localStorage.getItem('checkoutAddressObject');
+                            if(!hasCheckoutOverride){
+                                var defEntry = null;
+                                if(Array.isArray(merged.addresses) && merged.addresses.length){
+                                    if(merged.defaultAddressId){
+                                        defEntry = merged.addresses.find(function(a){ return a.id === merged.defaultAddressId; }) || null;
+                                    }
+                                    if(!defEntry){
+                                        defEntry = merged.addresses.find(function(a){ return a.isDefault; }) || merged.addresses[0];
+                                    }
+                                }
+                                if(defEntry){
+                                    normalizeAddressEntry(defEntry);
+                                    localStorage.setItem('checkoutAddressObject', JSON.stringify(defEntry));
+                                    localStorage.setItem('checkoutAddressMain', defEntry.line1 || defEntry.street || '');
+                                    localStorage.setItem('checkoutAddressDetails', defEntry.line2 || '');
+                                } else if(merged.deliveryAddress){
+                                    var derived = deriveCheckoutAddressObjectFromProfile(merged);
+                                    localStorage.setItem('checkoutAddressObject', JSON.stringify(derived));
+                                    localStorage.setItem('checkoutAddressMain', derived.line1 || derived.street || '');
+                                    localStorage.setItem('checkoutAddressDetails', derived.line2 || '');
+                                }
+                            }
+                            initCheckoutProfileDisplay();
+                            try{ updateCheckoutShippingDisplay(); }catch(e){}
+                            try{ renderCheckoutCart(); }catch(e){}
+                        }).catch(function(){});
+                    }catch(e){ /* ignore */ }
+                });
+            });
+        }catch(e){ /* ignore */ }
+    }
+
     // Initialize checkout UI from active profile (name, email, address). Falls back to any checkoutAddressMain override.
     function initCheckoutProfileDisplay(){
         try{
@@ -1292,22 +1811,33 @@
             }
             var addrMainEl = document.querySelector('.checkout-address-main');
             var addrDetailsEl = document.querySelector('.checkout-address-details');
+            var storedObj = null;
+            try{ storedObj = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ storedObj = null; }
             var storedAddr = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress');
-            if(storedAddr){
+            if(storedObj && (storedObj.line1 || storedObj.line2)){
+                if(addrMainEl) addrMainEl.textContent = storedObj.line1 || 'EMPTY';
+                if(addrDetailsEl) addrDetailsEl.textContent = storedObj.line2 || '';
+            } else if(storedAddr){
                 if(addrMainEl) addrMainEl.textContent = (storedAddr.split('\n')[0] || storedAddr);
                 if(addrDetailsEl) addrDetailsEl.textContent = (storedAddr.split('\n').slice(1).join(', ') || '');
             } else {
                 // Use profile fields. If profile has no addressMain, show EXACT text 'EMPTY' per requirement.
-                var profileHasAddress = p && p.addressMain && (('' + p.addressMain).trim().length > 0);
-                if(profileHasAddress){
-                    var mainText = '';
-                    if(p.name && (''+p.name).trim().length) mainText += p.name + ', ';
-                    mainText += p.addressMain;
-                    if(addrMainEl) addrMainEl.textContent = mainText;
-                    if(addrDetailsEl) addrDetailsEl.textContent = (p.addressDetails || '');
+                if(p && p.deliveryAddress){
+                    var derivedObj = deriveCheckoutAddressObjectFromProfile(p);
+                    if(addrMainEl) addrMainEl.textContent = derivedObj.line1 || 'EMPTY';
+                    if(addrDetailsEl) addrDetailsEl.textContent = derivedObj.line2 || '';
                 } else {
-                    if(addrMainEl) addrMainEl.textContent = 'EMPTY';
-                    if(addrDetailsEl) addrDetailsEl.textContent = '';
+                    var profileHasAddress = p && p.addressMain && (('' + p.addressMain).trim().length > 0);
+                    if(profileHasAddress){
+                        var mainText = '';
+                        if(p.name && (''+p.name).trim().length) mainText += p.name + ', ';
+                        mainText += p.addressMain;
+                        if(addrMainEl) addrMainEl.textContent = mainText;
+                        if(addrDetailsEl) addrDetailsEl.textContent = (p.addressDetails || '');
+                    } else {
+                        if(addrMainEl) addrMainEl.textContent = 'EMPTY';
+                        if(addrDetailsEl) addrDetailsEl.textContent = '';
+                    }
                 }
             }
         }catch(e){ console.error('initCheckoutProfileDisplay error', e); }
@@ -1317,9 +1847,8 @@
     window.addEventListener('storage', function(e){
         try{
             if(!e) return;
-            if(e.key === 'profile' || e.key === 'profile_updated_at' || e.key === 'checkoutAddressMain'){
+            if(e.key === 'profile' || e.key === 'profile_updated_at' || e.key === 'checkoutAddressMain' || e.key === 'checkoutAddressObject'){
                 initCheckoutProfileDisplay();
-                try{ initRegionSelector(); }catch(err){}
                 try{ updateCheckoutShippingDisplay(); }catch(err){}
                 try{ renderCheckoutCart(); }catch(err){}
             }
@@ -1397,9 +1926,23 @@
             return;
         }
         try{ renderCheckoutCart(); }catch(e){}
-        try{ initRegionSelector(); }catch(e){}
         try{ initAddressEditor(); }catch(e){}
         try{ initCheckoutProfileDisplay(); }catch(e){}
+        try{ syncProfileFromFirestoreForCheckout(); }catch(e){}
+        try{
+            var host = document.getElementById('addressEditorHost');
+            var editor = document.getElementById('checkoutAddressEditor');
+            if(host && editor && !host.contains(editor)) host.appendChild(editor);
+            if(editor) editor.style.display = 'none';
+        }catch(e){}
+        try{
+            var row = document.getElementById('addressEditorRow');
+            if(row){
+                row.addEventListener('keydown', function(ev){
+                    if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openAddressBookModal(); }
+                });
+            }
+        }catch(e){}
         try{
             var cartSnap = JSON.parse(localStorage.getItem('cart') || '[]');
             if(Array.isArray(cartSnap) && cartSnap.length){
@@ -1420,6 +1963,25 @@
             }
             localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartNow));
         }catch(e){}
+
+        // Require a complete structured address before placing order
+        try{
+            var bestAddr = getBestCheckoutAddressObject();
+            if(!isDeliveryAddressComplete(bestAddr)){
+                alert('Please complete your shipping address before placing the order.');
+                var editor = document.getElementById('checkoutAddressEditor');
+                if(editor) editor.style.display = 'block';
+                return;
+            }
+            localStorage.setItem('checkoutAddressObject', JSON.stringify(bestAddr));
+            localStorage.setItem('checkoutAddressMain', bestAddr.line1 || bestAddr.street || '');
+            localStorage.setItem('checkoutAddressDetails', bestAddr.line2 || '');
+        }catch(e){
+            alert('Please complete your shipping address before placing the order.');
+            var editor2 = document.getElementById('checkoutAddressEditor');
+            if(editor2) editor2.style.display = 'block';
+            return;
+        }
         try{
             // delivery label
             var deliveryEl = document.querySelector('.checkout-delivery-option.selected .checkout-delivery-label') || document.querySelector('.checkout-delivery-label');
@@ -1487,18 +2049,14 @@
                 }
             }catch(e){}
         }catch(e){}
-        // persist any edited address/region the user may have entered in the editor
+        // persist any edited PSGC address data (already validated above)
         try{
-            var ta = document.getElementById('checkoutAddressInput');
-            if(ta && ta.value && ta.value.trim()){
-                localStorage.setItem('checkoutAddressMain', ta.value.trim());
-                var addrLabel = document.querySelector('.checkout-address-main');
-                var addrDetails = document.querySelector('.checkout-address-details');
-                if(addrLabel) addrLabel.textContent = ta.value.split('\n')[0] || ta.value;
-                if(addrDetails) addrDetails.textContent = ta.value.split('\n').slice(1).join(', ') || '';
+            var addrObj = getBestCheckoutAddressObject();
+            if(addrObj){
+                localStorage.setItem('checkoutAddressObject', JSON.stringify(addrObj));
+                localStorage.setItem('checkoutAddressMain', addrObj.line1 || addrObj.street || '');
+                localStorage.setItem('checkoutAddressDetails', addrObj.line2 || '');
             }
-            var sel = document.getElementById('checkoutRegionSelect');
-            if(sel){ if(sel.value && sel.value !== '') localStorage.setItem('checkoutRegion', sel.value); else localStorage.removeItem('checkoutRegion'); }
         }catch(e){}
         // Use replace so Checkout is removed from browser history after continuing
         persistCheckoutToFirestore().finally(function(){
@@ -1536,6 +2094,29 @@
         }catch(e){ if(cb) cb(e); }
     }
 
+    function normalizeDeliveryAddressFromAddressObject(addressObject){
+        if(!addressObject) return null;
+        return {
+            fullName: addressObject.fullName || '',
+            phone: addressObject.phone || '',
+            postalCode: addressObject.postalCode || '',
+            region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+            province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+            city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+            barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+            street: addressObject.street || addressObject.line1 || ''
+        };
+    }
+
+    function normalizeDeliveryAddressFromString(addressText){
+        if(!addressText) return null;
+        return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+    }
+
+    function generateOrderId(){
+        return 'SP' + Date.now() + Math.floor(Math.random() * 1000);
+    }
+
     function buildCheckoutPayload(cart){
         cart = Array.isArray(cart) ? cart : [];
         var shipping = Number(localStorage.getItem('checkoutShipping') || 0);
@@ -1548,6 +2129,14 @@
         var customerEmail = localStorage.getItem('checkoutCustomerEmail') || '';
         var addressMain = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress') || '';
         var addressDetails = localStorage.getItem('checkoutAddressDetails') || '';
+        var addressObject = null;
+        try{ addressObject = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ addressObject = null; }
+        var deliveryAddress = normalizeDeliveryAddressFromAddressObject(addressObject) || normalizeDeliveryAddressFromString(addressMain);
+        var orderId = localStorage.getItem('checkoutOrderId') || '';
+        if(!orderId){
+            orderId = generateOrderId();
+            try{ localStorage.setItem('checkoutOrderId', orderId); }catch(e){}
+        }
 
         var subtotal = 0;
         cart.forEach(function(it){
@@ -1558,6 +2147,7 @@
         var total = subtotal + shipping;
 
         return {
+            order_id: orderId,
             status: 'Pending payment',
             payment_method: paymentCode || paymentLabel || '',
             paymentMethod: paymentLabel || paymentCode || '',
@@ -1570,8 +2160,11 @@
             total: total,
             customerName: customerName,
             customerEmail: customerEmail,
+            deliveryAddress: deliveryAddress,
+            // legacy fields kept for backward compatibility
             delivery_address: addressMain,
-            addressDetails: addressDetails
+            addressDetails: addressDetails,
+            addressObject: addressObject
         };
     }
 
@@ -1623,6 +2216,33 @@
                                     });
                                 });
                                 return batch.commit();
+                            }).then(function(){
+                                // also upsert to orders collection so orders exist immediately
+                                var orderId = payload.order_id || payload.id || localStorage.getItem('checkoutOrderId') || '';
+                                if(!orderId){ orderId = generateOrderId(); try{ localStorage.setItem('checkoutOrderId', orderId); }catch(e){} }
+                                var orderRef = db.collection('orders').doc(String(orderId));
+                                var orderPayload = Object.assign({}, payload, {
+                                    id: orderId,
+                                    created_at: firebase.firestore.FieldValue.serverTimestamp()
+                                });
+                                return orderRef.set(orderPayload, { merge: true }).then(function(){
+                                    return orderRef.collection('items').get().then(function(itemsSnap){
+                                        var batch = db.batch();
+                                        itemsSnap.forEach(function(doc){ batch.delete(doc.ref); });
+                                        cartNow.forEach(function(it, idx){
+                                            var itemRef = orderRef.collection('items').doc('item-' + idx);
+                                            batch.set(itemRef, {
+                                                product_id: it.product_id || it.id || '',
+                                                name: it.name || it.title || '',
+                                                price: Number(it.price || 0),
+                                                qty: Number(it.qty || it.quantity || 1),
+                                                image_url: it.image_url || it.image || '',
+                                                size: it.size || ''
+                                            });
+                                        });
+                                        return batch.commit();
+                                    });
+                                });
                             }).then(function(){ resolve(true); }).catch(function(){ resolve(false); });
                         }catch(e){ resolve(false); }
                     });

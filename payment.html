@@ -484,6 +484,33 @@
     let currentItems = [];
     let usingLocalCheckoutFallback = false;
 
+    function normalizeDeliveryAddressFromAddressObject(addressObject){
+        if(!addressObject) return null;
+        return {
+            region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+            province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+            city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+            barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+            street: addressObject.street || addressObject.line1 || ''
+        };
+    }
+
+    function normalizeDeliveryAddressFromString(addressText){
+        if(!addressText) return null;
+        return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+    }
+
+    function formatDeliveryAddressText(addrObj){
+        if(!addrObj) return '';
+        var parts = [];
+        if(addrObj.street) parts.push(addrObj.street);
+        if(addrObj.barangay) parts.push(addrObj.barangay);
+        if(addrObj.city) parts.push(addrObj.city);
+        if(addrObj.province) parts.push(addrObj.province);
+        if(addrObj.region) parts.push(addrObj.region);
+        return parts.join(', ');
+    }
+
     function getLocalCheckoutSnapshot(){
         try{
             var items = [];
@@ -503,6 +530,9 @@
             var customerEmail = localStorage.getItem('checkoutCustomerEmail') || '';
             var addressMain = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress') || '';
             var addressDetails = localStorage.getItem('checkoutAddressDetails') || '';
+            var addressObject = null;
+            try{ addressObject = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ addressObject = null; }
+            var deliveryAddress = normalizeDeliveryAddressFromAddressObject(addressObject) || normalizeDeliveryAddressFromString(addressMain);
 
             var subtotal = 0;
             items.forEach(function(it){
@@ -526,7 +556,9 @@
                     customerName: customerName,
                     customerEmail: customerEmail,
                     delivery_address: addressMain,
-                    addressDetails: addressDetails
+                    addressDetails: addressDetails,
+                    addressObject: addressObject,
+                    deliveryAddress: deliveryAddress
                 }
             };
         }catch(e){ return null; }
@@ -543,6 +575,9 @@
                 checkoutRef.get().then(function(doc){
                     if(doc.exists) return resolve(false);
                     var checkoutData = localSnap.checkout || {};
+                    if(!checkoutData.deliveryAddress){
+                        checkoutData.deliveryAddress = normalizeDeliveryAddressFromAddressObject(checkoutData.addressObject) || normalizeDeliveryAddressFromString(checkoutData.delivery_address || checkoutData.shippingAddress || '');
+                    }
                     checkoutData.user_id = user.uid;
                     if(!checkoutData.customerEmail && user.email) checkoutData.customerEmail = user.email;
                     checkoutData.items = localSnap.items.map(function(it){
@@ -683,6 +718,15 @@
                 return;
             }
             currentCheckout = doc.data() || {};
+            try{
+                if(!currentCheckout.deliveryAddress){
+                    var computedAddr = normalizeDeliveryAddressFromAddressObject(currentCheckout.addressObject) || normalizeDeliveryAddressFromString(currentCheckout.delivery_address || currentCheckout.shippingAddress || '');
+                    if(computedAddr){
+                        checkoutRef.set({ deliveryAddress: computedAddr }, { merge: true });
+                        currentCheckout.deliveryAddress = computedAddr;
+                    }
+                }
+            }catch(e){ /* ignore migration errors */ }
             // If items are embedded, use them as a fallback when subcollection is empty
             if(Array.isArray(currentCheckout.items) && currentCheckout.items.length && (!currentItems || currentItems.length === 0)){
                 currentItems = currentCheckout.items.slice();
@@ -869,6 +913,97 @@
         }catch(e){ if(cb) cb(e); }
     }
 
+    function findInventoryIndexForItem(inv, item){
+        try{
+            if(!Array.isArray(inv)) return -1;
+            var itemId = item && (item.product_id || item.productId || item.id) ? String(item.product_id || item.productId || item.id) : '';
+            if(itemId){
+                var idIdx = inv.findIndex(function(i){ return String(i.id||'') === itemId || String(i.productId||'') === itemId; });
+                if(idIdx !== -1) return idIdx;
+            }
+            var title = (item && (item.name || item.title || item.productName) || '').toString().trim();
+            var brand = (item && (item.brand || item.productBrand) || '').toString().trim();
+            if(title){
+                var exactIdx = inv.findIndex(function(i){ return String(i.name||'').trim() === title; });
+                if(exactIdx !== -1) return exactIdx;
+                var containsIdx = inv.findIndex(function(i){ return title && String(i.name||'').toLowerCase().indexOf(title.toLowerCase()) !== -1; });
+                if(containsIdx !== -1) return containsIdx;
+            }
+            if(brand){
+                var brandIdx = inv.findIndex(function(i){ return String(i.brand||'').toLowerCase() === brand.toLowerCase(); });
+                if(brandIdx !== -1) return brandIdx;
+            }
+            return -1;
+        }catch(e){ return -1; }
+    }
+
+    function adjustAdminInventoryStock(items, direction){
+        var updated = false;
+        try{
+            var adminProducts = JSON.parse(localStorage.getItem('shoeInventoryData')||'null');
+            if(!Array.isArray(adminProducts) || !adminProducts.length) return false;
+            items.forEach(function(it){
+                var qty = Number(it.qty || it.quantity || 1) || 0;
+                if(!qty) return;
+                var size = (it.size || it.eu || it.size_eu || '').toString().trim();
+                if(!size) return;
+                var title = (it.name || it.title || it.productName || '').toString().trim();
+                var itemId = (it.product_id || it.productId || it.id || '').toString().trim();
+                adminProducts.forEach(function(p){
+                    var pId = (p && (p.id || p.sku)) ? String(p.id || p.sku) : '';
+                    var matchesProduct = itemId && pId && itemId === pId;
+                    var colors = Array.isArray(p.colors) ? p.colors : [];
+                    colors.forEach(function(c){
+                        var name = ((p.model||'') + (c && c.name ? (' ' + c.name) : '')).trim();
+                        if(!matchesProduct && title){
+                            if(String(name).toLowerCase() !== String(title).toLowerCase()) return;
+                        }
+                        if(!Array.isArray(c.sizes)) return;
+                        c.sizes.forEach(function(s){
+                            if(String(s.eu) === String(size)){
+                                var cur = Number(s.stock || 0) || 0;
+                                var next = cur + (direction * qty);
+                                s.stock = Math.max(0, next);
+                                updated = true;
+                            }
+                        });
+                    });
+                });
+            });
+            if(updated){
+                localStorage.setItem('shoeInventoryData', JSON.stringify(adminProducts));
+            }
+        }catch(e){ /* ignore */ }
+        return updated;
+    }
+
+    function adjustInventoryStock(items, direction){
+        var updated = false;
+        try{
+            var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+            if(Array.isArray(inv) && inv.length){
+                items.forEach(function(it){
+                    var qty = Number(it.qty || it.quantity || 1) || 0;
+                    if(!qty) return;
+                    var size = (it.size || it.eu || it.size_eu || '').toString().trim();
+                    if(!size) return;
+                    var idx = findInventoryIndexForItem(inv, it);
+                    if(idx === -1) return;
+                    if(!inv[idx].sizes) inv[idx].sizes = {};
+                    var cur = Number(inv[idx].sizes[size] || 0) || 0;
+                    var next = cur + (direction * qty);
+                    inv[idx].sizes[size] = Math.max(0, next);
+                    updated = true;
+                });
+                if(updated){
+                    localStorage.setItem('inventory', JSON.stringify(inv));
+                }
+            }
+        }catch(e){ /* ignore */ }
+        var adminUpdated = adjustAdminInventoryStock(items, direction);
+        return updated || adminUpdated;
+    }
+
     function placeOrder() {
         var btn = document.getElementById('placeOrderBtn');
         if(btn) btn.disabled = true;
@@ -887,8 +1022,10 @@
                     checkoutRef.get().then(function(doc){
                         if(!doc.exists){ throw new Error('Checkout not found'); }
                         var checkoutData = doc.data() || {};
-                        var orderId = generateOrderId();
+                        var orderId = checkoutData.order_id || localStorage.getItem('checkoutOrderId') || generateOrderId();
                         var orderRef = db.collection('orders').doc(orderId);
+                        var deliveryAddrObj = checkoutData.deliveryAddress || normalizeDeliveryAddressFromAddressObject(checkoutData.addressObject) || normalizeDeliveryAddressFromString(checkoutData.delivery_address || checkoutData.shippingAddress || '');
+                        var deliveryAddrText = deliveryAddrObj ? formatDeliveryAddressText(deliveryAddrObj) : (checkoutData.delivery_address || checkoutData.shippingAddress || '');
                         var orderPayload = {
                             id: orderId,
                             user_id: user.uid,
@@ -899,16 +1036,21 @@
                             discount: Number(checkoutData.discount || 0),
                             payment_method: checkoutData.payment_method || checkoutData.paymentMethod || '',
                             created_at: firebase.firestore.FieldValue.serverTimestamp(),
-                            delivery_address: checkoutData.delivery_address || checkoutData.shippingAddress || '',
+                            delivery_address: deliveryAddrText,
+                            deliveryAddress: deliveryAddrObj,
                             recipient_name: checkoutData.recipient_name || checkoutData.customerName || '',
                             recipient_phone: checkoutData.recipient_phone || '',
                             courier_name: checkoutData.courier_name || checkoutData.deliveryMethod || '',
                             tracking_number: checkoutData.tracking_number || ''
                         };
 
-                        return checkoutRef.collection('items').get().then(function(itemsSnap){
-                            var batch = db.batch();
-                            batch.set(orderRef, orderPayload, { merge: true });
+                        return orderRef.get().then(function(existing){
+                            if(existing && existing.exists && existing.data() && existing.data().created_at){
+                                orderPayload.created_at = existing.data().created_at;
+                            }
+                            return checkoutRef.collection('items').get().then(function(itemsSnap){
+                                var batch = db.batch();
+                                batch.set(orderRef, orderPayload, { merge: true });
 
                             if(itemsSnap.empty && Array.isArray(currentItems) && currentItems.length){
                                 currentItems.forEach(function(it){
@@ -918,7 +1060,8 @@
                                         name: it.name || it.title || '',
                                         price: Number(it.price || 0),
                                         qty: Number(it.qty || it.quantity || 1),
-                                        image_url: it.image_url || it.image || ''
+                                        image_url: it.image_url || it.image || '',
+                                        size: it.size || ''
                                     });
                                 });
                             } else {
@@ -933,8 +1076,16 @@
                             batch.set(trackRef, { status: 'Order placed', message: 'Order placed', timestamp: firebase.firestore.FieldValue.serverTimestamp() });
                             batch.delete(checkoutRef);
 
-                            return batch.commit().then(function(){
-                                window.location.replace('order-detail.html?orderId=' + encodeURIComponent(orderId));
+                                return batch.commit().then(function(){
+                                    var adjusted = false;
+                                    try{ adjusted = adjustInventoryStock(currentItems || [], -1); }catch(e){ adjusted = false; }
+                                    if(adjusted){
+                                        try{
+                                            orderRef.set({ stockAdjusted: true, stockAdjustedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                        }catch(e){ /* ignore */ }
+                                    }
+                                    window.location.replace('order-detail.html?orderId=' + encodeURIComponent(orderId));
+                                });
                             });
                         });
                     }).catch(function(e){

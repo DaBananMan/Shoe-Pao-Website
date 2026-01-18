@@ -348,30 +348,61 @@ function handleSignup(e){
         const addressDetails = addressVal.split('\n').slice(1).join(', ') || '';
         if(!email || !password){ alert('Please enter email and password'); return; }
 
-        // If Firebase is configured, don't create/send verification yet.
-        // Save the pending signup payload and redirect to a dedicated verification page
-        // where the user chooses email verification or SMS (OTP). That page will
-        // create the Firebase user and perform the selected verification action.
-        if(window.FIREBASE_CONFIG && window.firebase && window.firebase.auth){
-            try{
-                const pending = { email, password, firstName, lastName, phone, addressMain, addressDetails };
-                try { localStorage.setItem('pending_signup', JSON.stringify(pending)); } catch(e) { console.warn('Could not persist pending signup in localStorage', e); }
-                window.location.href = 'verification.html';
-            }catch(err){ console.error('Signup redirect error', err); alert('Signup failed: ' + (err && err.message ? err.message : String(err))); }
+        // Firebase signup flow (email/password) is the only supported path
+        if(!(window.FIREBASE_CONFIG && window.firebase && window.firebase.auth)){
+            alert('Firebase is not configured. Signup is unavailable.');
             return;
         }
-
-        // Fallback local storage path (legacy)
         try{
-            var users = JSON.parse(localStorage.getItem('users')||'[]')||[];
-            var existing = users.find(u => (u.email||'').toLowerCase() === email);
-            if(existing){ existing.firstName = firstName || existing.firstName; existing.lastName = lastName || existing.lastName; existing.name = ((existing.firstName||'') + (existing.lastName?(' ' + existing.lastName):'')).trim() || existing.name; existing.phone = phone || existing.phone; if(password) existing.password = password; if(addressMain) existing.addressMain = addressMain; if(addressDetails) existing.addressDetails = addressDetails; }
-            else { var newUser = { email, password, firstName, lastName, name: ((firstName||'') + (lastName?(' ' + lastName):'')).trim(), phone, role:'user', registeredAt: Date.now() }; if(addressMain) newUser.addressMain = addressMain; if(addressDetails) newUser.addressDetails = addressDetails; users.push(newUser); }
-            localStorage.setItem('users', JSON.stringify(users));
-            try{ localStorage.setItem('profile', JSON.stringify({ name: (firstName + (lastName ? (' ' + lastName) : '')).trim() || '', email, phone, addressMain: addressMain || '', addressDetails: addressDetails || '' })); localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
-            try{ var t = 'local:' + btoa(String(email||'') + ':' + String(Date.now())); localStorage.setItem('authToken', t); localStorage.setItem('authTokenUpdatedAt', String(Date.now())); window.AUTH_TOKEN = t; }catch(e){}
-        }catch(e){ console.warn('Could not save new user (local fallback)', e); }
-        window.location.href = 'home.html';
+            if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+            const cred = await firebase.auth().createUserWithEmailAndPassword(email, password);
+            const user = cred && cred.user ? cred.user : null;
+            try{
+                if(user){
+                    const displayName = ((firstName||'') + (lastName ? (' ' + lastName) : '')).trim();
+                    if(displayName) await user.updateProfile({ displayName: displayName });
+                }
+            }catch(e){ console.warn('Profile update failed', e); }
+            try{
+                if(user && user.sendEmailVerification){
+                    await user.sendEmailVerification({ url: window.location.origin + '/login.html' });
+                }
+            }catch(e){ console.warn('Verification email send failed', e); }
+            // Create/merge user profile in Firestore (do not block signup if it fails)
+            try{
+                if(window.firebase && firebase.firestore && user && user.uid){
+                    const userDoc = firebase.firestore().doc('users/' + user.uid);
+                    const payload = {
+                        email: user.email || email,
+                        displayName: user.displayName || '',
+                        name: user.displayName || ((firstName||'') + (lastName ? (' ' + lastName) : '')).trim(),
+                        phone: phone || '',
+                        addressMain: addressMain || '',
+                        addressDetails: addressDetails || '',
+                        emailVerified: !!user.emailVerified,
+                        role: 'user',
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                    userDoc.set(payload, { merge: true }).catch(function(e){ console.warn('User profile write failed', e); });
+                }
+            }catch(e){ console.warn('Firestore profile upsert skipped', e); }
+
+            // Store minimal local profile and prompt verification
+            try{
+                const name = ((firstName||'') + (lastName ? (' ' + lastName) : '')).trim();
+                localStorage.setItem('profile', JSON.stringify({ name: name, email: email, phone: phone || '', addressMain: addressMain || '', addressDetails: addressDetails || '', uid: user ? user.uid : '' }));
+                localStorage.setItem('profile_updated_at', String(Date.now()));
+            }catch(e){ /* ignore */ }
+
+            try{ await firebase.auth().signOut(); }catch(e){ /* ignore */ }
+            alert('Signup successful! Please verify your email before logging in.');
+            window.location.href = 'login.html';
+        }catch(err){
+            console.error('Signup failed', err);
+            alert('Signup failed: ' + (err && err.message ? err.message : String(err)));
+            return;
+        }
     })();
 }
 // --- Social sign-in handlers (copied/adapted from login.html) ---

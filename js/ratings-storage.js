@@ -58,6 +58,7 @@
 
     const profile = getActiveProfile();
     const userEmail = String(payload.userEmail || (profile && profile.email) || '').trim().toLowerCase();
+    const userName = String(payload.userName || (profile && (profile.name || profile.fullName)) || '').trim();
     const orderId = String(payload.orderId || '').trim();
 
     const store = getStore();
@@ -70,6 +71,7 @@
       createdAt: nowIso,
       orderId: orderId || undefined,
       userEmail: userEmail || undefined,
+      userName: userName || undefined,
       productId: payload.productId || payload.id || undefined,
       brand: payload.brand || undefined,
       title: payload.title || payload.name || undefined

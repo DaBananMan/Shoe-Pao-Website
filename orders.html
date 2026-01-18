@@ -204,6 +204,43 @@
             max-height: 340px;
             padding-right: 8px;
         }
+        .orders-tabs {
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+            margin:0 0 14px 0;
+        }
+        .orders-tab-btn {
+            padding:8px 14px;
+            border-radius:999px;
+            border:1px solid #ddd;
+            background:#fff;
+            cursor:pointer;
+            font-family:'Poppins',Arial,sans-serif;
+            font-size:0.95rem;
+            font-weight:600;
+            color:#222;
+        }
+        .orders-tab-btn.active {
+            background:#222;
+            color:#fff;
+            border-color:#222;
+        }
+        .status-badge {
+            display:inline-flex;
+            align-items:center;
+            padding:4px 10px;
+            border-radius:999px;
+            font-size:0.85rem;
+            font-weight:600;
+            border:1px solid transparent;
+        }
+        .badge-pending { background:#fff3cd; color:#856404; border-color:#ffeeba; }
+        .badge-approved { background:#e6f4ea; color:#1e7e34; border-color:#cfe9d7; }
+        .badge-rejected { background:#fdecea; color:#b71c1c; border-color:#f5c6cb; }
+        .badge-processing { background:#e7f1ff; color:#0b5ed7; border-color:#cfe2ff; }
+        .badge-refunded { background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9; }
+        .badge-cancelled { background:#f1f3f5; color:#495057; border-color:#dee2e6; }
     </style>
 </head>
 <body>
@@ -238,6 +275,12 @@
             <div style="height:1px;background:#eee;margin-bottom:18px;border-radius:2px;"></div>
 
             <div class="orders-table-card" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:18px;">
+                <div class="orders-tabs" id="ordersTabs">
+                    <button class="orders-tab-btn active" data-tab="all">All Orders</button>
+                    <button class="orders-tab-btn" data-tab="cancel-requests">Cancellation Requests</button>
+                    <button class="orders-tab-btn" data-tab="return-requests">Return / Refund Requests</button>
+                    <button class="orders-tab-btn" data-tab="cancelled">Cancelled Orders</button>
+                </div>
                 <div class="table-top-row" style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
                     <input id="ordersSearch" type="search" placeholder="Search" style="flex:1 1 360px;padding:10px 14px;border:1px solid #e6e6e6;border-radius:8px;font-family:'Poppins',Arial,sans-serif;">
 
@@ -326,6 +369,11 @@
             </div>
             <div style="margin-top:12px;font-weight:600;">Items</div>
             <div id="adminOrderModalItems" style="margin-top:8px;"></div>
+            <div id="adminRequestSection" style="margin-top:12px;display:none;">
+                <div style="font-weight:700;margin-bottom:6px;">Request Details</div>
+                <div id="adminRequestDetails" style="color:#444;font-size:0.95rem;"></div>
+                <div id="adminRequestActions" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"></div>
+            </div>
             <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;">
                 <div id="adminOrderModalStatus" style="font-weight:600;"></div>
                 <div id="adminOrderModalTotal" style="font-weight:700;"></div>
@@ -333,6 +381,10 @@
         </div>
     </div>
     <!-- Footer removed for admin orders page to avoid showing the black/site footer -->
+
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
     <script>
     // Navigation bar functions
@@ -381,8 +433,170 @@
 
     let currentList = ordersData.slice();
         let sortState = { key: null, asc: true };
+        let activeTab = 'all';
 
         function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:0}); }
+
+        function toDateValue(value){
+            if(!value) return null;
+            try{
+                if(typeof value.toDate === 'function') return value.toDate();
+                if(typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+                if(typeof value._seconds === 'number') return new Date(value._seconds * 1000);
+            }catch(e){ /* ignore */ }
+            try{ return new Date(value); }catch(e){ return null; }
+        }
+
+        function formatOrderDateTime(value){
+            var d = toDateValue(value);
+            if(!d) return '';
+            try{ return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return d.toLocaleString(); }
+        }
+
+        function statusBadge(label, type){
+            var cls = 'status-badge ' + (type ? ('badge-' + type) : '');
+            return '<span class="' + cls + '">' + label + '</span>';
+        }
+
+        function normalizeStatus(s){ return String(s||'').toLowerCase().trim(); }
+
+        function filterByTab(list){
+            if(activeTab === 'cancel-requests'){
+                return list.filter(function(o){ return o.cancelRequest && o.cancelRequest.requestedAt; });
+            }
+            if(activeTab === 'return-requests'){
+                return list.filter(function(o){ return o.returnRequest && o.returnRequest.requestedAt; });
+            }
+            if(activeTab === 'cancelled'){
+                return list.filter(function(o){ return normalizeStatus(o.status) === 'cancelled'; });
+            }
+            return list;
+        }
+
+        function findInventoryIndexForItem(inv, item){
+            try{
+                if(!Array.isArray(inv)) return -1;
+                var itemId = item && (item.product_id || item.productId || item.id) ? String(item.product_id || item.productId || item.id) : '';
+                if(itemId){
+                    var idIdx = inv.findIndex(function(i){ return String(i.id||'') === itemId || String(i.productId||'') === itemId; });
+                    if(idIdx !== -1) return idIdx;
+                }
+                var title = (item && (item.name || item.title || item.productName) || '').toString().trim();
+                var brand = (item && (item.brand || item.productBrand) || '').toString().trim();
+                if(title){
+                    var exactIdx = inv.findIndex(function(i){ return String(i.name||'').trim() === title; });
+                    if(exactIdx !== -1) return exactIdx;
+                    var containsIdx = inv.findIndex(function(i){ return title && String(i.name||'').toLowerCase().indexOf(title.toLowerCase()) !== -1; });
+                    if(containsIdx !== -1) return containsIdx;
+                }
+                if(brand){
+                    var brandIdx = inv.findIndex(function(i){ return String(i.brand||'').toLowerCase() === brand.toLowerCase(); });
+                    if(brandIdx !== -1) return brandIdx;
+                }
+                return -1;
+            }catch(e){ return -1; }
+        }
+
+        function adjustAdminInventoryStock(items, direction){
+            var updated = false;
+            try{
+                var adminProducts = JSON.parse(localStorage.getItem('shoeInventoryData')||'null');
+                if(!Array.isArray(adminProducts) || !adminProducts.length) return false;
+                items.forEach(function(it){
+                    var qty = Number(it.qty || it.quantity || 1) || 0;
+                    if(!qty) return;
+                    var size = (it.size || it.eu || it.size_eu || '').toString().trim();
+                    if(!size) return;
+                    var title = (it.name || it.title || it.productName || '').toString().trim();
+                    var itemId = (it.product_id || it.productId || it.id || '').toString().trim();
+                    adminProducts.forEach(function(p){
+                        var pId = (p && (p.id || p.sku)) ? String(p.id || p.sku) : '';
+                        var matchesProduct = itemId && pId && itemId === pId;
+                        var colors = Array.isArray(p.colors) ? p.colors : [];
+                        colors.forEach(function(c){
+                            var name = ((p.model||'') + (c && c.name ? (' ' + c.name) : '')).trim();
+                            if(!matchesProduct && title){
+                                if(String(name).toLowerCase() !== String(title).toLowerCase()) return;
+                            }
+                            if(!Array.isArray(c.sizes)) return;
+                            c.sizes.forEach(function(s){
+                                if(String(s.eu) === String(size)){
+                                    var cur = Number(s.stock || 0) || 0;
+                                    var next = cur + (direction * qty);
+                                    s.stock = Math.max(0, next);
+                                    updated = true;
+                                }
+                            });
+                        });
+                    });
+                });
+                if(updated){
+                    localStorage.setItem('shoeInventoryData', JSON.stringify(adminProducts));
+                }
+            }catch(e){ /* ignore */ }
+            return updated;
+        }
+
+        function adjustInventoryStock(items, direction){
+            var updated = false;
+            try{
+                var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                if(Array.isArray(inv) && inv.length){
+                    items.forEach(function(it){
+                        var qty = Number(it.qty || it.quantity || 1) || 0;
+                        if(!qty) return;
+                        var size = (it.size || it.eu || it.size_eu || '').toString().trim();
+                        if(!size) return;
+                        var idx = findInventoryIndexForItem(inv, it);
+                        if(idx === -1) return;
+                        if(!inv[idx].sizes) inv[idx].sizes = {};
+                        var cur = Number(inv[idx].sizes[size] || 0) || 0;
+                        var next = cur + (direction * qty);
+                        inv[idx].sizes[size] = Math.max(0, next);
+                        updated = true;
+                    });
+                    if(updated){
+                        localStorage.setItem('inventory', JSON.stringify(inv));
+                    }
+                }
+            }catch(e){ /* ignore */ }
+            var adminUpdated = adjustAdminInventoryStock(items, direction);
+            return updated || adminUpdated;
+        }
+
+        function fetchOrderItemsFromFirestore(orderId){
+            return new Promise(function(resolve){
+                try{
+                    if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return resolve([]);
+                    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                    var db = firebase.firestore();
+                    var docRef = db.collection('orders').doc(String(orderId));
+                    docRef.get().then(function(doc){
+                        if(doc.exists){
+                            return docRef.collection('items').get().then(function(snap){
+                                resolve(snap.docs.map(function(d){ return d.data(); }));
+                            }).catch(function(){ resolve((doc.data() && doc.data().items) || []); });
+                        }
+                        return db.collection('orders').where('id','==',String(orderId)).limit(1).get().then(function(q){
+                            if(q.empty) return resolve([]);
+                            var d = q.docs[0];
+                            return db.collection('orders').doc(d.id).collection('items').get().then(function(snap){
+                                resolve(snap.docs.map(function(dd){ return dd.data(); }));
+                            }).catch(function(){ resolve((d.data() && d.data().items) || []); });
+                        }).catch(function(){ resolve([]); });
+                    }).catch(function(){ resolve([]); });
+                }catch(e){ resolve([]); }
+            });
+        }
+
+        function restockOrderItems(orderId, row){
+            var directItems = (row && Array.isArray(row.items) && row.items.length) ? row.items : null;
+            var promise = directItems ? Promise.resolve(directItems) : fetchOrderItemsFromFirestore(orderId);
+            return promise.then(function(items){
+                if(!items || !items.length) return false;
+                return adjustInventoryStock(items, 1);
+            }).catch(function(){ return false; });
+        }
 
         function titleCase(str){
             if(!str && str !== 0) return '';
@@ -405,22 +619,43 @@
                 try{ fallbackProfileName = JSON.parse(localStorage.getItem('profile')||'{}').name || ''; }catch(e){}
                 var displayName = row.customerName || row.name || fallbackProfileName || '';
                 // build status cell with optional cancel-review button for admin
-                var statusHtml = titleCase(row.status || '');
-                // show cancel request indicator only when admin has NOT yet confirmed
-                if(row.cancellation && !row.cancellation.adminConfirmed && !row.cancellation.adminRevoked){
-                    var cancelLabel = (String(row.status||'').toLowerCase() === 'cancelled') ? 'Cancelled' : 'Cancel Requested';
-                    statusHtml = '<span style="color:#b71c1c;font-weight:600;">' + cancelLabel + '</span> <button class="cancel-review-btn" data-id="' + (row.id||'') + '" style="background:none;border:none;color:#b71c1c;margin-left:8px;cursor:pointer;font-size:1.05rem;">⚠️</button>';
+                var statusNorm = normalizeStatus(row.status || '');
+                var statusHtml = statusBadge(titleCase(row.status || 'Pending'), 'pending');
+                if(statusNorm === 'cancelled') statusHtml = statusBadge('Cancelled', 'cancelled');
+                if(statusNorm === 'refunded') statusHtml = statusBadge('Refunded', 'refunded');
+                if(statusNorm === 'processing') statusHtml = statusBadge('Processing', 'processing');
+                if(statusNorm === 'approved') statusHtml = statusBadge('Approved', 'approved');
+                if(statusNorm === 'rejected') statusHtml = statusBadge('Rejected', 'rejected');
+
+                if(row.cancelRequest && row.cancelRequest.requestedAt){
+                    if(row.cancelRequest.rejectedAt){
+                        statusHtml = statusBadge('Rejected', 'rejected');
+                    } else if(row.cancelRequest.approvedAt){
+                        statusHtml = statusBadge('Approved', 'approved');
+                    } else {
+                        statusHtml = statusBadge('Pending', 'pending');
+                    }
+                    statusHtml += ' <button class="cancel-review-btn" data-id="' + (row.id||'') + '" style="background:none;border:none;color:#b71c1c;margin-left:6px;cursor:pointer;font-size:1.05rem;">⚠️</button>';
                 }
-                // refund indicator (refund_requested or refunded)
-                // show refund request indicator only when admin has NOT yet confirmed
-                if(row.refund && !row.refund.adminConfirmed && !row.refund.adminRevoked){
-                    var refundLabel = (String(row.status||'').toLowerCase() === 'refunded') ? 'Refunded' : 'Refund Requested';
-                    statusHtml = '<span style="color:#b71c1c;font-weight:600;">' + refundLabel + '</span> <button class="refund-review-btn" data-id="' + (row.id||'') + '" style="background:none;border:none;color:#b71c1c;margin-left:8px;cursor:pointer;font-size:1.05rem;">⚠️</button>';
+                if(row.returnRequest && row.returnRequest.requestedAt){
+                    var refundStatus = normalizeStatus(row.returnRequest.refundStatus || 'pending');
+                    if(row.returnRequest.rejectedAt){
+                        statusHtml = statusBadge('Rejected', 'rejected');
+                    } else if(refundStatus === 'refunded' || statusNorm === 'refunded'){
+                        statusHtml = statusBadge('Refunded', 'refunded');
+                    } else if(refundStatus === 'processing'){
+                        statusHtml = statusBadge('Processing', 'processing');
+                    } else if(row.returnRequest.approvedAt){
+                        statusHtml = statusBadge('Approved', 'approved');
+                    } else {
+                        statusHtml = statusBadge('Pending', 'pending');
+                    }
+                    statusHtml += ' <button class="refund-review-btn" data-id="' + (row.id||'') + '" style="background:none;border:none;color:#b71c1c;margin-left:6px;cursor:pointer;font-size:1.05rem;">⚠️</button>';
                 }
             tr.innerHTML = `
                 <td style="padding:12px;border-bottom:1px solid #fafafa;">${row.id}</td>
                 <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(displayName)}</td>
-                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.date)}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${formatOrderDateTime(row.created_at || row.date) || ''}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.paymentLabel || row.payment || (row.paymentCode? (row.paymentCode==='qr_ph'? 'QR PH' : (row.paymentCode==='bank_transfer'? 'Bank Transfer' : (row.paymentCode==='cod'? 'Cash on Delivery' : row.paymentCode))) : ''))}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.deliveryMethod || '')}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${formatPHP(row.total)}</td>
@@ -470,7 +705,7 @@
                 document.getElementById('adminOrderModalId').textContent = 'Order ID: ' + (row.id || '');
                 document.getElementById('adminOrderModalName').textContent = 'Customer: ' + (row.name || '');
                 // Date of Order (title-cased)
-                document.getElementById('adminOrderModalContact').textContent = 'Date of Order: ' + (titleCase(row.date) || '');
+                document.getElementById('adminOrderModalContact').textContent = 'Date of Order: ' + (formatOrderDateTime(row.created_at || row.date) || '');
                     // Payment method label (prefer order.paymentLabel)
                     var payLabel = row.paymentLabel || row.payment || '';
                     if(!payLabel && row.paymentCode){
@@ -491,6 +726,45 @@
                 // items: show a simple itemized line using total (admin rows don't have item list)
                 document.getElementById('adminOrderModalItems').innerHTML = '<div>' + (row.name || '') + ' — ' + formatPHP(row.total) + '</div>';
                 document.getElementById('adminOrderModalTotal').textContent = formatPHP(row.total);
+                var reqSection = document.getElementById('adminRequestSection');
+                var reqDetails = document.getElementById('adminRequestDetails');
+                var reqActions = document.getElementById('adminRequestActions');
+                if(reqSection && reqDetails && reqActions){
+                    reqActions.innerHTML = '';
+                    if(row.cancelRequest && row.cancelRequest.requestedAt){
+                        reqSection.style.display = 'block';
+                        reqDetails.innerHTML = ''
+                            + '<div><strong>Type:</strong> Cancellation</div>'
+                            + '<div><strong>Reason:</strong> ' + (row.cancelRequest.cancellationReason || '') + '</div>'
+                            + '<div><strong>Requested:</strong> ' + (row.cancelRequest.requestedAt ? new Date(row.cancelRequest.requestedAt).toLocaleString() : '') + '</div>'
+                            + (row.cancelRequest.adminNote ? ('<div><strong>Admin note:</strong> ' + row.cancelRequest.adminNote + '</div>') : '');
+                        if(!row.cancelRequest.approvedAt && !row.cancelRequest.rejectedAt){
+                            reqActions.innerHTML = ''
+                                + '<button class="order-card-btn" style="background:#2e7d32;max-width:180px;" onclick="adminApproveCancel(\'' + row.id + '\')">Approve</button>'
+                                + '<button class="order-card-btn" style="background:#b71c1c;max-width:180px;" onclick="adminRejectCancel(\'' + row.id + '\')">Reject</button>';
+                        }
+                    } else if(row.returnRequest && row.returnRequest.requestedAt){
+                        reqSection.style.display = 'block';
+                        var proofs = Array.isArray(row.returnRequest.proofImages) ? row.returnRequest.proofImages : [];
+                        reqDetails.innerHTML = ''
+                            + '<div><strong>Type:</strong> Return / Refund</div>'
+                            + '<div><strong>Reason:</strong> ' + (row.returnRequest.returnReason || '') + '</div>'
+                            + '<div><strong>Refund method:</strong> ' + (row.returnRequest.refundMethod || '') + '</div>'
+                            + '<div><strong>Requested:</strong> ' + (row.returnRequest.requestedAt ? new Date(row.returnRequest.requestedAt).toLocaleString() : '') + '</div>'
+                            + (row.returnRequest.adminNote ? ('<div><strong>Admin note:</strong> ' + row.returnRequest.adminNote + '</div>') : '')
+                            + (proofs.length ? ('<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">' + proofs.map(function(p){ return '<img src="' + p + '" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #eee;" />'; }).join('') + '</div>') : '');
+                        if(!row.returnRequest.approvedAt && !row.returnRequest.rejectedAt){
+                            reqActions.innerHTML = ''
+                                + '<button class="order-card-btn" style="background:#2e7d32;max-width:180px;" onclick="adminApproveReturn(\'' + row.id + '\')">Approve</button>'
+                                + '<button class="order-card-btn" style="background:#b71c1c;max-width:180px;" onclick="adminRejectReturn(\'' + row.id + '\')">Reject</button>';
+                        } else if(row.returnRequest.approvedAt && String(row.returnRequest.refundStatus || '').toLowerCase() !== 'refunded'){
+                            reqActions.innerHTML = '<button class="order-card-btn" style="background:#222;max-width:220px;" onclick="adminMarkRefunded(\'' + row.id + '\')">Mark as Refunded</button>';
+                        }
+                    } else {
+                        reqSection.style.display = 'none';
+                        reqDetails.innerHTML = '';
+                    }
+                }
                 // create status dropdown inside adminOrderModalStatus
                 var statusEl = document.getElementById('adminOrderModalStatus');
                 statusEl.innerHTML = '';
@@ -498,7 +772,7 @@
                 select.style.padding = '6px 10px';
                 select.style.borderRadius = '6px';
                 select.style.fontFamily = "'Poppins', Arial, sans-serif";
-                var statuses = ['Pending','Confirmed','Shipped','Delivered','Cancelled'];
+                var statuses = ['Pending','Confirmed','Processing','Shipped','Delivered','Refund Processing','Refunded','Cancelled'];
                 statuses.forEach(function(s){
                     var opt = document.createElement('option'); opt.value = s; opt.textContent = s; if(titleCase(row.status) === s) opt.selected = true; select.appendChild(opt);
                 });
@@ -551,18 +825,33 @@
         }
 
         // Update an order in ordersData (and persist to localStorage), then refresh the current view
-        function updateOrder(orderId, changes){
+        function updateOrder(orderId, changes, options){
+            options = options || {};
             try{
                 // find by id using string comparison to avoid type mismatches (number vs string)
                 var idx = ordersData.findIndex(o => String(o.id) === String(orderId));
                 if(idx === -1) return;
-                ordersData[idx] = Object.assign({}, ordersData[idx], changes);
+                var prevStatus = ordersData[idx] && ordersData[idx].status ? String(ordersData[idx].status) : '';
+                var merged = Object.assign({}, ordersData[idx], changes);
+                ordersData[idx] = merged;
                 // persist
                 try { localStorage.setItem('orders', JSON.stringify(ordersData)); } catch(e) { console.error('persist failed', e); }
                 // reapply current filters/sort and render
                 // reload ordersData from storage to ensure consistency, then refresh view
                 try{ ordersData = JSON.parse(localStorage.getItem('orders') || '[]'); }catch(e){/* ignore */}
                 applySearch();
+                if(!options.skipRestock){
+                    var prevNorm = String(prevStatus||'').toLowerCase();
+                    var nextNorm = String(merged.status||'').toLowerCase();
+                    var shouldRestock = (prevNorm !== 'cancelled' && nextNorm === 'cancelled' && merged.stockAdjusted === true && !merged.stockRestocked);
+                    if(shouldRestock){
+                        restockOrderItems(orderId, merged).then(function(did){
+                            if(did){
+                                updateOrder(orderId, { stockRestocked: true, stockAdjusted: false }, { skipRestock: true });
+                            }
+                        });
+                    }
+                }
                 // Also attempt to persist change to Firestore so admin actions propagate in real-time
                 try{
                     if(window.FIREBASE_CONFIG && window.firebase && firebase.firestore){
@@ -592,6 +881,59 @@
                 }catch(e){ console.warn('Firestore update skipped', e); }
             }catch(e){console.error(e)}
         }
+
+        window.adminApproveCancel = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.cancelRequest) return;
+            var payload = {
+                status: 'cancelled',
+                previousStatus: row.previousStatus || row.status || 'Pending',
+                cancelRequest: Object.assign({}, row.cancelRequest, { approvedAt: new Date().toISOString(), rejectedAt: null })
+            };
+            updateOrder(orderId, payload);
+        };
+
+        window.adminRejectCancel = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.cancelRequest) return;
+            var note = prompt('Add admin note (optional):', row.cancelRequest.adminNote || '') || '';
+            var payload = {
+                status: row.previousStatus || row.status || 'Pending',
+                cancelRequest: Object.assign({}, row.cancelRequest, { rejectedAt: new Date().toISOString(), adminNote: note })
+            };
+            updateOrder(orderId, payload);
+        };
+
+        window.adminApproveReturn = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.returnRequest) return;
+            var payload = {
+                status: 'refund processing',
+                returnRequest: Object.assign({}, row.returnRequest, { approvedAt: new Date().toISOString(), rejectedAt: null, refundStatus: 'Processing' })
+            };
+            updateOrder(orderId, payload);
+        };
+
+        window.adminMarkRefunded = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.returnRequest) return;
+            var payload = {
+                status: 'refunded',
+                returnRequest: Object.assign({}, row.returnRequest, { refundStatus: 'Refunded', refundedAt: new Date().toISOString() })
+            };
+            updateOrder(orderId, payload);
+        };
+
+        window.adminRejectReturn = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.returnRequest) return;
+            var note = prompt('Add admin note (optional):', row.returnRequest.adminNote || '') || '';
+            var payload = {
+                status: row.previousStatus || row.status || 'Pending',
+                returnRequest: Object.assign({}, row.returnRequest, { rejectedAt: new Date().toISOString(), adminNote: note, refundStatus: 'Rejected' })
+            };
+            updateOrder(orderId, payload);
+        };
 
         // Close admin modal
         document.addEventListener('DOMContentLoaded', function(){
@@ -640,7 +982,7 @@
                 if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
                 const db = firebase.firestore();
                 // Listen to recent orders; adjust query to suit your dashboard (status filters, date range, limit)
-                const q = db.collection('orders').orderBy('date','desc').limit(500);
+                const q = db.collection('orders').orderBy('created_at','desc').limit(500);
                 const unsubscribe = q.onSnapshot(snapshot => {
                     let changed = false;
                     snapshot.docChanges().forEach(change => {
@@ -682,17 +1024,11 @@
             if(!content) return;
             var html = '<div style="font-weight:600;margin-bottom:8px;">Order ID: ' + (row.id||'') + '</div>';
             html += '<div style="margin-bottom:8px;">Customer: ' + (row.name || '') + '</div>';
-            if(row.cancellation && row.cancellation.reasons){ html += '<div style="margin-bottom:8px;"><strong>Client reasons:</strong><ul style="margin-top:6px;padding-left:18px;">'; row.cancellation.reasons.forEach(function(r){ html += '<li>' + r + '</li>'; }); html += '</ul></div>'; }
-            if(row.cancellation && row.cancellation.timestamp){ html += '<div style="color:#666;font-size:0.95rem;margin-bottom:6px;">Submitted: ' + new Date(row.cancellation.timestamp).toLocaleString() + '</div>'; }
-            if(row.cancellation && row.cancellation.adminConfirmed){ html += '<div style="color:green;font-weight:600;margin-bottom:6px;">Admin confirmed cancellation</div>'; }
-            // if admin revoked the cancellation, show standardized revocation message and reasons
-            if(row.cancellation && row.cancellation.adminRevoked && ((row.cancellation.clientConfirmed === true) || (Array.isArray(row.cancellation.reasons) && row.cancellation.reasons.length > 0) || (row.cancellation.revocation && ((Array.isArray(row.cancellation.revocation.reasons) && row.cancellation.revocation.reasons.length > 0) || row.cancellation.revocation.timestamp)))){
-                html += '<div style="color:#b71c1c;font-weight:600;margin-bottom:6px;">Cancel Request Was Revoked</div>';
-                if(row.cancellation.revocation && row.cancellation.revocation.reasons){
-                    html += '<div style="margin-bottom:8px;"><strong>Revocation reasons:</strong><ul style="margin-top:6px;padding-left:18px;">';
-                    row.cancellation.revocation.reasons.forEach(function(r){ html += '<li>' + r + '</li>'; });
-                    html += '</ul></div>';
-                }
+            if(row.cancelRequest){
+                html += '<div style="margin-bottom:8px;"><strong>Reason:</strong> ' + (row.cancelRequest.cancellationReason || '') + '</div>';
+                if(row.cancelRequest.requestedAt){ html += '<div style="color:#666;font-size:0.95rem;margin-bottom:6px;">Submitted: ' + new Date(row.cancelRequest.requestedAt).toLocaleString() + '</div>'; }
+                if(row.cancelRequest.approvedAt){ html += '<div style="color:green;font-weight:600;margin-bottom:6px;">Admin approved cancellation</div>'; }
+                if(row.cancelRequest.rejectedAt){ html += '<div style="color:#b71c1c;font-weight:600;margin-bottom:6px;">Cancellation rejected</div>'; }
             }
             content.innerHTML = html;
             // stash current id
@@ -709,19 +1045,13 @@
 
         function adminConfirmCancellation(){
             var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
-            var idx = ordersData.findIndex(function(o){ return o.id === id; }); if(idx === -1) return;
-            ordersData[idx].cancellation = ordersData[idx].cancellation || {};
-            ordersData[idx].cancellation.adminConfirmed = true;
-            // ensure status is Cancelled (admin confirmed)
-            ordersData[idx].status = 'Cancelled';
-            localStorage.setItem('orders', JSON.stringify(ordersData));
-            applySearch(); closeCancelReviewModal();
+            if(typeof adminApproveCancel === 'function') adminApproveCancel(id);
+            closeCancelReviewModal();
         }
 
         function adminRevokeCancellation(){
-            // Instead of immediately revoking, open a revocation form to collect reasons (similar to refund revoke flow)
             var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
-            openCancelRevokeForm(id);
+            if(typeof adminRejectCancel === 'function') adminRejectCancel(id);
         }
 
         // Render the admin revoke form for cancellations (checkbox reasons + Other textbox)
@@ -765,20 +1095,8 @@
         // Confirm the admin revoke for cancellation: collect reasons, validate, persist revocation metadata and restore previous status
         function adminConfirmRevokeCancellation(){
             var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
-            var checks = Array.prototype.slice.call(document.querySelectorAll('.adminCancelRevokeReason'));
-            var selections = [];
-            checks.forEach(function(ch){ if(ch.checked){ if(ch.id === 'adminCancelOtherChk'){ var t = (document.getElementById('adminCancelOtherText')||{}).value || ''; if(t && t.trim().length > 2) selections.push(t.trim()); } else { selections.push(ch.getAttribute('data-reason')); } } });
-            if(selections.length === 0){ alert('Please select at least one reason or provide details in Other.'); return; }
-            var idx = ordersData.findIndex(function(o){ return String(o.id) === String(id); }); if(idx === -1) return;
-            ordersData[idx].cancellation = ordersData[idx].cancellation || {};
-            ordersData[idx].cancellation.adminRevoked = true;
-            ordersData[idx].cancellation.revocation = { reasons: selections, timestamp: new Date().toISOString() };
-            // restore previous status
-            var prev = ordersData[idx].previousStatus || 'Pending';
-            ordersData[idx].status = prev;
-            delete ordersData[idx].previousStatus;
-            localStorage.setItem('orders', JSON.stringify(ordersData));
-            applySearch(); closeCancelReviewModal();
+            if(typeof adminRejectCancel === 'function') adminRejectCancel(id);
+            closeCancelReviewModal();
         }
 
         // Refund review functions
@@ -788,11 +1106,18 @@
             var content = document.getElementById('refundReviewContent'); if(!content) return;
             var html = '<div style="font-weight:600;margin-bottom:8px;">Order ID: ' + (row.id||'') + '</div>';
             html += '<div style="margin-bottom:8px;">Customer: ' + (row.name || '') + '</div>';
-            if(row.refund && row.refund.reasons){ html += '<div style="margin-bottom:8px;"><strong>Client refund reasons:</strong><ul style="margin-top:6px;padding-left:18px;">'; row.refund.reasons.forEach(function(r){ html += '<li>' + r + '</li>'; }); html += '</ul></div>'; }
-            if(row.refund && row.refund.timestamp){ html += '<div style="color:#666;font-size:0.95rem;margin-bottom:6px;">Submitted: ' + new Date(row.refund.timestamp).toLocaleString() + '</div>'; }
-            if(row.refund && row.refund.proof){ html += '<div style="margin-top:8px;margin-bottom:8px;"><strong>Uploaded proof:</strong><div style="margin-top:8px;"><img src="' + row.refund.proof + '" alt="Proof" style="max-width:320px;border:1px solid #eee;border-radius:8px;object-fit:contain;"/></div></div>'; }
-            if(row.refund && row.refund.adminConfirmed){ html += '<div style="color:green;font-weight:600;margin-bottom:6px;">Admin confirmed refund</div>'; }
-            if(row.refund && row.refund.adminRevoked && row.refund.revocation){ html += '<div style="color:#b71c1c;font-weight:600;margin-bottom:6px;">Refund Request Was Revoked</div>'; html += '<div style="margin-bottom:8px;"><strong>Revocation reasons:</strong><ul style="margin-top:6px;padding-left:18px;">'; row.refund.revocation.reasons.forEach(function(r){ html += '<li>' + r + '</li>'; }); html += '</ul></div>'; }
+            if(row.returnRequest){
+                html += '<div style="margin-bottom:8px;"><strong>Reason:</strong> ' + (row.returnRequest.returnReason || '') + '</div>';
+                html += '<div style="margin-bottom:8px;"><strong>Refund method:</strong> ' + (row.returnRequest.refundMethod || '') + '</div>';
+                if(row.returnRequest.requestedAt){ html += '<div style="color:#666;font-size:0.95rem;margin-bottom:6px;">Submitted: ' + new Date(row.returnRequest.requestedAt).toLocaleString() + '</div>'; }
+                if(Array.isArray(row.returnRequest.proofImages) && row.returnRequest.proofImages.length){
+                    html += '<div style="margin-top:8px;margin-bottom:8px;"><strong>Uploaded proof:</strong><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
+                        + row.returnRequest.proofImages.map(function(p){ return '<img src="' + p + '" alt="Proof" style="max-width:120px;border:1px solid #eee;border-radius:8px;object-fit:contain;"/>'; }).join('')
+                        + '</div></div>';
+                }
+                if(row.returnRequest.approvedAt){ html += '<div style="color:green;font-weight:600;margin-bottom:6px;">Admin approved refund</div>'; }
+                if(row.returnRequest.rejectedAt){ html += '<div style="color:#b71c1c;font-weight:600;margin-bottom:6px;">Refund request rejected</div>'; }
+            }
             content.innerHTML = html;
             content.setAttribute('data-order-id', orderId);
             // ensure footer buttons for refund review are visible when showing the review
@@ -806,18 +1131,14 @@
 
         function adminConfirmRefund(){
             var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
-            var idx = ordersData.findIndex(function(o){ return String(o.id) === String(id); }); if(idx === -1) return;
-            ordersData[idx].refund = ordersData[idx].refund || {};
-            ordersData[idx].refund.adminConfirmed = true;
-            ordersData[idx].status = 'Refunded';
-            localStorage.setItem('orders', JSON.stringify(ordersData));
-            applySearch(); closeRefundReviewModal();
+            if(typeof adminMarkRefunded === 'function') adminMarkRefunded(id);
+            closeRefundReviewModal();
         }
 
         // When admin clicks Revoke (first step), show a revocation reasons form inside the same modal
         function adminRevokeRefund(){
             var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
-            openRefundRevokeForm(id);
+            if(typeof adminRejectReturn === 'function') adminRejectReturn(id);
         }
 
         // Render the admin revoke form (checkbox reasons + Other textbox)
@@ -862,20 +1183,8 @@
         // Confirm the admin revoke: collect reasons, validate, persist revocation metadata and restore previous status
         function adminConfirmRevokeRefund(){
             var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
-            var checks = Array.prototype.slice.call(document.querySelectorAll('.adminRevokeReason'));
-            var selections = [];
-            checks.forEach(function(ch){ if(ch.checked){ if(ch.id === 'adminRevokeOtherChk'){ var t = (document.getElementById('adminRevokeOtherText')||{}).value || ''; if(t && t.trim().length > 2) selections.push(t.trim()); } else { selections.push(ch.getAttribute('data-reason')); } } });
-            if(selections.length === 0){ alert('Please select at least one reason or provide details in Other.'); return; }
-            var idx = ordersData.findIndex(function(o){ return String(o.id) === String(id); }); if(idx === -1) return;
-            ordersData[idx].refund = ordersData[idx].refund || {};
-            ordersData[idx].refund.adminRevoked = true;
-            ordersData[idx].refund.revocation = { reasons: selections, timestamp: new Date().toISOString() };
-            // restore previous status
-            var prev = ordersData[idx].previousStatus || 'Pending';
-            ordersData[idx].status = prev;
-            delete ordersData[idx].previousStatus;
-            localStorage.setItem('orders', JSON.stringify(ordersData));
-            applySearch(); closeRefundReviewModal();
+            if(typeof adminRejectReturn === 'function') adminRejectReturn(id);
+            closeRefundReviewModal();
         }
 
         function matchesSearch(row, q){
@@ -887,7 +1196,7 @@
         function applySearch(){
             const q = document.getElementById('ordersSearch').value.trim();
             const filtered = ordersData.filter(r => matchesSearch(r, q));
-            currentList = filtered;
+            currentList = filterByTab(filtered);
             applySort();
             renderTable(currentList);
         }
@@ -922,6 +1231,14 @@
                     if(sortState.key === key){ sortState.asc = !sortState.asc; } else { sortState.key = key; sortState.asc = true; }
                     applySort();
                     renderTable(currentList);
+                });
+            });
+            document.querySelectorAll('#ordersTabs .orders-tab-btn').forEach(function(btn){
+                btn.addEventListener('click', function(){
+                    document.querySelectorAll('#ordersTabs .orders-tab-btn').forEach(function(b){ b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    activeTab = btn.getAttribute('data-tab') || 'all';
+                    applySearch();
                 });
             });
         });
