@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log in - SHOEPAO</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+    /* Social button styles (Facebook / Google) */
+    /* Ensure social button fills the form width - do not change container alignment to preserve centered title */
+    .social-auth, .login-form { width: 100%; }
+    /* Make social buttons full-width to match input fields */
+    .social-auth { display:block; margin:12px 0 18px 0; }
+    .social-btn { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.98rem; border:0; width:100%; box-sizing:border-box; justify-content:center; }
+    .social-btn img { width:24px; height:24px; object-fit:contain; }
+    .social-btn.google { background:#fff; color:#111; border:2px solid #e0e0e0; }
+    .social-btn.google:hover { box-shadow:0 1px 2px rgba(0,0,0,0.08); }
+    .social-btn.disabled { opacity:0.6; pointer-events:none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" class="logo" style="margin-bottom:6px;">
+    <h3 class="site-name" style="margin:4px 0 8px 0;font-size:2.4rem;color:#000;font-weight:700;">Shoe Pao</h3>
+        <h2 class="login-header" style="font-size:1.2rem;margin-bottom:6px;">Log in</h2>
+        <div class="subheader">Don't have an account? <a href="signup.html" class="signup-link">Sign up</a></div>
+    <!-- Firebase: set window.FIREBASE_CONFIG = { apiKey: '...', authDomain: '...', projectId: '...' } before loading this page to enable social sign-in -->
+    <div class="social-auth">
+        <button id="googleSignIn" class="social-btn google" type="button" aria-label="Sign in with Google">
+            <img src="IMAGE/googleicon.png" alt="Google logo" />
+            <span>Log in with Google</span>
+        </button>
+    </div>
+    <form id="loginForm" class="login-form" autocomplete="off" onsubmit="handleLogin(event)">
+            <label for="email" class="input-label">Your email</label>
+            <input type="email" id="email" name="email" class="input-box" required>
+
+            <div class="password-row">
+                <div class="password-label-row">
+                    <label for="password" class="input-label">Your password</label>
+                    <span class="toggle-password" onclick="togglePassword()" id="toggleIcon"><span class="eye-icon">&#128065;</span> Hide</span>
+                </div>
+                <input type="password" id="password" name="password" class="input-box" required>
+            </div>
+            <div class="forgot-row">
+                <a href="#" class="forgot-link">Forget your password</a>
+            </div>
+            <div id="loginError" style="color:#b71c1c;margin:8px 0;display:none"></div>
+            <button id="resendVerificationBtn" type="button" class="link" style="display:none;margin-bottom:8px;" onclick="resendVerificationREST()">Resend verification email</button>
+            <button type="submit" class="login-btn">Log in</button>
+        </form>
+    </div>
+    <!-- Shared Firebase config -->
+    <script src="js/firebase-config.js"></script>
+    <!-- Firebase compat SDKs (optional). If you don't use Firebase, these scripts may be left as-is; auth will fall back to local logic. -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+    <script>
+        // Simple client-side credential storage for demo purposes.
+        // NOTE: This is not secure for real apps. For production use server-side auth.
+        (function(){
+            try{
+                var users = JSON.parse(localStorage.getItem('users')||'null');
+                if(!Array.isArray(users)){
+                    users = [
+                        { email: 'jemar@gmail.com', password: 'password', role: 'user' },
+                        { email: 'admin@gmail.com', password: 'admin', role: 'admin' }
+                    ];
+                    localStorage.setItem('users', JSON.stringify(users));
+                }
+            }catch(e){ /* ignore */ }
+        })();
+
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('toggleIcon');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.innerHTML = '<span class="eye-icon">&#128065;</span> Show';
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.innerHTML = '<span class="eye-icon">&#128065;</span> Hide';
+            }
+        }
+
+        function getQueryParam(name) {
+            try{ var params = new URLSearchParams(window.location.search); return params.get(name); }catch(e){ return null; }
+        }
+
+        function persistProfile(profile){
+            try{ localStorage.setItem('profile', JSON.stringify(profile||{})); }catch(e){}
+            try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        }
+
+        function persistAuthTokenFromUser(user){
+            try{
+                if(user && user.getIdToken){
+                    user.getIdToken().then(function(token){
+                        try{ localStorage.setItem('authToken', token); localStorage.setItem('authTokenUpdatedAt', String(Date.now())); }catch(e){}
+                        try{ window.AUTH_TOKEN = token; }catch(e){}
+                    }).catch(function(){});
+                }
+            }catch(e){}
+        }
+
+        function persistLocalAuthToken(email){
+            try{
+                var t = 'local:' + btoa(String(email||'') + ':' + String(Date.now()));
+                localStorage.setItem('authToken', t);
+                localStorage.setItem('authTokenUpdatedAt', String(Date.now()));
+                window.AUTH_TOKEN = t;
+            }catch(e){}
+        }
+
+        function handleLogin(e){
+            e.preventDefault();
+            var email = (document.getElementById('email').value||'').trim();
+            var password = (document.getElementById('password').value||'');
+            var errEl = document.getElementById('loginError'); errEl.style.display='none'; errEl.textContent='';
+            // If Firebase is configured, try Firebase email/password sign-in first
+            if (window.FIREBASE_CONFIG && window.firebase && window.firebase.auth) {
+                if(!email || !password){ errEl.style.display='block'; errEl.textContent='Please enter email and password.'; return; }
+                                firebase.auth().signInWithEmailAndPassword(email, password)
+                                    .then(result => {
+                                        const user = result.user;
+                                        if (user && !user.emailVerified) {
+                                            // Record unverified email for resend helper and sign out immediately so the app doesn't treat this session as authenticated
+                                            try { window.lastUnverifiedEmail = email; } catch(e){}
+                                            firebase.auth().signOut().catch(()=>{}).finally(() => {
+                                                errEl.style.display='block'; errEl.textContent='Email not verified. Please check your inbox or resend verification.';
+                                            });
+                                            return;
+                                        }
+                    // create/merge user profile in Firestore (update lastLogin) and store in session
+                    try {
+                        if (window.firebase && firebase.firestore && user && user.uid) {
+                            if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                            const userDoc = firebase.firestore().doc('users/' + user.uid);
+                            const payload = { email: user.email, displayName: user.displayName || '', emailVerified: !!user.emailVerified, lastLoginAt: firebase.firestore.FieldValue.serverTimestamp() };
+                            userDoc.set(payload, { merge: true }).catch(() => {});
+                        }
+                    } catch (e) { console.warn('Could not upsert user doc on login', e); }
+                    const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'password' };
+                    persistProfile(profile);
+                    persistAuthTokenFromUser(user);
+                    const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
+                    // route admin by email for compatibility with local logic
+                    const role = (email.trim().toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
+                    if (role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
+                  })
+                  .catch(err => { errEl.style.display='block'; errEl.textContent = err && err.message ? err.message : String(err); });
+                return;
+            }
+            // Fallback: local credential matching (legacy/demo behavior)
+            if(!email || !password){ errEl.style.display='block'; errEl.textContent='Please enter email and password.'; return; }
+            var role = (email.trim().toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
+            var users = [];
+            try{ users = JSON.parse(localStorage.getItem('users') || '[]') || []; }catch(e){ users = []; }
+            var matched = users.find(function(u){ return (u.email||'').toLowerCase() === email.trim().toLowerCase() && (u.password === password); }) || null;
+            if(!matched){ errEl.style.display='block'; errEl.textContent='Invalid credentials (local fallback).'; return; }
+            var profile = { email: email.trim().toLowerCase(), role: role, loggedAt: Date.now(), remember: true };
+            if(matched){ profile.name = matched.name || ((matched.firstName||'') + (matched.lastName ? (' ' + matched.lastName) : '')).trim() || ''; profile.firstName = matched.firstName || ''; profile.lastName = matched.lastName || ''; profile.phone = matched.phone || ''; profile.addressMain = matched.addressMain || ''; profile.addressDetails = matched.addressDetails || ''; }
+            persistProfile(profile);
+            persistLocalAuthToken(profile.email);
+            var ret = getQueryParam('return'); if(ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e) {} }
+            if(role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
+        }
+
+        // Firebase auth helpers for social sign-in and email verification
+        function initFirebaseAuthHandlers() {
+            try {
+                if (!window.FIREBASE_CONFIG || !window.firebase) return;
+                if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                const googleBtn = document.getElementById('googleSignIn');
+                        if (googleBtn) googleBtn.addEventListener('click', (e) => { e.preventDefault(); signInWithProvider('google'); });
+                        // Enable or disable social button depending on Firebase availability
+                        const updateSocialButtons = () => {
+                            const ok = (window.FIREBASE_CONFIG && window.firebase && firebase.auth);
+                            const b = googleBtn;
+                            if (!b) return;
+                            if (ok) { b.classList.remove('disabled'); b.disabled = false; b.title = ''; }
+                            else { b.classList.add('disabled'); b.disabled = true; b.title = 'Firebase not configured or providers not enabled'; }
+                        };
+                        updateSocialButtons();
+            } catch (e) { console.warn('initFirebaseAuthHandlers failed', e); }
+        }
+
+        function signInWithProvider(name) {
+            try {
+                if (!window.firebase || !firebase.auth) { alert('Firebase not configured'); return; }
+                let provider = null;
+                if (name === 'google') provider = new firebase.auth.GoogleAuthProvider();
+                else { alert('Unknown provider'); return; }
+                firebase.auth().signInWithPopup(provider).then(result => {
+                    const user = result.user;
+                    // create/merge profile in Firestore for social sign-ins
+                    try {
+                        if (window.firebase && firebase.firestore && user && user.uid) {
+                            if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                            const userDoc = firebase.firestore().doc('users/' + user.uid);
+                            const payload = { email: user.email, displayName: user.displayName || '', emailVerified: !!user.emailVerified, role: 'user', lastLoginAt: firebase.firestore.FieldValue.serverTimestamp() };
+                            userDoc.set(payload, { merge: true }).catch(() => {});
+                        }
+                    } catch (e) { console.warn('Failed to upsert social sign-in user doc', e); }
+                    const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || '' };
+                    persistProfile(profile);
+                    persistAuthTokenFromUser(user);
+                    const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
+                    // Basic routing
+                    const role = (user.email && user.email.toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
+                    if (role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
+                }).catch(err => {
+                    console.error('Social sign-in error', err);
+                    const errEl = document.getElementById('loginError');
+                    if (errEl) { errEl.style.display='block'; errEl.textContent = err && err.message ? err.message : String(err); }
+                    // common causes: popup blocked, origin not allowed, redirect_uri_mismatch (Facebook)
+                });
+            } catch (e) { console.error('signInWithProvider', e); }
+        }
+
+        // Helper to guide resending verification for last unverified email
+        function resendVerification() {
+            try {
+                const email = window.lastUnverifiedEmail;
+                if (!email) { alert('No unverified email recorded. Please sign up or attempt to sign in first.'); return; }
+                // We can't send a verification email without a signed-in user; prompt user to sign in again and then they'll be shown the verification notice.
+                alert('Please sign in with the same email and password. If the email is still unverified, the app will prompt you to resend verification.');
+            } catch (e) { console.warn('resendVerification failed', e); alert('Unable to resend verification automatically. Please sign in and request a verification email again.'); }
+        }
+
+        // Show/hide resend button when lastUnverifiedEmail changes or on page load
+        function updateResendUI() {
+            try {
+                const btn = document.getElementById('resendVerificationBtn');
+                const email = window.lastUnverifiedEmail || '';
+                if (!btn) return;
+                if (email) { btn.style.display = 'block'; btn.textContent = 'Resend verification to ' + email; }
+                else { btn.style.display = 'none'; }
+            } catch (e) { /* ignore */ }
+        }
+
+        // Resend verification: prefer using Firebase client SDK (sign-in briefly to get idToken), fallback to instructing the user.
+        async function resendVerificationREST() {
+            try {
+                const email = window.lastUnverifiedEmail || (document.getElementById('email') && document.getElementById('email').value) || '';
+                const password = (document.getElementById('password') && document.getElementById('password').value) || '';
+                if (!email) { alert('Please enter the email address to resend verification to.'); return; }
+                if (!window.firebase || !firebase.auth) { alert('Firebase client SDK not available. Please try signing in from the main app or contact support.'); return; }
+                // If user provided password, sign in and call sendEmailVerification
+                if (password) {
+                    try {
+                        const res = await firebase.auth().signInWithEmailAndPassword(email, password);
+                        const u = res.user || firebase.auth().currentUser;
+                        if (u && u.sendEmailVerification) {
+                            await u.sendEmailVerification({ url: window.location.origin + '/login.html' });
+                            alert('Verification email sent. Please check your inbox and spam folder.');
+                        } else {
+                            alert('Could not send verification email using Firebase SDK.');
+                        }
+                        try { await firebase.auth().signOut(); } catch(e){}
+                        try { localStorage.removeItem('lastUnverifiedEmail'); window.lastUnverifiedEmail = ''; } catch(e){}
+                        updateResendUI();
+                        return;
+                    } catch (err) {
+                        console.warn('Client resend via signIn failed', err);
+                        var errEl = document.getElementById('loginError'); if (errEl) { errEl.style.display='block'; errEl.textContent = err && err.message ? err.message : String(err); }
+                        alert('Could not resend verification automatically. Please ensure your password is correct and try again.');
+                        try { await firebase.auth().signOut(); } catch(e){}
+                        return;
+                    }
+                }
+                // If no password provided, we cannot obtain a valid idToken from client — instruct user to sign in and use the resend button again.
+                alert('Please enter your password on this page so we can resend the verification email, or sign in and request a verification email from your account settings.');
+            } catch (e) { console.error('resendVerificationREST error', e); alert('Failed to resend verification: ' + (e && e.message ? e.message : String(e))); }
+        }
+
+        // Initialize firebase auth handlers once DOM is ready
+        document.addEventListener('DOMContentLoaded', function(){ 
+            // populate lastUnverifiedEmail from localStorage (set after signup) so resend UI persists across pages
+            try { var saved = localStorage.getItem('lastUnverifiedEmail'); if (saved) window.lastUnverifiedEmail = saved; } catch(e){}
+            initFirebaseAuthHandlers(); updateResendUI(); 
+        });
+    </script>
+    <!-- Footer removed on login page per UX request -->
+</body>
+</html>

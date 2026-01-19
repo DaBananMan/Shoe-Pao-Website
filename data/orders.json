@@ -1,0 +1,318 @@
+[
+  {
+    "id": "ORD25377885",
+    "tracking": "TR86511497",
+    "date": "2025-11-19T07:43:16.881Z",
+    "status": "Cancelled",
+    "items": [
+      {
+        "title": "Nike Airmax Red",
+        "brand": "Nike",
+        "price": 2299,
+        "size": "40",
+        "image": "http://localhost/SHOEPAO/IMAGE/NIKE5.png",
+        "qty": 1,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 2299,
+    "shipping": 195,
+    "total": 2494,
+    "paymentCode": "bank_transfer",
+    "paymentLabel": "Bank Transfer",
+    "referenceNumber": "",
+    "customerName": "Jemar Eden",
+    "deliveryCode": "jnt",
+    "deliveryLabel": "J&T Express / JRS",
+    "deliveryMethod": "J&T Express / JRS",
+    "est": "Nov 22, 2025",
+    "refund": {
+      "reasons": [
+        "Missing parts"
+      ],
+      "timestamp": "2025-11-19T08:59:37.403Z",
+      "clientConfirmed": true,
+      "adminRevoked": true,
+      "revocation": {
+        "reasons": [
+          "Product Condition"
+        ],
+        "timestamp": "2025-11-19T09:04:35.925Z"
+      }
+    },
+    "cancellation": {
+      "reasons": [
+        "Change of mind"
+      ],
+      "timestamp": "2025-11-24T03:25:35.363Z",
+      "clientConfirmed": true,
+      "adminRevoked": true,
+      "revocation": {
+        "reasons": [
+          "Cancellation Policy Violation"
+        ],
+        "timestamp": "2025-11-24T03:29:38.971Z"
+      }
+    }
+  },
+  {
+    "id": "ORD25412077",
+    "tracking": "TR46082777",
+    "date": "2025-11-24T03:16:13.000Z",
+    "status": "Pending",
+    "items": [
+      {
+        "title": "Nike Airmax TN Aqua Blue",
+        "brand": "Nike",
+        "price": 1299,
+        "size": "37",
+        "image": "http://localhost/SHOEPAO/IMAGE/NIKE1.png",
+        "qty": 2,
+        "quantity": 2
+      }
+    ],
+    "subtotal": 2598,
+    "packaging": 0,
+    "shipping": 485,
+    "total": 3083,
+    "paymentCode": "cod",
+    "paymentLabel": "Cash on Delivery",
+    "referenceNumber": "",
+    "customerName": "Jemar Eden",
+    "deliveryCode": "jnt",
+    "deliveryLabel": "J&T Express / JRS",
+    "deliveryMethod": "J&T Express / JRS",
+    "shippingRegion": "Manila"
+  },
+  {
+    "id": "ORD25455936",
+    "tracking": "TR61595847",
+    "date": "2025-12-04T04:35:15.373Z",
+    "status": "Pending",
+    "items": [
+      {
+        "title": "Nike Airmax Black",
+        "brand": "Nike",
+        "price": 2395,
+        "size": "42",
+        "image": "http://localhost/SHOEPAO/IMAGE/NIKE2.png",
+        "qty": 1,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 2395,
+    "packaging": 0,
+    "shipping": 0,
+    "total": 2395,
+    "paymentCode": "",
+    "paymentLabel": "QR PH",
+    "referenceNumber": "",
+    "customerName": "Jemar Eden",
+    "customerEmail": "jemar@gmail.com",
+    "customerPhone": "",
+    "profile": {
+      "email": "jemar@gmail.com",
+      "role": "user",
+      "loggedAt": 1764822540163,
+      "remember": true
+    },
+    "deliveryCode": "personal",
+    "deliveryLabel": "Personal Delivery",
+    "deliveryMethod": "Personal Delivery",
+    "shippingRegion": "Manila"
+  },
+  {
+    "id": "ORD25601377",
+    "tracking": "TR41376824",
+    "date": "2025-12-04T04:50:35.001Z",
+    "status": "Pending",
+    "items": [
+      {
+        "title": "Nike Airmax Red",
+        "brand": "Nike",
+        "price": 2299,
+        "size": "40",
+        "image": "http://localhost/SHOEPAO/IMAGE/NIKE5.png",
+        "qty": 1,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 2299,
+    "packaging": 0,
+    "shipping": 0,
+    "total": 2299,
+    "paymentCode": "",
+    "paymentLabel": "QR PH",
+    "referenceNumber": "",
+    "customerName": "Jemar Eden",
+    "customerEmail": "jemar@gmail.com",
+    "customerPhone": "",
+    "profile": {
+      "email": "jemar@gmail.com",
+      "role": "user",
+      "loggedAt": 1764822540163,
+      "remember": true
+    },
+    "deliveryCode": "personal",
+    "deliveryLabel": "Personal Delivery",
+    "deliveryMethod": "Personal Delivery"
+  },
+  {
+    "id": "ORD25383071",
+    "tracking": "TR43055284",
+    "date": "2025-12-05T11:15:59.609Z",
+    "status": "Pending",
+    "items": [
+      {
+        "title": "Nike Airmax Black",
+        "brand": "Nike",
+        "price": 2395,
+        "size": "39",
+        "image": "http://localhost/SHOEPAO/IMAGE/NIKE2.png",
+        "qty": 1,
+        "quantity": 1
+      },
+      {
+        "title": "Cloudtilt Iron Dew Womens",
+        "brand": "Cloudtilt",
+        "price": 1299,
+        "size": "39",
+        "image": "http://localhost/SHOEPAO/IMAGE/SALESSHOE1.png",
+        "qty": 1,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 3694,
+    "packaging": 0,
+    "shipping": 505,
+    "total": 4199,
+    "paymentCode": "",
+    "paymentLabel": "QR PH",
+    "referenceNumber": "",
+    "customerName": "Jemar Eden",
+    "customerEmail": "admin@gmail.com",
+    "customerPhone": "",
+    "profile": {
+      "email": "admin@gmail.com",
+      "role": "admin",
+      "loggedAt": 1764928851508,
+      "remember": true
+    },
+    "deliveryCode": "jnt",
+    "deliveryLabel": "J&T Express / JRS",
+    "deliveryMethod": "J&T Express / JRS"
+  },
+  {
+    "id": "ORD25426168",
+    "tracking": "TR48519165",
+    "date": "2025-12-08T14:44:40.905Z",
+    "status": "Pending",
+    "items": [
+      {
+        "title": "New Balance 530",
+        "brand": "New Balance",
+        "price": 1299,
+        "size": "42",
+        "image": "http://localhost/SHOEPAO/IMAGE/SALESSHOE2.png",
+        "qty": 1,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 1299,
+    "packaging": 0,
+    "shipping": 0,
+    "total": 1299,
+    "paymentCode": "",
+    "paymentLabel": "QR PH",
+    "referenceNumber": "",
+    "customerName": "Pizza Hut",
+    "customerEmail": "ph@gmail.com",
+    "customerPhone": "112 312 3123",
+    "profile": {
+      "name": "Pizza Hut",
+      "email": "ph@gmail.com",
+      "phone": "112 312 3123",
+      "addressMain": "Pizza Hut",
+      "addressDetails": ""
+    },
+    "deliveryCode": "personal",
+    "deliveryLabel": "Personal Delivery",
+    "deliveryMethod": "Personal Delivery",
+    "shippingAddress": "Pizza Hut"
+  },
+  {
+    "id": "ORD25103707",
+    "tracking": "TR30719777",
+    "date": "2025-12-08T14:57:56.066Z",
+    "status": "Pending",
+    "items": [
+      {
+        "title": "Nike Airmax Black",
+        "brand": "Nike",
+        "price": 2395,
+        "size": "43",
+        "image": "http://localhost/SHOEPAO/IMAGE/NIKE2.png",
+        "qty": 1,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 2395,
+    "packaging": 0,
+    "shipping": 455,
+    "total": 2850,
+    "paymentCode": "",
+    "paymentLabel": "QR PH",
+    "referenceNumber": "",
+    "customerName": "Pizza Hut",
+    "customerEmail": "ph@gmail.com",
+    "customerPhone": "112 312 3123",
+    "profile": {
+      "name": "Pizza Hut",
+      "email": "ph@gmail.com",
+      "phone": "112 312 3123",
+      "addressMain": "Pizza Hut",
+      "addressDetails": ""
+    },
+    "deliveryCode": "jnt",
+    "deliveryLabel": "J&T Express / JRS",
+    "deliveryMethod": "J&T Express / JRS",
+    "shippingAddress": "Pizza Hut",
+    "shippingRegion": "Luzon"
+  },
+  {
+    "id": "ORD25397327",
+    "tracking": "TR72845836",
+    "date": "2025-12-18T15:52:25.411Z",
+    "status": "Pending",
+    "items": [
+      {
+        "title": "Nike Airmax Black",
+        "brand": "Nike",
+        "price": 2395,
+        "size": "39",
+        "image": "http://localhost/SHOEPAO/IMAGE/NIKE2.png",
+        "qty": 1,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 2395,
+    "packaging": 0,
+    "shipping": 0,
+    "total": 2395,
+    "paymentCode": "",
+    "paymentLabel": "QR PH",
+    "referenceNumber": "",
+    "customerName": "EMPTY",
+    "customerEmail": "raphael@gmail.com",
+    "customerPhone": "",
+    "profile": {
+      "email": "raphael@gmail.com",
+      "role": "user",
+      "loggedAt": 1766073112718,
+      "remember": true
+    },
+    "deliveryCode": "personal",
+    "deliveryLabel": "Personal Delivery",
+    "deliveryMethod": "Personal Delivery"
+  }
+]
