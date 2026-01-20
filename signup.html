@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign up - SHOEPAO</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            font-family: 'Montserrat', Arial, sans-serif;
+            background: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .signup-wrapper {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            justify-content: center;
+            min-height: 100vh;
+            width: 100vw;
+            position: relative;
+            background: #fff;
+            z-index: 1;
+            gap: 13.2vw; /* Increase gap by 10% from previous 12vw */
+        }
+        .logo-section {
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-end;
+            min-width: 200px;
+            max-width: 320px;
+            margin-top: 116px; /* Reduce gap by 30% from previous 166px */
+        }
+        .logo-section img {
+            width: 120px;
+            height: auto;
+        }
+        .form-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 320px;
+            max-width: 480px;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: 116px; /* Reduce gap by 30% from previous 166px */
+        }
+        .signup-header {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 32px;
+            color: #222;
+        }
+        .name-row {
+            display: flex;
+            gap: 16px;
+            width: 100%;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        .input-label {
+            font-size: 0.98rem;
+            color: #444;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .input-box {
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 18px;
+            background: #fff;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .input-box:focus {
+            border-color: #b71c1c;
+        }
+        .phone-row {
+            position: relative;
+            width: 100%;
+        }
+        .phone-prefix {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #444;
+            font-size: 1rem;
+            pointer-events: none;
+            /* no extra spacing between prefix and input */
+            margin-right: 0;
+            letter-spacing: 0.5px;
+        }
+        /* decorative marker removed - no extra marker */
+        .phone-input {
+            border: none;
+            outline: none;
+            font-size: 1rem;
+            background: transparent;
+            flex: 1;
+            letter-spacing: 2px;
+            padding-left: 100px; /* reduced by 20px so gap is 20px smaller */
+            height: 100%;
+            text-align: left;
+            z-index: 1;
+            position: relative;
+            top: 0;
+            display: flex;
+            align-items: center;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin-top: auto;
+            margin-bottom: auto;
+            box-sizing: border-box;
+        }
+        .password-row {
+            width: 100%;
+        }
+        .password-label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .toggle-password {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            color: #888;
+            font-size: 1rem;
+            user-select: none;
+        }
+        .eye-icon {
+            font-size: 1.1em;
+        }
+        .password-instruction {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 18px;
+            margin-top: -10px;
+        }
+        .checkbox-row {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+        .checkbox-row input[type="checkbox"] {
+            margin-right: 8px;
+            margin-top: 2px;
+        }
+        .checkbox-row label {
+            font-size: 0.97rem;
+            color: #222;
+        }
+        .checkbox-row a {
+            text-decoration: underline;
+            color: #222;
+        }
+        .signup-action-row {
+            display: flex;
+            align-items: center;
+            margin-top: 28px;
+            width: 100%;
+        }
+        .signup-btn {
+            background: #000;
+            color: #fff;
+            border: none;
+            border-radius: 24px;
+            padding: 12px 36px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-right: 24px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .signup-btn:hover {
+            background: #b71c1c;
+        }
+        .login-link-row {
+            font-size: 1rem;
+            color: #222;
+        }
+        .login-link-row a {
+            text-decoration: underline;
+            color: #222;
+            cursor: pointer;
+        }
+        @media (max-width: 900px) {
+            .signup-wrapper {
+                flex-direction: column;
+                align-items: center;
+            }
+            .logo-section {
+                padding-left: 0;
+                justify-content: center;
+            }
+            .form-section {
+                margin-left: 0;
+                max-width: 100%;
+            }
+        }
+        @media (min-width: 900px) {
+            .signup-wrapper {
+                position: absolute;
+                top: 50%;
+                left: 48%; /* Move wrapper 3% to the right from previous 45% */
+                transform: translate(-50%, -50%);
+                width: auto;
+                min-width: 0;
+            }
+        }
+    /* Social button styles — mirror login page */
+    .social-auth { display:flex; gap:10px; margin:12px 0; justify-content:center; }
+    .social-btn { display:flex; align-items:center; gap:12px; padding:12px 18px; border-radius:8px; cursor:pointer; font-weight:600; font-size:1rem; border:0; width:100%; max-width:420px; box-sizing:border-box; justify-content:center; }
+    .social-btn img { width:24px; height:24px; object-fit:contain; }
+
+    /* Simple modal/overlay used for verification and social confirmations */
+    .verification-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 24px;
+    }
+    .verification-modal {
+        background: #fff;
+        border-radius: 12px;
+        max-width: 520px;
+        width: 100%;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        padding: 20px 22px;
+        color: #222;
+    }
+    .verification-modal h3 { margin-top:0; margin-bottom:8px; font-size:1.25rem; }
+    .verification-modal p { margin:0; color:#444; line-height:1.4; }
+    /* Small button helpers (kept minimal so other pages can reuse) */
+    .btn { padding:8px 12px; border-radius:8px; border:1px solid transparent; cursor:pointer; font-weight:600; }
+    .btn-primary { background:#000; color:#fff; border-color:#000; }
+    .btn-outline { background:transparent; color:#222; border-color:#ccc; }
+    </style>
+</head>
+<body>
+    <div class="signup-wrapper">
+        <div class="logo-section">
+            <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo">
+        </div>
+        <form class="form-section" autocomplete="off" onsubmit="return handleSignup(event)">
+            <div class="signup-header">Sign up now</div>
+            <div class="social-auth">
+                <button id="googleSignIn" class="social-btn google" type="button" aria-label="Sign up with Google">
+                    <img src="IMAGE/googleicon.png" alt="Google logo" />
+                    <span>Sign up with Google</span>
+                </button>
+            </div>
+            <div class="name-row">
+                <div class="input-group">
+                    <label for="firstName" class="input-label">First name</label>
+                    <input type="text" id="firstName" name="firstName" class="input-box" required>
+                </div>
+                <div class="input-group">
+                    <label for="lastName" class="input-label">Last name</label>
+                    <input type="text" id="lastName" name="lastName" class="input-box" required>
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="email" class="input-label">Email address</label>
+                <input type="email" id="email" name="email" class="input-box" required>
+            </div>
+            <div class="input-group">
+                <label for="phone" class="input-label">Phone number</label>
+                <div class="phone-row">
+                    <span class="phone-prefix">+63</span>
+                    <input type="text" id="phone" name="phone" class="phone-input" maxlength="12" inputmode="numeric" placeholder="Phone number" required oninput="formatPhone(this)">
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="address" class="input-label">Address (street, barangay, city/province, postal code)</label>
+                <textarea id="address" name="address" class="input-box" rows="3" placeholder="e.g. 123 Green St., Barangay 3, Quezon City, 1100"></textarea>
+            </div>
+            <div class="password-row">
+                <div class="password-label-row">
+                    <label for="password" class="input-label">Password</label>
+                    <span class="toggle-password" onclick="togglePassword()" id="toggleIcon"><span class="eye-icon">&#128065;</span> Hide</span>
+                </div>
+                <input type="password" id="password" name="password" class="input-box" placeholder="Password">
+            </div>
+            <div class="password-instruction">Use 8 or more characters with a mix of letters, numbers & symbols</div>
+            <div class="checkbox-row">
+                <input type="checkbox" id="terms" required>
+                <label for="terms">By creating an account, I agree to our <a href="#">Terms of use</a> and <a href="#">Privacy Policy</a></label>
+            </div>
+            <div class="checkbox-row">
+                <input type="checkbox" id="consent">
+                <label for="consent">By creating an account, I am also consenting to receive SMS messages and emails, including product new feature updates, events, and marketing promotions.</label>
+            </div>
+            <div class="signup-action-row">
+                <button type="submit" class="signup-btn">Sign up</button>
+                <div class="login-link-row">Already have an account? <a href="login.html">Log in</a></div>
+            </div>
+        </form>
+    </div>
+    <!-- Shared Firebase config and SDKs -->
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+    <script>
+        // Lightweight, robust client-side handlers for signup page
+        (function(){
+            // Toggle password visibility
+            window.togglePassword = function(){
+                const passwordInput = document.getElementById('password');
+                const toggleIcon = document.getElementById('toggleIcon');
+                if (!passwordInput) return;
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    if (toggleIcon) toggleIcon.innerHTML = '<span class="eye-icon">&#128065;</span> Show';
+                } else {
+                    passwordInput.type = 'password';
+                    if (toggleIcon) toggleIcon.innerHTML = '<span class="eye-icon">&#128065;</span> Hide';
+                }
+            };
+
+            // Format phone input as xxx xxx xxxx while preserving caret as best-effort
+            window.formatPhone = function(input){
+                if(!input) return;
+                const old = input.value;
+                const selStart = input.selectionStart || 0;
+                // Count digits before caret in old value
+                let digitsBefore = 0;
+                for (let i = 0; i < selStart; i++) if (/\d/.test(old[i])) digitsBefore++;
+                // Build numeric-only limited to 10 digits
+                const digits = (old.match(/\d/g) || []).slice(0,10).join('');
+                let parts = [];
+                if (digits.length > 0) parts.push(digits.substring(0, Math.min(3, digits.length)));
+                if (digits.length > 3) parts.push(digits.substring(3, Math.min(6, digits.length)));
+                if (digits.length > 6) parts.push(digits.substring(6, 10));
+                const formatted = parts.join(' ');
+                input.value = formatted;
+                // Map digit index back to new caret position
+                let newPos = 0; let d = 0;
+                while (d < digitsBefore && newPos < formatted.length) {
+                    if (/\d/.test(formatted[newPos])) d++;
+                    newPos++;
+                }
+                try{ input.setSelectionRange(newPos, newPos); }catch(e){}
+            };
+
+            // Show a simple modal informing user that a verification email was sent
+            function showPendingEmailSentOverlay(email){
+                try{
+                    const overlay = document.createElement('div'); overlay.className = 'verification-overlay';
+                    const modal = document.createElement('div'); modal.className = 'verification-modal';
+                    modal.innerHTML = '<h3>Check your email</h3>' +
+                        '<p>A verification email was sent to <strong>' + (email||'') + '</strong>. Please follow the link in that email to verify your account, then sign in.</p>' +
+                        '<div style="text-align:right;margin-top:12px"><button id="resendVerification" class="btn btn-outline">Resend</button><button id="closePending" class="btn btn-primary" style="margin-left:8px">Close</button></div>';
+                    overlay.appendChild(modal); document.body.appendChild(overlay);
+
+                    // Resend handler: use current signed-in user to resend verification via client SDK
+                    document.getElementById('resendVerification').addEventListener('click', async function(){
+                        const btn = this; btn.disabled = true; btn.textContent = 'Sending...';
+                        try{
+                            if (window.firebase && firebase.auth && firebase.auth().currentUser && firebase.auth().currentUser.sendEmailVerification) {
+                                await firebase.auth().currentUser.sendEmailVerification({ url: window.location.origin + '/login.html' });
+                                btn.textContent = 'Sent';
+                                setTimeout(function(){ if(btn) { btn.textContent = 'Resend'; btn.disabled = false; } }, 3000);
+                            } else {
+                                btn.textContent = 'Unable to send';
+                                setTimeout(function(){ if(btn) { btn.textContent = 'Resend'; btn.disabled = false; } }, 3000);
+                            }
+                        }catch(err){ console.warn('Resend failed', err); btn.textContent = 'Error'; setTimeout(function(){ if(btn){ btn.textContent = 'Resend'; btn.disabled = false; } }, 3000); }
+                    });
+
+                    // Poll for email verification if the user is still signed in on this tab
+                    var verificationPoll = null;
+                    function stopVerificationPoll(){ try{ if(verificationPoll) { clearInterval(verificationPoll); verificationPoll = null; } }catch(e){} }
+                    try{
+                        if (window.firebase && firebase.auth && firebase.auth().currentUser) {
+                            // show a subtle status below the buttons
+                            var status = document.createElement('div'); status.style.marginTop = '10px'; status.style.color = '#444'; status.id = 'verificationStatus'; status.textContent = 'Waiting for email verification...';
+                            modal.appendChild(status);
+                            verificationPoll = setInterval(function(){
+                                try{
+                                    var u = firebase.auth().currentUser;
+                                    if (!u || !u.reload) return;
+                                    u.reload().then(function(){
+                                        try{
+                                            if (u.emailVerified) {
+                                                stopVerificationPoll();
+                                                // Sign out and redirect to login so the user can sign in
+                                                try{ firebase.auth().signOut().catch(()=>{}); }catch(e){}
+                                                window.location.href = 'login.html?verifiedFromSignup=1';
+                                            }
+                                        }catch(e){ console.warn('verification poll check failed', e); }
+                                    }).catch(function(err){ /* ignore reload errors */ });
+                                }catch(e){ /* ignore */ }
+                            }, 3000);
+                        }
+                    }catch(e){}
+
+                    document.getElementById('closePending').addEventListener('click', function(){
+                        try{ stopVerificationPoll(); }catch(e){}
+                        try{ if (window.firebase && firebase.auth && firebase.auth().currentUser) { firebase.auth().signOut().catch(()=>{}); } }catch(e){}
+                        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                        window.location.href='login.html';
+                    });
+                }catch(e){ alert('A verification email was sent. Please check your inbox.'); try{ if (window.firebase && firebase.auth && firebase.auth().signOut) firebase.auth().signOut().catch(()=>{}); }catch(_){}; window.location.href='login.html'; }
+            }
+
+            // Show a confirmation modal before starting social sign-in
+            window.showSocialConfirmModal = function(providerName, providerLabel){
+                try{
+                    const overlay = document.createElement('div'); overlay.className = 'verification-overlay';
+                    const modal = document.createElement('div'); modal.className = 'verification-modal';
+                    modal.innerHTML = '<h3>Continue with ' + (providerLabel||providerName) + '?</h3>' +
+                        '<p>We will use your ' + (providerLabel||providerName) + ' account to create or sign in to your ShoePao account.</p>' +
+                        '<div style="text-align:right;margin-top:12px"><button id="socialCancel" class="btn btn-outline">Cancel</button><button id="socialConfirm" class="btn btn-primary" style="margin-left:8px">Continue</button></div>';
+                    overlay.appendChild(modal); document.body.appendChild(overlay);
+                    document.getElementById('socialCancel').addEventListener('click', function(){ if(overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); });
+                    document.getElementById('socialConfirm').addEventListener('click', function(){ try{ if(overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); }catch(e){}; signInWithProvider(providerName); });
+                }catch(e){ console.warn('social confirm modal failed', e); signInWithProvider(providerName); }
+            };
+
+            // Signup handler: create user, save metadata (non-sensitive), send verification, sign out
+            window.handleSignup = async function(e){
+                e && e.preventDefault && e.preventDefault();
+                const firstName = (document.getElementById('firstName').value||'').trim();
+                const lastName = (document.getElementById('lastName').value||'').trim();
+                const email = (document.getElementById('email').value||'').trim().toLowerCase();
+                const phone = (document.getElementById('phone').value||'').trim();
+                const password = (document.getElementById('password').value||'');
+                const addressVal = (document.getElementById('address') ? document.getElementById('address').value : '').trim();
+                const addressMain = addressVal.split('\n')[0] || addressVal;
+                const addressDetails = addressVal.split('\n').slice(1).join(', ') || '';
+
+                if (!email) { alert('Please enter an email address'); return false; }
+                if (!password || password.length < 6) { alert('Please choose a password (6+ characters).'); return false; }
+
+                if (!(window.FIREBASE_CONFIG && window.firebase && window.firebase.auth)) { alert('Firebase is not configured. Signup unavailable.'); return false; }
+                try{
+                    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                    const created = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    const u = created && created.user ? created.user : null;
+                    if (u && (firstName || lastName)) {
+                        try{ await u.updateProfile({ displayName: ((firstName||'') + (lastName ? (' ' + lastName) : '')).trim() }); }catch(e){}
+                    }
+                    // Save non-sensitive metadata locally keyed by email
+                    try{ var pending = JSON.parse(localStorage.getItem('pendingSignup') || '{}'); }catch(e){ pending = {}; }
+                    pending[email] = { firstName, lastName, phone, addressMain, addressDetails, createdAt: Date.now() };
+                    try{ localStorage.setItem('pendingSignup', JSON.stringify(pending)); }catch(e){}
+
+                    try{ await u.sendEmailVerification({ url: window.location.origin + '/login.html' }); }catch(e){ console.warn('sendEmailVerification failed', e); }
+                    try{ localStorage.setItem('lastUnverifiedEmail', email); window.lastUnverifiedEmail = email; }catch(e){}
+                    // Keep the newly created user signed in so we can offer a resend button that uses the client SDK.
+                    // The modal close button will sign the user out before redirecting to the login page.
+                    showPendingEmailSentOverlay(email);
+                    return false;
+                }catch(err){ console.error('Signup failed', err); alert('Signup failed: ' + (err && err.message ? err.message : String(err))); return false; }
+            };
+
+            // Social sign-in helper (Google)
+            window.signInWithProvider = function(name){
+                if (!window.firebase || !firebase.auth) { alert('Firebase not configured'); return; }
+                if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                let provider = null;
+                if (name === 'google') provider = new firebase.auth.GoogleAuthProvider();
+                else { alert('Unknown provider'); return; }
+                firebase.auth().signInWithPopup(provider).then(result => {
+                    const user = result.user;
+                    try{
+                        if (window.firebase && firebase.firestore && user && user.uid) {
+                            const userDoc = firebase.firestore().doc('users/' + user.uid);
+                            const payload = { email: user.email, displayName: user.displayName || '', emailVerified: !!user.emailVerified, role: 'user', lastLoginAt: firebase.firestore.FieldValue.serverTimestamp() };
+                            userDoc.set(payload, { merge: true }).catch(()=>{});
+                        }
+                    }catch(e){ console.warn('Failed to upsert social sign-in user doc', e); }
+                    try{ localStorage.setItem('profile', JSON.stringify({ email: user.email, name: user.displayName||'', uid: user.uid })); }catch(e){}
+                    // Route
+                    const role = (user && user.email && user.email.toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
+                    if (role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
+                }).catch(err => { console.error('Social sign-in error', err); alert('Sign-in failed: ' + (err && err.message ? err.message : String(err))); });
+            };
+
+            // Wire up UI on DOM ready
+            document.addEventListener('DOMContentLoaded', function(){
+                try{ var saved = localStorage.getItem('lastUnverifiedEmail'); if (saved) window.lastUnverifiedEmail = saved; }catch(e){}
+                try{ const googleBtn = document.getElementById('googleSignIn'); if(googleBtn) googleBtn.addEventListener('click', function(e){ e.preventDefault(); showSocialConfirmModal('google','Google'); }); }catch(e){}
+                // Ensure phone input is formatted on load
+                try{ const ph = document.getElementById('phone'); if(ph){ ph.addEventListener('input', function(){ formatPhone(this); }); } }catch(e){}
+            });
+        })();
+        </script>
+    <!-- Footer removed on signup page per UX request -->
+</body>
+</html>

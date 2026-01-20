@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment - SHOEPAO</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .payment-left {
+            flex: 2;
+            padding: 0 40px 0 0;
+            min-width: 420px;
+        }
+        .payment-main {
+            display:flex;
+            flex-direction:row;
+            max-width:1200px;
+            margin:0 auto;
+            padding:32px 16px 0 16px; /* add spacing from left/right edges */
+            box-sizing:border-box;
+            /* allow the main container to grow so the footer is pushed to the bottom on short pages */
+            flex: 1 0 auto;
+        }
+        /* When COD is selected we want only the action row and policy links to be pushed
+           toward the bottom; keep instruction blocks (like COD instructions) near the header.
+           The JS toggles the `cod-selected` class on <body> when COD is active. */
+        body.cod-selected .payment-left {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        /* Push only the action row and policy links down in the flex column layout */
+        body.cod-selected .payment-btn-row,
+        body.cod-selected .payment-policy-row {
+            margin-top: auto;
+        }
+        /* Small page-scoped footer gap override so the footer sits closer on this page */
+        body.payment-page .footer-section { margin-top: 18px !important; }
+        .payment-right {
+            flex: 1.1;
+            background: #f5f5f5;
+            padding: 32px 32px 32px 32px;
+            min-width: 340px;
+            max-width: 400px;
+            border-left: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
+        }
+        .payment-header {
+            font-size: 2.1rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .payment-caption {
+            font-size: 1.08rem;
+            color: #222;
+            margin-bottom: 18px;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .payment-divider {
+            width: 100%;
+            height: 1.5px;
+            background: #eee;
+            margin: 18px 0 18px 0;
+        }
+        .payment-method-title {
+            font-size: 1.08rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #222;
+        }
+        .payment-method-list {
+            margin-bottom: 18px;
+        }
+        .payment-method-list ul {
+            margin: 0 0 0 18px;
+            padding: 0;
+        }
+        .payment-method-list li {
+            font-size: 1rem;
+            color: #444;
+            margin-bottom: 4px;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .payment-upload-title {
+            font-size: 1.08rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #222;
+        }
+        .payment-upload-box {
+            background: #fff;
+            border-radius: 18px;
+            padding: 18px 0;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #eee;
+            font-size: 1.05rem;
+            color: #222;
+            cursor: pointer;
+            font-family: 'Poppins', Arial, sans-serif;
+            box-shadow: 0 1px 4px rgba(34,34,34,0.07);
+        }
+        .payment-btn-row {
+            display: flex;
+            justify-content: center;
+            margin: 32px 0 18px 0;
+        }
+        .payment-placeorder-btn {
+            background: #222;
+            color: #fff;
+            border: none;
+            border-radius: 28px;
+            padding: 16px 0;
+            width: 100%;
+            max-width: 340px;
+            font-size: 1.15rem;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(34,34,34,0.10);
+        }
+        .payment-placeorder-btn:hover {
+            background: #b71c1c;
+            box-shadow: 0 4px 16px rgba(34,34,34,0.13);
+        }
+        .payment-policy-row {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 18px;
+        }
+        /* Bank details modal styling */
+        .bank-modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:200000; }
+        .bank-modal-overlay.show{ display:flex; }
+        .bank-modal{ width:640px; max-width:calc(100vw - 48px); background:#fff; border-radius:12px; padding:20px; box-shadow:0 12px 48px rgba(0,0,0,0.28); font-family:'Poppins', Arial, sans-serif; }
+        .bank-modal h3{ margin:0 0 8px 0; font-size:1.15rem; }
+        .bank-modal .field-row{ display:flex; gap:10px; margin-top:10px; }
+        .bank-modal .field{ flex:1; display:flex; flex-direction:column; }
+        .bank-modal label{ font-size:0.95rem; color:#333; margin-bottom:6px; }
+        .bank-modal input, .bank-modal select{ padding:10px 12px; border:1px solid #ddd; border-radius:8px; font-size:1rem; }
+        .bank-modal-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+        .bank-modal .btn{ padding:10px 14px; border-radius:8px; border:none; cursor:pointer; }
+        .bank-modal .btn.primary{ background:#222; color:#fff; }
+        .bank-modal .btn.ghost{ background:#fff; border:1px solid #ddd; }
+        .payment-policy-link {
+            text-decoration: underline;
+            color: #222;
+            font-size: 0.97rem;
+            cursor: pointer;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        /* Bank details inline field styling */
+        #bankDetailsInline input,
+        #bankDetailsInline select {
+            padding: 12px 14px;
+            border: 1px solid #d0d0d0;
+            border-radius: 12px;
+            font-size: 1rem;
+            background: #fff;
+            box-sizing: border-box;
+            height: 44px;
+        }
+        #bankDetailsInline input[type="text"] { line-height: 1.2; }
+        #bankDetailsInline label { margin-bottom: 6px; display: block; }
+        /* spacing between bank details and upload proof header */
+        #bankDetailsInline { margin-bottom: 18px; }
+        /* space above upload proof section when shown (helps separate from QR or bank details) */
+        #bankActions { margin-top: 18px; }
+        .download-qr-btn { background:#222;color:#fff;border:none;border-radius:10px;padding:8px 12px;font-size:0.95rem;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+        .download-qr-btn:disabled { opacity:0.6; cursor:not-allowed; }
+        /* Right side cart summary */
+        .payment-cart-list {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .payment-cart-item {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .payment-cart-img {
+            width: 68px;
+            height: 68px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: #fff;
+        }
+        .payment-cart-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .payment-cart-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .payment-cart-title {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .payment-cart-price {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #222;
+        }
+        .payment-cart-size {
+            font-size: 0.97rem;
+            color: #444;
+        }
+        .payment-cart-qty {
+            font-size: 0.97rem;
+            color: #444;
+        }
+        .payment-cart-divider {
+            width: 100%;
+            height: 1.5px;
+            background: #ddd;
+            margin: 18px 0 18px 0;
+        }
+        .payment-cart-summary-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1.05rem;
+            color: #222;
+            margin-bottom: 8px;
+        }
+        .payment-cart-summary-label {
+            font-weight: 400;
+        }
+        .payment-cart-summary-value {
+            font-weight: 500;
+        }
+        .payment-cart-total-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1.18rem;
+            font-weight: 600;
+            color: #222;
+            margin-top: 8px;
+        }
+        .cart-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            max-height: 340px;
+            padding-right: 8px;
+        }
+        @media (max-width: 900px) {
+            .payment-main {
+                flex-direction: column;
+                padding: 18px 0 0 0;
+            }
+            .payment-left, .payment-right {
+                min-width: 0;
+                max-width: 100vw;
+                padding: 0 12px;
+            }
+            .payment-right {
+                margin-top: 32px;
+            }
+        }
+    </style>
+</head>
+<body class="productlist-body payment-page">
+    <!-- Navigation Bar (copied from product-list.html) -->
+    <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:72px;">
+        <div style="display:flex;align-items:center;gap:24px;">
+            <a href="home.html" style="display:flex;align-items:center;gap:24px;text-decoration:none;color:inherit;">
+                <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" style="height:38px;width:auto;cursor:pointer;">
+                <span class="header-caption" style="font-size:1.18rem;font-weight:600;color:#b71c1c;cursor:pointer;">Shoe Pao Footwear</span>
+            </a>
+            <span class="header-link" onclick="goToSale()">Sale</span>
+            <span class="header-link" onclick="goToNewArrivals()">New Arrivals</span>
+            <span class="header-link" onclick="goToBrands()">Brands</span>
+            <span class="header-link" onclick="goToProductList()">Shop All</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;">
+            <button class="header-icon-btn" onclick="toggleSearchBox()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/SEARCHICON.png" class="header-icon" alt="Search" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToUserPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/USERICON.png" class="header-icon" alt="User" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToCartPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/CARTICON.png" class="header-icon" alt="Cart" style="width:26px;height:26px;"></button>
+        </div>
+        <div class="search-box" id="searchBox" style="display:none;position:absolute;top:72px;right:80px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px 16px;z-index:101;">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)" style="font-family:'Poppins',Arial,sans-serif;font-size:1rem;border:none;outline:none;width:220px;padding:6px 0;">
+        </div>
+    </nav>
+    <div class="payment-main">
+        <div class="payment-left">
+            <div class="payment-header">Payment</div>
+            <div class="payment-caption">Payment should be done within 24 hours upon purchase. We will confirm your<br>order once we receive the payment.<br>Please upload proof of payment after transfer.<br>We accept BDO and BPI.</div>
+            <div class="payment-method-list" style="margin-bottom:12px;">
+                <!-- payment selection is chosen on the Checkout page but not shown here per design -->
+            </div>
+            <div id="qrInstructions" style="display:none;">
+                <div class="payment-divider"></div>
+                <div class="payment-method-title">QR PH Instructions</div>
+                <div class="payment-method-list">
+                    <ul>
+                        <li>After placing the order you'll be redirected to QR PH to complete payment.</li>
+                        <li>Scan the QR using your banking app (GCash, Maya, etc.) and keep the reference/receipt.</li>
+                    </ul>
+                </div>
+                <div style="margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:8px;">
+                    <img id="paymentQRImage" src="IMAGE/QR_PH.png" alt="QR PH" style="width:220px;height:220px;border-radius:12px;border:1px solid #eee;object-fit:contain;background:#fff;" data-attempt="" />
+                    <div id="paymentQRFallback" style="font-size:0.95rem;color:#666;display:none;margin-top:8px;">QR image not available. Scan with your banking app or enter the reference number below.</div>
+                    <div style="margin-top:8px;">
+                        <button id="downloadPaymentQRBtn" class="download-qr-btn" type="button">Download QR</button>
+                    </div>
+                    <div style="font-size:0.98rem;color:#444;margin-top:8px;">Scan this QR code with your banking app to pay.</div>
+                </div>
+            </div>
+
+            <div id="bankInstructions" style="display:none;">
+                <div class="payment-divider"></div>
+                <div class="payment-method-title">≡ƒÆ│ For Bank Transfer (BDO)</div>
+                <div class="payment-method-list">
+                    <ul>
+                        <li>Bank Name: BDO Unibank, Inc.</li>
+                        <li>Account Name: Paolo Pantua</li>
+                        <li>Account Number: 0045 6789 1234</li>
+                    </ul>
+                </div>
+                <div class="payment-method-title">≡ƒÆ│ For Bank Transfer (BPI)</div>
+                <div class="payment-method-list">
+                    <ul>
+                        <li>Bank Name: Bank of the Philippine Islands (BPI)</li>
+                        <li>Account Name: Paolo Pantua</li>
+                        <li>Account Number: 1234 5678 90</li>
+                    </ul>
+                </div>
+                <div class="payment-divider"></div>
+            </div>
+
+            <!-- Inline bank details (moved above upload/proof) -->
+            <div id="bankDetailsInline" style="display:none;margin-top:14px;">
+                <h3 style="margin:0 0 8px 0;font-size:1.05rem;">Bank Transfer Details</h3>
+                <div style="font-size:0.95rem;color:#666;margin-bottom:8px;">Provide your bank details so we can verify the transfer if needed.</div>
+                <div style="display:flex;gap:10px;margin-top:10px;">
+                    <div style="flex:1;display:flex;flex-direction:column;">
+                        <label for="bankSelect" style="font-size:0.95rem;color:#333;margin-bottom:6px;">Bank</label>
+                        <select id="bankSelect"><option value="BDO">BDO</option><option value="BPI">BPI</option><option value="Other">Other</option></select>
+                    </div>
+                    <div style="flex:1;display:flex;flex-direction:column;">
+                        <label for="acctTypeSelect" style="font-size:0.95rem;color:#333;margin-bottom:6px;">Account/Card Type</label>
+                        <select id="acctTypeSelect"><option value="savings">Savings</option><option value="current">Current</option><option value="debit">Debit Card</option><option value="credit">Credit Card</option></select>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:10px;">
+                    <div style="flex:1;display:flex;flex-direction:column;">
+                        <label for="acctNameInput" style="font-size:0.95rem;color:#333;margin-bottom:6px;">Account Name</label>
+                        <input id="acctNameInput" type="text" placeholder="Account name" maxlength="30" />
+                    </div>
+                    <div style="flex:1;display:flex;flex-direction:column;">
+                        <label for="acctNumberInput" style="font-size:0.95rem;color:#333;margin-bottom:6px;">Account Number</label>
+                        <input id="acctNumberInput" type="text" placeholder="000000000000" maxlength="12" />
+                    </div>
+                </div>
+                <div style="margin-top:10px;display:flex;gap:10px;">
+                    <div style="flex:1;display:flex;flex-direction:column;">
+                        <label for="bankNote" style="font-size:0.95rem;color:#333;margin-bottom:6px;">Notes (optional)</label>
+                        <input id="bankNote" type="text" placeholder="e.g. branch or reference" maxlength="60" />
+                    </div>
+                </div>
+                <!-- Auto-save on input/change; no Save/Cancel buttons per design -->
+            </div>
+
+            <div id="bankActions" style="display:none;">
+                <h3 style="margin:0 0 8px 0;font-size:1.05rem;">Upload Proof of Payment Here</h3>
+                <div class="payment-upload-box" id="uploadProofBtn">+ Upload Proof of Payment</div>
+                <!-- hidden file input used to pick proof files -->
+                <input id="uploadProofInput" type="file" accept="image/*,application/pdf" style="display:none;" />
+                <div id="uploadPreview" style="margin-top:10px;display:none;align-items:center;gap:8px;">
+                    <div id="uploadPreviewThumb" style="width:72px;height:72px;border-radius:8px;background:#fff;border:1px solid #eee;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>
+                    <div style="flex:1;">
+                        <div id="uploadPreviewName" style="font-size:0.98rem;color:#222;">Filename.pdf</div>
+                        <div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
+                            <button id="removeProofBtn" class="btn ghost" style="padding:8px 10px;border-radius:8px;">Remove</button>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+                    <div style="flex:1;">
+                        <label for="referenceNumber" style="display:block;font-size:0.98rem;color:#222;margin-bottom:6px;">Reference Number</label>
+                        <input id="referenceNumber" type="text" placeholder="Enter reference number" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:1rem;box-sizing:border-box;" />
+                    </div>
+                </div>
+            </div>
+
+            <div id="codInstructions" style="display:none;">
+                <div class="payment-method-title">Cash on Delivery</div>
+                <div class="payment-method-list">
+                    <ul>
+                        <li>Pay the rider/delivery personnel upon receiving the package.</li>
+                        <li>Please ensure the order details and package are correct before paying.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="payment-btn-row">
+                <button class="payment-placeorder-btn" id="placeOrderBtn">Place order</button>
+            </div>
+            <div class="payment-policy-row">
+                <span class="payment-policy-link">Refund policy</span>
+                <span class="payment-policy-link">Shipping policy</span>
+                <span class="payment-policy-link">Privacy Policy</span>
+                <span class="payment-policy-link">Terms of Service</span>
+                <span class="payment-policy-link">Contact Information</span>
+            </div>
+        </div>
+        <div class="payment-right">
+            <div class="payment-cart-list" id="paymentCartList">
+                <!-- Cart items will be rendered here -->
+            </div>
+            <div class="payment-cart-divider"></div>
+            <div class="payment-cart-summary-row">
+                <span class="payment-cart-summary-label">Subtotal</span>
+                <span class="payment-cart-summary-value" id="paymentSubtotal">₱0.00</span>
+            </div>
+            <div class="payment-cart-summary-row" id="paymentShippingRow">
+                <span class="payment-cart-summary-label" id="paymentShippingLabel">Shipping</span>
+                <span class="payment-cart-summary-value" id="paymentShippingValue">₱0.00</span>
+            </div>
+            <div class="payment-cart-summary-row" id="paymentDiscountRow">
+                <span class="payment-cart-summary-label">Discount</span>
+                <span class="payment-cart-summary-value" id="paymentDiscountValue">₱0.00</span>
+            </div>
+            <div class="payment-cart-total-row">
+                <span>Total</span>
+                <span id="paymentTotal">₱0.00</span>
+            </div>
+        </div>
+    </div>
+    <script>
+    // Navigation bar functions (copied from product-list.html)
+    function goToSale() { window.location.href = 'product-list.html?sale=1'; }
+    function goToNewArrivals() { window.location.href = 'product-list.html?new=1'; }
+    function goToBrands() { window.location.href = 'product-list.html#brands'; }
+    function goToProductList() { window.location.href = 'product-list.html'; }
+    function goToUserPage() {
+        ensureFirebaseReady(function(err){
+            if(err){ window.location.href = 'login.html'; return; }
+            try{
+                firebase.auth().onAuthStateChanged(function(user){
+                    if(!user){ window.location.href = 'login.html'; return; }
+                    window.location.href = 'profile.html';
+                });
+            }catch(e){ window.location.href = 'login.html'; }
+        });
+    }
+    function goToCartPage() { window.location.href = 'cart.html'; }
+    function toggleSearchBox() {
+        var box = document.getElementById('searchBox');
+        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+        if (box.style.display === 'block') {
+            document.getElementById('searchInput').focus();
+        }
+    }
+    function searchKeyDown(e) {
+        if (e.key === 'Enter') {
+            var val = document.getElementById('searchInput').value.trim();
+            if (val) {
+                window.location.href = 'product-list.html?search=' + encodeURIComponent(val);
+            }
+        }
+    }
+    let checkoutUnsub = null;
+    let itemsUnsub = null;
+    let currentCheckout = null;
+    let currentItems = [];
+    let usingLocalCheckoutFallback = false;
+
+    function normalizeDeliveryAddressFromAddressObject(addressObject){
+        if(!addressObject) return null;
+        return {
+            region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+            province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+            city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+            barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+            street: addressObject.street || addressObject.line1 || ''
+        };
+    }
+
+    function normalizeDeliveryAddressFromString(addressText){
+        if(!addressText) return null;
+        return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+    }
+
+    function formatDeliveryAddressText(addrObj){
+        if(!addrObj) return '';
+        var parts = [];
+        if(addrObj.street) parts.push(addrObj.street);
+        if(addrObj.barangay) parts.push(addrObj.barangay);
+        if(addrObj.city) parts.push(addrObj.city);
+        if(addrObj.province) parts.push(addrObj.province);
+        if(addrObj.region) parts.push(addrObj.region);
+        return parts.join(', ');
+    }
+
+    function getLocalCheckoutSnapshot(){
+        try{
+            var items = [];
+            try{ items = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ items = []; }
+            if(!Array.isArray(items) || items.length === 0){
+                try{ items = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ items = []; }
+            }
+            if(!Array.isArray(items) || items.length === 0) return null;
+
+            var shipping = Number(localStorage.getItem('checkoutShipping') || 0);
+            var shippingLabel = localStorage.getItem('checkoutShippingLabel') || '';
+            var paymentLabel = localStorage.getItem('checkoutPayment') || '';
+            var paymentCode = localStorage.getItem('checkoutPaymentCode') || '';
+            var deliveryLabel = localStorage.getItem('checkoutDelivery') || '';
+            var deliveryCode = localStorage.getItem('checkoutDeliveryCode') || '';
+            var customerName = localStorage.getItem('checkoutCustomerName') || '';
+            var customerEmail = localStorage.getItem('checkoutCustomerEmail') || '';
+            var addressMain = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress') || '';
+            var addressDetails = localStorage.getItem('checkoutAddressDetails') || '';
+            var addressObject = null;
+            try{ addressObject = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ addressObject = null; }
+            var deliveryAddress = normalizeDeliveryAddressFromAddressObject(addressObject) || normalizeDeliveryAddressFromString(addressMain);
+
+            var subtotal = 0;
+            items.forEach(function(it){
+                var qty = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
+                var priceNum = (typeof it.price === 'number') ? it.price : Number(String(it.price || '').replace(/[^0-9.]/g,'')) || 0;
+                subtotal += priceNum * qty;
+            });
+
+            return {
+                items: items,
+                checkout: {
+                    status: 'Pending payment',
+                    payment_method: paymentCode || paymentLabel || '',
+                    paymentMethod: paymentLabel || paymentCode || '',
+                    deliveryMethod: deliveryCode || deliveryLabel || '',
+                    shipping_fee: shipping,
+                    shipping: shipping,
+                    shipping_label: shippingLabel,
+                    shippingLabel: shippingLabel,
+                    total: subtotal + shipping,
+                    customerName: customerName,
+                    customerEmail: customerEmail,
+                    delivery_address: addressMain,
+                    addressDetails: addressDetails,
+                    addressObject: addressObject,
+                    deliveryAddress: deliveryAddress
+                }
+            };
+        }catch(e){ return null; }
+    }
+
+    function ensureCheckoutFromLocalStorage(user){
+        return new Promise(function(resolve){
+            try{
+                if(!user || !firebase || !firebase.firestore) return resolve(false);
+                var localSnap = getLocalCheckoutSnapshot();
+                if(!localSnap || !localSnap.items || localSnap.items.length === 0) return resolve(false);
+                var db = firebase.firestore();
+                var checkoutRef = db.collection('checkouts').doc(user.uid);
+                checkoutRef.get().then(function(doc){
+                    if(doc.exists) return resolve(false);
+                    var checkoutData = localSnap.checkout || {};
+                    if(!checkoutData.deliveryAddress){
+                        checkoutData.deliveryAddress = normalizeDeliveryAddressFromAddressObject(checkoutData.addressObject) || normalizeDeliveryAddressFromString(checkoutData.delivery_address || checkoutData.shippingAddress || '');
+                    }
+                    checkoutData.user_id = user.uid;
+                    if(!checkoutData.customerEmail && user.email) checkoutData.customerEmail = user.email;
+                    checkoutData.items = localSnap.items.map(function(it){
+                        return {
+                            product_id: it.product_id || it.id || '',
+                            name: it.name || it.title || '',
+                            price: Number(it.price || 0),
+                            qty: Number(it.qty || it.quantity || 1),
+                            image_url: it.image_url || it.image || '',
+                            size: it.size || ''
+                        };
+                    });
+                    checkoutRef.set(checkoutData, { merge: true }).then(function(){
+                        var batch = db.batch();
+                        localSnap.items.forEach(function(it){
+                            var itemRef = checkoutRef.collection('items').doc();
+                            batch.set(itemRef, {
+                                product_id: it.product_id || it.id || '',
+                                name: it.name || it.title || '',
+                                price: Number(it.price || 0),
+                                qty: Number(it.qty || it.quantity || 1),
+                                image_url: it.image_url || it.image || '',
+                                size: it.size || ''
+                            });
+                        });
+                        return batch.commit();
+                    }).then(function(){ resolve(true); }).catch(function(){ resolve(false); });
+                }).catch(function(){ resolve(false); });
+            }catch(e){ resolve(false); }
+        });
+    }
+
+    function formatPHP(n){
+        try { return new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(Number(n||0)); }
+        catch(e){ return '₱' + Number(n||0).toFixed(2); }
+    }
+
+    function renderPaymentFromCheckout(){
+        var cartList = document.getElementById('paymentCartList');
+        var subtotal = 0;
+        cartList.innerHTML = '';
+
+        if(!currentCheckout){
+            var localSnap = getLocalCheckoutSnapshot();
+            if(localSnap && localSnap.items && localSnap.items.length){
+                usingLocalCheckoutFallback = true;
+                currentCheckout = localSnap.checkout || null;
+                currentItems = localSnap.items || [];
+            }
+        }
+
+        if(!currentCheckout){
+            cartList.innerHTML = '<div style="color:#666;padding:12px 4px;">No active checkout found.</div>';
+            document.getElementById('paymentSubtotal').textContent = formatPHP(0);
+            document.getElementById('paymentTotal').textContent = formatPHP(0);
+            var btn0 = document.getElementById('placeOrderBtn'); if(btn0) btn0.disabled = true;
+            return;
+        }
+
+        if(!currentItems || currentItems.length === 0){
+            cartList.innerHTML = '<div style="color:#666;padding:12px 4px;">No items in checkout.</div>';
+        }
+
+        currentItems.forEach(function(item){
+            var qty = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
+            var priceNum = (typeof item.price === 'number') ? item.price : Number(String(item.price || '').replace(/[^0-9.]/g,'')) || 0;
+            subtotal += priceNum * qty;
+            var div = document.createElement('div');
+            div.className = 'payment-cart-item';
+            div.innerHTML = `
+                <img src="${item.image_url || item.image || 'IMAGE/NIKE1.png'}" class="payment-cart-img" alt="${item.name || item.title || 'Item'}">
+                <div class="payment-cart-info">
+                    <div class="payment-cart-title-row">
+                        <span class="payment-cart-title">${item.name || item.title || 'Item'}</span>
+                        <span class="payment-cart-price">${formatPHP(priceNum * qty)}</span>
+                    </div>
+                    <div class="payment-cart-size">Size: ${item.size || '-'}</div>
+                    <div class="payment-cart-qty">QTY: ${qty}</div>
+                </div>
+            `;
+            cartList.appendChild(div);
+        });
+
+        var shipping = Number(currentCheckout.shipping_fee || currentCheckout.shipping || 0);
+        var shippingLabel = currentCheckout.shipping_label || currentCheckout.shippingLabel || '';
+        var shipEl = document.getElementById('paymentShippingRow');
+        if(!shipEl){
+            shipEl = document.createElement('div');
+            shipEl.id = 'paymentShippingRow';
+            shipEl.style.display = 'flex'; shipEl.style.justifyContent = 'space-between'; shipEl.style.marginTop = '8px';
+            shipEl.innerHTML = `<div class="payment-cart-summary-label" id="paymentShippingLabel">Shipping</div><div class="payment-cart-summary-value" id="paymentShippingValue">₱0.00</div>`;
+            var rightCol = document.querySelector('.payment-right');
+            if(rightCol){
+                var ref = document.getElementById('paymentTotalRow') || null;
+                if(ref) ref.parentNode.insertBefore(shipEl, ref);
+                else rightCol.appendChild(shipEl);
+            }
+        }
+        document.getElementById('paymentShippingLabel').textContent = shippingLabel ? ('Shipping: ' + shippingLabel) : 'Shipping';
+        document.getElementById('paymentShippingValue').textContent = formatPHP(shipping);
+
+        // packaging removed from payment page — nothing to hide here
+        var discountNum = Number(currentCheckout.discount || currentCheckout.discount_amount || currentCheckout.discountAmount || 0) || 0;
+        // display discount as a negative value in the UI
+        try{ var discEl = document.getElementById('paymentDiscountValue'); if(discEl) discEl.textContent = formatPHP(-Math.abs(discountNum)); }catch(e){}
+        var computedTotal = subtotal + shipping - discountNum;
+        document.getElementById('paymentSubtotal').textContent = formatPHP(subtotal);
+        document.getElementById('paymentTotal').textContent = formatPHP(computedTotal);
+        // Ensure the checkout doc stored total is consistent with computedTotal (write back if different)
+        try{
+            if(window.firebase && firebase.firestore && firebase.auth && firebase.auth().currentUser){
+                try{
+                    var uid = firebase.auth().currentUser.uid;
+                    var storedTotal = Number(currentCheckout.total || 0) || 0;
+                    if(isNaN(storedTotal) || storedTotal !== computedTotal){
+                        firebase.firestore().collection('checkouts').doc(uid).set({ total: Number(computedTotal) }, { merge: true }).catch(function(){});
+                    }
+                }catch(e){}
+            }
+        }catch(e){}
+
+        var btn = document.getElementById('placeOrderBtn');
+        if(btn) btn.disabled = (!currentItems || currentItems.length === 0);
+
+        try{
+            var labelEl = document.getElementById('paymentMethodLabel');
+            var bankEl = document.getElementById('paymentMethodBank');
+            if(labelEl){
+                var displayLabel = currentCheckout.payment_method || currentCheckout.paymentMethod || '(not chosen)';
+                labelEl.textContent = 'Payment: ' + displayLabel;
+            }
+            if(bankEl){
+                var bank = currentCheckout.bank || currentCheckout.bank_name || '';
+                if(bank){ bankEl.style.display = 'block'; bankEl.textContent = 'Bank: ' + bank; }
+                else { bankEl.style.display = 'none'; }
+            }
+        }catch(e){}
+        try{ updatePaymentMethodUI(); }catch(e){}
+    }
+
+    function subscribeToCheckout(uid){
+        if(checkoutUnsub) try{ checkoutUnsub(); }catch(e){}
+        if(itemsUnsub) try{ itemsUnsub(); }catch(e){}
+        var db = firebase.firestore();
+        var checkoutRef = db.collection('checkouts').doc(uid);
+        checkoutUnsub = checkoutRef.onSnapshot(function(doc){
+            if(!doc.exists){
+                currentCheckout = null; currentItems = [];
+                renderPaymentFromCheckout();
+                return;
+            }
+            currentCheckout = doc.data() || {};
+            try{
+                if(!currentCheckout.deliveryAddress){
+                    var computedAddr = normalizeDeliveryAddressFromAddressObject(currentCheckout.addressObject) || normalizeDeliveryAddressFromString(currentCheckout.delivery_address || currentCheckout.shippingAddress || '');
+                    if(computedAddr){
+                        checkoutRef.set({ deliveryAddress: computedAddr }, { merge: true });
+                        currentCheckout.deliveryAddress = computedAddr;
+                    }
+                }
+            }catch(e){ /* ignore migration errors */ }
+            // If items are embedded, use them as a fallback when subcollection is empty
+            if(Array.isArray(currentCheckout.items) && currentCheckout.items.length && (!currentItems || currentItems.length === 0)){
+                currentItems = currentCheckout.items.slice();
+            }
+            renderPaymentFromCheckout();
+        });
+        itemsUnsub = checkoutRef.collection('items').onSnapshot(function(snap){
+            currentItems = snap.docs.map(function(d){ return d.data(); });
+            renderPaymentFromCheckout();
+        });
+    }
+
+    // Helper: generate a QR image URL via public API for payment payloads
+    function generatePaymentQRUrl(payload, size){
+        try{
+            size = Number(size) || 220;
+            if(!payload) payload = 'SHOEPAO:' + Date.now();
+            // Prefer local generation (offline) if available
+            try{
+                if(typeof generatePaymentQRCodeDataUrl === 'function'){
+                    var dataUrl = generatePaymentQRCodeDataUrl(payload, size);
+                    if(dataUrl) return dataUrl;
+                }
+            }catch(err){ /* continue to external fallback */ }
+            // Fallback: external QR API (used only when local generation isn't available)
+            return 'https://api.qrserver.com/v1/create-qr-code/?size=' + encodeURIComponent(size + 'x' + size) + '&data=' + encodeURIComponent(payload) + '&_=' + Date.now();
+        }catch(e){ return '' }
+    }
+
+    // Download the currently-displayed payment QR image (handles data URLs and remote images)
+    function downloadPaymentQR(){
+        try{
+            var img = document.getElementById('paymentQRImage');
+            if(!img || !img.src) return alert('QR image not available yet.');
+            var url = img.src;
+            var btn = document.getElementById('downloadPaymentQRBtn');
+            if(btn) { btn.disabled = true; btn.textContent = 'Downloading...'; }
+            // If it's a data URL, trigger download directly
+            if(url.indexOf('data:') === 0){
+                var a = document.createElement('a'); a.href = url; a.download = 'shoe_pao_qr_' + Date.now() + '.png'; document.body.appendChild(a); a.click(); try{ a.remove(); }catch(e){}
+                if(btn){ btn.disabled = false; btn.textContent = 'Download QR'; }
+                return;
+            }
+            // Otherwise try fetching the image as blob (CORS may block this if server disallows)
+            fetch(url, { mode: 'cors' }).then(function(res){ if(!res.ok) throw new Error('Failed to fetch'); return res.blob(); }).then(function(blob){
+                var a = document.createElement('a');
+                var objectUrl = URL.createObjectURL(blob);
+                a.href = objectUrl;
+                a.download = 'shoe_pao_qr_' + Date.now() + '.png';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function(){ URL.revokeObjectURL(objectUrl); try{ a.remove(); }catch(e){} }, 1500);
+            }).catch(function(){
+                // fallback: open in new tab so user can save manually
+                try{ window.open(url, '_blank'); }catch(e){ alert('Unable to download QR.'); }
+            }).finally(function(){ if(btn){ btn.disabled = false; btn.textContent = 'Download QR'; } });
+        }catch(e){ if(document.getElementById('downloadPaymentQRBtn')){ document.getElementById('downloadPaymentQRBtn').disabled = false; document.getElementById('downloadPaymentQRBtn').textContent = 'Download QR'; } console.error('downloadPaymentQR error', e); alert('Unable to download QR.'); }
+    }
+
+        function normalizePaymentCode(codeOrLabel){
+            if(!codeOrLabel) return '';
+            var s = String(codeOrLabel).toLowerCase();
+            if(s === 'qr_ph' || s.indexOf('qr') !== -1 || s.indexOf('scan') !== -1) return 'qr_ph';
+            if(s === 'bank_transfer' || s.indexOf('bank') !== -1) return 'bank_transfer';
+            if(s === 'cod' || s.indexOf('cash') !== -1) return 'cod';
+            return codeOrLabel;
+        }
+
+        function updatePaymentMethodUI(){
+            try{
+                var method = currentCheckout ? (currentCheckout.payment_method || currentCheckout.paymentMethod || '') : '';
+                var code = normalizePaymentCode(method);
+                var qrEl = document.getElementById('qrInstructions');
+                var bankEl = document.getElementById('bankInstructions');
+                var bankActions = document.getElementById('bankActions');
+                var bankDetailsInline = document.getElementById('bankDetailsInline');
+                var codEl = document.getElementById('codInstructions');
+                if(qrEl) qrEl.style.display = 'none';
+                if(bankEl) bankEl.style.display = 'none';
+                if(bankActions) bankActions.style.display = 'none';
+                if(bankDetailsInline) bankDetailsInline.style.display = 'none';
+                if(codEl) codEl.style.display = 'none';
+                var payCaption = document.querySelector('.payment-caption');
+                if(payCaption) payCaption.style.display = (code === 'cod') ? 'none' : '';
+
+                if(code === 'qr_ph'){
+                    if(qrEl) qrEl.style.display = '';
+                    if(bankActions) bankActions.style.display = '';
+                    try{
+                        var qrImg = document.getElementById('paymentQRImage');
+                        var payload = (currentCheckout && (currentCheckout.payment_payload || currentCheckout.referenceNumber)) ? (currentCheckout.payment_payload || currentCheckout.referenceNumber) : ('SHOEPAO:' + Date.now());
+                        if(qrImg){
+                            qrImg.src = generatePaymentQRUrl(payload, 240);
+                            qrImg.style.display = '';
+                        }
+                    }catch(e){}
+                } else if(code === 'bank_transfer'){
+                    if(bankEl) bankEl.style.display = '';
+                    if(bankActions) bankActions.style.display = '';
+                    if(bankDetailsInline) bankDetailsInline.style.display = '';
+                } else if(code === 'cod'){
+                    if(codEl) codEl.style.display = '';
+                }
+                try{ if(code === 'cod') document.body.classList.add('cod-selected'); else document.body.classList.remove('cod-selected'); }catch(e){}
+                try{ updateReferenceFieldConstraints(code); }catch(e){}
+            }catch(e){}
+        }
+
+        // Update referenceNumber input placeholder and maxlength based on payment method code
+        function updateReferenceFieldConstraints(code){
+            try{
+                var ref = document.getElementById('referenceNumber');
+                if(!ref) return;
+                code = (code||'').toString().toLowerCase();
+                // helper to sanitize input: remove non-digit characters
+                function sanitizeDigits(v, max){ v = v.toString().replace(/\D/g,''); if(max) v = v.slice(0, max); return v; }
+                // also apply similar formatting/validation to bank/account fields when present
+                var acctNumEl = document.getElementById('acctNumberInput');
+                var acctNameEl = document.getElementById('acctNameInput');
+                function removeHandler(el, prop){ try{ if(el && el[prop]) el.removeEventListener('input', el[prop]); }catch(e){} }
+                function setDigitHandler(el, max){ if(!el) return; removeHandler(el, '_acctHandler'); el._acctHandler = function(){ this.value = sanitizeDigits(this.value, max); }; el.addEventListener('input', el._acctHandler); }
+
+                if(code === 'qr_ph'){
+                    // QR PH (commonly GCash/Maya): reference numbers are usually 9 digits for GCash
+                    ref.setAttribute('placeholder','000000000');
+                    ref.setAttribute('maxlength','9');
+                    // keep only digits and enforce length
+                    ref.value = sanitizeDigits(ref.value, 9);
+                    // attach input handler to enforce numeric-only and maxlength
+                    ref.removeEventListener('input', ref._refHandler || function(){});
+                    ref._refHandler = function(){ this.value = sanitizeDigits(this.value, 9); };
+                    ref.addEventListener('input', ref._refHandler);
+                    // remove any special handlers from acct fields
+                    if(acctNumEl){ acctNumEl.setAttribute('placeholder','Account / Card number'); acctNumEl.setAttribute('maxlength','30'); removeHandler(acctNumEl, '_acctHandler'); }
+                    if(acctNameEl){ acctNameEl.setAttribute('placeholder','Account name'); acctNameEl.setAttribute('maxlength','60'); removeHandler(acctNameEl, '_acctHandler'); }
+                } else if(code === 'bank_transfer'){
+                    // Bank transfer reference/account numbers (14 characters suggested)
+                    ref.setAttribute('placeholder','00000000000000');
+                    ref.setAttribute('maxlength','14');
+                    // allow digits only (trim to 14)
+                    ref.value = sanitizeDigits(ref.value, 14);
+                    ref.removeEventListener('input', ref._refHandler || function(){});
+                    ref._refHandler = function(){ this.value = sanitizeDigits(this.value, 14); };
+                    ref.addEventListener('input', ref._refHandler);
+                    // account number: numeric-only up to 14
+                    if(acctNumEl){ acctNumEl.setAttribute('placeholder','000000000000'); acctNumEl.setAttribute('maxlength','12'); acctNumEl.value = sanitizeDigits(acctNumEl.value, 12); setDigitHandler(acctNumEl, 12); }
+                    // account name: free text but limited length
+                    if(acctNameEl){ acctNameEl.setAttribute('placeholder','Account name'); acctNameEl.setAttribute('maxlength','30'); removeHandler(acctNameEl, '_acctHandler'); acctNameEl.addEventListener('input', function(){ if(this.value && this.value.length>30) this.value = this.value.slice(0,30); }); }
+                } else {
+                    // default: allow alphanumeric up to 30
+                    ref.setAttribute('placeholder','Enter reference number');
+                    ref.setAttribute('maxlength','30');
+                    // remove numeric-only handler if present
+                    ref.removeEventListener('input', ref._refHandler || function(){});
+                    ref._refHandler = null;
+                    // reset acct fields to default lengths
+                    if(acctNumEl){ acctNumEl.setAttribute('placeholder','Account / Card number'); acctNumEl.setAttribute('maxlength','30'); removeHandler(acctNumEl, '_acctHandler'); }
+                    if(acctNameEl){ acctNameEl.setAttribute('placeholder','Account name'); acctNameEl.setAttribute('maxlength','60'); removeHandler(acctNameEl, '_acctHandler'); }
+                }
+            }catch(err){ console.error('updateReferenceFieldConstraints error', err); }
+        }
+
+    // Place order: persist cart into orders[] and clear cart
+    function generateOrderId() {
+        var d = new Date();
+        return 'ORD' + d.getFullYear().toString().slice(-2) + Math.floor(Math.random()*900000 + 100000);
+    }
+    function generateTracking() {
+        return 'TR' + Math.floor(Math.random()*90000000 + 10000000);
+    }
+    function ensureFirebaseReady(cb){
+        try{
+            if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('Firebase not configured')); return; }
+            var ready = function(){
+                try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }
+                catch(e){ if(cb) cb(e); }
+            };
+            if(window.firebase && firebase.firestore && firebase.auth){ ready(); return; }
+            var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+            var scripts = [base + 'firebase-app-compat.js', base + 'firebase-auth-compat.js', base + 'firebase-firestore-compat.js'];
+            var i = 0;
+            function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+            loadNext();
+        }catch(e){ if(cb) cb(e); }
+    }
+
+    function findInventoryIndexForItem(inv, item){
+        try{
+            if(!Array.isArray(inv)) return -1;
+            var itemId = item && (item.product_id || item.productId || item.id) ? String(item.product_id || item.productId || item.id) : '';
+            if(itemId){
+                var idIdx = inv.findIndex(function(i){ return String(i.id||'') === itemId || String(i.productId||'') === itemId; });
+                if(idIdx !== -1) return idIdx;
+            }
+            var title = (item && (item.name || item.title || item.productName) || '').toString().trim();
+            var brand = (item && (item.brand || item.productBrand) || '').toString().trim();
+            if(title){
+                var exactIdx = inv.findIndex(function(i){ return String(i.name||'').trim() === title; });
+                if(exactIdx !== -1) return exactIdx;
+                var containsIdx = inv.findIndex(function(i){ return title && String(i.name||'').toLowerCase().indexOf(title.toLowerCase()) !== -1; });
+                if(containsIdx !== -1) return containsIdx;
+            }
+            if(brand){
+                var brandIdx = inv.findIndex(function(i){ return String(i.brand||'').toLowerCase() === brand.toLowerCase(); });
+                if(brandIdx !== -1) return brandIdx;
+            }
+            return -1;
+        }catch(e){ return -1; }
+    }
+
+    function adjustAdminInventoryStock(items, direction){
+        var updated = false;
+        try{
+            var adminProducts = JSON.parse(localStorage.getItem('shoeInventoryData')||'null');
+            if(!Array.isArray(adminProducts) || !adminProducts.length) return false;
+            items.forEach(function(it){
+                var qty = Number(it.qty || it.quantity || 1) || 0;
+                if(!qty) return;
+                var size = (it.size || it.eu || it.size_eu || '').toString().trim();
+                if(!size) return;
+                var title = (it.name || it.title || it.productName || '').toString().trim();
+                var itemId = (it.product_id || it.productId || it.id || '').toString().trim();
+                adminProducts.forEach(function(p){
+                    var pId = (p && (p.id || p.sku)) ? String(p.id || p.sku) : '';
+                    var matchesProduct = itemId && pId && itemId === pId;
+                    var colors = Array.isArray(p.colors) ? p.colors : [];
+                    colors.forEach(function(c){
+                        var name = ((p.model||'') + (c && c.name ? (' ' + c.name) : '')).trim();
+                        if(!matchesProduct && title){
+                            if(String(name).toLowerCase() !== String(title).toLowerCase()) return;
+                        }
+                        if(!Array.isArray(c.sizes)) return;
+                        c.sizes.forEach(function(s){
+                            if(String(s.eu) === String(size)){
+                                var cur = Number(s.stock || 0) || 0;
+                                var next = cur + (direction * qty);
+                                s.stock = Math.max(0, next);
+                                updated = true;
+                            }
+                        });
+                    });
+                });
+            });
+            if(updated){
+                localStorage.setItem('shoeInventoryData', JSON.stringify(adminProducts));
+            }
+        }catch(e){ /* ignore */ }
+        return updated;
+    }
+
+    function adjustInventoryStock(items, direction){
+        var updated = false;
+        try{
+            var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+            if(Array.isArray(inv) && inv.length){
+                items.forEach(function(it){
+                    var qty = Number(it.qty || it.quantity || 1) || 0;
+                    if(!qty) return;
+                    var size = (it.size || it.eu || it.size_eu || '').toString().trim();
+                    if(!size) return;
+                    var idx = findInventoryIndexForItem(inv, it);
+                    if(idx === -1) return;
+                    if(!inv[idx].sizes) inv[idx].sizes = {};
+                    var cur = Number(inv[idx].sizes[size] || 0) || 0;
+                    var next = cur + (direction * qty);
+                    inv[idx].sizes[size] = Math.max(0, next);
+                    updated = true;
+                });
+                if(updated){
+                    localStorage.setItem('inventory', JSON.stringify(inv));
+                }
+            }
+        }catch(e){ /* ignore */ }
+        var adminUpdated = adjustAdminInventoryStock(items, direction);
+        return updated || adminUpdated;
+    }
+
+    function placeOrder() {
+        var btn = document.getElementById('placeOrderBtn');
+        // prevent double-submission
+        if(window._placingOrder){ try{ alert('Order placement already in progress. Please wait.'); }catch(e){} return; }
+        window._placingOrder = true;
+        if(btn) btn.disabled = true;
+        if(!currentCheckout || !currentItems || currentItems.length === 0){
+            alert('No active checkout found.');
+            if(btn) btn.disabled = false;
+            window._placingOrder = false;
+            return;
+        }
+        ensureFirebaseReady(function(err){
+            if(err){ alert('Firebase not configured. Please set Firebase config.'); if(btn) btn.disabled = false; return; }
+            firebase.auth().onAuthStateChanged(function(user){
+                if(!user){ alert('Please sign in to place your order.'); if(btn) btn.disabled = false; return; }
+                try{
+                    var db = firebase.firestore();
+                    var checkoutRef = db.collection('checkouts').doc(user.uid);
+                    checkoutRef.get().then(function(doc){
+                        if(!doc.exists){ throw new Error('Checkout not found'); }
+                        var checkoutData = doc.data() || {};
+                        var paymentMethod = checkoutData.payment_method || checkoutData.paymentMethod || '';
+                        var paymentCode = normalizePaymentCode(paymentMethod);
+                        var proofRequired = paymentCode !== 'cod';
+                        if(proofRequired){
+                            var proof = checkoutData.payment_proof || (currentCheckout && currentCheckout.payment_proof) || localStorage.getItem('checkoutPaymentProof') || '';
+                            var refNum = checkoutData.referenceNumber || checkoutData.reference_number || checkoutData.payment_payload || (currentCheckout && currentCheckout.referenceNumber) || localStorage.getItem('checkoutReferenceNumber') || '';
+                            if(!proof){
+                                alert('Please upload proof of payment before placing the order.');
+                                if(btn) btn.disabled = false;
+                                window._placingOrder = false;
+                                return;
+                            }
+                            // basic size/length validation for uploaded proof (data URLs can be large)
+                            try{
+                                if(typeof proof === 'string' && proof.indexOf('data:') === 0){
+                                    // approximate byte size from base64 length
+                                    var approxBytes = Math.ceil((proof.length - proof.indexOf(',') - 1) * 3 / 4);
+                                    var MAX_BYTES = 2 * 1024 * 1024; // 2MB
+                                    if(approxBytes > MAX_BYTES){
+                                        alert('Uploaded proof of payment is too large (max 2MB). Please upload a smaller image or PDF.');
+                                        if(btn) btn.disabled = false;
+                                        window._placingOrder = false;
+                                        return;
+                                    }
+                                }
+                            }catch(e){}
+                            if(!refNum){
+                                alert('Please enter the reference number before placing the order.');
+                                if(btn) btn.disabled = false;
+                                window._placingOrder = false;
+                                return;
+                            }
+                        }
+                        var orderId = checkoutData.order_id || localStorage.getItem('checkoutOrderId') || generateOrderId();
+                        var orderRef = db.collection('orders').doc(orderId);
+                        var deliveryAddrObj = checkoutData.deliveryAddress || normalizeDeliveryAddressFromAddressObject(checkoutData.addressObject) || normalizeDeliveryAddressFromString(checkoutData.delivery_address || checkoutData.shippingAddress || '');
+                        var deliveryAddrText = deliveryAddrObj ? formatDeliveryAddressText(deliveryAddrObj) : (checkoutData.delivery_address || checkoutData.shippingAddress || '');
+                        // Compute order total from subtotal + shipping - discount (exclude packaging)
+                        // compute subtotal from the currentItems to avoid relying on potentially stale checkout fields
+                        var subtotalNum = 0;
+                        try{ if(Array.isArray(currentItems) && currentItems.length){ currentItems.forEach(function(it){ var q = Number(it.qty || it.quantity || 1) || 0; var p = Number(it.price || 0) || 0; subtotalNum += (p * q); }); } }
+                        catch(e){ subtotalNum = Number(checkoutData.subtotal || 0) || 0; }
+                        var shippingNum = Number(checkoutData.shipping_fee || checkoutData.shipping || 0) || 0;
+                        var discountNum = Number(checkoutData.discount || 0) || 0;
+                        var computedTotal = subtotalNum + shippingNum - discountNum;
+                        var orderPayload = {
+                            id: orderId,
+                            user_id: user.uid,
+                            customerEmail: user.email || checkoutData.customerEmail || '',
+                            status: checkoutData.status || 'Order placed',
+                            // Use computedTotal to ensure packaging is excluded from the stored order total
+                            total: Number(computedTotal || 0),
+                            shipping_fee: shippingNum,
+                            discount: discountNum,
+                            payment_method: checkoutData.payment_method || checkoutData.paymentMethod || '',
+                            paymentCode: checkoutData.paymentCode || checkoutData.payment_code || '',
+                            payment_proof: checkoutData.payment_proof || '',
+                            payment_proof_name: checkoutData.payment_proof_name || '',
+                            referenceNumber: checkoutData.referenceNumber || checkoutData.reference_number || checkoutData.payment_payload || '',
+                            created_at: firebase.firestore.FieldValue.serverTimestamp(),
+                            delivery_address: deliveryAddrText,
+                            deliveryAddress: deliveryAddrObj,
+                            recipient_name: checkoutData.recipient_name || checkoutData.customerName || '',
+                            recipient_phone: checkoutData.recipient_phone || '',
+                            courier_name: checkoutData.courier_name || checkoutData.deliveryMethod || '',
+                            tracking_number: checkoutData.tracking_number || ''
+                        };
+
+                        return orderRef.get().then(function(existing){
+                            if(existing && existing.exists && existing.data() && existing.data().created_at){
+                                orderPayload.created_at = existing.data().created_at;
+                            }
+                            return checkoutRef.collection('items').get().then(function(itemsSnap){
+                                var batch = db.batch();
+                                batch.set(orderRef, orderPayload, { merge: true });
+
+                            if(itemsSnap.empty && Array.isArray(currentItems) && currentItems.length){
+                                currentItems.forEach(function(it){
+                                    var itemRef = orderRef.collection('items').doc();
+                                    batch.set(itemRef, {
+                                        product_id: it.product_id || it.id || '',
+                                        name: it.name || it.title || '',
+                                        price: Number(it.price || 0),
+                                        qty: Number(it.qty || it.quantity || 1),
+                                        image_url: it.image_url || it.image || '',
+                                        size: it.size || ''
+                                    });
+                                });
+                            } else {
+                                itemsSnap.docs.forEach(function(d){
+                                    var itemRef = orderRef.collection('items').doc(d.id);
+                                    batch.set(itemRef, d.data());
+                                    batch.delete(d.ref);
+                                });
+                            }
+
+                            var trackRef = orderRef.collection('tracking').doc();
+                            batch.set(trackRef, { status: 'Order placed', message: 'Order placed', timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+                            batch.delete(checkoutRef);
+
+                                return batch.commit().then(function(){
+                                    var adjusted = false;
+                                    try{ adjusted = adjustInventoryStock(currentItems || [], -1); }catch(e){ adjusted = false; }
+                                    if(adjusted){
+                                        try{
+                                            orderRef.set({ stockAdjusted: true, stockAdjustedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                        }catch(e){ /* ignore */ }
+                                    }
+                                    // Clear the local cart now that the order is placed (keep checkout snapshot for reference)
+                                    try{ localStorage.setItem('cart', JSON.stringify([])); }catch(e){}
+                                    // prevent further attempts
+                                    window._placingOrder = false;
+                                    window.location.replace('order-detail.html?orderId=' + encodeURIComponent(orderId));
+                                });
+                            });
+                        });
+                    }).catch(function(e){
+                        console.error(e);
+                        alert('Could not place order. Please try again.\n' + (e && e.message ? e.message : ''));
+                        if(btn) btn.disabled = false;
+                        window._placingOrder = false;
+                    });
+                }catch(e){
+                    console.error(e);
+                    alert('Could not place order. Please try again.\n' + (e && e.message ? e.message : ''));
+                    if(btn) btn.disabled = false;
+                    window._placingOrder = false;
+                }
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+        var btn = document.getElementById('placeOrderBtn');
+        if (btn) btn.addEventListener('click', placeOrder);
+
+        ensureFirebaseReady(function(err){
+            if(err){
+                var cartList = document.getElementById('paymentCartList');
+                if(cartList) cartList.innerHTML = '<div style="color:#b71c1c;padding:12px 4px;">Firebase not configured.</div>';
+                return;
+            }
+            firebase.auth().onAuthStateChanged(function(user){
+                if(!user){
+                    var cartList2 = document.getElementById('paymentCartList');
+                    if(cartList2) cartList2.innerHTML = '<div style="color:#b71c1c;padding:12px 4px;">Please sign in to continue.</div>';
+                    var btn2 = document.getElementById('placeOrderBtn'); if(btn2) btn2.disabled = true;
+                    return;
+                }
+                ensureCheckoutFromLocalStorage(user).finally(function(){
+                    subscribeToCheckout(user.uid);
+                });
+            });
+        });
+    });
+    </script>
+    <!-- Inline bank details (shown on payment page when Bank Transfer is selected) -->
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+        <script>
+        function updateCheckoutFields(fields){
+            try{
+                var user = firebase.auth().currentUser;
+                if(!user) return;
+                return firebase.firestore().collection('checkouts').doc(user.uid).set(fields || {}, { merge: true });
+            }catch(e){}
+        }
+
+        // Bank details inline behavior
+        function openBankModal(){
+            var el = document.getElementById('bankDetailsInline');
+            if(!el) return;
+            try{
+                var sel = document.getElementById('bankSelect'); if(sel) sel.value = (currentCheckout && (currentCheckout.bank || currentCheckout.bank_name)) || '';
+                var at = document.getElementById('acctTypeSelect'); if(at) at.value = (currentCheckout && currentCheckout.bank_acct_type) || '';
+                var an = document.getElementById('acctNameInput'); if(an) an.value = (currentCheckout && currentCheckout.bank_acct_name) || '';
+                var anum = document.getElementById('acctNumberInput'); if(anum) anum.value = (currentCheckout && currentCheckout.bank_acct_number) || '';
+                var note = document.getElementById('bankNote'); if(note) note.value = (currentCheckout && currentCheckout.bank_note) || '';
+            }catch(e){}
+            el.style.display = '';
+            try{ el.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){}
+        }
+        function closeBankModal(){ var el = document.getElementById('bankDetailsInline'); if(!el) return; el.style.display = 'none'; }
+        document.addEventListener('DOMContentLoaded', function(){
+            var openBtn = document.getElementById('openBankDetailsBtn');
+            if(openBtn) openBtn.addEventListener('click', function(e){ e.preventDefault(); openBankModal(); });
+
+            // Auto-save bank detail fields as the user types or changes selections
+            [
+                { id: 'bankSelect', key: 'bank' },
+                { id: 'acctTypeSelect', key: 'bank_acct_type' },
+                { id: 'acctNameInput', key: 'bank_acct_name' },
+                { id: 'acctNumberInput', key: 'bank_acct_number' },
+                { id: 'bankNote', key: 'bank_note' }
+            ].forEach(function(mapping){
+                try{
+                    var el = document.getElementById(mapping.id);
+                    if(!el) return;
+                    // save on change
+                    el.addEventListener('change', function(){ updateCheckoutFields({ [mapping.key]: this.value || '' }); });
+                    // also save on input for immediate persistence and enforce constraints for certain fields
+                    if(mapping.id === 'acctNumberInput'){
+                        el.addEventListener('input', function(){ try{ this.value = this.value.replace(/\D/g,'').slice(0,12); updateCheckoutFields({ [mapping.key]: this.value || '' }); }catch(e){} });
+                    } else if(mapping.id === 'acctNameInput'){
+                        el.addEventListener('input', function(){ try{ if(this.value && this.value.length > 30) this.value = this.value.slice(0,30); updateCheckoutFields({ [mapping.key]: this.value || '' }); }catch(e){} });
+                    } else if(mapping.id === 'bankNote'){
+                        el.addEventListener('input', function(){ try{ if(this.value && this.value.length > 60) this.value = this.value.slice(0,60); updateCheckoutFields({ [mapping.key]: this.value || '' }); }catch(e){} });
+                    } else {
+                        // for selects etc. keep change handler only
+                    }
+                }catch(err){}
+            });
+
+            // Upload proof of payment behavior
+            var uploadBtn = document.getElementById('uploadProofBtn');
+            var uploadInput = document.getElementById('uploadProofInput');
+            var uploadPreview = document.getElementById('uploadPreview');
+            var uploadThumb = document.getElementById('uploadPreviewThumb');
+            var uploadName = document.getElementById('uploadPreviewName');
+            var removeBtn = document.getElementById('removeProofBtn');
+            var refInput = document.getElementById('referenceNumber');
+
+            if(uploadBtn && uploadInput){
+                uploadBtn.addEventListener('click', function(e){ e.preventDefault(); uploadInput.click(); });
+            }
+
+            // attach download button handler for payment QR (if present)
+            try{ var dl = document.getElementById('downloadPaymentQRBtn'); if(dl) dl.addEventListener('click', function(e){ e.preventDefault(); downloadPaymentQR(); }); }catch(e){}
+            if(uploadInput){
+                uploadInput.addEventListener('change', function(e){
+                    var f = (uploadInput.files && uploadInput.files[0]) ? uploadInput.files[0] : null;
+                    if(!f) return;
+                    var reader = new FileReader();
+                    reader.onload = function(ev){
+                        try{
+                            var data = ev.target.result;
+                            updateCheckoutFields({ payment_proof: data, payment_proof_name: f.name });
+                            try{
+                                currentCheckout = Object.assign({}, currentCheckout || {}, { payment_proof: data, payment_proof_name: f.name });
+                                localStorage.setItem('checkoutPaymentProof', data);
+                                localStorage.setItem('checkoutPaymentProofName', f.name);
+                            }catch(e){}
+                            // show preview
+                            if(f.type && f.type.indexOf('image/') === 0){
+                                uploadThumb.innerHTML = '<img src="'+data+'" style="width:100%;height:100%;object-fit:cover;">';
+                            } else {
+                                uploadThumb.innerHTML = '<div style="font-size:0.9rem;padding:6px;color:#666;">'+(f.type==='application/pdf' ? 'PDF' : 'FILE')+'</div>';
+                            }
+                            uploadName.textContent = f.name;
+                            if(uploadPreview) uploadPreview.style.display = 'flex';
+                            if(uploadBtn) uploadBtn.textContent = 'Change proof';
+                        }catch(err){}
+                    };
+                    reader.readAsDataURL(f);
+                });
+            }
+            if(removeBtn){
+                removeBtn.addEventListener('click', function(e){ e.preventDefault(); updateCheckoutFields({ payment_proof: firebase.firestore.FieldValue.delete(), payment_proof_name: firebase.firestore.FieldValue.delete() }); try{ currentCheckout = Object.assign({}, currentCheckout || {}, { payment_proof: '', payment_proof_name: '' }); localStorage.removeItem('checkoutPaymentProof'); localStorage.removeItem('checkoutPaymentProofName'); }catch(e){} if(uploadPreview) uploadPreview.style.display='none'; if(uploadThumb) uploadThumb.innerHTML=''; if(uploadBtn) uploadBtn.textContent = '+ Upload Proof of Payment'; if(uploadInput) uploadInput.value = ''; });
+            }
+
+            if(refInput){
+                var saveRef = function(){
+                    try{
+                        updateCheckoutFields({ referenceNumber: refInput.value || '' });
+                        localStorage.setItem('checkoutReferenceNumber', refInput.value || '');
+                        currentCheckout = Object.assign({}, currentCheckout || {}, { referenceNumber: refInput.value || '' });
+                    }catch(e){}
+                };
+                refInput.addEventListener('input', saveRef);
+                refInput.addEventListener('change', saveRef);
+            }
+                });
+                </script>
+
+    <footer class="footer-section">
+        <div class="site-container">
+            <div class="footer-row">
+                <div class="footer-left">
+                    <div class="footer-header">Have questions?</div>
+                    <div class="footer-subheader">Contact us at our facebook page</div>
+                    <div class="footer-subheader" style="margin-top:18px;">Or via phone/email</div>
+                    <div class="footer-divider"></div>
+                    <div class="footer-note">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br><br>© 2025 Shoe Pao Footwear. All rights reserved.</div>
+                </div>
+                <div class="footer-right">
+                    <a href="about-us.html" class="footer-link">About Us</a>
+                    <a href="shipping.html" class="footer-link">Shipping</a>
+                    <a href="returns.html" class="footer-link">Returns & Exchanges</a>
+                    <a href="privacy.html" class="footer-link">Privacy Policy</a>
+                    <a href="terms.html" class="footer-link">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

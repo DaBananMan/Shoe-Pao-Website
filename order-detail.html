@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order Details - SHOEPAO</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body{font-family:'Poppins',Arial,sans-serif;background:#f7f7f7;margin:0;color:#222}
+    .page{max-width:1100px;margin:24px auto 120px;padding:0 20px}
+    .breadcrumb{display:flex;gap:8px;align-items:center;color:#666;font-size:.95rem;margin:12px 0 18px}
+    .card{background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.06);padding:20px;margin-bottom:18px}
+    .header-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;align-items:center}
+    .status-badge{padding:6px 12px;border-radius:999px;font-weight:600;font-size:.9rem;display:inline-flex;align-items:center;gap:6px}
+    .badge-pending{background:#fff4db;color:#a15c00}
+    .badge-transit{background:#e9f3ff;color:#1557b0}
+    .badge-delivered{background:#e9fbf0;color:#0e7a3c}
+    .badge-cancelled{background:#ffe9e9;color:#b71c1c}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .section-title{font-weight:600;margin-bottom:10px}
+    .muted{color:#666}
+    .timeline{position:relative;margin-top:10px}
+    .timeline:before{content:'';position:absolute;left:14px;top:0;bottom:0;width:2px;background:#e6e6e6}
+    .timeline-item{position:relative;padding-left:44px;margin-bottom:18px}
+    .timeline-dot{position:absolute;left:6px;top:2px;width:16px;height:16px;border-radius:50%;background:#cfcfcf;border:3px solid #fff;box-shadow:0 0 0 2px #e6e6e6}
+    .timeline-item.active .timeline-dot{background:#0e7a3c;box-shadow:0 0 0 2px #cfe9d8}
+    .timeline-title{font-weight:600}
+    .timeline-time{font-size:.9rem;color:#666;margin-top:2px}
+    .items{display:flex;flex-direction:column;gap:12px}
+    .item-row{display:grid;grid-template-columns:80px 1fr auto;gap:14px;align-items:center;background:#fafafa;border-radius:10px;padding:10px}
+    .item-row img{width:80px;height:80px;object-fit:cover;border-radius:8px}
+    .summary{display:flex;flex-direction:column;gap:8px}
+    .summary-row{display:flex;justify-content:space-between;font-size:.98rem}
+    .summary-total{font-weight:700;font-size:1.05rem}
+    .pill{display:inline-flex;align-items:center;gap:6px;background:#f1f1f1;border-radius:999px;padding:6px 12px;font-size:.9rem;color:#444}
+    .error{color:#b71c1c;font-weight:600}
+    @media (max-width:900px){
+      .grid-2{grid-template-columns:1fr}
+      .item-row{grid-template-columns:64px 1fr;grid-template-rows:auto auto}
+      .item-row .price{grid-column:1 / -1;justify-self:end}
+    }
+  </style>
+</head>
+<body>
+  <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04)">
+    <div class="site-container" style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 24px;height:72px">
+      <a href="home.html" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">
+        <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" style="height:40px;width:auto" />
+        <span style="font-size:1.1rem;font-weight:600;color:#b71c1c">Shoe Pao Footwear</span>
+      </a>
+      <div style="display:flex;gap:16px;align-items:center">
+        <a href="client-orders.html" style="text-decoration:none;color:#222;font-weight:500">My Orders</a>
+        <a href="product-list.html" style="text-decoration:none;color:#222;font-weight:500">Shop</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="breadcrumb">Home / Orders / <span id="orderBreadcrumb">Order</span></div>
+
+    <div id="orderHeader" class="card">
+      <div class="header-row">
+        <div>
+          <div class="section-title" id="orderIdText">Order</div>
+          <div class="muted" id="orderDateText">Placed on —</div>
+        </div>
+        <div id="orderStatusBadge" class="status-badge badge-pending">Pending</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:14px">
+        <div class="pill" id="courierPill">Courier: —</div>
+        <div class="pill" id="trackingPill">Tracking: —</div>
+        <div class="pill" id="paymentPill">Payment: —</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-title">Delivery Address</div>
+        <div id="addressBlock" class="muted">—</div>
+      </div>
+      <div class="card">
+        <div class="section-title">Order Summary</div>
+        <div class="summary">
+          <div class="summary-row"><span>Subtotal</span><span id="summarySubtotal">₱0.00</span></div>
+          <div class="summary-row"><span>Shipping</span><span id="summaryShipping">₱0.00</span></div>
+          <div class="summary-row"><span>Discount</span><span id="summaryDiscount">₱0.00</span></div>
+          <div class="summary-row summary-total"><span>Total</span><span id="summaryTotal">₱0.00</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Tracking Timeline</div>
+      <div id="trackingTimeline" class="timeline"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Items</div>
+      <div id="orderItems" class="items"></div>
+    </div>
+
+    <div id="orderError" class="error" style="display:none"></div>
+  </div>
+
+  <script src="js/firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script>
+    (function(){
+      function formatPHP(n){
+        try { return new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(Number(n||0)); }
+        catch(e){ return '₱' + Number(n||0).toFixed(2); }
+      }
+      function toDateValue(value){
+        if(!value) return null;
+        try{
+          if(typeof value.toDate === 'function') return value.toDate();
+          if(typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+          if(typeof value._seconds === 'number') return new Date(value._seconds * 1000);
+        }catch(e){ /* ignore */ }
+        try{ return new Date(value); }catch(e){ return null; }
+      }
+      function formatDateTime(iso){
+        if(!iso) return '';
+        try{
+          var d = toDateValue(iso);
+          if(!d) return String(iso);
+          return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+        }catch(e){ return String(iso); }
+      }
+      function getOrderId(){
+        try{
+          var path = window.location.pathname.replace(/\/+$/,'');
+          var seg = path.split('/');
+          var last = seg[seg.length-1];
+          if(last && last.indexOf('.html') === -1) return decodeURIComponent(last);
+        }catch(e){}
+        try{
+          var params = new URLSearchParams(window.location.search);
+          return params.get('orderId') || params.get('id');
+        }catch(e){ return null; }
+      }
+      function setStatusBadge(status){
+        var el = document.getElementById('orderStatusBadge');
+        if(!el) return;
+        var s = String(status||'').toLowerCase();
+        el.className = 'status-badge';
+        if(s === 'delivered') el.classList.add('badge-delivered');
+        else if(s === 'cancelled' || s === 'canceled') el.classList.add('badge-cancelled');
+        else if(s === 'in transit' || s === 'picked up' || s === 'out for delivery') el.classList.add('badge-transit');
+        else el.classList.add('badge-pending');
+        el.textContent = status || 'Pending';
+      }
+      function renderTimeline(events, currentStatus, order){
+        var host = document.getElementById('trackingTimeline');
+        if(!host) return;
+        host.innerHTML = '';
+        var steps = ['Order placed','Preparing','Picked up','In transit','Out for delivery','Delivered'];
+        var statusNorm = String(currentStatus || '').toLowerCase();
+        var prevStatus = String((order && (order.previousStatus || (order.cancelRequest && order.cancelRequest.previousStatus))) || '').toLowerCase();
+        var isCancelled = statusNorm.indexOf('cancel') !== -1 || (order && order.cancelRequest && order.cancelRequest.approvedAt);
+        if(isCancelled){
+          if(prevStatus === 'confirmed'){
+            steps = ['Order placed','Preparing','Order cancelled'];
+          } else {
+            steps = ['Order placed','Order cancelled'];
+          }
+        }
+        var map = {};
+        (events || []).forEach(function(ev){
+          var key = String(ev.status || ev.message || '').trim();
+          if(key) map[key.toLowerCase()] = ev;
+        });
+        var currentKey = isCancelled ? 'order cancelled' : String(currentStatus || '').toLowerCase();
+        steps.forEach(function(step){
+          var ev = map[step.toLowerCase()] || null;
+          var isActive = currentKey && currentKey === step.toLowerCase();
+          var item = document.createElement('div');
+          item.className = 'timeline-item' + (isActive ? ' active' : '');
+          item.innerHTML = '<div class="timeline-dot"></div>' +
+            '<div class="timeline-title">' + (ev && (ev.message || ev.status) ? (ev.message || ev.status) : step) + '</div>' +
+            '<div class="timeline-time">' + (ev && ev.timestamp ? formatDateTime(ev.timestamp) : 'Pending') + '</div>';
+          host.appendChild(item);
+        });
+      }
+      function renderItems(items){
+        var host = document.getElementById('orderItems');
+        if(!host) return;
+        host.innerHTML = '';
+        if(!items || !items.length){
+          host.innerHTML = '<div class="muted">No items found.</div>';
+          return;
+        }
+        items.forEach(function(it){
+          var row = document.createElement('div');
+          row.className = 'item-row';
+          row.innerHTML = '<img src="' + (it.image_url || it.image || 'IMAGE/NIKE1.png') + '" alt="' + (it.name || '') + '">' +
+            '<div><div style="font-weight:600">' + (it.name || '') + '</div><div class="muted">Qty: ' + (it.qty || it.quantity || 1) + '</div></div>' +
+            '<div class="price" style="font-weight:600">' + formatPHP(it.price) + '</div>';
+          host.appendChild(row);
+        });
+      }
+      function showError(msg){
+        var el = document.getElementById('orderError');
+        if(!el) return;
+        el.style.display = 'block';
+        el.textContent = msg;
+      }
+
+      function normalizeDeliveryAddressFromAddressObject(addressObject){
+        if(!addressObject) return null;
+        return {
+          fullName: addressObject.fullName || '',
+          phone: addressObject.phone || '',
+          postalCode: addressObject.postalCode || '',
+          region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+          province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+          city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+          barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+          street: addressObject.street || addressObject.line1 || ''
+        };
+      }
+
+      function normalizeDeliveryAddressFromString(addressText){
+        if(!addressText) return null;
+        return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+      }
+
+      function formatDeliveryAddressText(addrObj){
+        if(!addrObj) return '';
+        var parts = [];
+        if(addrObj.street) parts.push(addrObj.street);
+        if(addrObj.barangay) parts.push(addrObj.barangay);
+        if(addrObj.city) parts.push(addrObj.city);
+        if(addrObj.province) parts.push(addrObj.province);
+        if(addrObj.region) parts.push(addrObj.region);
+        return parts.join(', ');
+      }
+
+      var orderId = getOrderId();
+      if(!orderId){
+        showError('Missing order id.');
+        return;
+      }
+      document.getElementById('orderBreadcrumb').textContent = orderId;
+      function ensureFirebaseReady(cb){
+        try{
+          if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('Firebase not configured')); return; }
+          var ready = function(){
+            try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }
+            catch(e){ if(cb) cb(e); }
+          };
+          if(window.firebase && firebase.firestore){ ready(); return; }
+          var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+          var scripts = [base + 'firebase-app-compat.js', base + 'firebase-firestore-compat.js'];
+          var i = 0;
+          function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+          loadNext();
+        }catch(e){ if(cb) cb(e); }
+      }
+
+      function renderOrder(order, items, tracking){
+        document.getElementById('orderIdText').textContent = 'Order ' + orderId;
+        document.getElementById('orderDateText').textContent = 'Placed on ' + formatDateTime(order.created_at || order.date);
+        setStatusBadge(order.status || 'Pending');
+
+        document.getElementById('courierPill').textContent = 'Courier: ' + (order.courier_name || order.courier || '—');
+        document.getElementById('trackingPill').textContent = 'Tracking: ' + (order.tracking_number || order.tracking || '—');
+        document.getElementById('paymentPill').textContent = 'Payment: ' + (order.payment_method || order.paymentLabel || '—');
+
+        var deliveryAddrObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+        var address = formatDeliveryAddressText(deliveryAddrObj) || order.delivery_address || order.shippingAddress || '';
+        var recipient = deliveryAddrObj && deliveryAddrObj.fullName ? deliveryAddrObj.fullName : (order.recipient_name || order.customerName || '');
+        var phone = deliveryAddrObj && deliveryAddrObj.phone ? deliveryAddrObj.phone : (order.recipient_phone || order.customerPhone || '');
+        document.getElementById('addressBlock').innerHTML = '<div style="font-weight:600">' + (recipient || 'Recipient') + '</div>' +
+          (phone ? '<div class="muted">' + phone + '</div>' : '') +
+          '<div style="margin-top:6px">' + (address || '—') + '</div>';
+
+        var computedSubtotal = 0;
+        try{
+          (items || []).forEach(function(it){
+            var qty = Number(it.qty || it.quantity || 1);
+            computedSubtotal += Number(it.price || 0) * qty;
+          });
+        }catch(e){}
+        var subtotalVal = (order.subtotal || order.sub_total || computedSubtotal || 0);
+        var shippingVal = (order.shipping_fee || order.shipping || 0);
+        var discountVal = (order.discount || 0);
+        var totalVal = (order.total || (subtotalVal + shippingVal - discountVal) || 0);
+        document.getElementById('summarySubtotal').textContent = formatPHP(subtotalVal);
+        document.getElementById('summaryShipping').textContent = formatPHP(shippingVal);
+        document.getElementById('summaryDiscount').textContent = formatPHP(discountVal);
+        document.getElementById('summaryTotal').textContent = formatPHP(totalVal);
+
+        renderTimeline(tracking, order.status, order);
+        renderItems(items);
+      }
+
+      ensureFirebaseReady(function(err){
+        if(err){ showError('Firebase not configured.'); return; }
+        try{
+          var db = firebase.firestore();
+          var orderDoc = db.collection('orders').doc(orderId);
+          Promise.all([
+            orderDoc.get(),
+            orderDoc.collection('items').get(),
+            orderDoc.collection('tracking').orderBy('timestamp','asc').get()
+          ]).then(function(results){
+            var orderSnap = results[0];
+            if(!orderSnap.exists){ showError('Order not found'); return; }
+            var order = orderSnap.data() || {};
+            try{
+              if(!order.deliveryAddress){
+                var computedAddr = normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+                if(computedAddr){
+                  order.deliveryAddress = computedAddr;
+                  orderDoc.set({ deliveryAddress: computedAddr }, { merge: true });
+                }
+              }
+            }catch(e){ /* ignore migration errors */ }
+            var items = results[1].docs.map(function(d){ return d.data(); });
+            var tracking = results[2].docs.map(function(d){ return d.data(); });
+            renderOrder(order, items, tracking);
+          }).catch(function(e){ showError(e && e.message ? e.message : 'Unable to load order.'); });
+        }catch(e){ showError('Unable to load order.'); }
+      });
+    })();
+  </script>
+</body>
+</html>
