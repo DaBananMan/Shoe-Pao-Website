@@ -58,6 +58,88 @@
             margin: 48px 0 24px 120px;
             font-family: 'Poppins', Arial, sans-serif;
         }
+        .orders-page {
+            display:flex;
+            flex-direction:column;
+            gap:10px;
+        }
+        .orders-table-card {
+            background:#fff;
+            border:1px solid #eee;
+            border-radius:14px;
+            padding:18px;
+            box-shadow:0 8px 24px rgba(34,34,34,0.06);
+        }
+        #ordersSearch {
+            background:#fff;
+            border:1px solid #e4e4e4;
+            border-radius:10px;
+            padding:10px 14px;
+            font-size:0.95rem;
+        }
+        .filter-btn {
+            border:1px solid #e2e2e2;
+            border-radius:999px;
+            background:#fff;
+            font-weight:600;
+            transition:background 0.15s, border-color 0.15s, box-shadow 0.15s;
+        }
+        .filter-btn:hover { background:#f6f6f6; border-color:#d8d8d8; box-shadow:0 4px 10px rgba(0,0,0,0.06); }
+        .orders-tabs {
+            gap:8px;
+        }
+        .orders-tab-btn {
+            border-radius:999px;
+            border:1px solid #e0e0e0;
+            background:#fff;
+            padding:8px 14px;
+            font-size:0.9rem;
+            font-weight:600;
+        }
+        .orders-tab-btn.active { background:#111; color:#fff; border-color:#111; }
+        #ordersTable {
+            width:100%;
+            border-collapse:separate;
+            border-spacing:0 8px;
+        }
+        #ordersTable thead th {
+            text-transform:uppercase;
+            font-size:0.78rem;
+            letter-spacing:0.03em;
+            color:#666;
+            border-bottom:0;
+        }
+        #ordersTable tbody tr {
+            background:#fff;
+            border-radius:12px;
+            box-shadow:0 2px 10px rgba(0,0,0,0.04);
+            transition:transform 0.12s ease, box-shadow 0.12s ease;
+            cursor:pointer;
+        }
+        #ordersTable tbody tr:hover {
+            transform:translateY(-1px);
+            box-shadow:0 6px 14px rgba(0,0,0,0.08);
+        }
+        #ordersTable td {
+            border-bottom:none;
+            padding:12px 12px;
+            vertical-align:middle;
+        }
+        #ordersTable tbody td:first-child {
+            border-top-left-radius:12px;
+            border-bottom-left-radius:12px;
+        }
+        #ordersTable tbody td:last-child {
+            border-top-right-radius:12px;
+            border-bottom-right-radius:12px;
+        }
+        .actions-cell { width: 220px; }
+        .order-actions-row { justify-content:flex-end; }
+        .order-actions-row .action-btn { font-size:0.78rem; padding:6px 10px; }
+        .bulk-actions button { box-shadow:0 4px 10px rgba(0,0,0,0.06); }
+        .bulk-actions button.primary:hover { background:#000; }
+        .bulk-actions button.danger:hover { background:#8f1515; }
+
         .orders-list {
             display: flex;
             flex-wrap: wrap;
@@ -190,6 +272,14 @@
             .orders-header, .orders-list {
                 margin-left: 12px;
             }
+            .orders-table-card {
+                padding:14px;
+            }
+            #ordersTable {
+                border-spacing:0 12px;
+            }
+            .actions-cell { width:auto; }
+            .order-actions-row { justify-content:flex-start; }
             .orders-list {
                 gap: 18px;
                 flex-direction: column;
@@ -234,13 +324,159 @@
             font-size:0.85rem;
             font-weight:600;
             border:1px solid transparent;
+            gap:6px;
         }
         .badge-pending { background:#fff3cd; color:#856404; border-color:#ffeeba; }
-        .badge-approved { background:#e6f4ea; color:#1e7e34; border-color:#cfe9d7; }
-        .badge-rejected { background:#fdecea; color:#b71c1c; border-color:#f5c6cb; }
+        .badge-confirmed { background:#e6f4ea; color:#1e7e34; border-color:#cfe9d7; }
         .badge-processing { background:#e7f1ff; color:#0b5ed7; border-color:#cfe2ff; }
+        .badge-shipped { background:#e8f0fe; color:#1a73e8; border-color:#d2e3fc; }
+        .badge-delivered { background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9; }
+        .badge-refund-requested { background:#fff3e0; color:#ef6c00; border-color:#ffe0b2; }
         .badge-refunded { background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9; }
         .badge-cancelled { background:#f1f3f5; color:#495057; border-color:#dee2e6; }
+        .badge-archived { background:#eceff1; color:#455a64; border-color:#cfd8dc; }
+        .status-icon { font-size:0.95rem; line-height:1; }
+        .actions-cell .action-btn { margin: 2px 0; }
+
+        .orders-toolbar {
+            display:flex;
+            align-items:center;
+            gap:12px;
+            flex-wrap:wrap;
+            margin:8px 0 12px 0;
+        }
+        .bulk-actions {
+            display:flex;
+            align-items:center;
+            gap:8px;
+            flex-wrap:wrap;
+        }
+        .bulk-actions button {
+            padding:8px 12px;
+            border-radius:10px;
+            border:1px solid #ddd;
+            background:#fff;
+            cursor:pointer;
+            font-family:'Poppins',Arial,sans-serif;
+            font-size:0.9rem;
+            font-weight:600;
+        }
+        .bulk-actions button.primary { background:#111; color:#fff; border-color:#111; }
+        .bulk-actions button.danger { background:#b71c1c; color:#fff; border-color:#b71c1c; }
+        .bulk-actions button:disabled { opacity:0.45; cursor:not-allowed; }
+
+        .action-btn {
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+            padding:6px 10px;
+            border-radius:999px;
+            border:1px solid #e0e0e0;
+            background:#fff;
+            font-size:0.85rem;
+            font-weight:600;
+            cursor:pointer;
+            font-family:'Poppins',Arial,sans-serif;
+        }
+        .action-btn.primary { background:#111; color:#fff; border-color:#111; }
+        .action-btn.success { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+        .action-btn.warning { background:#ef6c00; color:#fff; border-color:#ef6c00; }
+        .action-btn.danger { background:#b71c1c; color:#fff; border-color:#b71c1c; }
+        .action-btn.neutral { background:#f3f5f7; color:#222; border-color:#e2e6ea; }
+
+        .order-actions-row {
+            display:flex;
+            flex-wrap:wrap;
+            gap:6px;
+        }
+
+        .orders-drawer-overlay {
+            position:fixed;
+            inset:0;
+            background:rgba(34,34,34,0.35);
+            z-index:100005;
+            display:none;
+            justify-content:flex-end;
+        }
+        .orders-drawer {
+            background:#fff;
+            width:520px;
+            max-width:100vw;
+            height:100vh;
+            padding:20px 20px 24px 20px;
+            box-shadow:-10px 0 28px rgba(0,0,0,0.18);
+            display:flex;
+            flex-direction:column;
+            gap:14px;
+            overflow:hidden;
+        }
+        .drawer-header {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+        }
+        .drawer-title { font-size:1.2rem; font-weight:700; }
+        .drawer-close { background:none; border:none; cursor:pointer; }
+        .drawer-content {
+            overflow-y:auto;
+            padding-right:6px;
+            display:flex;
+            flex-direction:column;
+            gap:14px;
+        }
+        .drawer-section { border:1px solid #eee; border-radius:12px; padding:12px; }
+        .drawer-section h3 { margin:0 0 8px 0; font-size:1rem; }
+        .drawer-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
+        .drawer-label { color:#666; font-size:0.85rem; }
+        .drawer-value { font-weight:600; font-size:0.95rem; }
+        .drawer-items { display:flex; flex-direction:column; gap:10px; }
+        .drawer-item {
+            display:flex;
+            gap:10px;
+            align-items:center;
+            border:1px solid #f1f1f1;
+            border-radius:10px;
+            padding:8px;
+        }
+        .drawer-item img { width:52px; height:52px; object-fit:cover; border-radius:8px; }
+        .drawer-item-meta { display:flex; flex-direction:column; gap:2px; flex:1; }
+        .drawer-item-name { font-weight:600; font-size:0.95rem; }
+        .drawer-item-sub { color:#666; font-size:0.85rem; }
+        .drawer-item-price { font-weight:600; font-size:0.9rem; }
+        .drawer-actions { display:flex; flex-wrap:wrap; gap:8px; }
+        .drawer-input, .drawer-textarea {
+            width:100%;
+            border:1px solid #e0e0e0;
+            border-radius:8px;
+            padding:8px 10px;
+            font-family:'Poppins',Arial,sans-serif;
+            font-size:0.92rem;
+        }
+        .drawer-textarea { min-height:84px; resize:vertical; }
+        .totals-row { display:flex; justify-content:space-between; margin-top:6px; font-size:0.95rem; }
+        .totals-row.total { font-weight:700; font-size:1.02rem; }
+        .payment-proof-wrap { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+        .payment-proof-thumb {
+            width:120px;
+            height:120px;
+            border-radius:10px;
+            border:1px solid #e6e6e6;
+            background:#fafafa;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            overflow:hidden;
+        }
+        .payment-proof-thumb img { width:100%; height:100%; object-fit:cover; }
+        .payment-proof-meta { display:flex; flex-direction:column; gap:6px; }
+        .payment-proof-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .payment-proof-actions a { text-decoration:none; }
+
+        @media (max-width: 760px) {
+            .orders-drawer { width:100%; border-radius:0; }
+            .drawer-grid { grid-template-columns:1fr; }
+        }
     </style>
 </head>
 <body>
@@ -280,7 +516,9 @@
                     <button class="orders-tab-btn" data-tab="cancel-requests">Cancellation Requests</button>
                     <button class="orders-tab-btn" data-tab="return-requests">Return / Refund Requests</button>
                     <button class="orders-tab-btn" data-tab="cancelled">Cancelled Orders</button>
+                    <button class="orders-tab-btn" data-tab="archived">Archived</button>
                 </div>
+                
                 <div class="table-top-row" style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
                     <input id="ordersSearch" type="search" placeholder="Search" style="flex:1 1 360px;padding:10px 14px;border:1px solid #e6e6e6;border-radius:8px;font-family:'Poppins',Arial,sans-serif;">
 
@@ -292,20 +530,27 @@
                     </div>
                 </div>
 
+                <div class="orders-toolbar">
+                    <div class="bulk-actions">
+                        <button id="bulkConfirmBtn" class="primary" disabled>Confirm</button>
+                        <button id="bulkCancelBtn" class="danger" disabled>Cancel</button>
+                        <button id="bulkArchiveBtn" disabled>Archive</button>
+                    </div>
+                    <div id="bulkSelectionHint" style="color:#666;font-size:0.9rem;">No orders selected</div>
+                </div>
+
                 <div style="overflow:auto;">
-                    <table id="ordersTable" style="width:100%;border-collapse:collapse;font-family:'Poppins',Arial,sans-serif;">
+                    <table id="ordersTable" style="width:100%;font-family:'Poppins',Arial,sans-serif;">
                         <thead>
-                            <tr style="text-align:left;color:#444;border-bottom:1px solid #eee;">
-                                            <th style="padding:14px 12px;min-width:140px;">Order ID</th>
-                                <th style="padding:14px 12px;min-width:160px;">Customer Name</th>
-                                <th style="padding:14px 12px;min-width:120px;">Date Ordered</th>
-                                <th style="padding:14px 12px;min-width:140px;">Payment Method</th>
-                                <th style="padding:14px 12px;min-width:140px;">Delivery Method</th>
-                                <th style="padding:14px 12px;min-width:100px;">Total</th>
-                                <th style="padding:14px 12px;min-width:100px;">Status</th>
-                                <th style="padding:14px 12px;min-width:140px;">Est. Delivery</th>
-                                <th style="padding:14px 12px;min-width:160px;">Tracking #</th>
-                                <th style="padding:14px 8px;min-width:60px;text-align:right;">Actions</th>
+                            <tr style="background:#fafafa;">
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;"><input type="checkbox" id="selectAllCheckbox" class="order-checkbox" aria-label="Select all orders" /></th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Order ID</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Customer</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Date</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Total</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Status</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Tracking</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="ordersTbody">
@@ -317,6 +562,119 @@
         </div>
     </div>
     
+    <!-- Order Details Drawer -->
+    <div id="orderDrawerOverlay" class="orders-drawer-overlay" aria-hidden="true">
+        <aside id="orderDrawer" class="orders-drawer" role="dialog" aria-modal="true" aria-labelledby="orderDrawerTitle">
+            <div class="drawer-header">
+                <div id="orderDrawerTitle" class="drawer-title">Order Details</div>
+                <button id="orderDrawerClose" class="drawer-close" aria-label="Close order details">
+                    <img src="IMAGE/X.png" alt="Close" style="width:22px;height:22px;">
+                </button>
+            </div>
+            <div class="drawer-content">
+                <div class="drawer-section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <div id="drawerStatusBadge"></div>
+                        <div id="drawerActions" class="drawer-actions"></div>
+                    </div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Customer</h3>
+                    <div class="drawer-grid">
+                        <div>
+                            <div class="drawer-label">Name</div>
+                            <div id="drawerCustomerName" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Phone</div>
+                            <div id="drawerCustomerPhone" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Email</div>
+                            <div id="drawerCustomerEmail" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Address</div>
+                            <div id="drawerCustomerAddress" class="drawer-value"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Order Metadata</h3>
+                    <div class="drawer-grid">
+                        <div>
+                            <div class="drawer-label">Order ID</div>
+                            <div id="drawerOrderId" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Payment Method</div>
+                            <div id="drawerPaymentMethod" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Payment Status</div>
+                            <div id="drawerPaymentStatus" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Delivery Method</div>
+                            <div id="drawerDeliveryMethod" class="drawer-value"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Tracking</h3>
+                    <div class="drawer-grid">
+                        <div>
+                            <div class="drawer-label">Carrier</div>
+                            <input id="drawerTrackingCarrier" class="drawer-input" placeholder="e.g., J&T Express" />
+                        </div>
+                        <div>
+                            <div class="drawer-label">Tracking Number</div>
+                            <input id="drawerTrackingNumber" class="drawer-input" placeholder="Not assigned" />
+                        </div>
+                    </div>
+                    <div style="margin-top:8px;color:#666;font-size:0.85rem;">AfterShip integration placeholder (API hook coming soon).</div>
+                </div>
+                <div class="drawer-section" id="drawerPaymentVerification" style="display:none;">
+                    <h3>Payment Verification</h3>
+                    <div class="payment-proof-wrap">
+                        <div id="drawerProofThumb" class="payment-proof-thumb">
+                            <span style="color:#888;font-size:0.85rem;">No proof</span>
+                        </div>
+                        <div class="payment-proof-meta">
+                            <div><span class="drawer-label">Reference Number</span></div>
+                            <div id="drawerReferenceNumber" class="drawer-value"></div>
+                            <div><span class="drawer-label">Proof File</span></div>
+                            <div id="drawerProofName" class="drawer-value"></div>
+                            <div class="payment-proof-actions">
+                                <a id="drawerProofOpen" class="action-btn neutral" target="_blank" rel="noopener">Open Proof</a>
+                                <button id="drawerConfirmPaymentBtn" class="action-btn success">Confirm Payment</button>
+                            </div>
+                            <div id="drawerPaymentHint" style="color:#666;font-size:0.85rem;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Items</h3>
+                    <div id="drawerItems" class="drawer-items"></div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Totals</h3>
+                    <div class="totals-row"><span>Subtotal</span><span id="drawerSubtotal"></span></div>
+                    <div class="totals-row"><span>Shipping</span><span id="drawerShipping"></span></div>
+                    <div class="totals-row"><span>Discounts</span><span id="drawerDiscounts"></span></div>
+                    <div class="totals-row total"><span>Total</span><span id="drawerTotal"></span></div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Admin Notes</h3>
+                    <textarea id="drawerAdminNotes" class="drawer-textarea" placeholder="Add internal notes..."></textarea>
+                    <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+                        <button id="saveAdminNotesBtn" class="action-btn neutral">Save Notes</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
     <!-- Cancellation Review Modal (admin) -->
     <div id="cancelReviewModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100000;align-items:center;justify-content:center;">
         <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
@@ -348,38 +706,6 @@
         </div>
     </div>
 
-    <!-- Admin Order Details Modal (matches client order pop-up format) -->
-    <!-- z-index increased so the admin modal sits above the site footer (footer uses z-index:99999) -->
-    <div id="adminOrderModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100001;align-items:center;justify-content:center;">
-        <div id="adminOrderModal" style="background:#fff;border-radius:18px;box-shadow:0 8px 32px rgba(34,34,34,0.18);padding:28px;min-width:520px;max-width:96vw;">
-            <div style="display:flex;align-items:center;justify-content:space-between;">
-                <div style="font-size:1.2rem;font-weight:700;">Order Details</div>
-                <button id="adminOrderModalClose" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:22px;height:22px;"></button>
-            </div>
-            <div style="height:1px;background:#eee;margin:14px 0;"></div>
-            <div style="display:flex;gap:18px;align-items:flex-start;">
-                <div style="flex:1;">
-                        <div id="adminOrderModalId" style="font-weight:600;margin-bottom:6px;"></div>
-                        <div id="adminOrderModalName" style="margin-bottom:6px;"></div>
-                        <div id="adminOrderModalContact" style="margin-bottom:6px;"></div>
-                        <div id="adminOrderModalPayment" style="margin-bottom:6px;font-weight:600;"></div>
-                        <div id="adminOrderModalDelivery" style="margin-bottom:6px;color:#444;"></div>
-                </div>
-                <img id="adminOrderModalImg" src="IMAGE/NIKE1.png" alt="Product" style="width:160px;height:110px;object-fit:cover;border-radius:8px;">
-            </div>
-            <div style="margin-top:12px;font-weight:600;">Items</div>
-            <div id="adminOrderModalItems" style="margin-top:8px;"></div>
-            <div id="adminRequestSection" style="margin-top:12px;display:none;">
-                <div style="font-weight:700;margin-bottom:6px;">Request Details</div>
-                <div id="adminRequestDetails" style="color:#444;font-size:0.95rem;"></div>
-                <div id="adminRequestActions" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"></div>
-            </div>
-            <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;">
-                <div id="adminOrderModalStatus" style="font-weight:600;"></div>
-                <div id="adminOrderModalTotal" style="font-weight:700;"></div>
-            </div>
-        </div>
-    </div>
     <!-- Footer removed for admin orders page to avoid showing the black/site footer -->
 
     <script src="js/firebase-config.js"></script>
@@ -418,6 +744,7 @@
             }
         }
     }
+    
     // Orders table data + rendering, search and sort
     (function(){
         const year = new Date().getFullYear();
@@ -431,9 +758,13 @@
             ordersData = [];
         }
 
-    let currentList = ordersData.slice();
+        let currentList = ordersData.slice();
+        let selectedOrderIds = new Set();
         let sortState = { key: null, asc: true };
         let activeTab = 'all';
+        let selectedOrders = new Set();
+        let currentDrawerOrderId = null;
+        let ordersLoaded = false;
 
         function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:0}); }
 
@@ -453,12 +784,212 @@
             try{ return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return d.toLocaleString(); }
         }
 
-        function statusBadge(label, type){
+        function getOrderCreatedAtValue(order){
+            return toDateValue(order && (order.created_at || order.createdAt || order.date || order.createdAtUtc)) || new Date(0);
+        }
+
+        function sortOrdersByNewest(list){
+            return list.sort(function(a,b){
+                return getOrderCreatedAtValue(b) - getOrderCreatedAtValue(a);
+            });
+        }
+
+        function mergeOrdersById(baseList, incomingList){
+            var map = new Map();
+            (baseList || []).forEach(function(o){
+                var id = String(o && (o.id || o.orderId || o.order_id) || '');
+                if(!id) return;
+                map.set(id, o);
+            });
+            (incomingList || []).forEach(function(o){
+                var id = String(o && (o.id || o.orderId || o.order_id) || '');
+                if(!id) return;
+                var existing = map.get(id) || {};
+                map.set(id, Object.assign({}, existing, o, { id: id }));
+            });
+            return Array.from(map.values());
+        }
+
+        async function fetchOrdersFromFirestore(){
+            if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return [];
+            if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+            const db = firebase.firestore();
+            const snap = await db.collection('orders').orderBy('created_at','desc').get();
+            const results = [];
+            snap.forEach(function(doc){
+                const data = Object.assign({}, doc.data());
+                if(!data.id) data.id = data.id || doc.id || data.orderId || doc.id;
+                results.push(data);
+            });
+            return results;
+        }
+
+        async function initializeOrders(){
+            try{
+                let fetched = [];
+                try{
+                    fetched = await fetchOrdersFromFirestore();
+                }catch(fetchErr){
+                    console.warn('Firestore fetch failed, falling back to localStorage', fetchErr);
+                }
+                if(!fetched || !fetched.length){
+                    try{
+                        fetched = JSON.parse(localStorage.getItem('orders') || '[]');
+                        if(!Array.isArray(fetched)) fetched = [];
+                    }catch(e){ fetched = []; }
+                }
+                ordersData = sortOrdersByNewest(mergeOrdersById([], fetched));
+                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){/* ignore */}
+            }catch(e){
+                console.error('Failed to initialize orders', e);
+                ordersData = [];
+            } finally {
+                ordersLoaded = true;
+                applySearch();
+            }
+        }
+
+        function statusBadge(label, type, icon){
             var cls = 'status-badge ' + (type ? ('badge-' + type) : '');
-            return '<span class="' + cls + '">' + label + '</span>';
+            var iconHtml = icon ? ('<span class="status-icon" aria-hidden="true">' + icon + '</span>') : '';
+            return '<span class="' + cls + '">' + iconHtml + '<span>' + label + '</span></span>';
         }
 
         function normalizeStatus(s){ return String(s||'').toLowerCase().trim(); }
+
+        function normalizeDeliveryAddressFromAddressObject(addressObject){
+            if(!addressObject) return null;
+            return {
+                fullName: addressObject.fullName || '',
+                phone: addressObject.phone || '',
+                postalCode: addressObject.postalCode || '',
+                region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+                province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+                city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+                barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+                street: addressObject.street || addressObject.line1 || ''
+            };
+        }
+
+        function normalizeDeliveryAddressFromString(addressText){
+            if(!addressText) return null;
+            return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+        }
+
+        function formatDeliveryAddressText(addrObj){
+            if(!addrObj) return '';
+            var parts = [];
+            if(addrObj.street) parts.push(addrObj.street);
+            if(addrObj.barangay) parts.push(addrObj.barangay);
+            if(addrObj.city) parts.push(addrObj.city);
+            if(addrObj.province) parts.push(addrObj.province);
+            if(addrObj.region) parts.push(addrObj.region);
+            if(addrObj.postalCode) parts.push(addrObj.postalCode);
+            return parts.join(', ');
+        }
+
+        function getOrderDeliveryAddressText(order){
+            var deliveryObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+            return formatDeliveryAddressText(deliveryObj) || order.delivery_address || order.shippingAddress || '';
+        }
+
+        function getOrderRecipientName(order){
+            var addrObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || null;
+            return (addrObj && addrObj.fullName) || order.customerName || order.name || order.recipient_name || '';
+        }
+
+        function getOrderRecipientPhone(order){
+            var addrObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || null;
+            return (addrObj && addrObj.phone) || order.customerPhone || order.phone || order.contact || order.recipient_phone || '';
+        }
+
+        function getOrderPaymentMethodLabel(order){
+            var label = order.paymentLabel || order.paymentMethod || order.payment_method || order.payment || '';
+            if(!label && order.paymentCode){
+                if(order.paymentCode === 'qr_ph') label = 'QR PH';
+                else if(order.paymentCode === 'bank_transfer') label = 'Bank Transfer';
+                else if(order.paymentCode === 'cod') label = 'Cash on Delivery';
+            }
+            return label || '';
+        }
+
+        function getOrderPaymentCode(order){
+            var code = (order.paymentCode || order.payment_code || '').toString().toLowerCase();
+            if(code) return code;
+            var method = (order.payment_method || order.paymentMethod || order.paymentLabel || order.payment || '').toString().toLowerCase();
+            if(method.indexOf('cash') !== -1 || method.indexOf('cod') !== -1) return 'cod';
+            if(method.indexOf('bank') !== -1) return 'bank_transfer';
+            if(method.indexOf('qr') !== -1) return 'qr_ph';
+            return '';
+        }
+
+        function getOrderReferenceNumber(order){
+            return order.referenceNumber || order.reference_number || order.payment_reference || order.payment_payload || '';
+        }
+
+        function getOrderPaymentProof(order){
+            return {
+                data: order.payment_proof || order.paymentProof || order.proofImage || order.proof_image || '',
+                name: order.payment_proof_name || order.paymentProofName || order.proofName || ''
+            };
+        }
+
+        function canonicalStatusFromOrder(order){
+            var statusRaw = normalizeStatus(order && order.status);
+            if(order && order.archived) return 'archived';
+            if(statusRaw === 'archived') return 'archived';
+            if(statusRaw === 'cancelled') return 'cancelled';
+            if(statusRaw === 'delivered') return 'delivered';
+            if(statusRaw === 'shipped') return 'shipped';
+            if(statusRaw === 'processing') return 'processing';
+            if(statusRaw === 'confirmed') return 'confirmed';
+            if(statusRaw === 'approved') return 'confirmed';
+            if(statusRaw === 'refund processing') return 'refund requested';
+            if(statusRaw === 'refunded') return 'refunded';
+            if(order && order.returnRequest && order.returnRequest.requestedAt){
+                var refundStatus = normalizeStatus(order.returnRequest.refundStatus || '');
+                if(refundStatus === 'refunded') return 'refunded';
+                return 'refund requested';
+            }
+            if(statusRaw === 'pending' || statusRaw === 'pending payment' || !statusRaw) return 'pending payment';
+            return statusRaw;
+        }
+
+        function statusMetaForState(state){
+            var map = {
+                'pending payment': { label: 'Pending Payment', type: 'pending', icon: '⏳' },
+                'confirmed': { label: 'Confirmed', type: 'confirmed', icon: '✅' },
+                'processing': { label: 'Processing', type: 'processing', icon: '⚙️' },
+                'shipped': { label: 'Shipped', type: 'shipped', icon: '🚚' },
+                'delivered': { label: 'Delivered', type: 'delivered', icon: '📦' },
+                'refund requested': { label: 'Refund Requested', type: 'refund-requested', icon: '🧾' },
+                'refunded': { label: 'Refunded', type: 'refunded', icon: '💸' },
+                'cancelled': { label: 'Cancelled', type: 'cancelled', icon: '✖️' },
+                'archived': { label: 'Archived', type: 'archived', icon: '🗂️' }
+            };
+            return map[state] || { label: titleCase(state || 'Pending Payment'), type: 'pending', icon: '⏳' };
+        }
+
+        var ORDER_TRANSITIONS = {
+            'pending payment': ['confirmed','cancelled'],
+            'confirmed': ['processing','cancelled'],
+            'processing': ['shipped','cancelled'],
+            'shipped': ['delivered'],
+            'delivered': ['archived'],
+            'refund requested': ['refunded'],
+            'refunded': ['archived'],
+            'cancelled': ['archived'],
+            'archived': []
+        };
+
+        function canTransition(current, next){
+            if(!current || !next) return false;
+            if(current === next) return true;
+            if(next === 'refund requested' && current !== 'archived' && current !== 'cancelled') return true;
+            if(current === 'refund requested' && ['pending payment','confirmed','processing','shipped','delivered'].indexOf(next) !== -1) return true;
+            var allowed = ORDER_TRANSITIONS[current] || [];
+            return allowed.indexOf(next) !== -1;
+        }
 
         function filterByTab(list){
             if(activeTab === 'cancel-requests'){
@@ -469,6 +1000,9 @@
             }
             if(activeTab === 'cancelled'){
                 return list.filter(function(o){ return normalizeStatus(o.status) === 'cancelled'; });
+            }
+            if(activeTab === 'archived'){
+                return list.filter(function(o){ return !!o.archived || normalizeStatus(o.status) === 'archived'; });
             }
             return list;
         }
@@ -609,237 +1143,405 @@
             }).join('');
         }
 
+        function actionButton(label, style, action, icon){
+            var iconHtml = icon ? ('<span aria-hidden="true">' + icon + '</span>') : '';
+            return '<button class="action-btn ' + style + '" data-action="' + action + '">' + iconHtml + '<span>' + label + '</span></button>';
+        }
+
+        function getAvailableActions(order){
+            var state = canonicalStatusFromOrder(order);
+            var actions = [];
+            if(state === 'pending payment'){
+                actions.push({ action:'confirm', label:'Confirm', style:'success', icon:'✅' });
+                actions.push({ action:'cancel', label:'Cancel', style:'danger', icon:'✖️' });
+            } else if(state === 'confirmed'){
+                actions.push({ action:'start-processing', label:'Start Processing', style:'primary', icon:'⚙️' });
+                actions.push({ action:'cancel', label:'Cancel', style:'danger', icon:'✖️' });
+            } else if(state === 'processing'){
+                actions.push({ action:'mark-shipped', label:'Mark Shipped', style:'primary', icon:'🚚' });
+                actions.push({ action:'cancel', label:'Cancel', style:'danger', icon:'✖️' });
+            } else if(state === 'shipped'){
+                actions.push({ action:'mark-delivered', label:'Mark Delivered', style:'success', icon:'📦' });
+            } else if(state === 'refund requested'){
+                actions.push({ action:'mark-refunded', label:'Mark Refunded', style:'success', icon:'💸' });
+            }
+
+            if(order && order.cancelRequest && order.cancelRequest.requestedAt && !order.cancelRequest.approvedAt && !order.cancelRequest.rejectedAt){
+                actions.push({ action:'review-cancel', label:'Review Cancel', style:'warning', icon:'⚠️' });
+            }
+            if(order && order.returnRequest && order.returnRequest.requestedAt && !order.returnRequest.refundedAt){
+                actions.push({ action:'review-refund', label:'Review Refund', style:'warning', icon:'⚠️' });
+            }
+
+            if(state === 'cancelled' || state === 'refunded' || state === 'delivered'){
+                actions.push({ action:'archive', label:'Archive', style:'neutral', icon:'🗂️' });
+            }
+            return actions;
+        }
+
         function renderTable(list){
             const tbody = document.getElementById('ordersTbody');
             tbody.innerHTML = '';
-            list.forEach((row, idx) => {
+            list.forEach((row) => {
                 const tr = document.createElement('tr');
-                // prefer customerName, fall back to name or saved profile
                 var fallbackProfileName = '';
                 try{ fallbackProfileName = JSON.parse(localStorage.getItem('profile')||'{}').name || ''; }catch(e){}
                 var displayName = row.customerName || row.name || fallbackProfileName || '';
-                // build status cell with optional cancel-review button for admin
-                var statusNorm = normalizeStatus(row.status || '');
-                var statusHtml = statusBadge(titleCase(row.status || 'Pending'), 'pending');
-                if(statusNorm === 'cancelled') statusHtml = statusBadge('Cancelled', 'cancelled');
-                if(statusNorm === 'refunded') statusHtml = statusBadge('Refunded', 'refunded');
-                if(statusNorm === 'processing') statusHtml = statusBadge('Processing', 'processing');
-                if(statusNorm === 'approved') statusHtml = statusBadge('Approved', 'approved');
-                if(statusNorm === 'rejected') statusHtml = statusBadge('Rejected', 'rejected');
+                var state = canonicalStatusFromOrder(row);
+                var meta = statusMetaForState(state);
+                var statusHtml = statusBadge(meta.label, meta.type, meta.icon);
+                var trackingNumber = row.trackingNumber || row.tracking || '';
+                var carrier = row.trackingCarrier || row.carrier || '';
+                var trackingHtml = 'Not assigned';
+                if(trackingNumber || carrier){
+                    trackingHtml = (carrier ? (titleCase(carrier) + ' • ') : '') + (trackingNumber || 'Not assigned');
+                }
+                var actions = getAvailableActions(row)
+                    .map(function(a){ return actionButton(a.label, a.style, a.action, a.icon); })
+                    .join('');
 
-                if(row.cancelRequest && row.cancelRequest.requestedAt){
-                    if(row.cancelRequest.rejectedAt){
-                        statusHtml = statusBadge('Rejected', 'rejected');
-                    } else if(row.cancelRequest.approvedAt){
-                        statusHtml = statusBadge('Approved', 'approved');
-                    } else {
-                        statusHtml = statusBadge('Pending', 'pending');
-                    }
-                    statusHtml += ' <button class="cancel-review-btn" data-id="' + (row.id||'') + '" style="background:none;border:none;color:#b71c1c;margin-left:6px;cursor:pointer;font-size:1.05rem;">⚠️</button>';
-                }
-                if(row.returnRequest && row.returnRequest.requestedAt){
-                    var refundStatus = normalizeStatus(row.returnRequest.refundStatus || 'pending');
-                    if(row.returnRequest.rejectedAt){
-                        statusHtml = statusBadge('Rejected', 'rejected');
-                    } else if(refundStatus === 'refunded' || statusNorm === 'refunded'){
-                        statusHtml = statusBadge('Refunded', 'refunded');
-                    } else if(refundStatus === 'processing'){
-                        statusHtml = statusBadge('Processing', 'processing');
-                    } else if(row.returnRequest.approvedAt){
-                        statusHtml = statusBadge('Approved', 'approved');
-                    } else {
-                        statusHtml = statusBadge('Pending', 'pending');
-                    }
-                    statusHtml += ' <button class="refund-review-btn" data-id="' + (row.id||'') + '" style="background:none;border:none;color:#b71c1c;margin-left:6px;cursor:pointer;font-size:1.05rem;">⚠️</button>';
-                }
-            tr.innerHTML = `
-                <td style="padding:12px;border-bottom:1px solid #fafafa;">${row.id}</td>
-                <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(displayName)}</td>
+                tr.innerHTML = `
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">
+                        <input type="checkbox" class="row-select" data-id="${row.id}" aria-label="Select order ${row.id}">
+                    </td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${row.id}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(displayName)}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${formatOrderDateTime(row.created_at || row.date) || ''}</td>
-                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.paymentLabel || row.payment || (row.paymentCode? (row.paymentCode==='qr_ph'? 'QR PH' : (row.paymentCode==='bank_transfer'? 'Bank Transfer' : (row.paymentCode==='cod'? 'Cash on Delivery' : row.paymentCode))) : ''))}</td>
-                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.deliveryMethod || '')}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${formatPHP(row.total)}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${statusHtml}</td>
-                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(row.est)}</td>
-                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${row.tracking}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${trackingHtml}</td>
                     <td class="actions-cell">
-                        <button class="order-gear-btn" data-id="${row.id}" title="Edit order"><img src="IMAGE/gear_icon.png" alt="Edit"></button>
+                        <div class="order-actions-row">${actions || ''}</div>
                     </td>
                 `;
-                // open modal when clicking a row
-                tr.addEventListener('click', function(){ showOrderModal(row); });
-                // gear button should open the same edit modal but not trigger the row click
+
+                tr.addEventListener('click', function(){ openOrderDrawer(row); });
+
                 setTimeout(function(){
-                    var gear = tr.querySelector('.order-gear-btn');
-                    if(gear){
-                        gear.addEventListener('click', function(e){
-                            e.stopPropagation();
-                            try{ showOrderModal(row); }catch(err){ console.error(err); }
+                    var checkbox = tr.querySelector('.row-select');
+                    if(checkbox){
+                        checkbox.checked = selectedOrderIds.has(String(row.id));
+                        checkbox.addEventListener('click', function(e){ e.stopPropagation(); });
+                        checkbox.addEventListener('change', function(){
+                            toggleSelectOrder(row.id, checkbox.checked);
                         });
                     }
+                    tr.querySelectorAll('.action-btn').forEach(function(btn){
+                        btn.addEventListener('click', function(e){
+                            e.stopPropagation();
+                            handleOrderAction(row, btn.getAttribute('data-action'));
+                        });
+                    });
                 }, 0);
                 tbody.appendChild(tr);
             });
-            // attach cancel-review and refund-review button handlers
-            setTimeout(function(){
-                document.querySelectorAll('.cancel-review-btn').forEach(function(btn){
-                    btn.addEventListener('click', function(e){
-                        e.stopPropagation();
-                        var id = btn.getAttribute('data-id');
-                        openCancelReviewById(id);
-                    });
-                });
-                document.querySelectorAll('.refund-review-btn').forEach(function(btn){
-                    btn.addEventListener('click', function(e){
-                        e.stopPropagation();
-                        var id = btn.getAttribute('data-id');
-                        openRefundReviewById(id);
-                    });
-                });
-            }, 10);
+            syncSelectAllCheckbox();
+            updateBulkUI();
         }
 
-        // Show admin modal formatted like client order popup (uses fields from the row)
-        function showOrderModal(row){
-            try{
-                document.getElementById('adminOrderModalId').textContent = 'Order ID: ' + (row.id || '');
-                document.getElementById('adminOrderModalName').textContent = 'Customer: ' + (row.name || '');
-                // Date of Order (title-cased)
-                document.getElementById('adminOrderModalContact').textContent = 'Date of Order: ' + (formatOrderDateTime(row.created_at || row.date) || '');
-                    // Payment method label (prefer order.paymentLabel)
-                    var payLabel = row.paymentLabel || row.payment || '';
-                    if(!payLabel && row.paymentCode){
-                    if(row.paymentCode === 'qr_ph') payLabel = 'QR PH';
-                        else if(row.paymentCode === 'bank_transfer') payLabel = 'Bank Transfer';
-                        else if(row.paymentCode === 'cod') payLabel = 'Cash on Delivery';
-                    }
-                    document.getElementById('adminOrderModalPayment').textContent = payLabel ? ('Payment: ' + payLabel) : '';
-                    // Delivery method label
-                    var delLabel = row.deliveryLabel || row.deliveryMethod || '';
-                    if(!delLabel && row.deliveryCode){
-                        if(row.deliveryCode === 'personal') delLabel = 'Personal Delivery';
-                        else if(row.deliveryCode === 'lalamove') delLabel = 'Lalamove';
-                        else if(row.deliveryCode === 'jnt') delLabel = 'J&T Express';
-                    }
-                    document.getElementById('adminOrderModalDelivery').textContent = delLabel ? ('Delivery: ' + delLabel) : '';
-                document.getElementById('adminOrderModalImg').src = 'IMAGE/NIKE1.png';
-                // items: show a simple itemized line using total (admin rows don't have item list)
-                document.getElementById('adminOrderModalItems').innerHTML = '<div>' + (row.name || '') + ' — ' + formatPHP(row.total) + '</div>';
-                document.getElementById('adminOrderModalTotal').textContent = formatPHP(row.total);
-                var reqSection = document.getElementById('adminRequestSection');
-                var reqDetails = document.getElementById('adminRequestDetails');
-                var reqActions = document.getElementById('adminRequestActions');
-                if(reqSection && reqDetails && reqActions){
-                    reqActions.innerHTML = '';
-                    if(row.cancelRequest && row.cancelRequest.requestedAt){
-                        reqSection.style.display = 'block';
-                        reqDetails.innerHTML = ''
-                            + '<div><strong>Type:</strong> Cancellation</div>'
-                            + '<div><strong>Reason:</strong> ' + (row.cancelRequest.cancellationReason || '') + '</div>'
-                            + '<div><strong>Requested:</strong> ' + (row.cancelRequest.requestedAt ? new Date(row.cancelRequest.requestedAt).toLocaleString() : '') + '</div>'
-                            + (row.cancelRequest.adminNote ? ('<div><strong>Admin note:</strong> ' + row.cancelRequest.adminNote + '</div>') : '');
-                        if(!row.cancelRequest.approvedAt && !row.cancelRequest.rejectedAt){
-                            reqActions.innerHTML = ''
-                                + '<button class="order-card-btn" style="background:#2e7d32;max-width:180px;" onclick="adminApproveCancel(\'' + row.id + '\')">Approve</button>'
-                                + '<button class="order-card-btn" style="background:#b71c1c;max-width:180px;" onclick="adminRejectCancel(\'' + row.id + '\')">Reject</button>';
-                        }
-                    } else if(row.returnRequest && row.returnRequest.requestedAt){
-                        reqSection.style.display = 'block';
-                        var proofs = Array.isArray(row.returnRequest.proofImages) ? row.returnRequest.proofImages : [];
-                        reqDetails.innerHTML = ''
-                            + '<div><strong>Type:</strong> Return / Refund</div>'
-                            + '<div><strong>Reason:</strong> ' + (row.returnRequest.returnReason || '') + '</div>'
-                            + '<div><strong>Refund method:</strong> ' + (row.returnRequest.refundMethod || '') + '</div>'
-                            + '<div><strong>Requested:</strong> ' + (row.returnRequest.requestedAt ? new Date(row.returnRequest.requestedAt).toLocaleString() : '') + '</div>'
-                            + (row.returnRequest.adminNote ? ('<div><strong>Admin note:</strong> ' + row.returnRequest.adminNote + '</div>') : '')
-                            + (proofs.length ? ('<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">' + proofs.map(function(p){ return '<img src="' + p + '" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #eee;" />'; }).join('') + '</div>') : '');
-                        if(!row.returnRequest.approvedAt && !row.returnRequest.rejectedAt){
-                            reqActions.innerHTML = ''
-                                + '<button class="order-card-btn" style="background:#2e7d32;max-width:180px;" onclick="adminApproveReturn(\'' + row.id + '\')">Approve</button>'
-                                + '<button class="order-card-btn" style="background:#b71c1c;max-width:180px;" onclick="adminRejectReturn(\'' + row.id + '\')">Reject</button>';
-                        } else if(row.returnRequest.approvedAt && String(row.returnRequest.refundStatus || '').toLowerCase() !== 'refunded'){
-                            reqActions.innerHTML = '<button class="order-card-btn" style="background:#222;max-width:220px;" onclick="adminMarkRefunded(\'' + row.id + '\')">Mark as Refunded</button>';
-                        }
-                    } else {
-                        reqSection.style.display = 'none';
-                        reqDetails.innerHTML = '';
-                    }
-                }
-                // create status dropdown inside adminOrderModalStatus
-                var statusEl = document.getElementById('adminOrderModalStatus');
-                statusEl.innerHTML = '';
-                var select = document.createElement('select');
-                select.style.padding = '6px 10px';
-                select.style.borderRadius = '6px';
-                select.style.fontFamily = "'Poppins', Arial, sans-serif";
-                var statuses = ['Pending','Confirmed','Processing','Shipped','Delivered','Refund Processing','Refunded','Cancelled'];
-                statuses.forEach(function(s){
-                    var opt = document.createElement('option'); opt.value = s; opt.textContent = s; if(titleCase(row.status) === s) opt.selected = true; select.appendChild(opt);
-                });
-                select.addEventListener('change', function(){
-                    // update underlying row status, persist and re-render table
-                    var newStatus = select.value.toLowerCase();
-                    updateOrder(row.id, { status: newStatus });
-                });
-                statusEl.appendChild(document.createTextNode('Status: '));
-                statusEl.appendChild(select);
+        function toggleSelectOrder(orderId, isSelected){
+            var key = String(orderId);
+            if(isSelected) selectedOrderIds.add(key);
+            else selectedOrderIds.delete(key);
+            syncSelectAllCheckbox();
+            updateBulkUI();
+        }
 
-                // editable Est. Delivery date
-                var itemsRegion = document.getElementById('adminOrderModalItems');
-                var estRow = document.createElement('div'); estRow.style.marginTop = '10px';
-                var estLabel = document.createElement('label'); estLabel.textContent = 'Est. Delivery: '; estLabel.style.marginRight = '8px';
-                var dateInput = document.createElement('input'); dateInput.type = 'date';
-                // parse existing row.est into yyyy-mm-dd if possible
-                function toISODate(dstr){
-                    var dt = new Date(dstr);
-                    if (isNaN(dt.getTime())) return '';
-                    var yyyy = dt.getFullYear();
-                    var mm = String(dt.getMonth()+1).padStart(2,'0');
-                    var dd = String(dt.getDate()).padStart(2,'0');
-                    return yyyy+'-'+mm+'-'+dd;
-                }
-                dateInput.value = row.est ? toISODate(row.est) : '';
-                dateInput.style.fontFamily = "'Poppins', Arial, sans-serif";
-                dateInput.style.fontSize = '1rem';
-                dateInput.style.padding = '6px 8px';
-                dateInput.style.border = '1px solid #ddd';
-                dateInput.style.borderRadius = '6px';
-                dateInput.addEventListener('change', function(){
-                    if(dateInput.value){
-                            if(!dateInput.value) return;
-                            try{
-                                var d = new Date(dateInput.value);
-                                if(isNaN(d.getTime())) return;
-                                // format date using options (year should be 'numeric' not the year number)
-                                var estText = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                                // persist the human-friendly est string on the order and refresh
-                                updateOrder(row.id, { est: estText });
-                            }catch(e){ console.error('failed to parse est date', e); }
+        function syncSelectAllCheckbox(){
+            var selectAll = document.getElementById('selectAllCheckbox');
+            if(!selectAll) return;
+            if(!currentList.length){
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+                return;
+            }
+            var selectedCount = currentList.filter(function(o){ return selectedOrderIds.has(String(o.id)); }).length;
+            selectAll.checked = selectedCount === currentList.length && selectedCount > 0;
+            selectAll.indeterminate = selectedCount > 0 && selectedCount < currentList.length;
+        }
+
+        function updateBulkUI(){
+            var hint = document.getElementById('bulkSelectionHint');
+            var count = selectedOrderIds.size;
+            if(hint) hint.textContent = count ? (count + ' selected') : 'No orders selected';
+            var confirmBtn = document.getElementById('bulkConfirmBtn');
+            var cancelBtn = document.getElementById('bulkCancelBtn');
+            var archiveBtn = document.getElementById('bulkArchiveBtn');
+            var disabled = count === 0;
+            if(confirmBtn) confirmBtn.disabled = disabled;
+            if(cancelBtn) cancelBtn.disabled = disabled;
+            if(archiveBtn) archiveBtn.disabled = disabled;
+        }
+
+        function applyBulkAction(action){
+            if(!selectedOrderIds.size) return;
+            if(action === 'cancel' && !confirm('Cancel selected orders?')) return;
+            if(action === 'archive' && !confirm('Archive selected orders?')) return;
+            selectedOrderIds.forEach(function(id){
+                var order = ordersData.find(function(o){ return String(o.id) === String(id); });
+                if(!order) return;
+                if(action === 'confirm') updateOrder(id, { status: 'confirmed' });
+                if(action === 'cancel') updateOrder(id, { status: 'cancelled', previousStatus: order.status || 'pending payment' });
+                if(action === 'archive') updateOrder(id, { status: 'archived', archived: true, archivedAt: new Date().toISOString() });
+            });
+            selectedOrderIds.clear();
+            applySearch();
+        }
+
+        let activeDrawerOrderId = null;
+
+        function openOrderDrawer(row){
+            activeDrawerOrderId = row.id;
+            var state = canonicalStatusFromOrder(row);
+            var meta = statusMetaForState(state);
+            document.getElementById('drawerStatusBadge').innerHTML = statusBadge(meta.label, meta.type, meta.icon);
+            document.getElementById('drawerActions').innerHTML = getAvailableActions(row)
+                .map(function(a){ return actionButton(a.label, a.style, a.action, a.icon); })
+                .join('');
+
+            var name = getOrderRecipientName(row);
+            var phone = getOrderRecipientPhone(row);
+            var email = row.customerEmail || row.email || '';
+            var address = getOrderDeliveryAddressText(row);
+
+            document.getElementById('drawerCustomerName').textContent = name || 'Not provided';
+            document.getElementById('drawerCustomerPhone').textContent = phone || 'Not provided';
+            document.getElementById('drawerCustomerEmail').textContent = email || 'Not provided';
+            document.getElementById('drawerCustomerAddress').textContent = address || 'Not provided';
+
+            var payLabel = getOrderPaymentMethodLabel(row);
+            var deliveryLabel = row.deliveryLabel || row.deliveryMethod || row.delivery_method || '';
+            if(!deliveryLabel && row.deliveryCode){
+                if(row.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery';
+                else if(row.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove';
+                else if(row.deliveryCode === 'jnt') deliveryLabel = 'J&T Express';
+            }
+
+            document.getElementById('drawerOrderId').textContent = row.id || '';
+            document.getElementById('drawerPaymentMethod').textContent = payLabel || 'Not provided';
+            document.getElementById('drawerPaymentStatus').textContent = row.paymentStatus || row.payment_status || 'Not provided';
+            document.getElementById('drawerDeliveryMethod').textContent = deliveryLabel || 'Not provided';
+
+            // Payment verification (for pending orders)
+            var verificationSection = document.getElementById('drawerPaymentVerification');
+            var proofThumb = document.getElementById('drawerProofThumb');
+            var proofNameEl = document.getElementById('drawerProofName');
+            var refEl = document.getElementById('drawerReferenceNumber');
+            var proofOpen = document.getElementById('drawerProofOpen');
+            var confirmBtn = document.getElementById('drawerConfirmPaymentBtn');
+            var hintEl = document.getElementById('drawerPaymentHint');
+            var state = canonicalStatusFromOrder(row);
+            var paymentCode = getOrderPaymentCode(row);
+            var proof = getOrderPaymentProof(row);
+            var referenceNumber = getOrderReferenceNumber(row);
+            if(verificationSection){
+                if(state === 'pending payment'){
+                    verificationSection.style.display = '';
+                    if(paymentCode === 'cod'){
+                        if(proofThumb) proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">COD order</span>';
+                        if(proofNameEl) proofNameEl.textContent = 'Not required for COD';
+                        if(refEl) refEl.textContent = 'Not required for COD';
+                        if(proofOpen){ proofOpen.style.display = 'none'; }
+                        if(confirmBtn){ confirmBtn.textContent = 'Confirm COD'; confirmBtn.style.display = ''; confirmBtn.disabled = false; }
+                        if(hintEl) hintEl.textContent = 'Confirm once COD order is acknowledged.';
+                    } else {
+                        if(proofThumb){
+                            if(proof.data){
+                                if(String(proof.data).indexOf('data:image') === 0){
+                                    proofThumb.innerHTML = '<img src="' + proof.data + '" alt="Proof of payment">';
+                                } else {
+                                    proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">Proof file</span>';
+                                }
+                            } else {
+                                proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">No proof uploaded</span>';
+                            }
+                        }
+                        if(proofNameEl) proofNameEl.textContent = proof.name || 'Not provided';
+                        if(refEl) refEl.textContent = referenceNumber || 'Not provided';
+                        if(proofOpen){
+                            if(proof.data){
+                                proofOpen.href = proof.data;
+                                proofOpen.style.display = '';
+                            } else {
+                                proofOpen.removeAttribute('href');
+                                proofOpen.style.display = 'none';
+                            }
+                        }
+                        if(confirmBtn){
+                            confirmBtn.textContent = 'Confirm Payment';
+                            confirmBtn.style.display = '';
+                            confirmBtn.disabled = !proof.data;
+                        }
+                        if(hintEl) hintEl.textContent = proof.data ? 'Verify proof and reference number before confirming.' : 'Awaiting proof of payment upload.';
                     }
+                } else {
+                    verificationSection.style.display = 'none';
+                }
+            }
+
+            var trackingCarrierInput = document.getElementById('drawerTrackingCarrier');
+            var trackingNumberInput = document.getElementById('drawerTrackingNumber');
+            trackingCarrierInput.value = row.trackingCarrier || row.carrier || '';
+            trackingNumberInput.value = row.trackingNumber || row.tracking || '';
+            trackingNumberInput.placeholder = trackingNumberInput.value ? '' : 'Not assigned';
+
+            var notes = row.adminNotes || row.admin_notes || '';
+            document.getElementById('drawerAdminNotes').value = notes;
+
+            renderDrawerItems(row, row.items || []);
+            renderDrawerTotals(row, row.items || []);
+
+            document.getElementById('orderDrawerOverlay').style.display = 'flex';
+            document.getElementById('orderDrawerOverlay').setAttribute('aria-hidden','false');
+            document.body.style.overflow = 'hidden';
+
+            if(confirmBtn){
+                confirmBtn.onclick = function(){ handleOrderAction(row, 'confirm'); };
+            }
+
+            setTimeout(function(){
+                document.querySelectorAll('#drawerActions .action-btn').forEach(function(btn){
+                    btn.addEventListener('click', function(){
+                        handleOrderAction(row, btn.getAttribute('data-action'));
+                    });
                 });
-                estRow.appendChild(estLabel); estRow.appendChild(dateInput);
-                itemsRegion.appendChild(estRow);
-                document.getElementById('adminOrderModalOverlay').style.display = 'flex';
-                document.body.style.overflow = 'hidden';
-            }catch(e){console.error(e)}
+            }, 0);
+
+            if(!row.items || !row.items.length){
+                fetchOrderItemsFromFirestore(row.id).then(function(items){
+                    renderDrawerItems(row, items);
+                    renderDrawerTotals(row, items);
+                });
+            }
+        }
+
+        function closeOrderDrawer(){
+            document.getElementById('orderDrawerOverlay').style.display = 'none';
+            document.getElementById('orderDrawerOverlay').setAttribute('aria-hidden','true');
+            document.body.style.overflow = '';
+            activeDrawerOrderId = null;
+        }
+
+        function renderDrawerItems(row, items){
+            var container = document.getElementById('drawerItems');
+            container.innerHTML = '';
+            if(!items || !items.length){
+                container.innerHTML = '<div style="color:#666;">No items found.</div>';
+                return;
+            }
+            items.forEach(function(item){
+                var name = item.name || item.title || item.productName || 'Item';
+                var variant = item.variant || item.size || item.size_eu || item.eu || 'Standard';
+                var qty = item.qty || item.quantity || 1;
+                var price = item.price || item.unitPrice || item.amount || 0;
+                var img = item.image || item.imageUrl || item.img || 'IMAGE/NIKE1.png';
+                var lineTotal = Number(price) * Number(qty);
+                var div = document.createElement('div');
+                div.className = 'drawer-item';
+                div.innerHTML = ''
+                    + '<img src="' + img + '" alt="' + name + '">' 
+                    + '<div class="drawer-item-meta">'
+                    + '<div class="drawer-item-name">' + name + '</div>'
+                    + '<div class="drawer-item-sub">Variant/Size: ' + variant + '</div>'
+                    + '<div class="drawer-item-sub">Qty: ' + qty + '</div>'
+                    + '</div>'
+                    + '<div class="drawer-item-price">' + formatPHP(lineTotal) + '</div>';
+                container.appendChild(div);
+            });
+        }
+
+        function renderDrawerTotals(row, items){
+            var subtotal = Number(row.subtotal || row.subTotal || row.itemsSubtotal || 0) || 0;
+            var shipping = Number(row.shipping || row.shippingFee || row.shipping_fee || 0) || 0;
+            var discounts = Number(row.discounts || row.discount || 0) || 0;
+            var srcItems = Array.isArray(items) && items.length ? items : (Array.isArray(row.items) ? row.items : []);
+            if(!subtotal && srcItems.length){
+                subtotal = srcItems.reduce(function(acc, item){
+                    var price = Number(item.price || item.unitPrice || item.amount || 0) || 0;
+                    var qty = Number(item.qty || item.quantity || 1) || 1;
+                    return acc + (price * qty);
+                }, 0);
+            }
+            var total = Number(row.total || 0) || (subtotal + shipping - discounts);
+            document.getElementById('drawerSubtotal').textContent = formatPHP(subtotal);
+            document.getElementById('drawerShipping').textContent = formatPHP(shipping);
+            document.getElementById('drawerDiscounts').textContent = discounts ? ('- ' + formatPHP(discounts)) : formatPHP(0);
+            document.getElementById('drawerTotal').textContent = formatPHP(total);
+        }
+
+        // AfterShip integration placeholder (future use)
+        function buildAfterShipPayload(order){
+            return {
+                tracking_number: order.trackingNumber || order.tracking || '',
+                carrier: order.trackingCarrier || order.carrier || '',
+                order_id: order.id || ''
+            };
+        }
+
+        function handleOrderAction(order, action){
+            if(!action) return;
+            if(action === 'review-cancel'){ openCancelReviewById(order.id); return; }
+            if(action === 'review-refund'){ openRefundReviewById(order.id); return; }
+            if(action === 'archive'){
+                if(!confirm('Archive this order?')) return;
+                updateOrder(order.id, { status: 'archived', archived: true, archivedAt: new Date().toISOString() });
+                return;
+            }
+            if(action === 'cancel'){
+                if(!confirm('Cancel this order?')) return;
+                updateOrder(order.id, { status: 'cancelled', previousStatus: order.status || 'pending payment' });
+                return;
+            }
+            if(action === 'confirm'){
+                var state = canonicalStatusFromOrder(order);
+                if(state === 'pending payment'){
+                    var paymentCode = getOrderPaymentCode(order);
+                    var proof = getOrderPaymentProof(order);
+                    if(paymentCode !== 'cod' && !proof.data){
+                        alert('Proof of payment is required before confirming.');
+                        return;
+                    }
+                }
+                updateOrder(order.id, { status: 'confirmed' });
+                return;
+            }
+            if(action === 'start-processing'){ updateOrder(order.id, { status: 'processing' }); return; }
+            if(action === 'mark-shipped'){ updateOrder(order.id, { status: 'shipped' }); return; }
+            if(action === 'mark-delivered'){ updateOrder(order.id, { status: 'delivered' }); return; }
+            if(action === 'mark-refunded'){
+                updateOrder(order.id, {
+                    status: 'refunded',
+                    returnRequest: Object.assign({}, order.returnRequest || {}, { refundStatus: 'Refunded', refundedAt: new Date().toISOString() })
+                });
+                return;
+            }
         }
 
         // Update an order in ordersData (and persist to localStorage), then refresh the current view
         function updateOrder(orderId, changes, options){
             options = options || {};
             try{
-                // find by id using string comparison to avoid type mismatches (number vs string)
                 var idx = ordersData.findIndex(o => String(o.id) === String(orderId));
                 if(idx === -1) return;
-                var prevStatus = ordersData[idx] && ordersData[idx].status ? String(ordersData[idx].status) : '';
-                var merged = Object.assign({}, ordersData[idx], changes);
+                var currentOrder = ordersData[idx];
+                var prevStatus = currentOrder && currentOrder.status ? String(currentOrder.status) : '';
+                var hasStatusChange = Object.prototype.hasOwnProperty.call(changes, 'status') || Object.prototype.hasOwnProperty.call(changes, 'archived');
+                if(hasStatusChange){
+                    var currentState = canonicalStatusFromOrder(currentOrder);
+                    var nextState = canonicalStatusFromOrder(Object.assign({}, currentOrder, changes));
+                    if(!canTransition(currentState, nextState)){
+                        alert('Invalid status transition: ' + titleCase(currentState) + ' → ' + titleCase(nextState));
+                        return;
+                    }
+                }
+                var merged = Object.assign({}, currentOrder, changes);
                 ordersData[idx] = merged;
-                // persist
                 try { localStorage.setItem('orders', JSON.stringify(ordersData)); } catch(e) { console.error('persist failed', e); }
-                // reapply current filters/sort and render
-                // reload ordersData from storage to ensure consistency, then refresh view
-                try{ ordersData = JSON.parse(localStorage.getItem('orders') || '[]'); }catch(e){/* ignore */}
                 applySearch();
+                if(activeDrawerOrderId && String(activeDrawerOrderId) === String(orderId)){
+                    var updatedOrder = ordersData.find(o => String(o.id) === String(orderId));
+                    if(updatedOrder) openOrderDrawer(updatedOrder);
+                }
                 if(!options.skipRestock){
                     var prevNorm = String(prevStatus||'').toLowerCase();
                     var nextNorm = String(merged.status||'').toLowerCase();
@@ -852,28 +1554,21 @@
                         });
                     }
                 }
-                // Also attempt to persist change to Firestore so admin actions propagate in real-time
                 try{
                     if(window.FIREBASE_CONFIG && window.firebase && firebase.firestore){
                         if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
                         const db = firebase.firestore();
-                        // Use the order id as the document id when possible (legacy migration used order.id as doc id)
-                        // Prefer updating a doc whose document id equals the orderId.
-                        // If that doc doesn't exist, try to find a document where field 'id' == orderId, and update that.
-                        // If neither exists, create/overwrite a top-level doc keyed by orderId so future listeners pick it up.
                         const payload = Object.assign({}, ordersData.find(o=>String(o.id)===String(orderId)) || {}, { updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
                         const candidateRef = db.collection('orders').doc(String(orderId));
                         candidateRef.get().then(snap => {
                             if(snap.exists){
                                 return candidateRef.set(payload, { merge: true });
                             }
-                            // fallback: search for a doc where data.id == orderId
                             return db.collection('orders').where('id','==',String(orderId)).limit(1).get().then(q => {
                                 if(!q.empty){
                                     const foundDoc = q.docs[0];
                                     return db.collection('orders').doc(foundDoc.id).set(payload, { merge: true });
                                 }
-                                // last resort: create doc with id == orderId
                                 return candidateRef.set(payload, { merge: true });
                             });
                         }).then(()=>{ console.log('Order', orderId, 'updated in Firestore (with fallback logic)'); }).catch(err=>{ console.warn('Failed to update order in Firestore', err); });
@@ -908,8 +1603,9 @@
             var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
             if(!row || !row.returnRequest) return;
             var payload = {
-                status: 'refund processing',
-                returnRequest: Object.assign({}, row.returnRequest, { approvedAt: new Date().toISOString(), rejectedAt: null, refundStatus: 'Processing' })
+                status: 'refund requested',
+                previousStatus: row.previousStatus || row.status || 'delivered',
+                returnRequest: Object.assign({}, row.returnRequest, { approvedAt: new Date().toISOString(), rejectedAt: null, refundStatus: 'Requested' })
             };
             updateOrder(orderId, payload);
         };
@@ -935,12 +1631,36 @@
             updateOrder(orderId, payload);
         };
 
-        // Close admin modal
+        // Close admin modal + drawer
         document.addEventListener('DOMContentLoaded', function(){
             var closeBtn = document.getElementById('adminOrderModalClose');
             var overlay = document.getElementById('adminOrderModalOverlay');
             if(closeBtn) closeBtn.addEventListener('click', function(){ overlay.style.display='none'; document.body.style.overflow=''; });
             if(overlay) overlay.addEventListener('click', function(e){ if(e.target===overlay){ overlay.style.display='none'; document.body.style.overflow=''; } });
+
+            var drawerOverlay = document.getElementById('orderDrawerOverlay');
+            var drawerClose = document.getElementById('orderDrawerClose');
+            if(drawerClose) drawerClose.addEventListener('click', closeOrderDrawer);
+            if(drawerOverlay) drawerOverlay.addEventListener('click', function(e){ if(e.target === drawerOverlay){ closeOrderDrawer(); } });
+
+            var saveNotesBtn = document.getElementById('saveAdminNotesBtn');
+            if(saveNotesBtn) saveNotesBtn.addEventListener('click', function(){
+                if(!activeDrawerOrderId) return;
+                var notes = document.getElementById('drawerAdminNotes').value || '';
+                updateOrder(activeDrawerOrderId, { adminNotes: notes });
+            });
+
+            var trackingCarrierInput = document.getElementById('drawerTrackingCarrier');
+            var trackingNumberInput = document.getElementById('drawerTrackingNumber');
+            function persistTracking(){
+                if(!activeDrawerOrderId) return;
+                updateOrder(activeDrawerOrderId, {
+                    trackingCarrier: trackingCarrierInput.value || '',
+                    trackingNumber: trackingNumberInput.value || ''
+                });
+            }
+            if(trackingCarrierInput) trackingCarrierInput.addEventListener('change', persistTracking);
+            if(trackingNumberInput) trackingNumberInput.addEventListener('change', persistTracking);
             // Cancel review modal close
             var crClose = document.getElementById('closeCancelReviewBtn');
             if(crClose) crClose.addEventListener('click', function(){ closeCancelReviewModal(); });
@@ -966,6 +1686,8 @@
             if(e.key === 'orders'){
                 try{
                     ordersData = JSON.parse(localStorage.getItem('orders') || '[]');
+                    if(!Array.isArray(ordersData)) ordersData = [];
+                    ordersData = sortOrdersByNewest(mergeOrdersById([], ordersData));
                     currentList = ordersData.slice();
                     applySort(); renderTable(currentList);
                 }catch(err){/* ignore */}
@@ -981,36 +1703,30 @@
                 }
                 if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
                 const db = firebase.firestore();
-                // Listen to recent orders; adjust query to suit your dashboard (status filters, date range, limit)
-                const q = db.collection('orders').orderBy('created_at','desc').limit(500);
+                const q = db.collection('orders').orderBy('created_at','desc');
                 const unsubscribe = q.onSnapshot(snapshot => {
-                    let changed = false;
-                    snapshot.docChanges().forEach(change => {
-                        const doc = change.doc;
-                        const data = Object.assign({}, doc.data());
-                        // ensure an id field exists for matching (legacy data uses data.id)
-                        if(!data.id) data.id = data.id || doc.id || data.orderId || doc.id;
-                        if(change.type === 'added' || change.type === 'modified'){
-                            const idx = ordersData.findIndex(o => String(o.id) === String(data.id));
-                            if(idx === -1){
-                                ordersData.unshift(data);
-                                changed = true;
-                            } else {
-                                ordersData[idx] = Object.assign({}, ordersData[idx], data);
-                                changed = true;
+                    try{
+                        const incoming = [];
+                        snapshot.docChanges().forEach(change => {
+                            const doc = change.doc;
+                            const data = Object.assign({}, doc.data());
+                            if(!data.id) data.id = data.id || doc.id || data.orderId || doc.id;
+                            if(change.type === 'removed'){
+                                ordersData = ordersData.filter(o => String(o.id) !== String(data.id) && String(o.id) !== String(doc.id));
+                                return;
                             }
-                        } else if(change.type === 'removed'){
-                            const idx = ordersData.findIndex(o => String(o.id) === String(data.id) || String(o.id) === String(doc.id));
-                            if(idx !== -1){ ordersData.splice(idx,1); changed = true; }
+                            incoming.push(data);
+                        });
+                        if(incoming.length){
+                            ordersData = sortOrdersByNewest(mergeOrdersById(ordersData, incoming));
+                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                            if(ordersLoaded) applySearch();
                         }
-                    });
-                    if(changed){
-                        try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
-                        applySearch();
+                    }catch(err){
+                        console.error('Orders realtime update failed', err);
                     }
                 }, err => { console.error('Orders realtime listener error', err); });
 
-                // unsubscribe when page unloads to save reads
                 window.addEventListener('beforeunload', function(){ try{ unsubscribe(); }catch(e){} });
                 console.log('Realtime orders listener attached');
             }catch(e){ console.warn('Failed to attach realtime orders listener', e); }
@@ -1190,7 +1906,7 @@
         function matchesSearch(row, q){
             if(!q) return true;
             q = q.toLowerCase();
-            return (row.id + ' ' + (row.customerName || row.name) + ' ' + row.date + ' ' + row.payment + ' ' + row.total + ' ' + row.status + ' ' + row.est + ' ' + row.tracking).toLowerCase().indexOf(q) !== -1;
+            return (row.id + ' ' + (row.customerName || row.name) + ' ' + (row.email || '') + ' ' + (row.phone || '') + ' ' + row.date + ' ' + row.payment + ' ' + row.total + ' ' + row.status + ' ' + (row.trackingNumber || row.tracking || '') + ' ' + (row.trackingCarrier || row.carrier || '')).toLowerCase().indexOf(q) !== -1;
         }
 
         function applySearch(){
@@ -1202,7 +1918,10 @@
         }
 
         function applySort(){
-            if(!sortState.key) return;
+            if(!sortState.key){
+                sortOrdersByNewest(currentList);
+                return;
+            }
             currentList.sort((a,b)=>{
                 let A=a[sortState.key];
                 let B=b[sortState.key];
@@ -1210,7 +1929,7 @@
                     return sortState.asc ? A-B : B-A;
                 }
                 if(sortState.key==='date'){
-                    return sortState.asc ? new Date(A) - new Date(B) : new Date(B) - new Date(A);
+                    return sortState.asc ? getOrderCreatedAtValue(a) - getOrderCreatedAtValue(b) : getOrderCreatedAtValue(b) - getOrderCreatedAtValue(a);
                 }
                 // string compare
                 A = (A||'').toString().toLowerCase();
@@ -1221,9 +1940,24 @@
             });
         }
 
-        document.addEventListener('DOMContentLoaded', function(){
-            renderTable(currentList);
+        document.addEventListener('DOMContentLoaded', async function(){
             document.getElementById('ordersSearch').addEventListener('input', function(){ applySearch(); });
+            var selectAll = document.getElementById('selectAllCheckbox');
+            if(selectAll){
+                selectAll.addEventListener('change', function(){
+                    var isChecked = selectAll.checked;
+                    currentList.forEach(function(o){
+                        toggleSelectOrder(o.id, isChecked);
+                    });
+                    renderTable(currentList);
+                });
+            }
+            var bulkConfirmBtn = document.getElementById('bulkConfirmBtn');
+            var bulkCancelBtn = document.getElementById('bulkCancelBtn');
+            var bulkArchiveBtn = document.getElementById('bulkArchiveBtn');
+            if(bulkConfirmBtn) bulkConfirmBtn.addEventListener('click', function(){ applyBulkAction('confirm'); });
+            if(bulkCancelBtn) bulkCancelBtn.addEventListener('click', function(){ applyBulkAction('cancel'); });
+            if(bulkArchiveBtn) bulkArchiveBtn.addEventListener('click', function(){ applyBulkAction('archive'); });
             document.querySelectorAll('.filter-btn').forEach(btn=>{
                 btn.addEventListener('click', function(){
                     const keyMap = { date: 'date', payment: 'payment', id: 'id', status: 'status' };
@@ -1241,6 +1975,7 @@
                     applySearch();
                 });
             });
+            await initializeOrders();
         });
     })();
     // Sticky footer fallback for short content

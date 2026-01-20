@@ -1022,6 +1022,23 @@
                     checkoutRef.get().then(function(doc){
                         if(!doc.exists){ throw new Error('Checkout not found'); }
                         var checkoutData = doc.data() || {};
+                        var paymentMethod = checkoutData.payment_method || checkoutData.paymentMethod || '';
+                        var paymentCode = normalizePaymentCode(paymentMethod);
+                        var proofRequired = paymentCode !== 'cod';
+                        if(proofRequired){
+                            var proof = checkoutData.payment_proof || (currentCheckout && currentCheckout.payment_proof) || localStorage.getItem('checkoutPaymentProof') || '';
+                            var refNum = checkoutData.referenceNumber || checkoutData.reference_number || checkoutData.payment_payload || (currentCheckout && currentCheckout.referenceNumber) || localStorage.getItem('checkoutReferenceNumber') || '';
+                            if(!proof){
+                                alert('Please upload proof of payment before placing the order.');
+                                if(btn) btn.disabled = false;
+                                return;
+                            }
+                            if(!refNum){
+                                alert('Please enter the reference number before placing the order.');
+                                if(btn) btn.disabled = false;
+                                return;
+                            }
+                        }
                         var orderId = checkoutData.order_id || localStorage.getItem('checkoutOrderId') || generateOrderId();
                         var orderRef = db.collection('orders').doc(orderId);
                         var deliveryAddrObj = checkoutData.deliveryAddress || normalizeDeliveryAddressFromAddressObject(checkoutData.addressObject) || normalizeDeliveryAddressFromString(checkoutData.delivery_address || checkoutData.shippingAddress || '');
@@ -1035,6 +1052,10 @@
                             shipping_fee: Number(checkoutData.shipping_fee || checkoutData.shipping || 0),
                             discount: Number(checkoutData.discount || 0),
                             payment_method: checkoutData.payment_method || checkoutData.paymentMethod || '',
+                            paymentCode: checkoutData.paymentCode || checkoutData.payment_code || '',
+                            payment_proof: checkoutData.payment_proof || '',
+                            payment_proof_name: checkoutData.payment_proof_name || '',
+                            referenceNumber: checkoutData.referenceNumber || checkoutData.reference_number || checkoutData.payment_payload || '',
                             created_at: firebase.firestore.FieldValue.serverTimestamp(),
                             delivery_address: deliveryAddrText,
                             deliveryAddress: deliveryAddrObj,
@@ -1192,6 +1213,7 @@
             var uploadThumb = document.getElementById('uploadPreviewThumb');
             var uploadName = document.getElementById('uploadPreviewName');
             var removeBtn = document.getElementById('removeProofBtn');
+            var refInput = document.getElementById('referenceNumber');
 
             if(uploadBtn && uploadInput){
                 uploadBtn.addEventListener('click', function(e){ e.preventDefault(); uploadInput.click(); });
@@ -1208,6 +1230,11 @@
                         try{
                             var data = ev.target.result;
                             updateCheckoutFields({ payment_proof: data, payment_proof_name: f.name });
+                            try{
+                                currentCheckout = Object.assign({}, currentCheckout || {}, { payment_proof: data, payment_proof_name: f.name });
+                                localStorage.setItem('checkoutPaymentProof', data);
+                                localStorage.setItem('checkoutPaymentProofName', f.name);
+                            }catch(e){}
                             // show preview
                             if(f.type && f.type.indexOf('image/') === 0){
                                 uploadThumb.innerHTML = '<img src="'+data+'" style="width:100%;height:100%;object-fit:cover;">';
@@ -1223,7 +1250,19 @@
                 });
             }
             if(removeBtn){
-                removeBtn.addEventListener('click', function(e){ e.preventDefault(); updateCheckoutFields({ payment_proof: firebase.firestore.FieldValue.delete(), payment_proof_name: firebase.firestore.FieldValue.delete() }); if(uploadPreview) uploadPreview.style.display='none'; if(uploadThumb) uploadThumb.innerHTML=''; if(uploadBtn) uploadBtn.textContent = '+ Upload Proof of Payment'; if(uploadInput) uploadInput.value = ''; });
+                removeBtn.addEventListener('click', function(e){ e.preventDefault(); updateCheckoutFields({ payment_proof: firebase.firestore.FieldValue.delete(), payment_proof_name: firebase.firestore.FieldValue.delete() }); try{ currentCheckout = Object.assign({}, currentCheckout || {}, { payment_proof: '', payment_proof_name: '' }); localStorage.removeItem('checkoutPaymentProof'); localStorage.removeItem('checkoutPaymentProofName'); }catch(e){} if(uploadPreview) uploadPreview.style.display='none'; if(uploadThumb) uploadThumb.innerHTML=''; if(uploadBtn) uploadBtn.textContent = '+ Upload Proof of Payment'; if(uploadInput) uploadInput.value = ''; });
+            }
+
+            if(refInput){
+                var saveRef = function(){
+                    try{
+                        updateCheckoutFields({ referenceNumber: refInput.value || '' });
+                        localStorage.setItem('checkoutReferenceNumber', refInput.value || '');
+                        currentCheckout = Object.assign({}, currentCheckout || {}, { referenceNumber: refInput.value || '' });
+                    }catch(e){}
+                };
+                refInput.addEventListener('input', saveRef);
+                refInput.addEventListener('change', saveRef);
             }
                 });
                 </script>
