@@ -166,6 +166,48 @@
                             userDoc.set(payload, { merge: true }).catch(() => {});
                             // Cleanup pending metadata for this email
                             try{ delete pendingMeta[(user.email||'').toLowerCase()]; localStorage.setItem('pendingSignup', JSON.stringify(pendingMeta)); }catch(e){}
+
+                            // Pull the user profile so local profile keeps address/name details
+                            userDoc.get().then(function(doc){
+                                var data = (doc && doc.exists) ? (doc.data() || {}) : {};
+                                var providerId = (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'password';
+                                var profile = {
+                                    email: user.email,
+                                    name: data.name || data.displayName || user.displayName || '',
+                                    phone: data.phone || meta.phone || '',
+                                    addressMain: data.addressMain || meta.addressMain || '',
+                                    addressDetails: data.addressDetails || meta.addressDetails || '',
+                                    deliveryAddress: data.deliveryAddress || null,
+                                    addresses: Array.isArray(data.addresses) ? data.addresses : [],
+                                    defaultAddressId: data.defaultAddressId || '',
+                                    uid: user.uid,
+                                    provider: providerId
+                                };
+                                persistProfile(profile);
+                                try{ persistAuthTokenFromUser(user); }catch(e){}
+                                try{
+                                    if(profile.addresses && profile.addresses.length){
+                                        var defId = profile.defaultAddressId || '';
+                                        var def = defId ? profile.addresses.find(function(a){ return a.id === defId; }) : (profile.addresses.find(function(a){ return a.isDefault; }) || profile.addresses[0]);
+                                        if(def){
+                                            localStorage.setItem('checkoutAddressObject', JSON.stringify(def));
+                                            localStorage.setItem('checkoutAddressMain', def.line1 || def.street || '');
+                                            localStorage.setItem('checkoutAddressDetails', def.line2 || '');
+                                        }
+                                    }
+                                }catch(e){}
+                                const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
+                                const role = (email.trim().toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
+                                if (role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
+                            }).catch(function(){
+                                const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'password' };
+                                persistProfile(profile);
+                                try{ persistAuthTokenFromUser(user); }catch(e){}
+                                const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
+                                const role = (email.trim().toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
+                                if (role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
+                            });
+                            return;
                         }
                     } catch (e) { console.warn('Could not upsert user doc on login', e); }
                     const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'password' };

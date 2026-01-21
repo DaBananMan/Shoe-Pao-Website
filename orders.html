@@ -1347,7 +1347,9 @@
                     } else {
                         if(proofThumb){
                             if(proof.data){
-                                if(String(proof.data).indexOf('data:image') === 0){
+                                var proofStr = String(proof.data || '');
+                                var isImage = (proofStr.indexOf('data:image') === 0) || (/^https?:\/\//i.test(proofStr));
+                                if(isImage){
                                     proofThumb.innerHTML = '<img src="' + proof.data + '" alt="Proof of payment">';
                                 } else {
                                     proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">Proof file</span>';

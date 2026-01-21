@@ -280,6 +280,10 @@
             <div class="profile-label">Edit address</div>
             <div class="address-grid">
                 <label class="address-field address-field-full">
+                    <span class="address-label">Full name</span>
+                    <input id="profileFullNameInput" type="text" placeholder="Recipient full name" />
+                </label>
+                <label class="address-field address-field-full">
                     <span class="address-label">Region</span>
                     <select id="profileRegionSelect" aria-label="Region">
                         <option value="">Select region</option>
@@ -455,7 +459,15 @@
 
     function deriveAddressLinesFromDeliveryAddress(addrObj){
         if(!addrObj) return { main: '', details: '' };
-        var main = addrObj.street || '';
+        var fullName = addrObj.fullName || '';
+        var main = '';
+        if(fullName && addrObj.street){
+            main = fullName + ', ' + addrObj.street;
+        } else if(fullName){
+            main = fullName;
+        } else {
+            main = addrObj.street || '';
+        }
         var details = [addrObj.barangay, addrObj.city, addrObj.province, addrObj.region].filter(Boolean).join(', ');
         if(!main && details){
             main = details;
@@ -538,13 +550,15 @@
         var brgySel = document.getElementById('profileBarangaySelect');
         var streetEl = document.getElementById('profileStreetInput');
         var postalEl = document.getElementById('profilePostalInput');
+        var fullNameEl = document.getElementById('profileFullNameInput');
         var region = regionSel && regionSel.value ? regionSel.options[regionSel.selectedIndex].textContent : '';
         var province = provinceSel && provinceSel.value ? provinceSel.options[provinceSel.selectedIndex].textContent : '';
         var city = citySel && citySel.value ? citySel.options[citySel.selectedIndex].textContent : '';
         var barangay = brgySel && brgySel.value ? brgySel.options[brgySel.selectedIndex].textContent : '';
         var street = streetEl ? streetEl.value.trim() : '';
         var postalCode = postalEl ? postalEl.value.trim() : '';
-        return { region: region, province: province, city: city, barangay: barangay, street: street, postalCode: postalCode };
+        var fullName = fullNameEl ? fullNameEl.value.trim() : '';
+        return { fullName: fullName, region: region, province: province, city: city, barangay: barangay, street: street, postalCode: postalCode };
     }
 
     function initProfileAddressEditor(){
@@ -559,10 +573,15 @@
         try{ storedProfile = JSON.parse(localStorage.getItem('profile') || 'null'); }catch(e){ storedProfile = null; }
         var storedAddr = storedProfile && storedProfile.deliveryAddress ? storedProfile.deliveryAddress : null;
         if(storedAddr){
+            var fullNameEl = document.getElementById('profileFullNameInput');
+            if(fullNameEl) fullNameEl.value = storedAddr.fullName || storedProfile.name || '';
             var streetEl = document.getElementById('profileStreetInput');
             if(streetEl) streetEl.value = storedAddr.street || '';
             var postalEl = document.getElementById('profilePostalInput');
             if(postalEl) postalEl.value = storedAddr.postalCode || '';
+        } else {
+            var fullNameFallback = document.getElementById('profileFullNameInput');
+            if(fullNameFallback) fullNameFallback.value = (storedProfile && storedProfile.name) ? storedProfile.name : '';
         }
 
         function resetChildren(){
@@ -802,6 +821,7 @@
             }
         }
         var deliveryAddress = getProfileAddressObjectFromEditor();
+        if(deliveryAddress && !deliveryAddress.fullName){ deliveryAddress.fullName = name || ''; }
         if(deliveryAddress && (deliveryAddress.street || deliveryAddress.city || deliveryAddress.barangay || deliveryAddress.region || deliveryAddress.province)){
             var derived = deriveAddressLinesFromDeliveryAddress(deliveryAddress);
             addressMain = derived.main;
@@ -980,6 +1000,10 @@
         var details = document.getElementById('profileAddressDetails');
         var editor = document.getElementById('profileAddressEditor');
         var addrObj = getProfileAddressObjectFromEditor();
+        if(addrObj && !addrObj.fullName){
+            var nameEl = document.getElementById('profileName');
+            addrObj.fullName = nameEl ? nameEl.value.trim() : '';
+        }
         var derived = deriveAddressLinesFromDeliveryAddress(addrObj);
         var addrMain = derived.main || '';
         var addrDetails = derived.details || '';
