@@ -618,6 +618,10 @@
                             <div class="drawer-label">Delivery Method</div>
                             <div id="drawerDeliveryMethod" class="drawer-value"></div>
                         </div>
+                        <div>
+                            <div class="drawer-label">Estimated Delivery</div>
+                            <div id="drawerEst" class="drawer-value"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="drawer-section">
@@ -891,6 +895,22 @@
         function getOrderDeliveryAddressText(order){
             var deliveryObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
             return formatDeliveryAddressText(deliveryObj) || order.delivery_address || order.shippingAddress || '';
+        }
+
+        // Compute estimated delivery window based on province/region (Luzon:1-3 days; Visayas/Mindanao:1-7 days)
+        function computeEstimatedDelivery(order){
+            try{
+                var addr = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+                var token = '';
+                if(addr){ token = String((addr.province || addr.city || addr.region) || '').toLowerCase(); }
+                if(!token) token = String(order.shippingRegion || order.shipping_region || order.shipping || '').toLowerCase();
+                if(!token) return '';
+                var visayas = ['cebu','leyte','samar','biliran','bohol','iloilo','capiz','antique','guimaras','negros','masbate','siquijor'];
+                var mindanao = ['davao','zamboanga','misamis','bukidnon','lanao','cotabato','sultan','agusan','surigao','dinagat','camiguin'];
+                for(var i=0;i<visayas.length;i++){ if(token.indexOf(visayas[i]) !== -1 || token.indexOf('visayas') !== -1) return '1–7 days'; }
+                for(var j=0;j<mindanao.length;j++){ if(token.indexOf(mindanao[j]) !== -1 || token.indexOf('mindanao') !== -1) return '1–7 days'; }
+                return '1–3 days';
+            }catch(e){ return ''; }
         }
 
         function getOrderRecipientName(order){
@@ -1321,6 +1341,7 @@
             document.getElementById('drawerPaymentMethod').textContent = payLabel || 'Not provided';
             document.getElementById('drawerPaymentStatus').textContent = row.paymentStatus || row.payment_status || 'Not provided';
             document.getElementById('drawerDeliveryMethod').textContent = deliveryLabel || 'Not provided';
+            try{ var drawerEst = computeEstimatedDelivery(row); document.getElementById('drawerEst').textContent = drawerEst ? ('Est. Delivery: ' + drawerEst) : ''; }catch(e){ document.getElementById('drawerEst').textContent = ''; }
 
             // Payment verification (for pending orders)
             var verificationSection = document.getElementById('drawerPaymentVerification');

@@ -66,7 +66,12 @@ function addToCart(product) {
         // Prevent duplicates by title+brand+size (if size exists).
         // Attempt to attach a deterministic inventory identifier to the cart item so
         // later editors can match exactly instead of relying on fuzzy name matching.
-        try{ var invMatchForIncoming = findInventoryItemForProduct(product); if(invMatchForIncoming && invMatchForIncoming.id) product.inventoryId = invMatchForIncoming.id; }catch(e){}
+        try{ var invMatchForIncoming = findInventoryItemForProduct(product); if(invMatchForIncoming && invMatchForIncoming.id) product.inventoryId = invMatchForIncoming.id; 
+            // Also copy over a canonical color/image from inventory when available so
+            // cart items carry the visual identity they had when added. This helps the
+            // cart editor prefer the correct color via image-filename matching.
+            try{ if(invMatchForIncoming){ if(!product.color && (invMatchForIncoming.color || invMatchForIncoming.colorName)) product.color = invMatchForIncoming.color || invMatchForIncoming.colorName; if(!product.image && (invMatchForIncoming.image || (invMatchForIncoming.images && invMatchForIncoming.images[0]))) product.image = invMatchForIncoming.image || (invMatchForIncoming.images && invMatchForIncoming.images[0]); } }catch(_){ }
+        }catch(e){}
         // Match only when both the identifying variant (inventoryId) AND size match,
         // or when title+brand+size match for legacy items. This prevents different sizes
         // of the same variant from being merged into one line.
@@ -574,39 +579,32 @@ function openCartItemEditor(index){
                     if(modelDataProbe && Array.isArray(modelDataProbe.variants) && modelDataProbe.variants.length){
                         var mdName = (modelDataProbe.title || modelDataProbe.name || modelDataProbe.productTitle || modelDataProbe.baseName || '').toString().trim().toLowerCase();
                         var itemName = (item.title || item.name || '').toString().trim().toLowerCase();
-                        function tokensFor(s){ try{ return String(s||'').split(/[^a-z0-9]+/i).map(function(x){ return x.trim(); }).filter(function(t){ return t && t.length >= 2; }); }catch(e){ return []; } }
-                        // stronger matching: accept modelData when names/tokens overlap OR when the
-                        // modelData contains a variant matching this cart item's id/image/color
+                        // Prefer explicit identity matches between the cart item and modelDataProbe.
+                        // Only fall back to an exact-name match; do NOT rely on fuzzy token overlap.
                         try{
-                            if(mdName && itemName){
-                                if(mdName === itemName || mdName.indexOf(itemName) !== -1 || itemName.indexOf(mdName) !== -1) usedModelData = true;
-                                else {
-                                    var mdTokens = tokensFor(mdName);
-                                    var itTokens = tokensFor(itemName);
-                                    var common = mdTokens.filter(function(t){ return itTokens.indexOf(t) !== -1; });
-                                    if(common && common.length > 0) usedModelData = true;
+                            var matchFound = false;
+                            // Only accept modelData when there is an explicit variant id match.
+                            // Avoid image/name heuristics — they are too permissive and can leak the
+                            // last-viewed product's variants into unrelated cart items.
+                            try{
+                                if(item.inventoryId || item.id){
+                                    matchFound = modelDataProbe.variants.some(function(v){ try{
+                                        if(!v) return false;
+                                        if(item.inventoryId && v.id && String(v.id) === String(item.inventoryId)) return true;
+                                        if(item.id && v.id && String(v.id) === String(item.id)) return true;
+                                        return false;
+                                    }catch(e){ return false; } });
                                 }
-                            }
-                            // check if any variant in modelDataProbe explicitly matches this cart item
-                            if(!usedModelData && (item.inventoryId || item.id || item.image || item.color)){
-                                var matchFound = modelDataProbe.variants.some(function(v){ try{
-                                    if(!v) return false;
-                                    if(item.inventoryId && v.id && String(v.id) === String(item.inventoryId)) return true;
-                                    if(item.id && v.id && String(v.id) === String(item.id)) return true;
-                                    if(item.image && (v.image || '').toString().split('/').pop() === item.image.split('/').pop()) return true;
-                                    var vname = (v.name || v.color || '').toString().trim().toLowerCase();
-                                    if(vname && item.color && vname === item.color.toString().trim().toLowerCase()) return true;
-                                    return false;
-                                }catch(e){ return false; } });
-                                if(matchFound) usedModelData = true;
+                            }catch(e){}
+                            if(matchFound){
+                                usedModelData = true;
+                                try{ modal._colorsSource = 'modelData'; }catch(e){}
+                                // push modelData variants as color entries; include top-level model gender hints
+                                modelDataProbe.variants.forEach(function(v){ if(!v) return; try{ colors.push({ record: v, parent: null, color: v.color || v.name || '', image: v.image || '', sizes: v.sizes || v.sizeMap || {} }); }catch(e){} });
+                                // DO NOT push top-level model gender into the colors array (it creates an
+                                // extra color option). Gender should be handled separately below.
                             }
                         }catch(e){}
-                        if(usedModelData){
-                            // push modelData variants as color entries; include top-level model gender hints
-                            modelDataProbe.variants.forEach(function(v){ if(!v) return; try{ colors.push({ record: v, parent: null, color: v.color || v.name || '', image: v.image || '', sizes: v.sizes || v.sizeMap || {} }); }catch(e){} });
-                            // if modelData has a top-level gender/genderFit, ensure it's visible in the editor
-                            try{ if(modelDataProbe.gender || modelDataProbe.genderFit){ colors.push({ record: { gender: modelDataProbe.gender, genderFit: modelDataProbe.genderFit }, parent: null, color: '', image: item.image || '', sizes: {} }); } }catch(e){}
-                        }
                     }
                 }catch(e){ /* ignore */ }
                 if(!usedModelData){
@@ -617,10 +615,23 @@ function openCartItemEditor(index){
                     if(item && item.inventoryId){
                         try{ invItem = invAllProbe.find(function(x){ return x && x.id && String(x.id) === String(item.inventoryId); }); }catch(e){}
                     }
-                    // Fallback to existing fuzzy/id/name-based lookup
-                    if(!invItem){ try{ invItem = findInventoryItemForProduct(item); }catch(e){ invItem = null; } }
+                    // If inventoryId is not present, be conservative: only attempt an exact-name or exact-id lookup.
+                    // Avoid invoking fuzzy/global lookups here because they can pick up unrelated rows (the
+                    // "most recently viewed product" problem) and cause the edit modal to change when new
+                    // items are added to the cart. We intentionally avoid `findInventoryItemForProduct`
+                    // which contains permissive heuristics.
+                    if(!invItem){
+                        try{
+                            var titleNorm = (item && item.title) ? String(item.title).trim().toLowerCase() : '';
+                            if(titleNorm){
+                                invItem = invAllProbe.find(function(x){ try{ return x && x.name && String(x.name).trim().toLowerCase() === titleNorm; }catch(e){ return false; } });
+                            }
+                        }catch(e){}
+                        if(!invItem && item && item.id){ try{ invItem = invAllProbe.find(function(x){ return x && x.id && String(x.id) === String(item.id); }); }catch(e){} }
+                    }
                 }catch(e){ invItem = null; }
             if(invItem){
+                try{ modal._colorsSource = 'inventory'; }catch(e){}
                 // Gather all inventory rows that represent the same product model so the editor
                 // shows every color/row that exists in the inventory for this model. This covers
                 // two common patterns: (A) variants array inside a single inventory row, and
@@ -632,26 +643,15 @@ function openCartItemEditor(index){
                     var targetName = norm(invItem.name || invItem.title || invItem.model || '');
                     // First, include the canonical invItem itself
                     matchedRows.push(invItem);
-                    // Then scan for sibling rows that match by exact name or explicit parent linkage
+                    // Then scan for sibling rows that clearly represent the same model. Be strict here:
+                    // only include rows that match by exact name, explicit id equality, explicit parent/child
+                    // linkage, or embedded variant children. Avoid token-based fuzzy intersection which can
+                    // mistakenly treat unrelated rows as siblings (this is the root cause of modal leakage).
                     invAll.forEach(function(r){ if(!r) return; try{
                         if(r === invItem) return;
                         var sameId = (invItem.id && r.id && String(invItem.id) === String(r.id));
-                            // match by exact or partial name (fuzzy match similar to product-view)
-                            var sameName = false;
-                            try{
-                                if(targetName && r.name){
-                                    var rn = norm(r.name);
-                                    if(rn === targetName || rn.indexOf(targetName) !== -1 || targetName.indexOf(rn) !== -1) sameName = true;
-                                    else {
-                                        // token intersection: e.g., 'airmax' common between 'airmax black' and 'airmax white'
-                                        try{
-                                            var tTokens = targetName.split(/[^a-z0-9]+/).map(function(x){ return x.trim(); }).filter(Boolean);
-                                            var rTokens = rn.split(/[^a-z0-9]+/).map(function(x){ return x.trim(); }).filter(Boolean);
-                                            for(var ti=0; ti<tTokens.length; ti++){ if(rTokens.indexOf(tTokens[ti]) !== -1){ sameName = true; break; } }
-                                        }catch(_){ }
-                                    }
-                                }
-                            }catch(_){ }
+                        var rn = norm(r.name || r.title || '');
+                        var sameName = (targetName && rn && rn === targetName);
                         var parentLink = (r.parentId && invItem.id && String(r.parentId) === String(invItem.id)) || (r.parent && invItem.id && String(r.parent) === String(invItem.id));
                         var childOfTarget = (invItem.variants && Array.isArray(invItem.variants) && invItem.variants.some(function(v){ try{ return v && (v.id && r.id && String(v.id) === String(r.id)); }catch(e){ return false; } }));
                         if(sameId || sameName || parentLink || childOfTarget){ matchedRows.push(r); }
@@ -659,21 +659,45 @@ function openCartItemEditor(index){
                     // If invItem has variants embedded, include them as well (they may contain separate sizes/images)
                     if(Array.isArray(invItem.variants) && invItem.variants.length>0){ invItem.variants.forEach(function(v){ if(v) matchedRows.push(v); }); }
                 }catch(e){ /* ignore */ }
-                // Deduplicate matchedRows by id or by serialized name+color
+                // Deduplicate matchedRows by id or by normalized name+color+image filename
                 var seen = new Set();
                 var unique = [];
                 matchedRows.forEach(function(r){ try{
-                    var key = (r && r.id) ? String(r.id) : ( (r && r.name) ? (String(r.name||'')+'::'+String(r.color||'')) : JSON.stringify(r) );
+                    var namePart = (r && (r.name || r.title || r.model) || '').toString().trim().toLowerCase();
+                    var colorPart = (r && (r.color || r.colorName) || '').toString().trim().toLowerCase();
+                    var imgPart = '';
+                    try{ imgPart = (r && (r.image || (r.images && r.images[0]) ) || '').toString().split('/').pop().split('?')[0].toLowerCase(); }catch(_){ imgPart = ''; }
+                    // Use a dedupe key that includes colorId when present. Some inventories unfortunately
+                    // contain multiple rows with the same id but different color variants (different colorId).
+                    // Collapsing solely on id hides distinct color options; prefer id::colorId when available.
+                    var key = '';
+                    if(r && r.id){
+                        if(r.colorId) key = String(r.id) + '::' + String(r.colorId);
+                        else key = String(r.id);
+                    } else {
+                        key = namePart + '::' + colorPart + '::' + imgPart;
+                    }
                     if(!seen.has(key)){ seen.add(key); unique.push(r); }
                 }catch(e){ }
                 });
-                // Map unique rows/variants into color entries
+                // Map unique rows/variants into color entries, avoiding duplicate color labels
+                var seenColorLabels = new Set();
                 unique.forEach(function(r){ if(!r) return; try{
-                    // If this 'r' looks like a variant object (no top-level sizes but has sizes), treat parent as invItem when useful
                     var parent = (r === invItem) ? null : (r.parentId || r.parent) ? invItem : null;
-                    colors.push({ record: r, parent: parent ? invItem : null, color: r.color || r.colorName || r.name || '', image: r.image || (r.images && r.images[0]) || invItem.image || item.image || '', sizes: r.sizes || r.sizeMap || (r.sizes || {}) });
+                    var colorLabel = (r.color || r.colorName || r.name || '').toString().trim();
+                    var imageUrl = (r.image || (r.images && r.images[0]) || invItem.image || item.image || '');
+                    var sizesMap = r.sizes || r.sizeMap || (r.sizes || {});
+                    // normalize color label for deduping (lowercase, trimmed)
+                    var colorNorm = colorLabel.toLowerCase();
+                    if(colorNorm && seenColorLabels.has(colorNorm)){
+                        // skip duplicate color label entries
+                        return;
+                    }
+                    if(colorNorm) seenColorLabels.add(colorNorm);
+                    colors.push({ record: r, parent: parent ? invItem : null, color: colorLabel, image: imageUrl, sizes: sizesMap });
                 }catch(e){} });
             } else {
+                try{ modal._colorsSource = 'fallback'; }catch(e){}
                 // Fallback: scan inventory but be conservative: prefer exact name or id matches only
                 var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
                 inv.forEach(function(r){
@@ -690,17 +714,40 @@ function openCartItemEditor(index){
             // best-effort fallback
             try{ colors.push({ color: item.color || item.colorName || '', image: item.image || '', sizes: {} }); }catch(_){ }
         }
-        var colorRow = document.createElement('div'); colorRow.style.marginBottom='10px'; colorRow.innerHTML = '<div style="font-size:0.95rem;margin-bottom:6px;">Colors</div>';
-        var colorButtons = document.createElement('div'); colorButtons.style.display='flex'; colorButtons.style.gap='8px';
+    var colorRow = document.createElement('div'); colorRow.style.marginBottom='10px'; colorRow.innerHTML = '<div style="font-size:0.95rem;margin-bottom:6px;">Colors</div>';
+    var colorButtons = document.createElement('div'); colorButtons.style.display='flex'; colorButtons.style.gap='8px';
+    // Prepare Gender-Fit area early so color button handlers can safely call the renderer
+    var genderRow = document.createElement('div'); genderRow.style.marginBottom = '8px';
+    genderRow.innerHTML = '<div style="font-size:0.95rem;margin-bottom:6px;">Gender-Fit</div>';
+    var genderWrap = document.createElement('div'); genderWrap.style.display = 'flex'; genderWrap.style.gap = '8px'; genderRow.appendChild(genderWrap);
+    // Append genderRow later after colorRow so layout remains consistent; handlers may rely on genderWrap existing
+        // Ensure the cart item's existing color remains present so editing won't lose it
+        try{
+            var itemColorNorm_check = (item.color || item.colorName || '').toString().trim().toLowerCase();
+            if(itemColorNorm_check){
+                var foundExistingColor = colors.some(function(cc){ try{ var cn = (cc.color||'').toString().trim().toLowerCase(); return cn === itemColorNorm_check; }catch(e){ return false; } });
+                if(!foundExistingColor){
+                    // Prepend a fallback color entry representing the currently-selected value on the cart item
+                    colors.unshift({ record: null, parent: null, color: item.color || item.colorName || '', image: item.image || '', sizes: {} });
+                }
+            }
+        }catch(e){}
+
         // Build color buttons and try several match strategies so the cart item's
         // previously-selected color maps reliably to the inventory color entry.
-                colors.forEach(function(c, ci){
+        // Use local selection state (do not persist selection on the modal element) so
+        // different edit modals don't leak selection state into each other.
+        var selectedColorIdx = undefined;
+        var selectedSizeVal = undefined;
+        var selectedGenderVal = undefined;
+
+        colors.forEach(function(c, ci){
             var b = document.createElement('button');
             b.className = 'btn ghost cart-edit-color';
             b.textContent = c.color || ('Color ' + (ci+1));
             b.setAttribute('data-index', ci);
-            // matching strategies (in order): exact inventory id, normalized color name,
-            // image url filename match
+                // matching strategies (in order): exact inventory id, image url filename match,
+                // normalized color name
             try{
                 var matched = false;
                 // 1) match by inventoryId or item.id if present (check record and parent)
@@ -708,19 +755,20 @@ function openCartItemEditor(index){
                     try{ if(c.record && c.record.id && (item.inventoryId ? String(item.inventoryId) === String(c.record.id) : String(item.id) === String(c.record.id))) matched = true; }catch(_){}
                     try{ if(!matched && c.parent && c.parent.id && (item.inventoryId ? String(item.inventoryId) === String(c.parent.id) : String(item.id) === String(c.parent.id))) matched = true; }catch(_){}
                 }
-                // 2) match by normalized color string
+                // 2) match by image url (compare filenames) - prefer visual match when available
+                if(!matched && item.image && c.image){
+                    try{
+                        var a = (item.image||'').split('/').pop().split('?')[0].toLowerCase();
+                        var bfn = (c.image||'').split('/').pop().split('?')[0].toLowerCase();
+                        if(a && bfn && a === bfn) matched = true;
+                    }catch(_){ }
+                }
+                // 3) match by normalized color string
                 var itemColorNorm = (item.color || item.colorName || '').toString().trim().toLowerCase();
                 var cColorNorm = (c.color || (c.record && (c.record.color||c.record.colorName)) || '').toString().trim().toLowerCase();
                 if(!matched && itemColorNorm && cColorNorm && itemColorNorm === cColorNorm) matched = true;
-                // 3) match by image url (compare filenames)
-                if(!matched && item.image && c.image){
-                    try{
-                        var a = item.image.split('/').pop().split('?')[0].toLowerCase();
-                        var bfn = c.image.split('/').pop().split('?')[0].toLowerCase();
-                        if(a === bfn) matched = true;
-                    }catch(_){ }
-                }
-                if(matched){ b.classList.remove('ghost'); b.classList.add('primary'); modal._selectedColor = ci; }
+                // Prefer to auto-select the button that matches the existing cart item's color
+                if(matched && typeof selectedColorIdx === 'undefined'){ b.classList.remove('ghost'); b.classList.add('primary'); selectedColorIdx = ci; }
             }catch(e){}
 
             b.onclick = function(){ // mark selected
@@ -728,19 +776,53 @@ function openCartItemEditor(index){
                 b.classList.remove('ghost'); b.classList.add('primary');
                 // update preview image
                 var imgEl = left.querySelector('img'); if(c.image) imgEl.src = c.image; else imgEl.src = item.image || imgEl.src;
-                // store selected index on modal
-                modal._selectedColor = ci;
+                // store selected index locally
+                selectedColorIdx = ci;
                 // update sizes shown for this color
                 renderSizesForColor(ci);
+                // update gender buttons for this color as well
+                try{ renderGenderButtonsForColor(ci); }catch(e){}
             };
 
             colorButtons.appendChild(b);
         });
+        // Ensure exactly one color button is marked selected. Prefer the matched index; otherwise default to 0.
+        try{
+            var allColorBtns = colorButtons.querySelectorAll('button');
+            // If we didn't find a matching color above, prefer to select the button whose
+            // label matches the item's color; otherwise default to the first button.
+            if(typeof selectedColorIdx === 'undefined' && allColorBtns.length > 0){
+                var itemColorNorm2 = (item.color || item.colorName || '').toString().trim().toLowerCase();
+                if(itemColorNorm2){
+                    for(var xi=0; xi<allColorBtns.length; xi++){
+                        try{
+                            var btn = allColorBtns[xi]; var ci = Number(btn.getAttribute('data-index')); var c = colors[ci];
+                            var cLabel = (c && c.color) ? String(c.color).trim().toLowerCase() : '';
+                            if(cLabel === itemColorNorm2){ selectedColorIdx = ci; break; }
+                        }catch(e){}
+                    }
+                }
+                if(typeof selectedColorIdx === 'undefined') selectedColorIdx = 0;
+            }
+            allColorBtns.forEach(function(btn){ try{
+                var idx = Number(btn.getAttribute('data-index'));
+                if(idx === selectedColorIdx){ btn.classList.remove('ghost'); btn.classList.add('primary'); }
+                else { btn.classList.remove('primary'); btn.classList.add('ghost'); }
+            }catch(e){}
+            });
+            // ensure the preview image reflects the selected color immediately
+            try{
+                var imgEl = left.querySelector('img');
+                if(imgEl){
+                    var imgForSel = (colors[selectedColorIdx] && colors[selectedColorIdx].image) ? colors[selectedColorIdx].image : (item.image || imgEl.src || '');
+                    if(imgForSel) imgEl.src = imgForSel;
+                }
+            }catch(e){}
+            // ensure genders reflect the selected color as well
+            try{ renderGenderButtonsForColor(selectedColorIdx !== undefined ? selectedColorIdx : 0); }catch(e){}
+        }catch(e){}
     right.appendChild(colorRow); colorRow.appendChild(colorButtons);
-    // Gender-Fit area (will be populated from the inventory record for the selected color)
-    var genderRow = document.createElement('div'); genderRow.style.marginBottom = '8px';
-    genderRow.innerHTML = '<div style="font-size:0.95rem;margin-bottom:6px;">Gender-Fit</div>';
-    var genderWrap = document.createElement('div'); genderWrap.style.display = 'flex'; genderWrap.style.gap = '8px'; genderRow.appendChild(genderWrap);
+    // Gender-Fit area (already prepared above) — append the pre-created node
     right.appendChild(genderRow);
         // Sizes: use sizes from selected color inventory entry if available, else fallback to first
         var sizesObj = (colors[0] && colors[0].sizes) ? colors[0].sizes : {};
@@ -762,8 +844,8 @@ function openCartItemEditor(index){
                     sb.classList.remove('low-stock','oos');
                     if(available <= 0){ sb.disabled = true; sb.classList.add('oos'); }
                     else { sb.disabled = false; if(available < 6) sb.classList.add('low-stock'); }
-                        if((item.size||'') == s){ sb.classList.remove('ghost'); sb.classList.add('primary'); modal._selectedSize = s; }
-                        sb.onclick = function(){ if(sb.disabled) return; sizeButtons.querySelectorAll('button').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); }); sb.classList.remove('ghost'); sb.classList.add('primary'); modal._selectedSize = s; updateSizeStockDisplay(s); };
+                        if((item.size||'') == s){ sb.classList.remove('ghost'); sb.classList.add('primary'); selectedSizeVal = s; }
+                        sb.onclick = function(){ if(sb.disabled) return; sizeButtons.querySelectorAll('button').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); }); sb.classList.remove('ghost'); sb.classList.add('primary'); selectedSizeVal = s; updateSizeStockDisplay(s); };
                     sizeButtons.appendChild(sb);
                 });
                 // update stock display for a selected size
@@ -775,12 +857,12 @@ function openCartItemEditor(index){
                     }catch(e){}
                 }
                 // ensure display reflects initial selection
-                try{ if(modal._selectedSize) updateSizeStockDisplay(modal._selectedSize); else if(keys.length>0) { var sel = (item.size||keys[0]); updateSizeStockDisplay(sel); } }catch(e){}
+                try{ if(selectedSizeVal) updateSizeStockDisplay(selectedSizeVal); else if(keys.length>0) { var sel = (item.size||keys[0]); updateSizeStockDisplay(sel); } }catch(e){}
             }catch(e){ console.error('renderSizesForColor error', e); }
         }
 
         // render sizes for the initially selected color (or default 0)
-        renderSizesForColor(modal._selectedColor !== undefined ? modal._selectedColor : 0);
+        renderSizesForColor(selectedColorIdx !== undefined ? selectedColorIdx : 0);
         right.appendChild(sizeRow); sizeRow.appendChild(sizeButtons); sizeRow.appendChild(sizeStockDiv);
         // Render gender buttons from the inventory record for the selected color
         function renderGenderButtonsForColor(colorIndex){
@@ -790,14 +872,16 @@ function openCartItemEditor(index){
                 // gender option that exists for this product model (per requirement).
                 var gset = new Set();
                 try{
+                    // helper: split token lists like "Men/Women" or "Men, Women" into individual entries
+                    function addGenderTokens(raw){ try{ if(!raw) return; String(raw).split(/[\/\\,|;]+/).map(function(x){ return (x||'').toString().trim(); }).filter(function(t){ return t; }).forEach(function(t){ gset.add(t); }); }catch(e){} }
                     colors.forEach(function(c){ if(!c) return; try{
                         var r = c.record || null;
-                        if(r){ if(r.gender) gset.add(r.gender); if(r.genderFit) gset.add(r.genderFit); }
+                        if(r){ addGenderTokens(r.gender); addGenderTokens(r.genderFit); }
                         // include parent if present
-                        if(c.parent){ var p = c.parent; if(p.gender) gset.add(p.gender); if(p.genderFit) gset.add(p.genderFit); }
-                        // if variant-like object contains nested variants, include them
+                        if(c.parent){ var p = c.parent; addGenderTokens(p.gender); addGenderTokens(p.genderFit); }
+                        // if variant-like object contains nested variants, include them as well
                         if(r && Array.isArray(r.variants)){
-                            r.variants.forEach(function(v){ try{ if(v && v.gender) String(v.gender).split(/[\/,|;]+/).forEach(function(pv){ if(pv) gset.add(pv.trim()); }); }catch(_){} });
+                            r.variants.forEach(function(v){ try{ if(v){ addGenderTokens(v.gender); addGenderTokens(v.genderFit); } }catch(_){} });
                         }
                     }catch(e){} });
                 }catch(e){}
@@ -807,7 +891,7 @@ function openCartItemEditor(index){
                 var canonical = present.map(function(p){ return canonicalizeGender(p); });
                 var order = ['Men','Women','Unisex'];
                 var unique = order.filter(function(o){ return canonical.indexOf(o)!==-1; }).concat(canonical.filter(function(x){ return order.indexOf(x)===-1; }));
-                unique.forEach(function(g){ var btn = document.createElement('button'); btn.type='button'; btn.className='btn ghost product-size-btn gender-btn'; btn.setAttribute('data-gender', g); btn.textContent = g; btn.onclick = function(){ genderWrap.querySelectorAll('[data-gender]').forEach(function(n){ n.classList.remove('primary'); n.classList.add('ghost'); }); btn.classList.remove('ghost'); btn.classList.add('primary'); modal._selectedGender = g; }; genderWrap.appendChild(btn); });
+                unique.forEach(function(g){ var btn = document.createElement('button'); btn.type='button'; btn.className='btn ghost product-size-btn gender-btn'; btn.setAttribute('data-gender', g); btn.textContent = g; btn.onclick = function(){ genderWrap.querySelectorAll('[data-gender]').forEach(function(n){ n.classList.remove('primary'); n.classList.add('ghost'); }); btn.classList.remove('ghost'); btn.classList.add('primary'); selectedGenderVal = g; }; genderWrap.appendChild(btn); });
                 // default selection: prefer the selected color's gender if available, else item.gender, else first available
                 try{
                     var selectedRec = (colors[colorIndex] && (colors[colorIndex].record || colors[colorIndex].parent)) ? (colors[colorIndex].record || colors[colorIndex].parent) : null;
@@ -815,13 +899,13 @@ function openCartItemEditor(index){
                     if(selectedRec){ initial = selectedRec.gender || selectedRec.genderFit || null; }
                     if(!initial) initial = item.gender || item.genderFit || null;
                     var canonicalInitial = initial ? canonicalizeGender(initial) : null;
-                    if(canonicalInitial){ var match = genderWrap.querySelector('[data-gender="'+canonicalInitial+'"]'); if(match){ match.classList.remove('ghost'); match.classList.add('primary'); modal._selectedGender = canonicalInitial; } }
-                    if(!modal._selectedGender){ var any = genderWrap.querySelector('[data-gender]'); if(any){ any.classList.remove('ghost'); any.classList.add('primary'); modal._selectedGender = any.getAttribute('data-gender'); } }
+                    if(canonicalInitial){ var match = genderWrap.querySelector('[data-gender="'+canonicalInitial+'"]'); if(match){ match.classList.remove('ghost'); match.classList.add('primary'); selectedGenderVal = canonicalInitial; } }
+                    if(!selectedGenderVal){ var any = genderWrap.querySelector('[data-gender]'); if(any){ any.classList.remove('ghost'); any.classList.add('primary'); selectedGenderVal = any.getAttribute('data-gender'); } }
                 }catch(e){}
             }catch(e){ console.error('renderGenderButtonsForColor error', e); }
         }
         // initial gender render
-        renderGenderButtonsForColor(modal._selectedColor !== undefined ? modal._selectedColor : 0);
+        renderGenderButtonsForColor(selectedColorIdx !== undefined ? selectedColorIdx : 0);
         // Confirm / Cancel
         var actionsRow = document.createElement('div'); actionsRow.style.display='flex'; actionsRow.style.justifyContent='flex-end'; actionsRow.style.gap='8px'; actionsRow.style.marginTop='12px';
     var cancelBtn = document.createElement('button'); cancelBtn.className='btn ghost'; cancelBtn.textContent='Cancel';
@@ -854,8 +938,8 @@ function openCartItemEditor(index){
         // Save handler: apply selected color/size to cart item (only color image and size)
         saveBtn.onclick = function(){
             try{
-                var selColorIdx = (modal._selectedColor !== undefined) ? modal._selectedColor : 0;
-                var selSize = modal._selectedSize || item.size || '';
+                var selColorIdx = (selectedColorIdx !== undefined) ? selectedColorIdx : 0;
+                var selSize = selectedSizeVal || item.size || '';
                 var chosen = colors[selColorIdx] || colors[0];
                 // update cart
                 var cart2 = getCart();
@@ -864,7 +948,7 @@ function openCartItemEditor(index){
                 if(chosen && chosen.image) cart2[index].image = chosen.image;
                 if(chosen && chosen.color) cart2[index].color = chosen.color;
                 // save selected gender-fit if available
-                try{ if(modal._selectedGender) cart2[index].gender = modal._selectedGender; }catch(e){}
+                try{ if(selectedGenderVal) cart2[index].gender = selectedGenderVal; }catch(e){}
                 // ensure quantity doesn't exceed max for new size
                 var max = getMaxAllowedForProduct(cart2[index]);
                 if(cart2[index].quantity && cart2[index].quantity > max) cart2[index].quantity = max;

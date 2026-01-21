@@ -63,6 +63,7 @@
         <div>
           <div class="section-title" id="orderIdText">Order</div>
           <div class="muted" id="orderDateText">Placed on —</div>
+          <div class="muted" id="orderEstText"></div>
         </div>
         <div id="orderStatusBadge" class="status-badge badge-pending">Pending</div>
       </div>
@@ -237,6 +238,22 @@
         return parts.join(', ');
       }
 
+      // Compute estimated delivery based on province/region
+      function computeEstimatedDelivery(order){
+        try{
+          var addr = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+          var token = '';
+          if(addr){ token = String((addr.province || addr.city || addr.region) || '').toLowerCase(); }
+          if(!token) token = String(order.shippingRegion || order.shipping_region || order.shipping || '').toLowerCase();
+          if(!token) return '';
+          var visayas = ['cebu','leyte','samar','biliran','bohol','iloilo','capiz','antique','guimaras','negros','masbate','siquijor'];
+          var mindanao = ['davao','zamboanga','misamis','bukidnon','lanao','cotabato','sultan','agusan','surigao','dinagat','camiguin'];
+          for(var i=0;i<visayas.length;i++){ if(token.indexOf(visayas[i]) !== -1 || token.indexOf('visayas') !== -1) return '1–7 days'; }
+          for(var j=0;j<mindanao.length;j++){ if(token.indexOf(mindanao[j]) !== -1 || token.indexOf('mindanao') !== -1) return '1–7 days'; }
+          return '1–3 days';
+        }catch(e){ return ''; }
+      }
+
       var orderId = getOrderId();
       if(!orderId){
         showError('Missing order id.');
@@ -292,8 +309,12 @@
         document.getElementById('summaryDiscount').textContent = formatPHP(discountVal);
         document.getElementById('summaryTotal').textContent = formatPHP(totalVal);
 
+        // Render timeline/items
         renderTimeline(tracking, order.status, order);
         renderItems(items);
+
+        // show computed estimated delivery (based on region)
+        try{ var est = computeEstimatedDelivery(order); document.getElementById('orderEstText').textContent = est ? ('Estimated delivery: ' + est) : ''; }catch(e){ document.getElementById('orderEstText').textContent = ''; }
       }
 
       ensureFirebaseReady(function(err){
