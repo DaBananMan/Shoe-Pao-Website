@@ -1041,10 +1041,14 @@
                         var paymentMethod = checkoutData.payment_method || checkoutData.paymentMethod || '';
                         var paymentCode = normalizePaymentCode(paymentMethod);
                         var proofRequired = paymentCode !== 'cod';
+                        var proofData = '';
+                        var proofName = '';
+                        var refNum = '';
                         if(proofRequired){
-                            var proof = checkoutData.payment_proof || (currentCheckout && currentCheckout.payment_proof) || localStorage.getItem('checkoutPaymentProof') || '';
-                            var refNum = checkoutData.referenceNumber || checkoutData.reference_number || checkoutData.payment_payload || (currentCheckout && currentCheckout.referenceNumber) || localStorage.getItem('checkoutReferenceNumber') || '';
-                            if(!proof){
+                            proofData = checkoutData.payment_proof || (currentCheckout && currentCheckout.payment_proof) || localStorage.getItem('checkoutPaymentProof') || '';
+                            proofName = checkoutData.payment_proof_name || (currentCheckout && currentCheckout.payment_proof_name) || localStorage.getItem('checkoutPaymentProofName') || '';
+                            refNum = checkoutData.referenceNumber || checkoutData.reference_number || checkoutData.payment_payload || (currentCheckout && currentCheckout.referenceNumber) || localStorage.getItem('checkoutReferenceNumber') || '';
+                            if(!proofData){
                                 alert('Please upload proof of payment before placing the order.');
                                 if(btn) btn.disabled = false;
                                 window._placingOrder = false;
@@ -1052,10 +1056,10 @@
                             }
                             // basic size/length validation for uploaded proof (data URLs can be large)
                             try{
-                                if(typeof proof === 'string' && proof.indexOf('data:') === 0){
+                                if(typeof proofData === 'string' && proofData.indexOf('data:') === 0){
                                     // approximate byte size from base64 length
-                                    var approxBytes = Math.ceil((proof.length - proof.indexOf(',') - 1) * 3 / 4);
-                                    var MAX_BYTES = 2 * 1024 * 1024; // 2MB
+                                    var approxBytes = Math.ceil((proofData.length - proofData.indexOf(',') - 1) * 3 / 4);
+                                    var MAX_BYTES = 900 * 1024; // 900KB (Firestore-safe for base64)
                                     if(approxBytes > MAX_BYTES){
                                         alert('Uploaded proof of payment is too large (max 2MB). Please upload a smaller image or PDF.');
                                         if(btn) btn.disabled = false;
@@ -1094,9 +1098,9 @@
                             discount: discountNum,
                             payment_method: checkoutData.payment_method || checkoutData.paymentMethod || '',
                             paymentCode: checkoutData.paymentCode || checkoutData.payment_code || '',
-                            payment_proof: checkoutData.payment_proof || '',
-                            payment_proof_name: checkoutData.payment_proof_name || '',
-                            referenceNumber: checkoutData.referenceNumber || checkoutData.reference_number || checkoutData.payment_payload || '',
+                            payment_proof: proofData || checkoutData.payment_proof || '',
+                            payment_proof_name: proofName || checkoutData.payment_proof_name || '',
+                            referenceNumber: refNum || checkoutData.referenceNumber || checkoutData.reference_number || checkoutData.payment_payload || '',
                             created_at: firebase.firestore.FieldValue.serverTimestamp(),
                             delivery_address: deliveryAddrText,
                             deliveryAddress: deliveryAddrObj,
@@ -1199,6 +1203,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
         <script>
         function updateCheckoutFields(fields){
             try{
@@ -1272,28 +1277,103 @@
                 uploadInput.addEventListener('change', function(e){
                     var f = (uploadInput.files && uploadInput.files[0]) ? uploadInput.files[0] : null;
                     if(!f) return;
-                    var reader = new FileReader();
-                    reader.onload = function(ev){
+                    var MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB for Storage
+                    var MAX_LOCAL_BYTES = 900 * 1024; // 900KB (Firestore-safe for base64)
+
+                    function showPreview(src){
+                        if(f.type && f.type.indexOf('image/') === 0){
+                            uploadThumb.innerHTML = '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;">';
+                        } else {
+                            uploadThumb.innerHTML = '<div style="font-size:0.9rem;padding:6px;color:#666;">'+(f.type==='application/pdf' ? 'PDF' : 'FILE')+'</div>';
+                        }
+                        uploadName.textContent = f.name || '';
+                        if(uploadPreview) uploadPreview.style.display = 'flex';
+                        if(uploadBtn) uploadBtn.textContent = 'Change proof';
+                    }
+
+                    function persistProof(dataUrlOrLink){
+                        updateCheckoutFields({ payment_proof: dataUrlOrLink, payment_proof_name: f.name });
                         try{
-                            var data = ev.target.result;
-                            updateCheckoutFields({ payment_proof: data, payment_proof_name: f.name });
-                            try{
-                                currentCheckout = Object.assign({}, currentCheckout || {}, { payment_proof: data, payment_proof_name: f.name });
-                                localStorage.setItem('checkoutPaymentProof', data);
-                                localStorage.setItem('checkoutPaymentProofName', f.name);
-                            }catch(e){}
-                            // show preview
-                            if(f.type && f.type.indexOf('image/') === 0){
-                                uploadThumb.innerHTML = '<img src="'+data+'" style="width:100%;height:100%;object-fit:cover;">';
-                            } else {
-                                uploadThumb.innerHTML = '<div style="font-size:0.9rem;padding:6px;color:#666;">'+(f.type==='application/pdf' ? 'PDF' : 'FILE')+'</div>';
+                            currentCheckout = Object.assign({}, currentCheckout || {}, { payment_proof: dataUrlOrLink, payment_proof_name: f.name });
+                            localStorage.setItem('checkoutPaymentProof', dataUrlOrLink || '');
+                            localStorage.setItem('checkoutPaymentProofName', f.name || '');
+                        }catch(e){}
+                        showPreview(dataUrlOrLink);
+                    }
+
+                    function dataUrlByteSize(dataUrl){
+                        try{
+                            if(!dataUrl || typeof dataUrl !== 'string') return 0;
+                            var comma = dataUrl.indexOf(',');
+                            if(comma === -1) return dataUrl.length;
+                            return Math.ceil((dataUrl.length - comma - 1) * 3 / 4);
+                        }catch(e){ return 0; }
+                    }
+
+                    function readAsDataUrlAndPersist(){
+                        var reader = new FileReader();
+                        reader.onload = function(ev){
+                            var dataUrl = ev.target.result;
+                            var bytes = dataUrlByteSize(dataUrl);
+                            if(bytes > MAX_LOCAL_BYTES){
+                                alert('Proof file is too large for direct upload. Please choose a smaller image or PDF (under 900KB).');
+                                uploadInput.value = '';
+                                return;
                             }
-                            uploadName.textContent = f.name;
-                            if(uploadPreview) uploadPreview.style.display = 'flex';
-                            if(uploadBtn) uploadBtn.textContent = 'Change proof';
-                        }catch(err){}
-                    };
-                    reader.readAsDataURL(f);
+                            persistProof(dataUrl);
+                        };
+                        reader.readAsDataURL(f);
+                    }
+
+                    try{
+                        if(f.size > MAX_UPLOAD_BYTES){
+                            alert('Proof file is too large. Please upload a file under 5MB.');
+                            uploadInput.value = '';
+                            return;
+                        }
+                    }catch(e){}
+
+                    // Prefer Firebase Storage upload to avoid Firestore size limits
+                    try{
+                        if(window.firebase && firebase.storage && firebase.auth){
+                            var user = firebase.auth().currentUser;
+                            if(user && user.uid){
+                                if(uploadBtn){ uploadBtn.textContent = 'Uploading...'; uploadBtn.disabled = true; }
+                                var safeName = (f.name || 'proof').replace(/[^a-zA-Z0-9._-]/g, '_');
+                                var path = 'payment_proofs/' + user.uid + '/' + Date.now() + '_' + safeName;
+                                var ref = firebase.storage().ref().child(path);
+
+                                var uploadTask = ref.put(f);
+                                var timedOut = false;
+                                var timeoutId = setTimeout(function(){
+                                    timedOut = true;
+                                    try{ uploadTask.cancel(); }catch(e){}
+                                }, 30000);
+
+                                uploadTask.on('state_changed', function(){}, function(err){
+                                    clearTimeout(timeoutId);
+                                    console.warn('Storage upload failed, falling back to base64', err);
+                                    readAsDataUrlAndPersist();
+                                    if(uploadBtn){ uploadBtn.disabled = false; uploadBtn.textContent = 'Change proof'; }
+                                }, function(){
+                                    clearTimeout(timeoutId);
+                                    uploadTask.snapshot.ref.getDownloadURL().then(function(url){
+                                        persistProof(url);
+                                    }).catch(function(err){
+                                        console.warn('Storage URL fetch failed, falling back to base64', err);
+                                        readAsDataUrlAndPersist();
+                                    }).finally(function(){
+                                        if(uploadBtn){ uploadBtn.disabled = false; uploadBtn.textContent = 'Change proof'; }
+                                    });
+                                });
+
+                                return;
+                            }
+                        }
+                    }catch(e){}
+
+                    // Fallback: base64 (size-limited)
+                    readAsDataUrlAndPersist();
                 });
             }
             if(removeBtn){
