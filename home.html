@@ -574,7 +574,8 @@
                     <div class="brand-dropdown" id="brandDropdown" aria-hidden="true">
                         <a href="product-list.html?brand=Nike" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('Nike')"><img src="IMAGE/NIKELOGO.png" alt="Nike" style="height:28px;"></a>
                         <a href="product-list.html?brand=Adidas" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('Adidas')"><img src="IMAGE/ADIDASLOGO.png" alt="Adidas" style="height:28px;"></a>
-                        <a href="product-list.html?brand=Cloudtilt" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('Cloudtilt')"><img src="IMAGE/CLOUDTILTLOGO.png" alt="Cloudtilt" style="height:28px;"></a>
+                        <a href="product-list.html?brand=On" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('On')"><img src="IMAGE/CLOUDTILTLOGO.png" alt="On" style="height:28px;"></a>
+                        <a href="product-list.html?brand=Onitsuka%20Tiger" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('Onitsuka Tiger')"><img src="IMAGE/res/onitsuka-tiger-seeklogo.png" alt="Onitsuka Tiger" style="height:28px;"></a>
                         <a href="product-list.html?brand=New%20Balance" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('New Balance')"><img src="IMAGE/NEWBALANCELOGO.png" alt="New Balance" style="height:28px;"></a>
                     </div>
                 </span>
@@ -686,6 +687,8 @@
                     (Array.isArray(p.colors) ? p.colors : []).forEach(function(c){
                         var sizesMap = {};
                         (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ sizesMap[String(s.eu)] = Number(s.stock||0); });
+                        var tags = Array.isArray(p.tagsManual) ? p.tagsManual : (Array.isArray(p.tags) ? p.tags : (p.tagsList || p.tags_list || []));
+                        if(!Array.isArray(tags)) tags = [];
                         newInv.push({
                             id: p.sku || p.id || ('gen-' + Math.random().toString(36).slice(2,9)),
                             name: (p.model||'') + (c.name?(' '+c.name):''),
@@ -698,7 +701,8 @@
                             productId: p.id || '',
                             colorId: c.id || '',
                             createdAt: p.createdAt || null,
-                            gender: p.gender || ''
+                            gender: p.gender || '',
+                            tags: tags
                         });
                     });
                 });
@@ -816,7 +820,8 @@
         <div class="brand-filter-row">
             <button class="brand-filter-btn active" data-brand="Nike" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">Nike</button>
             <button class="brand-filter-btn" data-brand="New Balance" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">New Balance</button>
-            <button class="brand-filter-btn" data-brand="Cloudtilt" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">Cloudtilt</button>
+            <button class="brand-filter-btn" data-brand="On" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">On</button>
+            <button class="brand-filter-btn" data-brand="Onitsuka Tiger" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">Onitsuka Tiger</button>
             <button class="brand-filter-btn" data-brand="Adidas" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">Adidas</button>
         </div>
         <div class="arrival-row" id="arrivalRow">
@@ -872,7 +877,10 @@
                     <a class="brand-logo-link" href="product-list.html?brand=Adidas"><img src="IMAGE/ADIDASLOGO.png" class="brand-logo brand-logo--adidas" alt="Adidas"></a>
                 </div>
                 <div class="brand-card">
-                    <a class="brand-logo-link" href="product-list.html?brand=Cloudtilt"><img src="IMAGE/CLOUDTILTLOGO.png" class="brand-logo" alt="Cloudtilt"></a>
+                    <a class="brand-logo-link" href="product-list.html?brand=On"><img src="IMAGE/CLOUDTILTLOGO.png" class="brand-logo" alt="On"></a>
+                </div>
+                <div class="brand-card">
+                    <a class="brand-logo-link" href="product-list.html?brand=Onitsuka%20Tiger"><img src="IMAGE/res/onitsuka-tiger-seeklogo.png" class="brand-logo" alt="Onitsuka Tiger"></a>
                 </div>
                 <div class="brand-card">
                     <a class="brand-logo-link" href="product-list.html?brand=New%20Balance"><img src="IMAGE/NEWBALANCELOGO.png" class="brand-logo brand-logo--newbalance" alt="New Balance"></a>
@@ -1219,8 +1227,12 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        if (cart[idx].quantity > 1) {
-                            cart[idx].quantity--;
+                        if (window.tryDecrementCartItem) {
+                            window.tryDecrementCartItem(cart, idx);
+                        } else {
+                            if (cart[idx].quantity > 1) {
+                                cart[idx].quantity--;
+                            }
                         }
                         renderCart();
                         saveCartToLocalStorage();
@@ -1231,7 +1243,16 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        cart[idx].quantity++;
+                        if (window.tryIncrementCartItem) {
+                            var incRes = window.tryIncrementCartItem(cart, idx);
+                            if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                else alert('Maximum of 3 pairs of shoes per order.');
+                                return;
+                            }
+                        } else {
+                            cart[idx].quantity++;
+                        }
                         renderCart();
                         saveCartToLocalStorage();
                     }

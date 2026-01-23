@@ -633,6 +633,7 @@ app.post('/api/orders', (req, res) => {
     if(dc === 'personal') courierName = 'Personal Delivery';
     else if(dc === 'lalamove') courierName = 'Lalamove';
     else if(dc === 'jnt') courierName = 'J&T Express';
+    else if(dc === 'jrs') courierName = 'JRS';
   }
 
   // ensure user_id is a primitive or JSON string

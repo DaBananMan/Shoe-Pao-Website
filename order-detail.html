@@ -863,6 +863,7 @@
           if(order.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery';
           else if(order.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove';
           else if(order.deliveryCode === 'jnt') deliveryLabel = 'J&T Express';
+          else if(order.deliveryCode === 'jrs') deliveryLabel = 'JRS';
         }
         var courierDisplay = order.courier_name || order.courier || deliveryLabel || '';
         var trackingDisplay = order.tracking_number || order.tracking || '';

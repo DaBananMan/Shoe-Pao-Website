@@ -1029,6 +1029,7 @@
                 if(order.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery';
                 else if(order.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove';
                 else if(order.deliveryCode === 'jnt') deliveryLabel = 'J&T Express';
+                else if(order.deliveryCode === 'jrs') deliveryLabel = 'JRS';
             }
             document.getElementById('orderModalDelivery').textContent = deliveryLabel ? ('Delivery: ' + deliveryLabel) : '';
             document.getElementById('orderModalImg').src = getOrderRepresentativeImage(order);
@@ -1323,14 +1324,18 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        // Use qty if present, else quantity
-                        if (typeof cart[idx].qty === 'number') {
-                            if (cart[idx].qty > 1) {
-                                cart[idx].qty--;
-                            }
-                        } else if (typeof cart[idx].quantity === 'number') {
-                            if (cart[idx].quantity > 1) {
-                                cart[idx].quantity--;
+                        if (window.tryDecrementCartItem) {
+                            window.tryDecrementCartItem(cart, idx);
+                        } else {
+                            // Use qty if present, else quantity
+                            if (typeof cart[idx].qty === 'number') {
+                                if (cart[idx].qty > 1) {
+                                    cart[idx].qty--;
+                                }
+                            } else if (typeof cart[idx].quantity === 'number') {
+                                if (cart[idx].quantity > 1) {
+                                    cart[idx].quantity--;
+                                }
                             }
                         }
                         renderCart();
@@ -1343,10 +1348,19 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        if (typeof cart[idx].qty === 'number') {
-                            cart[idx].qty++;
-                        } else if (typeof cart[idx].quantity === 'number') {
-                            cart[idx].quantity++;
+                        if (window.tryIncrementCartItem) {
+                            var incRes = window.tryIncrementCartItem(cart, idx);
+                            if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                else alert('Maximum of 3 pairs of shoes per order.');
+                                return;
+                            }
+                        } else {
+                            if (typeof cart[idx].qty === 'number') {
+                                cart[idx].qty++;
+                            } else if (typeof cart[idx].quantity === 'number') {
+                                cart[idx].quantity++;
+                            }
                         }
                         renderCart();
                         saveCartToLocalStorage();

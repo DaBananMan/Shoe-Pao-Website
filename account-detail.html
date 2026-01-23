@@ -318,7 +318,7 @@
             if(order.tracking){ addrTxt += (addrTxt ? '\n' : '') + 'Tracking #: ' + order.tracking; }
             document.getElementById('orderModalAddress').textContent = addrTxt;
             var deliveryLabel = order.deliveryLabel || order.deliveryMethod || localStorage.getItem('checkoutDelivery') || '';
-            if(!deliveryLabel && order.deliveryCode){ if(order.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery'; else if(order.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove'; else if(order.deliveryCode === 'jnt') deliveryLabel = 'J&T Express'; }
+            if(!deliveryLabel && order.deliveryCode){ if(order.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery'; else if(order.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove'; else if(order.deliveryCode === 'jnt') deliveryLabel = 'J&T Express'; else if(order.deliveryCode === 'jrs') deliveryLabel = 'JRS'; }
             document.getElementById('orderModalDelivery').textContent = deliveryLabel ? ('Delivery: ' + deliveryLabel) : '';
             document.getElementById('orderModalImg').src = (order.items[0] && order.items[0].image) || 'IMAGE/NIKE1.png';
             var itemsHtml = '';

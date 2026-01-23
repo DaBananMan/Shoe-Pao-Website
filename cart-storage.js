@@ -13,6 +13,62 @@ function getCart() {
     return JSON.parse(localStorage.getItem('cart') || '[]');
 }
 
+var MAX_PAIRS_PER_ORDER = 3;
+
+function getCartTotalPairs(cart){
+    try{
+        cart = Array.isArray(cart) ? cart : getCart();
+        var total = 0;
+        cart.forEach(function(item){
+            var qty = (typeof item.qty === 'number') ? item.qty : ((typeof item.quantity === 'number') ? item.quantity : 1);
+            total += Number(qty) || 0;
+        });
+        return total;
+    }catch(e){ return 0; }
+}
+
+function showMaxPairsMessage(){
+    try{ alert('Maximum of 3 pairs of shoes per order.'); }catch(e){}
+}
+
+function canAddPairs(cart, addQty){
+    try{
+        var total = getCartTotalPairs(cart);
+        var inc = Number(addQty || 0) || 0;
+        return (total + inc) <= MAX_PAIRS_PER_ORDER;
+    }catch(e){ return false; }
+}
+
+function tryIncrementCartItem(cart, idx){
+    try{
+        cart = Array.isArray(cart) ? cart : getCart();
+        if(!cart[idx]) return { success:false, reason:'invalid_index' };
+        try{
+            var item = cart[idx];
+            var current = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
+            var maxAllowed = (window.getMaxAllowedForProduct && typeof window.getMaxAllowedForProduct === 'function') ? window.getMaxAllowedForProduct(item) : Number.POSITIVE_INFINITY;
+            if(Number.isFinite(maxAllowed) && current >= maxAllowed){
+                return { success:false, reason:'max_reached', maxAllowed: maxAllowed };
+            }
+        }catch(e){}
+        if(!canAddPairs(cart, 1)) return { success:false, reason:'max_pairs' };
+        if(typeof cart[idx].qty === 'number') cart[idx].qty++;
+        else if(typeof cart[idx].quantity === 'number') cart[idx].quantity++;
+        else cart[idx].qty = (cart[idx].qty || cart[idx].quantity || 1) + 1;
+        return { success:true };
+    }catch(e){ return { success:false, reason:'error' }; }
+}
+
+function tryDecrementCartItem(cart, idx){
+    try{
+        cart = Array.isArray(cart) ? cart : getCart();
+        if(!cart[idx]) return { success:false, reason:'invalid_index' };
+        if(typeof cart[idx].qty === 'number') { if(cart[idx].qty > 1) cart[idx].qty--; }
+        else if(typeof cart[idx].quantity === 'number') { if(cart[idx].quantity > 1) cart[idx].quantity--; }
+        return { success:true };
+    }catch(e){ return { success:false, reason:'error' }; }
+}
+
 function saveCart(cart) {
     try{
         if(Array.isArray(cart) && cart.length === 0){
@@ -24,6 +80,7 @@ function saveCart(cart) {
     try{
         localStorage.setItem('checkoutCartSnapshot', JSON.stringify(Array.isArray(cart) ? cart : []));
     }catch(e){}
+    try{ window.dispatchEvent(new CustomEvent('cart:updated', { detail: { cart: Array.isArray(cart) ? cart : [] } })); }catch(e){}
 }
 
 function addToCart(product) {
@@ -59,6 +116,10 @@ function addToCart(product) {
     try {
         var cart = getCart();
         var maxAllowed = getMaxAllowedForProduct(product);
+        var incomingQty = product.qty || product.quantity || 1;
+        if (!canAddPairs(cart, incomingQty)) {
+            return { success: false, reason: 'max_pairs', maxPairs: MAX_PAIRS_PER_ORDER };
+        }
         // If product stock is 0 and not marked pre-order, don't add
         if (maxAllowed === 0 && !product.preOrder) {
             return { success: false, reason: 'out_of_stock' };
@@ -87,8 +148,13 @@ function addToCart(product) {
         });
         if (found) {
             var current = (found.qty || found.quantity || 1);
-            var incoming = product.qty || product.quantity || 1;
+            var incoming = incomingQty;
             var newQty = current + incoming;
+            var totalPairs = getCartTotalPairs(cart);
+            var totalIfAdded = totalPairs - current + newQty;
+            if (totalIfAdded > MAX_PAIRS_PER_ORDER) {
+                return { success: false, reason: 'max_pairs', maxPairs: MAX_PAIRS_PER_ORDER };
+            }
             if (newQty > maxAllowed) {
                 found.qty = maxAllowed;
                 saveCart(cart);
@@ -101,7 +167,7 @@ function addToCart(product) {
                 try{ if(!found.inventoryId && product.inventoryId) found.inventoryId = product.inventoryId; }catch(e){}
             }
         } else {
-            var incoming = product.qty || product.quantity || 1;
+            var incoming = incomingQty;
             if (incoming > maxAllowed) product.qty = maxAllowed;
             // Ensure new cart item carries the inventoryId when available
             try{ if(!product.inventoryId){ var _m = findInventoryItemForProduct(product); if(_m && _m.id) product.inventoryId = _m.id; } }catch(e){}
@@ -205,6 +271,11 @@ function getCartTotals(cart) {
 // expose helpers globally
 window.computePackagingFee = computePackagingFee;
 window.getCartTotals = getCartTotals;
+window.getCartTotalPairs = getCartTotalPairs;
+window.tryIncrementCartItem = tryIncrementCartItem;
+window.tryDecrementCartItem = tryDecrementCartItem;
+window.showMaxPairsMessage = showMaxPairsMessage;
+window.MAX_PAIRS_PER_ORDER = MAX_PAIRS_PER_ORDER;
 
 // Update any cart sidebar UI elements if present on the page.
 function renderCartSidebarUI(){

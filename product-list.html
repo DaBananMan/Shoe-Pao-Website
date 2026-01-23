@@ -249,7 +249,8 @@
                 <div class="brand-dropdown" id="brandDropdownPL" aria-hidden="true">
                     <a href="product-list.html?brand=Nike" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('Nike')"><img src="IMAGE/NIKELOGO.png" alt="Nike" style="height:28px;"></a>
                     <a href="product-list.html?brand=Adidas" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('Adidas')"><img src="IMAGE/ADIDASLOGO.png" alt="Adidas" style="height:28px;"></a>
-                    <a href="product-list.html?brand=Cloudtilt" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('Cloudtilt')"><img src="IMAGE/CLOUDTILTLOGO.png" alt="Cloudtilt" style="height:28px;"></a>
+                    <a href="product-list.html?brand=On" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('On')"><img src="IMAGE/CLOUDTILTLOGO.png" alt="On" style="height:28px;"></a>
+                    <a href="product-list.html?brand=Onitsuka%20Tiger" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('Onitsuka Tiger')"><img src="IMAGE/res/onitsuka-tiger-seeklogo.png" alt="Onitsuka Tiger" style="height:28px;"></a>
                     <a href="product-list.html?brand=New%20Balance" class="brand-drop-link" onclick="event.preventDefault(); applyBrand('New Balance')"><img src="IMAGE/NEWBALANCELOGO.png" alt="New Balance" style="height:28px;"></a>
                 </div>
             </span>
@@ -297,7 +298,8 @@
                         <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">
                             <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandNike" value="Nike" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> Nike</label>
                             <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandAdidas" value="Adidas" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> Adidas</label>
-                            <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandCloudtilt" value="Cloudtilt" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> Cloudtilt</label>
+                            <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandOn" value="On" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> On</label>
+                            <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandOnitsukaTiger" value="Onitsuka Tiger" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> Onitsuka Tiger</label>
                             <label class="gender-checkbox"><input type="checkbox" class="brand-checkbox" id="brandNewBalance" value="New Balance" checked onchange="applyAllFilters()" style="accent-color:#000;width:18px;height:18px;margin-right:8px;"> New Balance</label>
                         </div>
                     </div>
@@ -456,12 +458,20 @@
                     if(b !== qBrand.toLowerCase()) keep = false;
                 }
                 if(qFilter === 'sale'){
-                    var badge = card.querySelector('.badge-sale');
-                    if(!badge) keep = false;
+                    var tags = (card.getAttribute('data-tags')||'').toLowerCase();
+                    var hasSale = tags.indexOf('sale') !== -1;
+                    if(!hasSale){
+                        var badge = card.querySelector('.badge-sale');
+                        if(!badge) keep = false;
+                    }
                 }
                 if(qFilter === 'new'){
-                    var badge = card.querySelector('.badge-new');
-                    if(!badge) keep = false;
+                    var tagsNew = (card.getAttribute('data-tags')||'').toLowerCase();
+                    var hasNew = tagsNew.indexOf('new arrival') !== -1 || tagsNew.indexOf('new') !== -1;
+                    if(!hasNew){
+                        var badge = card.querySelector('.badge-new');
+                        if(!badge) keep = false;
+                    }
                 }
                 card.style.display = keep ? '' : 'none';
                 if(keep) visibleCount++;
@@ -670,6 +680,8 @@
                         (Array.isArray(p.colors) ? p.colors : []).forEach(function(c){
                             var sizesMap = {};
                             (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ sizesMap[String(s.eu)] = Number(s.stock||0); });
+                            var tags = Array.isArray(p.tagsManual) ? p.tagsManual : (Array.isArray(p.tags) ? p.tags : (p.tagsList || p.tags_list || []));
+                            if(!Array.isArray(tags)) tags = [];
                             newInv.push({
                                 id: p.sku || p.id || ('gen-' + Math.random().toString(36).slice(2,9)),
                                 name: (p.model||'') + (c.name?(' '+c.name):''),
@@ -682,7 +694,8 @@
                                 productId: p.id || '',
                                 colorId: c.id || '',
                                 createdAt: p.createdAt || null,
-                                gender: p.gender || ''
+                                gender: p.gender || '',
+                                tags: tags
                             });
                         });
                     });
@@ -702,9 +715,24 @@
                                     return (it.productId && p.id && String(it.productId) === String(p.id)) && (String((it.color||'')).toLowerCase() === String((c.name||'')).toLowerCase());
                                 }catch(e){return false;}
                             });
+                            if(exists){
+                                var tags = Array.isArray(p.tagsManual) ? p.tagsManual : (Array.isArray(p.tags) ? p.tags : (p.tagsList || p.tags_list || []));
+                                if(!Array.isArray(tags)) tags = [];
+                                existingInv.forEach(function(it){
+                                    try{
+                                        var match = (it.productId && p.id && String(it.productId) === String(p.id)) && (String((it.color||'')).toLowerCase() === String((c.name||'')).toLowerCase());
+                                        if(match && (!Array.isArray(it.tags) || it.tags.length === 0)){
+                                            it.tags = tags;
+                                            changed = true;
+                                        }
+                                    }catch(e){}
+                                });
+                            }
                             if(!exists){
                                 var sizesMap = {};
                                 (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ sizesMap[String(s.eu)] = Number(s.stock||0); });
+                                var tags = Array.isArray(p.tagsManual) ? p.tagsManual : (Array.isArray(p.tags) ? p.tags : (p.tagsList || p.tags_list || []));
+                                if(!Array.isArray(tags)) tags = [];
                                 existingInv.push({
                                     id: p.sku || p.id || ('gen-' + Math.random().toString(36).slice(2,9)),
                                     name: (p.model||'') + (c.name?(' '+c.name):''),
@@ -717,7 +745,8 @@
                                     productId: p.id || '',
                                     colorId: c.id || '',
                                     createdAt: p.createdAt || null,
-                                    gender: p.gender || ''
+                                    gender: p.gender || '',
+                                    tags: tags
                                 });
                                 changed = true;
                             }
@@ -832,13 +861,25 @@
                     var genderAttr = (genders.length === 1) ? genders[0] : 'Unisex';
 
                     // Compute group-level tags
-                    var nowMs = Date.now();
-                    var isSale = g.variants.some(function(v){ return Number(v.originalPrice||0) > 0 && Number(v.price||0) < Number(v.originalPrice||0); });
-                    var isNew = g.variants.some(function(v){ if(!v.createdAt) return false; var t = new Date(v.createdAt).getTime(); return (nowMs - t) <= (14*24*3600*1000); });
+                    var tagSet = new Set();
+                    g.variants.forEach(function(v){
+                        try{
+                            var raw = (v && (v.tags || v.tagsManual || v.tagsList || v.tags_list)) || [];
+                            var list = [];
+                            if(Array.isArray(raw)) list = raw;
+                            else if(typeof raw === 'string') list = raw.split(/[,\/|;]+/);
+                            list.map(function(t){ return String(t||'').trim(); }).filter(Boolean).forEach(function(t){ tagSet.add(t); });
+                        }catch(_){ }
+                    });
+                    var tags = Array.from(tagSet).filter(Boolean);
+                    var tagsLower = tags.map(function(t){ return t.toLowerCase(); });
+                    function hasTag(tag){ return tagsLower.indexOf(String(tag).toLowerCase()) !== -1; }
+                    var isSale = hasTag('sale');
+                    var isNew = hasTag('new arrival') || hasTag('new');
                     var totalStock = g.variants.reduce(function(acc, v){ try{ var sm=v.sizes||{}; return acc + Object.values(sm).reduce(function(a,b){ return a + (Number(b)||0); },0); }catch(_){ return acc; } }, 0);
-                    var isPreOrder = totalStock === 0;
+                    var isPreOrder = totalStock === 0 || hasTag('pre-order');
                     var anyProductId = (primary && primary.productId) || '';
-                    var isBest = anyProductId && bestSet.has(anyProductId);
+                    var isBest = (anyProductId && bestSet.has(anyProductId)) || hasTag('best seller');
 
                     var card = document.createElement('div');
                     card.className = 'shoe-card';
@@ -847,6 +888,7 @@
                     card.setAttribute('data-title', g.baseName || '');
                     card.setAttribute('data-base-name', g.baseName || '');
                     if(genderAttr) card.setAttribute('data-gender', genderAttr);
+                    if(tags.length) card.setAttribute('data-tags', tags.join('|'));
 
                     var flipClass = (g.brand && g.brand.toString().toLowerCase().indexOf('nike')!==-1) ? ' flip-horizontal' : '';
                     // Build swatches markup (limit to 8)
@@ -974,6 +1016,7 @@
                 const women = document.getElementById('genderWomen') ? document.getElementById('genderWomen').checked : true;
                 const unisex = document.getElementById('genderUnisex') ? document.getElementById('genderUnisex').checked : true;
                 const selectedEU = getSelectedEU();
+                const urlFilter = (getQueryParam('filter') || '').toLowerCase();
 
                 // gather selected brands (by value) - if none selected, show all brands
                 const selectedBrands = Array.from(document.querySelectorAll('.brand-checkbox:checked')).map(b=>b.value.toString().toLowerCase());
@@ -999,6 +1042,19 @@
                     const brandName = (prod.brand || '').toString().toLowerCase();
                     if(selectedBrands.length > 0 && brandName){
                         if(selectedBrands.indexOf(brandName) === -1){ card.style.display = 'none'; return; }
+                    }
+
+                    // sale/new filter based on tags
+                    if(urlFilter === 'sale' || urlFilter === 'new'){
+                        const tagStr = (card.getAttribute('data-tags') || '').toString().toLowerCase();
+                        const hasSale = tagStr.indexOf('sale') !== -1;
+                        const hasNew = tagStr.indexOf('new arrival') !== -1 || tagStr.indexOf('new') !== -1;
+                        if(urlFilter === 'sale' && !hasSale){
+                            if(!card.querySelector('.badge-sale')){ card.style.display = 'none'; return; }
+                        }
+                        if(urlFilter === 'new' && !hasNew){
+                            if(!card.querySelector('.badge-new')){ card.style.display = 'none'; return; }
+                        }
                     }
 
                     // search filtering (match title or brand)
@@ -1380,14 +1436,18 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        // Use qty if present, else quantity
-                        if (typeof cart[idx].qty === 'number') {
-                            if (cart[idx].qty > 1) {
-                                cart[idx].qty--;
-                            }
-                        } else if (typeof cart[idx].quantity === 'number') {
-                            if (cart[idx].quantity > 1) {
-                                cart[idx].quantity--;
+                        if (window.tryDecrementCartItem) {
+                            window.tryDecrementCartItem(cart, idx);
+                        } else {
+                            // Use qty if present, else quantity
+                            if (typeof cart[idx].qty === 'number') {
+                                if (cart[idx].qty > 1) {
+                                    cart[idx].qty--;
+                                }
+                            } else if (typeof cart[idx].quantity === 'number') {
+                                if (cart[idx].quantity > 1) {
+                                    cart[idx].quantity--;
+                                }
                             }
                         }
                         renderCart();
@@ -1400,10 +1460,19 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        if (typeof cart[idx].qty === 'number') {
-                            cart[idx].qty++;
-                        } else if (typeof cart[idx].quantity === 'number') {
-                            cart[idx].quantity++;
+                        if (window.tryIncrementCartItem) {
+                            var incRes = window.tryIncrementCartItem(cart, idx);
+                            if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                else alert('Maximum of 3 pairs of shoes per order.');
+                                return;
+                            }
+                        } else {
+                            if (typeof cart[idx].qty === 'number') {
+                                cart[idx].qty++;
+                            } else if (typeof cart[idx].quantity === 'number') {
+                                cart[idx].quantity++;
+                            }
                         }
                         renderCart();
                         saveCartToLocalStorage();
