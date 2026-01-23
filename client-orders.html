@@ -6,7 +6,6 @@
     <title>Shoe Pao — Your Orders</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <script src="js/ensure-server.js"></script>
     <style>
     body{font-family:'Poppins',Arial,sans-serif;background:#fff;margin:0;color:#222;display:flex;flex-direction:column;min-height:100vh}
     .orders-container{max-width:1100px;margin:24px auto;padding:22px;flex:1}
@@ -334,10 +333,9 @@
         // Wrapper helpers that operate by order id (safe when rendering filtered lists)
         window.openOrderModalById = function(id){
             if(!id) return;
-            // Always navigate to the standalone order detail page. This ensures
-            // the detail is shown as a full page rather than an in-page modal.
-            try{ window.location.href = 'order-detail.html?orderId=' + encodeURIComponent(id); }
-            catch(e){ window.location.href = 'order-detail.html?orderId=' + encodeURIComponent(id); }
+            try{
+                window.location.href = 'order-detail.html?orderId=' + encodeURIComponent(id);
+            }catch(e){ window.location.href = 'order-detail.html?orderId=' + encodeURIComponent(id); }
         }
         window.requestCancelOrderById = function(id){
             var idx = findOrderIndexById(id);
@@ -749,72 +747,16 @@
 
         window.renderOrders = renderOrders;
 
-        // API base for server endpoint (adjust if using different origin)
-    // Use PHP proxy as API base (project root + /server-proxy.php)
-    var API_BASE = (function(){ try{ var p = window.location.pathname.replace(/\/+$|^\/+/, ''); var seg = p.split('/'); var root = seg.length > 0 ? '/' + seg[0] : ''; return root + '/server-proxy.php'; }catch(e){ return '/server-proxy.php'; } })();
-
-        // Sync server-side orders to localStorage and Firestore (merge). Resolves when done.
-        function syncOrdersFromServer(){
-            return new Promise(function(resolve){
-                try{
-                    if(!window.fetch) return resolve();
-                    var profile = JSON.parse(localStorage.getItem('profile')||'{}') || {};
-                    var uid = profile.uid || '';
-                    var email = (profile.email || '').toLowerCase();
-                    fetch(API_BASE + '/api/orders').then(function(r){ if(!r.ok) throw new Error('no orders'); return r.json(); }).then(function(j){
-                        var orders = [];
-                        if(Array.isArray(j)) orders = j;
-                        else if(Array.isArray(j.orders)) orders = j.orders;
-                        if(!orders.length) return resolve();
-                        // Filter to current user (best-effort). If no profile, skip persistent sync.
-                        var userOrders = orders.filter(function(o){
-                            try{
-                                if(uid && o.user_id && String(o.user_id) === String(uid)) return true;
-                                if(email){ var oe = (o.email||o.customerEmail||'').toLowerCase(); if(oe === email) return true; }
-                            }catch(e){}
-                            return false;
-                        });
-                        try{ if(userOrders.length) localStorage.setItem('orders', JSON.stringify(userOrders)); }catch(e){}
-                        // Also push server values to Firestore (merge) so client-side Firestore views reflect server
-                        try{
-                            ensureFirebaseReady(function(err){
-                                if(err) return resolve();
-                                try{
-                                    var db = firebase.firestore();
-                                    userOrders.forEach(function(o){
-                                        try{
-                                            db.collection('orders').doc(o.id).set(o, { merge: true });
-                                            if(Array.isArray(o.items)){
-                                                o.items.forEach(function(it, idx){
-                                                    try{
-                                                        var docId = it.product_id || it.id || String(idx);
-                                                        db.collection('orders').doc(o.id).collection('items').doc(String(docId)).set(it);
-                                                    }catch(e){}
-                                                });
-                                            }
-                                        }catch(e){}
-                                    });
-                                }catch(e){}
-                                return resolve();
-                            });
-                        }catch(e){ return resolve(); }
-                    }).catch(function(){ return resolve(); });
-                }catch(e){ return resolve(); }
-            });
-        }
-
-        // On load: sync from server first, then render orders. If ?open=... present, open that id after render.
+        window.addEventListener('DOMContentLoaded', renderOrders);
+        // If URL has ?open=<orderId>, open that order modal by finding its index
         window.addEventListener('DOMContentLoaded', function(){
             try{
-                syncOrdersFromServer().then(function(){
-                    try{ renderOrders(); }catch(e){}
-                    try{
-                        var params = new URLSearchParams(window.location.search);
-                        var openId = params.get('open');
-                        if(openId){ openOrderModalById(openId); }
-                    }catch(e){}
-                });
-            }catch(e){ try{ renderOrders(); }catch(_){} }
+                var params = new URLSearchParams(window.location.search);
+                var openId = params.get('open');
+                if(openId){
+                    openOrderModalById(openId);
+                }
+            }catch(e){/* ignore */}
         });
 
         // Orders are loaded from the server; no local storage sync needed.

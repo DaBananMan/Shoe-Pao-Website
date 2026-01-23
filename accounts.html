@@ -468,17 +468,6 @@
                         localStorage.setItem('users', JSON.stringify(users));
                         // Remove related localStorage entries for this email so old data doesn't reappear
                         try{ removeLocalDataForEmail(em2); }catch(e){ console.warn('removeLocalDataForEmail failed', e); }
-                                try{ localStorage.removeItem('checkoutCartSnapshot'); }catch(e){}
-                        // Mark account as deleted to prevent cart/user data resurrection on re-signup
-                        try{
-                            if(typeof window.markAccountDeleted === 'function'){
-                                window.markAccountDeleted(em2);
-                            } else {
-                                var dm = JSON.parse(localStorage.getItem('deletedAccounts')||'{}') || {};
-                                dm[(em2||'').toLowerCase()] = Date.now();
-                                localStorage.setItem('deletedAccounts', JSON.stringify(dm));
-                            }
-                        }catch(e){ console.warn('Could not mark account deleted', e); }
                         // Add email to pending deletion queue for server-side Firebase sync tooling
                         try{
                             var pending = JSON.parse(localStorage.getItem('pendingFirebaseUserDeletions')||'[]') || [];

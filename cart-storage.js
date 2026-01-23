@@ -9,49 +9,7 @@ try{
     }
 }catch(e){}
 
-// Intercept writes to 'cart' and 'checkoutCartSnapshot' and block them when the
-// active profile's account is marked as deleted. This prevents other scripts (or
-// Firestore syncs) from accidentally restoring a deleted account's cart.
-try{
-    (function(){
-        var _origSet = localStorage.setItem;
-        localStorage.setItem = function(k, v){
-            try{
-                if(!k) return _origSet.apply(this, arguments);
-                if(k === 'cart' || k === 'checkoutCartSnapshot'){
-                    var prof = null;
-                    try{ prof = JSON.parse(localStorage.getItem('profile') || 'null'); }catch(e){ prof = null; }
-                    if(prof && prof.email){
-                        try{
-                            var dm = JSON.parse(localStorage.getItem('deletedAccounts') || '{}') || {};
-                            if(dm && dm[(prof.email||'').toLowerCase()]){
-                                try{ console.warn('Blocked localStorage.setItem for', k, 'because account', prof.email, 'is deleted'); }catch(e){}
-                                return; // drop the write
-                            }
-                        }catch(e){ /* ignore */ }
-                    }
-                }
-            }catch(e){ /* ignore */ }
-            return _origSet.apply(this, arguments);
-        };
-    })();
-}catch(e){ /* ignore if localStorage is immutable or becomes unavailable */ }
-
 function getCart() {
-    try{
-        // If the active profile's account was previously deleted, never restore a cart for it.
-        var prof = getActiveProfile();
-        if(prof && prof.email){
-            try{
-                var deletedMap = JSON.parse(localStorage.getItem('deletedAccounts') || '{}') || {};
-                if(deletedMap && deletedMap[(prof.email||'').toLowerCase()]){
-                    // ensure we persist an empty cart to avoid later restores from stale snapshots
-                    try{ localStorage.setItem('cart', JSON.stringify([])); }catch(e){}
-                    return [];
-                }
-            }catch(e){ /* ignore parse errors and fall back */ }
-        }
-    }catch(e){ /* defensive */ }
     return JSON.parse(localStorage.getItem('cart') || '[]');
 }
 
@@ -67,14 +25,6 @@ function saveCart(cart) {
         localStorage.setItem('checkoutCartSnapshot', JSON.stringify(Array.isArray(cart) ? cart : []));
     }catch(e){}
 }
-
-// Deleted accounts map helpers. When an account is deleted we record the email -> timestamp
-// so that future signups using the same email won't resurrect old cart state.
-function _loadDeletedAccounts(){ try{ return JSON.parse(localStorage.getItem('deletedAccounts') || '{}') || {}; }catch(e){ return {}; } }
-function markAccountDeleted(email){ try{ if(!email) return; var m = _loadDeletedAccounts(); m[(email||'').toLowerCase()] = Date.now(); localStorage.setItem('deletedAccounts', JSON.stringify(m)); }catch(e){} }
-function isAccountDeleted(email){ try{ if(!email) return false; var m = _loadDeletedAccounts(); return !!m[(email||'').toLowerCase()]; }catch(e){ return false; } }
-// Expose as global helpers so other pages can call them when performing server-side deletions
-try{ window.markAccountDeleted = markAccountDeleted; window.isAccountDeleted = isAccountDeleted; }catch(e){}
 
 function addToCart(product) {
     // Require user to be signed in before adding to cart.

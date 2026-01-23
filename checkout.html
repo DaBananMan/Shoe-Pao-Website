@@ -2132,23 +2132,10 @@
         var addressObject = null;
         try{ addressObject = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ addressObject = null; }
         var deliveryAddress = normalizeDeliveryAddressFromAddressObject(addressObject) || normalizeDeliveryAddressFromString(addressMain);
-        // Reuse an existing checkoutOrderId only if it matches the current cart snapshot.
-        // This prevents reuse of an old order id when starting a new checkout (which
-        // caused previously-created orders to be overwritten).
         var orderId = localStorage.getItem('checkoutOrderId') || '';
-        try{
-            var snapshotStr = localStorage.getItem('checkoutCartSnapshot') || null;
-            var snapshotObj = snapshotStr ? JSON.parse(snapshotStr) : null;
-            var cartsEqual = false;
-            try{ cartsEqual = JSON.stringify(snapshotObj) === JSON.stringify(cart); }catch(e){ cartsEqual = false; }
-            if(!orderId || !cartsEqual){
-                orderId = generateOrderId();
-                try{ localStorage.setItem('checkoutOrderId', orderId); }catch(e){}
-                try{ localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cart || [])); }catch(e){}
-            }
-        }catch(e){
-            // Fallback: ensure there's an order id stored
-            if(!orderId){ orderId = generateOrderId(); try{ localStorage.setItem('checkoutOrderId', orderId); }catch(e){} }
+        if(!orderId){
+            orderId = generateOrderId();
+            try{ localStorage.setItem('checkoutOrderId', orderId); }catch(e){}
         }
 
         var subtotal = 0;
