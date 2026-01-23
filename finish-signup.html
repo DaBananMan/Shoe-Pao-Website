@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Finish signup</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;padding:24px}
+    .card{max-width:640px;margin:36px auto;padding:20px;border-radius:8px;background:#fff;border:1px solid #eee}
+    .hidden{display:none}
+    .btn{padding:8px 12px;border-radius:6px;border:0;cursor:pointer}
+    .btn-primary{background:#b71c1c;color:#fff}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Completing registration…</h2>
+    <p id="status">Please wait while we complete your registration.</p>
+    <div id="setPassword" class="hidden">
+      <p>Your browser did not remember the password you entered during signup. Please set a password to secure your account.</p>
+  <input type="password" id="newPassword" placeholder="Password" style="padding:8px;margin-right:6px;border:1px solid #ddd;border-radius:6px">
+      <button id="setPasswordBtn" class="btn btn-primary">Set password and finish</button>
+    </div>
+  </div>
+
+  <script src="js/firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script>
+  (async function(){
+    try{
+      if(window.FIREBASE_CONFIG && (!window.firebase || !firebase.apps || firebase.apps.length === 0)) firebase.initializeApp(window.FIREBASE_CONFIG);
+    }catch(e){ console.warn('Firebase init failed', e); }
+
+    const statusEl = document.getElementById('status');
+    const setPassEl = document.getElementById('setPassword');
+    const setPassBtn = document.getElementById('setPasswordBtn');
+
+    // Check if this is a sign-in-with-email-link
+    if(!firebase || !firebase.auth || !firebase.auth().isSignInWithEmailLink(window.location.href)){
+      statusEl.textContent = 'This page was opened without a valid sign-in link.';
+      return;
+    }
+
+    // Attempt to determine the email: first try localStorage.lastSignInEmail, then prompt
+    var email = null;
+    try{ email = localStorage.getItem('lastSignInEmail') || null; }catch(e){}
+    if(!email){
+      email = window.prompt('Please enter the email address you used to sign up');
+      if(!email){ statusEl.textContent = 'Email required to complete sign up.'; return; }
+    }
+
+    try{
+      const result = await firebase.auth().signInWithEmailLink(email, window.location.href);
+      const user = result.user || firebase.auth().currentUser;
+      if(!user){ statusEl.textContent = 'Sign-in succeeded but no user session found.'; return; }
+
+  // Retrieve pending signup metadata from localStorage (if any)
+  var pending = {};
+  try{ pending = JSON.parse(localStorage.getItem('pendingSignup') || '{}') || {}; }catch(e){ pending = {}; }
+  var meta = pending[email] || {};
+
+      statusEl.textContent = 'Creating your account...';
+      // create/merge Firestore user doc
+      try{
+        const payload = Object.assign({}, meta || {});
+        payload.email = user.email;
+        payload.emailVerified = true;
+        payload.displayName = payload.displayName || ((payload.firstName||'') + (payload.lastName ? (' ' + payload.lastName) : '')).trim();
+        payload.name = payload.name || payload.displayName || '';
+        payload.role = payload.role || 'user';
+        payload.lastLoginAt = firebase.firestore.FieldValue.serverTimestamp();
+        payload.createdAt = payload.createdAt || firebase.firestore.FieldValue.serverTimestamp();
+        await firebase.firestore().doc('users/' + user.uid).set(payload, { merge: true });
+      }catch(e){ console.warn('Failed to write user doc', e); }
+
+      // Always require the user to set a password now (we do not store plain passwords in localStorage)
+      statusEl.textContent = 'Please choose a password to secure your account.';
+      setPassEl.classList.remove('hidden');
+      setPassBtn.addEventListener('click', async function(){
+        const np = document.getElementById('newPassword').value || '';
+        if(!np || np.length < 6){ alert('Please choose a stronger password (6+ chars).'); return; }
+        try{
+          await user.updatePassword(np);
+          statusEl.textContent = 'Password set. Redirecting to login...';
+          try{ delete pending[email]; localStorage.setItem('pendingSignup', JSON.stringify(pending)); }catch(e){}
+          try{ localStorage.removeItem('lastSignInEmail'); }catch(e){}
+          await firebase.auth().signOut();
+          setTimeout(function(){ window.location.href = 'login.html'; }, 800);
+        }catch(err){ console.error('set password failed', err); alert('Failed to set password: ' + (err && err.message ? err.message : String(err))); }
+      });
+
+    }catch(err){
+      console.error('finish-signup error', err);
+      statusEl.textContent = 'Failed to complete sign-in link: ' + (err && err.message ? err.message : String(err));
+    }
+  })();
+  </script>
+</body>
+</html>

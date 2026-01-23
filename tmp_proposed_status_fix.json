@@ -1,0 +1,24 @@
+[
+  {
+    "id": "SP17689274950110",
+    "current": "Delivered",
+    "proposed": "in transit",
+    "trackingCount": 17,
+    "lastTracking": {
+      "status": "Delivered",
+      "message": "Delivered",
+      "timestamp": "2026-01-22T16:26:26.552Z"
+    }
+  },
+  {
+    "id": "SP1768832867383202",
+    "current": "delivered",
+    "proposed": "processing",
+    "trackingCount": 2,
+    "lastTracking": {
+      "status": "Tracking assigned",
+      "message": "Tracking number: TRKMKPN7T5Z1FGR",
+      "timestamp": "2026-01-21T11:01:34.958Z"
+    }
+  }
+]

@@ -1,0 +1,2495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - SHOEPAO</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <style>
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background: #fff;
+            margin: 0;
+            padding: 0;
+            color: #222;
+        }
+        .checkout-main {
+            display: flex;
+            flex-direction: row;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 0 0 0;
+            min-height: 100vh;
+        }
+        .checkout-left {
+            flex: 2;
+            padding: 0 40px 0 0;
+            min-width: 420px;
+        }
+        .checkout-right {
+            flex: 1.1;
+            background: #f5f5f5;
+            padding: 32px 32px 32px 32px;
+            min-width: 340px;
+            max-width: 400px;
+            border-left: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
+        }
+        .checkout-header {
+            font-size: 2.1rem;
+            font-weight: 600;
+            margin-bottom: 32px;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .checkout-caption-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .checkout-caption {
+            font-size: 1.08rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-toggle-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 8px;
+            display: flex;
+            align-items: center;
+        }
+        .checkout-account {
+            font-size: 1rem;
+            color: #444;
+            margin-bottom: 18px;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .checkout-divider {
+            width: 100%;
+            height: 1.5px;
+            background: #eee;
+            margin: 18px 0 18px 0;
+        }
+        .checkout-section-title {
+            font-size: 1.08rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #222;
+        }
+        .checkout-address-box {
+            background: #f5f5f5;
+            border-radius: 18px;
+            padding: 18px 22px 14px 22px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .checkout-address-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+        .checkout-address-main {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-address-details {
+            font-size: 0.98rem;
+            color: #444;
+            margin-top: 2px;
+        }
+        .checkout-address-menu-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 8px;
+            display: flex;
+            align-items: flex-start;
+        }
+        .checkout-address-menu {
+            position: absolute;
+            top: 32px;
+            right: 18px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+            z-index: 10;
+            display: none;
+            flex-direction: column;
+            min-width: 110px;
+        }
+        .checkout-address-menu.show {
+            display: flex;
+        }
+        .checkout-address-menu-btn span {
+            font-size: 1.5rem;
+            color: #888;
+        }
+        .checkout-add-address-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            margin-top: 2px;
+            cursor: pointer;
+            color: #222;
+            font-size: 1rem;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .checkout-add-address-row img {
+            width: 22px;
+            height: 22px;
+        }
+        .checkout-delivery-method-title {
+            font-size: 1.08rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #222;
+        }
+        .checkout-delivery-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .checkout-delivery-option {
+            background: #f5f5f5;
+            border-radius: 18px;
+            padding: 14px 18px 10px 18px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border 0.2s;
+        }
+        .checkout-delivery-option.selected {
+            border: 2px solid #b71c1c;
+        }
+        .checkout-delivery-radio {
+            margin-top: 2px;
+        }
+        .checkout-delivery-label {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-delivery-desc {
+            font-size: 0.97rem;
+            color: #444;
+            margin-top: 2px;
+        }
+        .checkout-payment-title {
+            font-size: 1.08rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #222;
+        }
+        .checkout-payment-subtitle {
+            font-size: 0.97rem;
+            color: #444;
+            margin-bottom: 12px;
+        }
+        .checkout-payment-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        /* QR modal styles */
+        .qr-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100000;
+        }
+        .qr-modal-overlay.show { display: flex; }
+        .qr-modal {
+            width: 920px;
+            max-width: calc(100vw - 48px);
+            background: #fff;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.28);
+            display: flex;
+            gap: 22px;
+            position: relative;
+        }
+        .qr-modal-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .qr-modal-left { flex: 0 0 260px; display:flex;align-items:center;justify-content:center;padding:18px;border-right:1px solid #eee }
+        .qr-modal-left img { width:240px;height:240px;object-fit:contain }
+        .qr-modal-right { flex:1; display:flex;flex-direction:column; gap:12px }
+        .qr-modal-right h3 { margin:0;font-size:1.1rem }
+        .qr-modal-steps { font-size:0.98rem;color:#333;line-height:1.5 }
+        .qr-modal-steps ul { margin:8px 0 0 18px }
+        .qr-modal-actions { margin-top:auto; display:flex;justify-content:flex-end;gap:12px }
+        .qr-modal-complete { background:#111;color:#fff;border:none;border-radius:12px;padding:10px 18px;cursor:pointer }
+        .qr-modal-cancel { background:#fff;color:#111;border:1px solid #ccc;border-radius:12px;padding:8px 14px;cursor:pointer }
+        .checkout-payment-option {
+            background: #f5f5f5;
+            border-radius: 18px;
+            padding: 14px 18px 10px 18px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border 0.2s;
+        }
+        .checkout-payment-option.selected {
+            border: 2px solid #b71c1c;
+        }
+        .checkout-payment-radio {
+            margin-top: 2px;
+        }
+        /* PSGC address editor */
+        .address-editor { background:#f7f7f7; border-radius:16px; padding:16px; }
+        .address-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+        .address-field { display:flex; flex-direction:column; gap:6px; }
+        .address-field-full { grid-column: 1 / -1; }
+        .address-label { font-size:0.92rem; color:#444; }
+        .address-field input, .address-field select { padding:10px 12px; border:1px solid #ddd; border-radius:10px; font-size:1rem; font-family:inherit; background:#fff; }
+        .address-field select:disabled { background:#f0f0f0; color:#888; }
+        .address-actions { margin-top:12px; display:flex; gap:8px; align-items:center; }
+        .address-secondary-btn { padding:8px 12px; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer; }
+        .address-hint { font-size:0.9rem; color:#666; margin-top:8px; }
+        @media (max-width: 700px) { .address-grid { grid-template-columns: 1fr; } }
+        /* Address book modal */
+        .address-book-overlay, .address-editor-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 120000;
+            padding: 24px;
+        }
+        .address-book-overlay.show, .address-editor-overlay.show { display: flex; }
+        .address-book-modal, .address-editor-modal {
+            width: 820px;
+            max-width: calc(100vw - 48px);
+            background: #fff;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+            position: relative;
+        }
+        .address-book-header h3 { margin: 0 0 6px 0; font-size: 1.2rem; }
+        .address-book-header p { margin: 0 0 16px 0; color: #555; font-size: 0.95rem; }
+        .address-book-close {
+            position: absolute;
+            right: 12px;
+            top: 10px;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .address-book-list { display: flex; flex-direction: column; gap: 12px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+        .address-book-item { border: 1px solid #eee; border-radius: 12px; padding: 12px 14px; display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+        .address-book-item.selected { border-color: #b71c1c; box-shadow: 0 0 0 1px #b71c1c inset; }
+        .address-book-meta { display:flex; flex-direction:column; gap:4px; }
+        .address-book-title { font-weight: 600; font-size: 1rem; }
+        .address-book-sub { font-size: 0.92rem; color: #555; }
+        .address-book-badge { display:inline-flex; padding:2px 8px; border-radius:999px; background:#f5f5f5; font-size:0.78rem; color:#666; width:fit-content; }
+        .address-book-actions { display:flex; gap:8px; justify-content:flex-start; margin-top:16px; }
+        .address-book-item-actions { display:flex; gap:8px; align-items:center; }
+        .address-inline-btn { padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer; font-size:0.9rem; }
+        .address-inline-btn.primary { background:#111; color:#fff; border-color:#111; }
+        .checkout-payment-label {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-payment-desc {
+            font-size: 0.97rem;
+            color: #444;
+            margin-top: 2px;
+        }
+        .checkout-btn-row {
+            display: flex;
+            justify-content: center;
+            margin: 32px 0 18px 0;
+        }
+        .checkout-proceed-btn {
+            background: #222;
+            color: #fff;
+            border: none;
+            border-radius: 28px;
+            padding: 16px 0;
+            width: 100%;
+            max-width: 340px;
+            font-size: 1.15rem;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(34,34,34,0.10);
+        }
+        .checkout-proceed-btn:hover {
+            background: #b71c1c;
+            box-shadow: 0 4px 16px rgba(34,34,34,0.13);
+        }
+        .checkout-policy-row {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 18px;
+        }
+        .checkout-policy-link {
+            text-decoration: underline;
+            color: #222;
+            font-size: 0.97rem;
+            cursor: pointer;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        /* Right side cart summary */
+        .checkout-cart-list {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .checkout-cart-item {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .checkout-cart-img {
+            width: 68px;
+            height: 68px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: #fff;
+        }
+        .checkout-cart-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .checkout-cart-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .checkout-cart-title {
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .checkout-cart-price {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #222;
+        }
+        .checkout-cart-size {
+            font-size: 0.97rem;
+            color: #444;
+        }
+        .checkout-cart-qty {
+            font-size: 0.97rem;
+            color: #444;
+        }
+        .checkout-cart-divider {
+            width: 100%;
+            height: 1.5px;
+            background: #ddd;
+            margin: 18px 0 18px 0;
+        }
+        .checkout-cart-summary-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1.05rem;
+            color: #222;
+            margin-bottom: 8px;
+        }
+        .checkout-cart-summary-label {
+            font-weight: 400;
+        }
+        .checkout-cart-summary-value {
+            font-weight: 500;
+        }
+        .checkout-cart-total-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1.18rem;
+            font-weight: 600;
+            color: #222;
+            margin-top: 8px;
+        }
+        .cart-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            max-height: 340px;
+            padding-right: 8px;
+        }
+        @media (max-width: 900px) {
+            .checkout-main {
+                flex-direction: column;
+                padding: 18px 0 0 0;
+            }
+            .checkout-left, .checkout-right {
+                min-width: 0;
+                max-width: 100vw;
+                padding: 0 12px;
+            }
+            .checkout-right {
+                margin-top: 32px;
+            }
+        }
+        /* bank modal styles (same as payment page) */
+        .bank-modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:200000; }
+        .bank-modal-overlay.show{ display:flex; }
+        .bank-modal{ width:640px; max-width:calc(100vw - 48px); background:#fff; border-radius:12px; padding:20px; box-shadow:0 12px 48px rgba(0,0,0,0.28); font-family:'Poppins', Arial, sans-serif; }
+        .bank-modal h3{ margin:0 0 8px 0; font-size:1.15rem; }
+        .bank-modal .field-row{ display:flex; gap:10px; margin-top:10px; }
+        .bank-modal .field{ flex:1; display:flex; flex-direction:column; }
+        .bank-modal label{ font-size:0.95rem; color:#333; margin-bottom:6px; }
+        .bank-modal input, .bank-modal select{ padding:10px 12px; border:1px solid #ddd; border-radius:8px; font-size:1rem; }
+        .bank-modal-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+        .bank-modal .btn{ padding:10px 14px; border-radius:8px; border:none; cursor:pointer; }
+        .bank-modal .btn.primary{ background:#222; color:#fff; }
+        .bank-modal .btn.ghost{ background:#fff; border:1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar (copied from product-list.html) -->
+    <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:72px;">
+        <div style="display:flex;align-items:center;gap:24px;">
+            <a href="home.html" style="display:flex;align-items:center;gap:24px;text-decoration:none;color:inherit;">
+                <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" style="height:38px;width:auto;cursor:pointer;">
+                <span class="header-caption" style="font-size:1.18rem;font-weight:600;color:#b71c1c;cursor:pointer;">Shoe Pao Footwear</span>
+            </a>
+            <span class="header-link" onclick="goToSale()">Sale</span>
+            <span class="header-link" onclick="goToNewArrivals()">New Arrivals</span>
+            <span class="header-link" onclick="goToBrands()">Brands</span>
+            <span class="header-link" onclick="goToProductList()">Shop All</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;">
+            <button class="header-icon-btn" onclick="toggleSearchBox()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/SEARCHICON.png" class="header-icon" alt="Search" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToUserPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/USERICON.png" class="header-icon" alt="User" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToCartPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/CARTICON.png" class="header-icon" alt="Cart" style="width:26px;height:26px;"></button>
+        </div>
+        <div class="search-box" id="searchBox" style="display:none;position:absolute;top:72px;right:80px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px 16px;z-index:101;">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)" style="font-family:'Poppins',Arial,sans-serif;font-size:1rem;border:none;outline:none;width:220px;padding:6px 0;">
+        </div>
+    </nav>
+    <div class="checkout-main">
+        <div class="checkout-left">
+            <div class="checkout-header">Checkout</div>
+            <div class="checkout-caption-row">
+                <span class="checkout-caption">Account</span>
+                <button class="checkout-toggle-btn" onclick="toggleAccount()"><img src="IMAGE/ToggleHideButton.png" alt="Toggle Account" style="width:22px;height:22px;"></button>
+            </div>
+            <div class="checkout-account" id="accountEmail">useraccount@gmail.com</div>
+            <div class="checkout-divider"></div>
+            <div class="checkout-section-title">Ship to</div>
+            <div class="checkout-address-box">
+                <div class="checkout-address-row">
+                    <div>
+                        <span class="checkout-address-main">Jemar Eden, BLK 69 LOT 18 Fairview</span><br>
+                        <span class="checkout-address-details">QUEZON CITY, 1118, PH</span>
+                    </div>
+                </div>
+            </div>
+            <div class="checkout-add-address-row" id="addressEditorRow" onclick="openAddressBookModal()" role="button" tabindex="0">
+                <img src="IMAGE/Plus.png" alt="Add">
+                <span id="addressEditorToggleLabel">Use a different address</span>
+            </div>
+
+            <div id="checkoutAddressEditor" class="address-editor" style="margin-top:8px;display:none;">
+                <div class="checkout-section-title">Shipping address</div>
+                <div class="address-grid">
+                    <label class="address-field">
+                        <span class="address-label">Full name</span>
+                        <input id="checkoutFullName" type="text" placeholder="e.g. Jemar Eden" />
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Phone number</span>
+                        <input id="checkoutPhone" type="tel" placeholder="09xx xxx xxxx" />
+                    </label>
+                    <label class="address-field address-field-full">
+                        <span class="address-label">Region</span>
+                        <select id="checkoutRegionSelect" aria-label="Region">
+                            <option value="">Select region</option>
+                        </select>
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Province</span>
+                        <select id="checkoutProvinceSelect" aria-label="Province" disabled>
+                            <option value="">Select province</option>
+                        </select>
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">City / Municipality</span>
+                        <select id="checkoutCitySelect" aria-label="City or municipality" disabled>
+                            <option value="">Select city/municipality</option>
+                        </select>
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Barangay</span>
+                        <select id="checkoutBarangaySelect" aria-label="Barangay" disabled>
+                            <option value="">Select barangay</option>
+                        </select>
+                    </label>
+                    <label class="address-field address-field-full">
+                        <span class="address-label">Street / Building / House No.</span>
+                        <input id="checkoutStreet" type="text" placeholder="House no., Street, Subdivision" />
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Postal code</span>
+                        <input id="checkoutPostal" type="text" placeholder="e.g. 1118" />
+                    </label>
+                    <label class="address-field address-field-full">
+                        <span class="address-label">Additional notes (optional)</span>
+                        <input id="checkoutNotes" type="text" placeholder="Landmarks, delivery notes" />
+                    </label>
+                </div>
+                <label class="address-field" style="margin-top:8px;flex-direction:row;align-items:center;gap:8px;">
+                    <input id="checkoutDefaultAddressToggle" type="checkbox" />
+                    <span class="address-label" style="margin:0;">Set as default address</span>
+                </label>
+                <div class="address-actions">
+                    <button id="saveAddressBtn" class="checkout-proceed-btn" style="max-width:160px;padding:8px 12px;">Save address</button>
+                    <button id="cancelAddressBtn" type="button" class="address-secondary-btn">Cancel</button>
+                </div>
+                <div id="checkoutRegionHint" class="address-hint">Select region to load PSGC provinces and cities.</div>
+            </div>
+            <div class="checkout-divider"></div>
+            <div class="checkout-delivery-method-title">Delivery method</div>
+            
+                <div class="checkout-delivery-options">
+                    <div class="checkout-delivery-option selected" data-code="personal" onclick="selectDeliveryMethod(this, 0)">
+                        <input type="radio" name="delivery" class="checkout-delivery-radio" checked value="personal">
+                        <div>
+                            <div class="checkout-delivery-label">Personal Delivery</div>
+                            <div class="checkout-delivery-desc">Hand delivered by our team. Est. Delivery Time: 1-2 days. Only available in Bacoor, Cavite.</div>
+                        </div>
+                    </div>
+                        <div class="checkout-delivery-option" data-code="jnt" onclick="selectDeliveryMethod(this, 1)">
+                            <input type="radio" name="delivery" class="checkout-delivery-radio" value="jnt">
+                            <div>
+                                <div class="checkout-delivery-label">J&amp;T Express / JRS</div>
+                                <div class="checkout-delivery-desc">Delivered via J&amp;T Express or JRS. Delivery fee may vary by distance. Est. Delivery Time: 2-7 business days.</div>
+                            </div>
+                        </div>
+                </div>
+            <div class="checkout-divider"></div>
+            <div class="checkout-payment-title">Payment Method</div>
+            <div class="checkout-payment-subtitle">All transactions are secured.</div>
+            <div class="checkout-payment-options">
+                <div class="checkout-payment-option selected" data-code="qr_ph" onclick="selectPaymentMethod(this, 0)">
+                    <input type="radio" name="payment" class="checkout-payment-radio" checked value="qr_ph">
+                    <div>
+                        <div class="checkout-payment-label">QR PH</div>
+                        <div class="checkout-payment-desc">After clicking “Place order”, you will be redirected to QR Ph to complete your purchase securely. Supports Gcash, Maya, and banks with QR Ph support.</div>
+                    </div>
+                </div>
+                <div class="checkout-payment-option" data-code="bank_transfer" onclick="selectPaymentMethod(this, 1)">
+                    <input type="radio" name="payment" class="checkout-payment-radio" value="bank_transfer">
+                    <div>
+                        <div class="checkout-payment-label">Bank Transfer</div>
+                        <div class="checkout-payment-desc">Payment should be done within 24 hours upon purchase. We will confirm your order once we receive the payment. Note: Please upload proof of payment after transfer.<br>We accept BDO, BPI.</div>
+                    </div>
+                </div>
+                <div class="checkout-payment-option" data-code="cod" onclick="selectPaymentMethod(this, 2)">
+                    <input type="radio" name="payment" class="checkout-payment-radio" value="cod">
+                    <div>
+                        <div class="checkout-payment-label">Cash on Delivery</div>
+                        <div class="checkout-payment-desc">Payment is done upon delivery.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="checkout-btn-row">
+                <button class="checkout-proceed-btn" onclick="proceedToPayment()">Proceed to payment</button>
+            </div>
+            <div class="checkout-policy-row">
+                <span class="checkout-policy-link">Refund policy</span>
+                <span class="checkout-policy-link">Shipping policy</span>
+                <span class="checkout-policy-link">Privacy Policy</span>
+                <span class="checkout-policy-link">Terms of Service</span>
+                <span class="checkout-policy-link">Contact Information</span>
+            </div>
+        </div>
+        <div class="checkout-right">
+            <div class="checkout-cart-list" id="checkoutCartList">
+                <!-- Cart items will be rendered here -->
+            </div>
+            <div class="checkout-cart-divider"></div>
+            <div class="checkout-cart-summary-row">
+                <span class="checkout-cart-summary-label">Subtotal</span>
+                <span class="checkout-cart-summary-value" id="checkoutSubtotal">₱0.00</span>
+            </div>
+            <div class="checkout-cart-summary-row">
+                <span class="checkout-cart-summary-label">Packaging</span>
+                <span class="checkout-cart-summary-value" id="checkoutPackagingValue">₱0.00</span>
+            </div>
+            <div class="checkout-cart-summary-row">
+                <span class="checkout-cart-summary-label" id="checkoutShippingLabel">Shipping</span>
+                <span class="checkout-cart-summary-value" id="checkoutShippingValue">₱0.00</span>
+            </div>
+            <div class="checkout-cart-total-row">
+                <span>Total</span>
+                <span id="checkoutTotal">₱0.00</span>
+            </div>
+        </div>
+    </div>
+    <!-- Address book modal -->
+    <div id="addressBookOverlay" class="address-book-overlay" aria-hidden="true">
+        <div class="address-book-modal" role="dialog" aria-modal="true" aria-label="Saved addresses">
+            <button class="address-book-close" onclick="closeAddressBookModal()" aria-label="Close">✕</button>
+            <div class="address-book-header">
+                <h3>Saved addresses</h3>
+                <p>Select an address to use for this checkout.</p>
+            </div>
+            <div id="addressBookList" class="address-book-list"></div>
+            <div class="address-book-actions">
+                <button class="address-inline-btn" onclick="openAddressEditorModal(null)">+Add new address</button>
+                <button class="address-secondary-btn" onclick="closeAddressBookModal()">Close</button>
+            </div>
+        </div>
+    </div>
+    <!-- Address editor modal -->
+    <div id="addressEditorOverlay" class="address-editor-overlay" aria-hidden="true">
+        <div class="address-editor-modal" role="dialog" aria-modal="true" aria-label="Edit address">
+            <button class="address-book-close" onclick="closeAddressEditorModal()" aria-label="Close">✕</button>
+            <div id="addressEditorHost"></div>
+        </div>
+    </div>
+    <script>
+    // Navigation bar functions (copied from product-list.html)
+    function goToSale() { window.location.href = 'product-list.html?sale=1'; }
+    function goToNewArrivals() { window.location.href = 'product-list.html?new=1'; }
+    function goToBrands() { window.location.href = 'product-list.html#brands'; }
+    function goToProductList() { window.location.href = 'product-list.html'; }
+    function goToUserPage() {
+        try{
+            var p = JSON.parse(localStorage.getItem('profile') || 'null');
+            if(!p || !p.email) { window.location.href = 'login.html'; return; }
+        }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
+    }
+    function goToCartPage() { window.location.href = 'cart.html'; }
+    function toggleSearchBox() {
+        var box = document.getElementById('searchBox');
+        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+        if (box.style.display === 'block') {
+            document.getElementById('searchInput').focus();
+        }
+    }
+    function searchKeyDown(e) {
+        if (e.key === 'Enter') {
+            var val = document.getElementById('searchInput').value.trim();
+            if (val) {
+                window.location.href = 'product-list.html?search=' + encodeURIComponent(val);
+            }
+        }
+    }
+    // Account toggle
+    function toggleAccount() {
+        var email = document.getElementById('accountEmail');
+        if (email.style.display === 'none') {
+            email.style.display = '';
+        } else {
+            email.style.display = 'none';
+        }
+    }
+    // Address menu
+    function deleteAddress() {
+        try{
+            localStorage.removeItem('checkoutAddressObject');
+            localStorage.removeItem('checkoutAddressMain');
+            localStorage.removeItem('checkoutAddressDetails');
+            localStorage.removeItem('checkoutAddress');
+            initCheckoutProfileDisplay();
+            try{ updateCheckoutShippingDisplay(); }catch(e){}
+        }catch(e){ /* ignore */ }
+    }
+    // Delivery method selection
+    function selectDeliveryMethod(el, idx) {
+        document.querySelectorAll('.checkout-delivery-option').forEach((opt, i) => {
+            opt.classList.toggle('selected', i === idx);
+            opt.querySelector('input[type="radio"]').checked = (i === idx);
+        });
+        try{
+            var label = el.querySelector('.checkout-delivery-label') ? el.querySelector('.checkout-delivery-label').textContent.trim() : '';
+            var code = el.dataset && el.dataset.code ? el.dataset.code : (el.querySelector('input[type="radio"]').value || '');
+            if(label) localStorage.setItem('checkoutDelivery', label);
+            if(code) localStorage.setItem('checkoutDeliveryCode', code);
+        }catch(e){}
+        // update shipping immediately when delivery method changes
+        try{ updateCheckoutShippingDisplay(); }catch(e){}
+    }
+    // Payment method selection
+    function selectPaymentMethod(el, idx) {
+        document.querySelectorAll('.checkout-payment-option').forEach((opt, i) => {
+            opt.classList.toggle('selected', i === idx);
+            opt.querySelector('input[type="radio"]').checked = (i === idx);
+        });
+        try{
+            var label = el.querySelector('.checkout-payment-label') ? el.querySelector('.checkout-payment-label').textContent.trim() : '';
+            var code = el.dataset && el.dataset.code ? el.dataset.code : (el.querySelector('input[type="radio"]').value || '');
+            if(label) localStorage.setItem('checkoutPayment', label);
+            if(code) localStorage.setItem('checkoutPaymentCode', code);
+            // Do NOT open any modals from checkout — payment-specific UI (QR / bank details)
+            // will be handled on the payment page. We only persist the selection here.
+        }catch(e){}
+    }
+
+    // Bank details modal helper (creates modal if missing)
+    function showBankModal(){
+        var overlay = document.getElementById('checkoutBankModalOverlay');
+        if(!overlay){
+            overlay = document.createElement('div');
+            overlay.id = 'checkoutBankModalOverlay';
+            overlay.className = 'bank-modal-overlay';
+            overlay.innerHTML = `
+                <div class="bank-modal" role="dialog" aria-modal="true" aria-label="Bank details">
+                    <button style="position:absolute;right:12px;top:10px;background:none;border:none;font-size:18px;cursor:pointer;" onclick="closeBankModal()">✕</button>
+                    <h3>Bank Transfer Details</h3>
+                    <div style="font-size:0.95rem;color:#666;margin-bottom:8px;">Provide your bank details so we can verify the transfer if needed.</div>
+                    <div class="field-row">
+                        <div class="field"><label for="bankSelect">Bank</label><select id="bankSelect"><option value="BDO">BDO</option><option value="BPI">BPI</option><option value="Other">Other</option></select></div>
+                        <div class="field"><label for="acctTypeSelect">Account/Card Type</label><select id="acctTypeSelect"><option value="savings">Savings</option><option value="current">Current</option><option value="debit">Debit Card</option><option value="credit">Credit Card</option></select></div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field"><label for="acctNameInput">Account Name</label><input id="acctNameInput" type="text" placeholder="Account name" /></div>
+                        <div class="field"><label for="acctNumberInput">Account Number</label><input id="acctNumberInput" type="text" placeholder="Account / Card number" /></div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field"><label for="bankNote">Notes (optional)</label><input id="bankNote" type="text" placeholder="e.g. branch or reference" /></div>
+                    </div>
+                    <div class="bank-modal-actions">
+                        <button class="btn ghost" onclick="closeBankModal()">Cancel</button>
+                        <button class="btn primary" id="checkoutSaveBankBtn">Save details</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            // add minimal styles if missing by reusing existing bank-modal-overlay class in style.css (already present in payment.html's styles)
+        }
+        // preload values
+        try{ if(document.getElementById('bankSelect') && localStorage.getItem('checkoutBank')) document.getElementById('bankSelect').value = localStorage.getItem('checkoutBank'); if(document.getElementById('acctTypeSelect') && localStorage.getItem('checkoutBankAcctType')) document.getElementById('acctTypeSelect').value = localStorage.getItem('checkoutBankAcctType'); if(document.getElementById('acctNameInput')) document.getElementById('acctNameInput').value = localStorage.getItem('checkoutBankAcctName') || ''; if(document.getElementById('acctNumberInput')) document.getElementById('acctNumberInput').value = localStorage.getItem('checkoutBankAcctNumber') || ''; if(document.getElementById('bankNote')) document.getElementById('bankNote').value = localStorage.getItem('checkoutBankNote') || ''; }catch(e){}
+        overlay.classList.add('show'); overlay.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden';
+        // attach save handler
+        setTimeout(function(){
+            var saveBtn = document.getElementById('checkoutSaveBankBtn');
+            if(saveBtn) saveBtn.addEventListener('click', function(){
+                var bank = document.getElementById('bankSelect').value || '';
+                var acctType = document.getElementById('acctTypeSelect').value || '';
+                var acctName = document.getElementById('acctNameInput').value || '';
+                var acctNum = document.getElementById('acctNumberInput').value || '';
+                var note = document.getElementById('bankNote').value || '';
+                if(!bank || !acctName || !acctNum){ alert('Please fill Bank, Account Name and Account Number.'); return; }
+                localStorage.setItem('checkoutBank', bank);
+                localStorage.setItem('checkoutBankAcctType', acctType);
+                localStorage.setItem('checkoutBankAcctName', acctName);
+                localStorage.setItem('checkoutBankAcctNumber', acctNum);
+                localStorage.setItem('checkoutBankNote', note);
+                closeBankModal();
+            });
+        },100);
+    }
+
+    function closeBankModal(){ var o = document.getElementById('checkoutBankModalOverlay'); if(!o) return; o.classList.remove('show'); o.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
+
+    // QR modal helpers
+    function showQRModal() {
+        var overlay = document.getElementById('qrModalOverlay');
+        if (!overlay) {
+            // create overlay dynamically if missing
+            overlay = document.createElement('div');
+            overlay.id = 'qrModalOverlay';
+            overlay.className = 'qr-modal-overlay';
+            overlay.innerHTML = `
+                <div class="qr-modal" role="dialog" aria-modal="true">
+                    <button class="qr-modal-close" aria-label="Close" onclick="closeQRModal()">✕</button>
+                    <div class="qr-modal-left"><img id="qrModalImg" src="" alt="QR Code"></div>
+                    <div class="qr-modal-right">
+                        <h3>Scan to Pay (QR PH)</h3>
+                        <div class="qr-modal-steps">
+                            <ol>
+                                <li>Scan the QR code to pay for the order.</li>
+                                <li>After completing the payment please take note of the following details:
+                                    <ul>
+                                        <li>Take a screenshot as proof of payment to be uploaded.</li>
+                                        <li>Copy the Reference Number and input it in the Reference Number text field found in the next page.</li>
+                                    </ul>
+                                </li>
+                            </ol>
+                        </div>
+                        <div class="qr-modal-actions">
+                            <button class="qr-modal-complete" onclick="completeQRPayment()">Complete</button>
+                            <button id="qrDownloadBtn" class="qr-modal-cancel" onclick="downloadQR()">Download QR</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(overlay);
+        }
+        // generate QR image (simple generated payload)
+        var payload = 'SHOEPAO_PAYMENT:' + Date.now() + ':' + Math.floor(Math.random()*100000);
+        var qrImg = document.getElementById('qrModalImg');
+        if (qrImg) {
+            // clear first to force reload in some browsers
+            try { qrImg.src = ''; } catch(e) {}
+            // cache-bust using timestamp
+            var url = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' + encodeURIComponent(payload) + '&_=' + Date.now();
+            // attach a single retry and fallback on error
+            var tried = 0;
+            qrImg.onerror = function() {
+                tried++;
+                if (tried <= 1) {
+                    // retry once with a slightly different payload
+                    var retryPayload = payload + ':r' + Date.now();
+                    qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' + encodeURIComponent(retryPayload) + '&_=' + Date.now();
+                    return;
+                }
+                // final fallback: show a small inline SVG indicating the QR couldn't load
+                var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><rect width="100%" height="100%" fill="#f5f5f5"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#666" font-size="14">QR unavailable</text></svg>';
+                qrImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+                qrImg.onerror = null;
+            };
+            // finally set src
+            qrImg.src = url;
+        }
+        overlay.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeQRModal() {
+        var overlay = document.getElementById('qrModalOverlay');
+        if (overlay) {
+            overlay.classList.remove('show');
+            // keep overlay in DOM to reuse
+        }
+        document.body.style.overflow = '';
+    }
+
+    // Download QR image shown in the QR modal. Fetches the image and triggers a download.
+    function downloadQR(){
+        try{
+            var img = document.getElementById('qrModalImg');
+            if(!img || !img.src) return alert('QR image not available yet.');
+            var url = img.src;
+            var btn = document.getElementById('qrDownloadBtn');
+            if(btn) { btn.disabled = true; btn.textContent = 'Downloading...'; }
+            // try fetch blob
+            fetch(url, { mode: 'cors' }).then(function(res){
+                if(!res.ok) throw new Error('Failed to fetch');
+                return res.blob();
+            }).then(function(blob){
+                var a = document.createElement('a');
+                var objectUrl = URL.createObjectURL(blob);
+                a.href = objectUrl;
+                var filename = 'shoe_pao_qr_' + Date.now() + '.png';
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function(){ URL.revokeObjectURL(objectUrl); try{ a.remove(); }catch(e){} }, 1500);
+            }).catch(function(){
+                // fallback: open image in new tab
+                try{ window.open(url, '_blank'); }catch(e){ alert('Unable to download QR.'); }
+            }).finally(function(){ if(btn){ btn.disabled = false; btn.textContent = 'Download QR'; } });
+        }catch(e){ console.error('downloadQR error', e); alert('Unable to download QR.'); }
+    }
+
+    function completeQRPayment() {
+        // mark QR complete (optional), close modal and proceed
+        localStorage.setItem('checkoutQRComplete', '1');
+        closeQRModal();
+    }
+    
+    // Shipping helpers (J&T calculation shared so UI updates immediately)
+    function determineRegion(addrMain, addrDetails){
+        var s = (addrMain || '') + ' ' + (addrDetails || '');
+        s = s.toLowerCase();
+        var manilaKeys = ['manila','quezon city','makati','pasig','taguig','muntinlupa','paranaque','las piñas','caloocan','malabon','navotas','valenzuela','san juan','pasay','marikina'];
+        for(var i=0;i<manilaKeys.length;i++) if(s.indexOf(manilaKeys[i]) !== -1) return 'Manila';
+        var visayasKeys = ['cebu','iloilo','bacolod','leyte','tacloban','dumaguete','capiz','sugbo'];
+        for(var i=0;i<visayasKeys.length;i++) if(s.indexOf(visayasKeys[i]) !== -1) return 'Visayas';
+        var mindKeys = ['davao','cagayan de oro','zamboanga','general santos','butuan','iligan','cotabato'];
+        for(var i=0;i<mindKeys.length;i++) if(s.indexOf(mindKeys[i]) !== -1) return 'Mindanao';
+        var islandKeys = ['palawan','siargao','camiguin','batanes','siquijor','biliran'];
+        for(var i=0;i<islandKeys.length;i++) if(s.indexOf(islandKeys[i]) !== -1) return 'Island';
+        var luzonKeys = ['laguna','batangas','bulacan','pampanga','pangasinan','nueva ecija','tarlac','rizal','camarines','albay','la union','benguet','ilocos'];
+        for(var i=0;i<luzonKeys.length;i++) if(s.indexOf(luzonKeys[i]) !== -1) return 'Luzon';
+        return 'Luzon';
+    }
+
+    function psgcRegionToShippingRegion(regionName){
+        var n = (regionName || '').toLowerCase();
+        if(!n) return '';
+        if(n.indexOf('ncr') !== -1 || n.indexOf('national capital') !== -1 || n.indexOf('metro manila') !== -1) return 'Manila';
+        if(n.indexOf('mimaropa') !== -1 || n.indexOf('palawan') !== -1) return 'Island';
+        if(n.indexOf('visayas') !== -1) return 'Visayas';
+        if(n.indexOf('mindanao') !== -1 || n.indexOf('barmm') !== -1 || n.indexOf('bangsamoro') !== -1) return 'Mindanao';
+        return 'Luzon';
+    }
+
+    var JNTRates = {
+        'Luzon': [
+            // Rates are "from Luzon" to destination regions
+            { max:0.5, Luzon:85, Manila:95, Visayas:100, Mindanao:105, Island:115 },
+            { max:1,   Luzon:155, Manila:165, Visayas:180, Mindanao:195, Island:205 },
+            { max:3,   Luzon:180, Manila:190, Visayas:200, Mindanao:220, Island:230 },
+            { max:4,   Luzon:270, Manila:280, Visayas:300, Mindanao:330, Island:340 },
+            { max:5,   Luzon:360, Manila:370, Visayas:400, Mindanao:440, Island:450 },
+            { max:6,   Luzon:455, Manila:465, Visayas:500, Mindanao:550, Island:560 }
+        ],
+        'Manila': [
+            { max:0.5, Manila:85, Luzon:95, Visayas:100, Mindanao:105, Island:115 },
+            { max:1, Manila:115, Luzon:165, Visayas:180, Mindanao:195, Island:205 },
+            { max:3, Manila:155, Luzon:190, Visayas:200, Mindanao:220, Island:230 },
+            { max:4, Manila:225, Luzon:280, Visayas:300, Mindanao:330, Island:340 },
+            { max:5, Manila:305, Luzon:370, Visayas:400, Mindanao:440, Island:450 },
+            { max:6, Manila:455, Luzon:465, Visayas:500, Mindanao:550, Island:560 }
+        ],
+        'Visayas': [
+            { max:0.5, Manila:85, Luzon:100, Visayas:85, Mindanao:105, Island:115 },
+            { max:1, Manila:155, Luzon:180, Visayas:155, Mindanao:175, Island:185 },
+            { max:3, Manila:180, Luzon:200, Visayas:180, Mindanao:200, Island:210 },
+            { max:4, Manila:270, Luzon:300, Visayas:270, Mindanao:290, Island:300 },
+            { max:5, Manila:360, Luzon:400, Visayas:360, Mindanao:380, Island:390 },
+            { max:6, Manila:455, Luzon:500, Visayas:455, Mindanao:475, Island:485 }
+        ],
+        'Mindanao': [
+            { max:0.5, Mindanao:85, Manila:105, Luzon:105, Visayas:105, Island:115 },
+            { max:1,   Mindanao:155, Manila:195, Luzon:195, Visayas:175, Island:205 },
+            { max:3,   Mindanao:180, Manila:215, Luzon:215, Visayas:195, Island:230 },
+            { max:4,   Mindanao:270, Manila:325, Luzon:325, Visayas:285, Island:340 },
+            { max:5,   Mindanao:360, Manila:435, Luzon:435, Visayas:375, Island:450 },
+            { max:6,   Mindanao:455, Manila:545, Luzon:545, Visayas:470, Island:560 }
+        ],
+        'Island': [
+            { max:0.5, Manila:115, Luzon:115, Visayas:115, Mindanao:115, Island:115 },
+            { max:1, Manila:205, Luzon:205, Visayas:205, Mindanao:185, Island:205 },
+            { max:3, Manila:230, Luzon:230, Visayas:230, Mindanao:210, Island:230 },
+            { max:4, Manila:340, Luzon:340, Visayas:340, Mindanao:300, Island:340 },
+            { max:5, Manila:450, Luzon:450, Visayas:450, Mindanao:390, Island:450 },
+            { max:6, Manila:560, Luzon:560, Visayas:560, Mindanao:485, Island:560 }
+        ]
+    };
+
+    
+
+    function updateCheckoutShippingDisplay(){
+        try{
+            var code = localStorage.getItem('checkoutDeliveryCode') || '';
+            if(code === 'jnt'){
+                var price = computeJNTShipping() || 0;
+                localStorage.setItem('checkoutShipping', String(price));
+                localStorage.setItem('checkoutShippingLabel', 'J&T Express');
+            } else {
+                localStorage.removeItem('checkoutShipping');
+                localStorage.removeItem('checkoutShippingLabel');
+                // remove any packaging details when J&T is not selected
+                localStorage.removeItem('checkoutPackaging');
+                localStorage.removeItem('checkoutPackagingDetails');
+            }
+        }catch(e){ console.error('updateCheckoutShippingDisplay error', e); }
+        // Update DOM (if present)
+        try{
+            var sh = Number(localStorage.getItem('checkoutShipping') || 0);
+            var lbl = localStorage.getItem('checkoutShippingLabel') || 'Shipping';
+            var elVal = document.getElementById('checkoutShippingValue');
+            var elLbl = document.getElementById('checkoutShippingLabel');
+            if(elVal) elVal.textContent = '₱' + sh.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+            if(elLbl) elLbl.textContent = lbl;
+            // also update total display
+            var subtotalText = document.getElementById('checkoutSubtotal') ? document.getElementById('checkoutSubtotal').textContent : null;
+            if(subtotalText && elVal){
+                var v = Number((subtotalText || '').replace(/[^0-9.]/g, '')) || 0;
+                var totalEl = document.getElementById('checkoutTotal');
+                if(totalEl) totalEl.textContent = '₱' + (v + sh).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+            }
+        }catch(e){ /* ignore */ }
+    }
+    
+    // PSGC address selector (Shopee-style cascading dropdowns)
+    var PSGC_BASE = 'https://psgc.cloud/api';
+    function fetchPSGC(url){
+        return new Promise(function(resolve, reject){
+            try{
+                var cacheKey = 'psgc_cache_' + url;
+                var cached = localStorage.getItem(cacheKey);
+                if(cached){
+                    try{ var parsed = JSON.parse(cached); if(parsed && parsed.data && parsed.ts && (Date.now() - parsed.ts) < (7*24*60*60*1000)) return resolve(parsed.data); }catch(e){}
+                }
+                fetch(url, { headers: { 'Accept': 'application/json' } })
+                    .then(function(res){ return res.json(); })
+                    .then(function(data){
+                        try{ localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: data })); }catch(e){}
+                        resolve(data);
+                    })
+                    .catch(function(err){ reject(err); });
+            }catch(e){ reject(e); }
+        });
+    }
+    function toOptionItem(item){ return { code: item.code || item.psgc || item.id || '', name: item.name || item.regionName || item.provinceName || item.cityName || item.municipalityName || '' }; }
+    function fillSelect(select, items, placeholder){
+        if(!select) return;
+        select.innerHTML = '';
+        var opt = document.createElement('option');
+        opt.value = ''; opt.textContent = placeholder || 'Select';
+        select.appendChild(opt);
+        (items || []).forEach(function(it){
+            var o = document.createElement('option');
+            o.value = it.code; o.textContent = it.name; o.dataset.name = it.name; select.appendChild(o);
+        });
+    }
+    function setSelectDisabled(select, disabled){ if(!select) return; select.disabled = !!disabled; if(disabled) select.value = ''; }
+    function selectOptionByName(select, name){
+        if(!select || !name) return false;
+        var n = String(name || '').toLowerCase();
+        var opts = Array.prototype.slice.call(select.options || []);
+        for(var i=0;i<opts.length;i++){
+            if(String(opts[i].textContent || '').toLowerCase() === n){
+                select.value = opts[i].value; return true;
+            }
+        }
+        return false;
+    }
+
+    function initAddressEditor(){
+        try{
+            var editor = document.getElementById('checkoutAddressEditor');
+            var saveBtn = document.getElementById('saveAddressBtn');
+            var cancelBtn = document.getElementById('cancelAddressBtn');
+            var regionSel = document.getElementById('checkoutRegionSelect');
+            var provinceSel = document.getElementById('checkoutProvinceSelect');
+            var citySel = document.getElementById('checkoutCitySelect');
+            var brgySel = document.getElementById('checkoutBarangaySelect');
+            var addrLabel = document.querySelector('.checkout-address-main');
+            var addrDetails = document.querySelector('.checkout-address-details');
+            var hint = document.getElementById('checkoutRegionHint');
+
+            cancelBtn && cancelBtn.addEventListener('click', function(){ closeAddressEditorModal(); });
+
+            function prefillFromObject(obj){
+                if(!obj) return;
+                if(document.getElementById('checkoutFullName')) document.getElementById('checkoutFullName').value = obj.fullName || '';
+                if(document.getElementById('checkoutPhone')) document.getElementById('checkoutPhone').value = obj.phone || '';
+                if(document.getElementById('checkoutStreet')) document.getElementById('checkoutStreet').value = obj.street || '';
+                if(document.getElementById('checkoutPostal')) document.getElementById('checkoutPostal').value = obj.postalCode || '';
+                if(document.getElementById('checkoutNotes')) document.getElementById('checkoutNotes').value = obj.notes || '';
+            }
+
+            // preload stored address object if present
+            var storedObj = null;
+            try{ storedObj = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ storedObj = null; }
+            if(storedObj){ prefillFromObject(storedObj); }
+
+            // load regions
+            fetchPSGC(PSGC_BASE + '/regions').then(function(list){
+                var regions = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                fillSelect(regionSel, regions, 'Select region');
+                setSelectDisabled(regionSel, false);
+                if(storedObj && storedObj.region && storedObj.region.code){
+                    regionSel.value = storedObj.region.code;
+                    loadProvincesOrCities(regionSel.value, storedObj);
+                }
+            }).catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC regions.'; });
+
+            function resetChildren(){
+                fillSelect(provinceSel, [], 'Select province');
+                fillSelect(citySel, [], 'Select city/municipality');
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(provinceSel, true);
+                setSelectDisabled(citySel, true);
+                setSelectDisabled(brgySel, true);
+            }
+
+            function loadProvincesOrCities(regionCode, preselectObj){
+                resetChildren();
+                if(!regionCode) return;
+                if(hint) hint.textContent = 'Loading provinces...';
+                fetchPSGC(PSGC_BASE + '/regions/' + encodeURIComponent(regionCode) + '/provinces')
+                    .then(function(list){
+                        var provinces = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                        if(provinces.length){
+                            fillSelect(provinceSel, provinces, 'Select province');
+                            setSelectDisabled(provinceSel, false);
+                            if(preselectObj && preselectObj.province){
+                                if(preselectObj.province.code){
+                                    provinceSel.value = preselectObj.province.code;
+                                    loadCitiesByProvince(preselectObj.province.code, preselectObj);
+                                } else if(selectOptionByName(provinceSel, preselectObj.province)) {
+                                    loadCitiesByProvince(provinceSel.value, preselectObj);
+                                }
+                            }
+                            if(hint) hint.textContent = 'Select province to load cities.';
+                        } else {
+                            // NCR and independent cities: load cities directly
+                            setSelectDisabled(provinceSel, true);
+                            if(hint) hint.textContent = 'Loading cities...';
+                            loadCitiesByRegion(regionCode, preselectObj);
+                        }
+                    })
+                    .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC provinces.'; });
+            }
+
+            function loadCitiesByProvince(provinceCode, preselectObj){
+                fillSelect(citySel, [], 'Select city/municipality');
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(citySel, true);
+                setSelectDisabled(brgySel, true);
+                if(!provinceCode) return;
+                if(hint) hint.textContent = 'Loading cities...';
+                fetchPSGC(PSGC_BASE + '/provinces/' + encodeURIComponent(provinceCode) + '/cities-municipalities')
+                    .then(function(list){
+                        var cities = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                        fillSelect(citySel, cities, 'Select city/municipality');
+                        setSelectDisabled(citySel, false);
+                        if(preselectObj && preselectObj.city){
+                            if(preselectObj.city.code){
+                                citySel.value = preselectObj.city.code;
+                                loadBarangays(preselectObj.city.code, preselectObj);
+                            } else if(selectOptionByName(citySel, preselectObj.city)) {
+                                loadBarangays(citySel.value, preselectObj);
+                            }
+                        }
+                        if(hint) hint.textContent = 'Select city to load barangays.';
+                    })
+                    .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC cities.'; });
+            }
+
+            function loadCitiesByRegion(regionCode, preselectObj){
+                fillSelect(citySel, [], 'Select city/municipality');
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(citySel, true);
+                setSelectDisabled(brgySel, true);
+                if(!regionCode) return;
+                fetchPSGC(PSGC_BASE + '/regions/' + encodeURIComponent(regionCode) + '/cities-municipalities')
+                    .then(function(list){
+                        var cities = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                        fillSelect(citySel, cities, 'Select city/municipality');
+                        setSelectDisabled(citySel, false);
+                        if(preselectObj && preselectObj.city){
+                            if(preselectObj.city.code){
+                                citySel.value = preselectObj.city.code;
+                                loadBarangays(preselectObj.city.code, preselectObj);
+                            } else if(selectOptionByName(citySel, preselectObj.city)) {
+                                loadBarangays(citySel.value, preselectObj);
+                            }
+                        }
+                        if(hint) hint.textContent = 'Select city to load barangays.';
+                    })
+                    .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC cities.'; });
+            }
+
+            function loadBarangays(cityCode, preselectObj){
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(brgySel, true);
+                if(!cityCode) return;
+                if(hint) hint.textContent = 'Loading barangays...';
+                fetchPSGC(PSGC_BASE + '/cities-municipalities/' + encodeURIComponent(cityCode) + '/barangays')
+                    .then(function(list){
+                        var brgys = (list || []).map(toOptionItem).sort(function(a,b){ return a.name.localeCompare(b.name); });
+                        fillSelect(brgySel, brgys, 'Select barangay');
+                        setSelectDisabled(brgySel, false);
+                        if(preselectObj && preselectObj.barangay){
+                            if(preselectObj.barangay.code){
+                                brgySel.value = preselectObj.barangay.code;
+                            } else { selectOptionByName(brgySel, preselectObj.barangay); }
+                        }
+                        if(hint) hint.textContent = 'Barangay loaded.';
+                    })
+                    .catch(function(){ if(hint) hint.textContent = 'Unable to load PSGC barangays.'; });
+            }
+
+            regionSel && regionSel.addEventListener('change', function(){
+                var code = (this.value || '').trim();
+                resetChildren();
+                loadProvincesOrCities(code);
+                updateCheckoutShippingDisplay();
+            });
+            provinceSel && provinceSel.addEventListener('change', function(){
+                var code = (this.value || '').trim();
+                fillSelect(citySel, [], 'Select city/municipality');
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(citySel, true);
+                setSelectDisabled(brgySel, true);
+                loadCitiesByProvince(code);
+                updateCheckoutShippingDisplay();
+            });
+            citySel && citySel.addEventListener('change', function(){
+                var code = (this.value || '').trim();
+                fillSelect(brgySel, [], 'Select barangay');
+                setSelectDisabled(brgySel, true);
+                loadBarangays(code);
+                updateCheckoutShippingDisplay();
+            });
+            brgySel && brgySel.addEventListener('change', function(){ updateCheckoutShippingDisplay(); });
+
+            window.checkoutAddressEditorApi = {
+                loadAddress: function(obj){
+                    if(!obj) return;
+                    prefillFromObject(obj);
+                    if(obj.region && obj.region.code){
+                        regionSel.value = obj.region.code;
+                        loadProvincesOrCities(obj.region.code, obj);
+                    } else if(obj.region) {
+                        if(selectOptionByName(regionSel, obj.region)){
+                            loadProvincesOrCities(regionSel.value, obj);
+                        }
+                    }
+                },
+                reset: function(){
+                    prefillFromObject({ fullName:'', phone:'', street:'', postalCode:'', notes:'' });
+                    if(regionSel){ regionSel.value = ''; }
+                    resetChildren();
+                }
+            };
+
+            saveBtn && saveBtn.addEventListener('click', function(e){
+                e.preventDefault();
+                var obj = getCheckoutAddressObject();
+                if(!obj || !obj.region || !obj.city || !obj.barangay || !obj.street){
+                    alert('Please complete the address fields (region, city, barangay, street).');
+                    return;
+                }
+                handleAddressEditorSave(obj);
+                if(addrLabel) addrLabel.textContent = obj.line1 || 'EMPTY';
+                if(addrDetails) addrDetails.textContent = obj.line2 || '';
+                closeAddressEditorModal();
+                updateCheckoutShippingDisplay();
+            });
+        }catch(e){ console.error('initAddressEditor error', e); }
+    }
+
+    // Returns structured address object for checkout
+    function getCheckoutAddressObject(){
+        var regionSel = document.getElementById('checkoutRegionSelect');
+        var provinceSel = document.getElementById('checkoutProvinceSelect');
+        var citySel = document.getElementById('checkoutCitySelect');
+        var brgySel = document.getElementById('checkoutBarangaySelect');
+        var region = regionSel && regionSel.value ? { code: regionSel.value, name: regionSel.options[regionSel.selectedIndex].textContent } : null;
+        var province = provinceSel && provinceSel.value ? { code: provinceSel.value, name: provinceSel.options[provinceSel.selectedIndex].textContent } : null;
+        var city = citySel && citySel.value ? { code: citySel.value, name: citySel.options[citySel.selectedIndex].textContent } : null;
+        var barangay = brgySel && brgySel.value ? { code: brgySel.value, name: brgySel.options[brgySel.selectedIndex].textContent } : null;
+        var fullName = (document.getElementById('checkoutFullName') && document.getElementById('checkoutFullName').value || '').trim();
+        var phone = (document.getElementById('checkoutPhone') && document.getElementById('checkoutPhone').value || '').trim();
+        var street = (document.getElementById('checkoutStreet') && document.getElementById('checkoutStreet').value || '').trim();
+        var postalCode = (document.getElementById('checkoutPostal') && document.getElementById('checkoutPostal').value || '').trim();
+        var notes = (document.getElementById('checkoutNotes') && document.getElementById('checkoutNotes').value || '').trim();
+        var line2Parts = [];
+        if(barangay && barangay.name) line2Parts.push(barangay.name);
+        if(city && city.name) line2Parts.push(city.name);
+        if(province && province.name) line2Parts.push(province.name);
+        if(region && region.name) line2Parts.push(region.name);
+        if(postalCode) line2Parts.push(postalCode);
+        var line1 = (fullName ? fullName + ', ' : '') + (street || '');
+        var line2 = line2Parts.join(', ');
+        return {
+            fullName: fullName,
+            phone: phone,
+            street: street,
+            postalCode: postalCode,
+            notes: notes,
+            region: region,
+            province: province,
+            city: city,
+            barangay: barangay,
+            line1: line1,
+            line2: line2
+        };
+    }
+
+    function isDeliveryAddressComplete(obj){
+        if(!obj) return false;
+        var regionName = obj.region && obj.region.name ? obj.region.name : (obj.region || '');
+        var cityName = obj.city && obj.city.name ? obj.city.name : (obj.city || '');
+        var barangayName = obj.barangay && obj.barangay.name ? obj.barangay.name : (obj.barangay || '');
+        var street = obj.street || obj.line1 || '';
+        return !!(String(regionName || '').trim()) && !!(String(cityName || '').trim()) && !!(String(barangayName || '').trim()) && !!(String(street || '').trim());
+    }
+
+    function getBestCheckoutAddressObject(){
+        var current = null;
+        try{ current = getCheckoutAddressObject(); }catch(e){ current = null; }
+        var stored = null;
+        try{ stored = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ stored = null; }
+        if(isDeliveryAddressComplete(current)) return current;
+        if(isDeliveryAddressComplete(stored)) return stored;
+        return current || stored;
+    }
+
+    // enhance computeJNTShipping to prefer explicit checkout overrides
+    function computeJNTShipping(){
+        try{
+            var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+            var totalQty = 0;
+            cart.forEach(function(it){ totalQty += (it.qty || it.quantity || 1); });
+            // Helper: estimate box dimensions (cm) per shoe size
+            function estimateBoxForSize(size){
+                // attempt to extract numeric portion
+                var s = (''+ (size || '')).toString();
+                var num = parseFloat((s.match(/\d+(?:\.\d+)?/)||['0'])[0]);
+                if(isNaN(num)) num = 40;
+                // mapping (approximate, one box per shoe/pair)
+                if(num <= 37) return {l:30, w:24, h:15};
+                if(num <= 40) return {l:36, w:27, h:18};
+                if(num <= 43) return {l:46, w:30, h:23};
+                return {l:60, w:36, h:32};
+            }
+            // physical weight estimate per pair (kg)
+            var PHYSICAL_WEIGHT_PER_PAIR_KG = 1;
+            var totalPhysicalWeightKg = 0;
+            var totalDimWeightKg = 0;
+            var totalBoxes = 0;
+            var boxCounts = {}; // key: dimension key, value: count
+            cart.forEach(function(it){
+                var qty = Number(it.qty || it.quantity || 1) || 0;
+                totalBoxes += qty;
+                totalPhysicalWeightKg += qty * PHYSICAL_WEIGHT_PER_PAIR_KG;
+                var dims = estimateBoxForSize(it.size);
+                var vol = (dims.l || 0) * (dims.w || 0) * (dims.h || 0); // cubic cm
+                var dimW = (vol / 5000); // dimensional weight kg using divisor 5000
+                totalDimWeightKg += dimW * qty;
+                var key = dims.l + 'x' + dims.w + 'x' + dims.h;
+                boxCounts[key] = (boxCounts[key] || 0) + qty;
+            });
+            var weightKg = Math.max(totalPhysicalWeightKg, totalDimWeightKg);
+            var profile = JSON.parse(localStorage.getItem('profile') || '{}');
+            var overrideAddr = localStorage.getItem('checkoutAddressMain');
+            var destRegion = '';
+            try{
+                var addrObj = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null');
+                if(addrObj && addrObj.region){
+                    if(addrObj.region.name) destRegion = psgcRegionToShippingRegion(addrObj.region.name);
+                    else destRegion = psgcRegionToShippingRegion(addrObj.region);
+                }
+            }catch(e){}
+            if(!destRegion){ destRegion = (overrideAddr ? determineRegion(overrideAddr, '') : determineRegion(profile.addressMain, profile.addressDetails)); }
+            // shipping should be calculated from Luzon origin (change requested)
+            var originRegion = 'Luzon';
+            function computeRate(originRegion, destRegion, weightKg){
+                var table = JNTRates[originRegion] || JNTRates['Luzon'];
+                var w = Number(weightKg) || 0;
+                for(var i=0;i<table.length;i++){
+                    if(w <= table[i].max) return Number(table[i][destRegion] || table[i]['Luzon'] || 0);
+                }
+                var last = table[table.length-1];
+                return Number(last[destRegion] || last['Luzon'] || 0);
+            }
+            // compute packaging fee: ₱50 per 2 boxes (every two boxes)
+            var packagingFee = Math.floor((totalBoxes || 0) / 2) * 50;
+
+            // persist packaging details so payment page & orders can show it
+            try{
+                var packagingDetails = { boxes: totalBoxes, packagingFee: packagingFee, boxCounts: boxCounts };
+                localStorage.setItem('checkoutPackaging', String(packagingFee));
+                localStorage.setItem('checkoutPackagingDetails', JSON.stringify(packagingDetails));
+            }catch(e){ }
+
+            var base = computeRate(originRegion, destRegion, weightKg);
+            return Number(base || 0) + Number(packagingFee || 0);
+        }catch(e){ console.error('computeJNTShipping error', e); return 0; }
+    }
+    
+    // Helper: get active profile
+    function getActiveProfile(){
+        try{ return JSON.parse(localStorage.getItem('profile') || '{}'); }catch(e){ return {}; }
+    }
+
+    var addressBookEditingId = null;
+    var addressBookSelectedId = null;
+
+    function generateAddressId(){ return 'addr_' + Date.now() + '_' + Math.floor(Math.random() * 1000000); }
+
+    function normalizeAddressEntry(entry){
+        if(!entry) return entry;
+        var line2Parts = [];
+        var brgyName = entry.barangay && entry.barangay.name ? entry.barangay.name : entry.barangay;
+        var cityName = entry.city && entry.city.name ? entry.city.name : entry.city;
+        var provName = entry.province && entry.province.name ? entry.province.name : entry.province;
+        var regName = entry.region && entry.region.name ? entry.region.name : entry.region;
+        if(brgyName) line2Parts.push(brgyName);
+        if(cityName) line2Parts.push(cityName);
+        if(provName) line2Parts.push(provName);
+        if(regName) line2Parts.push(regName);
+        if(entry.postalCode) line2Parts.push(entry.postalCode);
+        entry.line1 = entry.line1 || ((entry.fullName ? entry.fullName + ', ' : '') + (entry.street || ''));
+        entry.line2 = entry.line2 || line2Parts.join(', ');
+        return entry;
+    }
+
+    function getProfileAddressBook(){
+        var profile = getActiveProfile() || {};
+        var addresses = Array.isArray(profile.addresses) ? profile.addresses.slice() : [];
+        var defaultId = profile.defaultAddressId || '';
+        return { profile: profile, addresses: addresses, defaultId: defaultId };
+    }
+
+    function deriveProfileFieldsFromEntry(entry){
+        var brgyName = entry.barangay && entry.barangay.name ? entry.barangay.name : entry.barangay;
+        var cityName = entry.city && entry.city.name ? entry.city.name : entry.city;
+        var provName = entry.province && entry.province.name ? entry.province.name : entry.province;
+        var regName = entry.region && entry.region.name ? entry.region.name : entry.region;
+        var details = [brgyName, cityName, provName, regName, entry.postalCode].filter(Boolean).join(', ');
+        return {
+            addressMain: entry.street || entry.line1 || '',
+            addressDetails: details
+        };
+    }
+
+    function ensureProfileAddresses(){
+        var data = getProfileAddressBook();
+        var profile = data.profile;
+        var addresses = data.addresses;
+        var defaultId = data.defaultId;
+        if(!addresses.length){
+            if(profile && (profile.deliveryAddress || profile.addressMain)){
+                var legacyAddr = profile.deliveryAddress || normalizeDeliveryAddressFromString(profile.addressMain || '');
+                var entry = {
+                    id: generateAddressId(),
+                    fullName: legacyAddr.fullName || '',
+                    phone: profile.phone || '',
+                    street: legacyAddr.street || profile.addressMain || '',
+                    postalCode: legacyAddr.postalCode || '',
+                    notes: '',
+                    region: legacyAddr.region || '',
+                    province: legacyAddr.province || '',
+                    city: legacyAddr.city || '',
+                    barangay: legacyAddr.barangay || ''
+                };
+                normalizeAddressEntry(entry);
+                addresses.push(entry);
+                defaultId = entry.id;
+            }
+        }
+        if(addresses.length && !defaultId){
+            defaultId = addresses[0].id;
+        }
+        profile.addresses = addresses;
+        profile.defaultAddressId = defaultId;
+        if(defaultId){
+            for(var i=0;i<addresses.length;i++){
+                addresses[i].isDefault = (addresses[i].id === defaultId);
+            }
+        }
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        upsertProfileAddressBookToFirestore(profile);
+        return { profile: profile, addresses: addresses, defaultId: defaultId };
+    }
+
+    function upsertProfileAddressBookToFirestore(profile){
+        try{
+            ensureFirebaseReady(function(err){
+                if(err) return;
+                firebase.auth().onAuthStateChanged(function(user){
+                    if(!user || !user.uid) return;
+                    try{
+                        var db = firebase.firestore();
+                        var payload = {
+                            email: profile.email || user.email || '',
+                            name: profile.name || '',
+                            phone: profile.phone || '',
+                            addressMain: profile.addressMain || '',
+                            addressDetails: profile.addressDetails || '',
+                            deliveryAddress: profile.deliveryAddress || null,
+                            addresses: profile.addresses || [],
+                            defaultAddressId: profile.defaultAddressId || '',
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        };
+                        db.doc('users/' + user.uid).set(payload, { merge: true }).catch(function(){});
+                    }catch(e){ /* ignore */ }
+                });
+            });
+        }catch(e){ /* ignore */ }
+    }
+
+    function applyEntryToCheckout(entry){
+        if(!entry) return;
+        normalizeAddressEntry(entry);
+        try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(entry)); }catch(e){}
+        localStorage.setItem('checkoutAddressMain', entry.line1 || entry.street || '');
+        localStorage.setItem('checkoutAddressDetails', entry.line2 || '');
+        addressBookSelectedId = entry.id || null;
+        initCheckoutProfileDisplay();
+        try{ updateCheckoutShippingDisplay(); }catch(e){}
+    }
+
+    function renderAddressBookList(){
+        var data = ensureProfileAddresses();
+        var addresses = data.addresses || [];
+        var defaultId = data.defaultId || '';
+        var list = document.getElementById('addressBookList');
+        if(!list) return;
+        list.innerHTML = '';
+        if(!addresses.length){
+            list.innerHTML = '<div style="color:#666;">No saved addresses yet.</div>';
+            return;
+        }
+        addresses.forEach(function(entry){
+            normalizeAddressEntry(entry);
+            var item = document.createElement('div');
+            item.className = 'address-book-item' + ((addressBookSelectedId && entry.id === addressBookSelectedId) ? ' selected' : '');
+            var meta = document.createElement('div');
+            meta.className = 'address-book-meta';
+            var title = document.createElement('div');
+            title.className = 'address-book-title';
+            title.textContent = entry.line1 || 'Unnamed address';
+            var sub = document.createElement('div');
+            sub.className = 'address-book-sub';
+            sub.textContent = entry.line2 || '';
+            meta.appendChild(title);
+            meta.appendChild(sub);
+            if(entry.id === defaultId){
+                var badge = document.createElement('span');
+                badge.className = 'address-book-badge';
+                badge.textContent = 'Default';
+                meta.appendChild(badge);
+            }
+
+            var actions = document.createElement('div');
+            actions.className = 'address-book-item-actions';
+            var useBtn = document.createElement('button');
+            useBtn.className = 'address-inline-btn primary';
+            useBtn.textContent = 'Use';
+            useBtn.onclick = function(){ applyEntryToCheckout(entry); closeAddressBookModal(); };
+            var editBtn = document.createElement('button');
+            editBtn.className = 'address-inline-btn';
+            editBtn.textContent = 'Edit';
+            editBtn.onclick = function(){ openAddressEditorModal(entry.id); };
+            var delBtn = document.createElement('button');
+            delBtn.className = 'address-inline-btn';
+            delBtn.textContent = 'Delete';
+            delBtn.onclick = function(){ confirmDeleteAddress(entry.id); };
+            actions.appendChild(useBtn);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+
+            item.appendChild(meta);
+            item.appendChild(actions);
+            list.appendChild(item);
+        });
+    }
+
+    function openAddressBookModal(){
+        try{
+            var current = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null');
+            addressBookSelectedId = current && current.id ? current.id : null;
+        }catch(e){ addressBookSelectedId = null; }
+        renderAddressBookList();
+        var overlay = document.getElementById('addressBookOverlay');
+        if(overlay){ overlay.classList.add('show'); overlay.setAttribute('aria-hidden','false'); document.body.style.overflow = 'hidden'; }
+    }
+
+    function closeAddressBookModal(){
+        var overlay = document.getElementById('addressBookOverlay');
+        if(overlay){ overlay.classList.remove('show'); overlay.setAttribute('aria-hidden','true'); }
+        document.body.style.overflow = '';
+    }
+
+    function openAddressEditorModal(addressId){
+        addressBookEditingId = addressId || null;
+        closeAddressBookModal();
+        var overlay = document.getElementById('addressEditorOverlay');
+        var editor = document.getElementById('checkoutAddressEditor');
+        if(overlay){ overlay.classList.add('show'); overlay.setAttribute('aria-hidden','false'); document.body.style.overflow = 'hidden'; }
+        if(editor){ editor.style.display = 'block'; }
+        var data = ensureProfileAddresses();
+        var entry = null;
+        if(addressBookEditingId){
+            entry = (data.addresses || []).find(function(a){ return a.id === addressBookEditingId; }) || null;
+        }
+        if(window.checkoutAddressEditorApi){
+            if(entry){ window.checkoutAddressEditorApi.loadAddress(entry); }
+            else { window.checkoutAddressEditorApi.reset(); }
+        }
+        var toggle = document.getElementById('checkoutDefaultAddressToggle');
+        if(toggle){ toggle.checked = !!(entry && entry.id === data.defaultId); }
+    }
+
+    function closeAddressEditorModal(){
+        var overlay = document.getElementById('addressEditorOverlay');
+        var editor = document.getElementById('checkoutAddressEditor');
+        if(overlay){ overlay.classList.remove('show'); overlay.setAttribute('aria-hidden','true'); }
+        if(editor){ editor.style.display = 'none'; }
+        document.body.style.overflow = '';
+        addressBookEditingId = null;
+    }
+
+    function confirmDeleteAddress(addressId){
+        if(!addressId) return;
+        if(!confirm('Delete this address?')) return;
+        var data = ensureProfileAddresses();
+        var addresses = (data.addresses || []).filter(function(a){ return a.id !== addressId; });
+        var profile = data.profile || {};
+        if(profile.defaultAddressId === addressId){ profile.defaultAddressId = addresses[0] ? addresses[0].id : ''; }
+        if(addressBookSelectedId === addressId){ addressBookSelectedId = null; deleteAddress(); }
+        profile.addresses = addresses;
+        profile.addresses.forEach(function(a){ a.isDefault = (a.id === profile.defaultAddressId); });
+        if(profile.defaultAddressId){
+            var defEntry = addresses.find(function(a){ return a.id === profile.defaultAddressId; });
+            if(defEntry){
+                var fields = deriveProfileFieldsFromEntry(defEntry);
+                profile.addressMain = fields.addressMain;
+                profile.addressDetails = fields.addressDetails;
+                profile.deliveryAddress = normalizeDeliveryAddressFromAddressObject(defEntry);
+            }
+        }
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        upsertProfileAddressBookToFirestore(profile);
+        renderAddressBookList();
+    }
+
+    function handleAddressEditorSave(obj){
+        normalizeAddressEntry(obj);
+        try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(obj)); }catch(e){}
+        localStorage.setItem('checkoutAddressMain', obj.line1 || '');
+        localStorage.setItem('checkoutAddressDetails', obj.line2 || '');
+
+        var data = ensureProfileAddresses();
+        var profile = data.profile || {};
+        var addresses = data.addresses || [];
+        var isDefault = false;
+        var toggle = document.getElementById('checkoutDefaultAddressToggle');
+        if(toggle) isDefault = !!toggle.checked;
+
+        if(addressBookEditingId){
+            for(var i=0;i<addresses.length;i++){
+                if(addresses[i].id === addressBookEditingId){
+                    obj.id = addressBookEditingId;
+                    obj.isDefault = isDefault;
+                    addresses[i] = obj;
+                    break;
+                }
+            }
+        } else {
+            obj.id = generateAddressId();
+            obj.isDefault = isDefault;
+            addresses.push(obj);
+            addressBookEditingId = obj.id;
+        }
+
+        if(isDefault){
+            profile.defaultAddressId = obj.id;
+            addresses.forEach(function(a){ a.isDefault = (a.id === obj.id); });
+            var fields = deriveProfileFieldsFromEntry(obj);
+            profile.addressMain = fields.addressMain;
+            profile.addressDetails = fields.addressDetails;
+            profile.deliveryAddress = normalizeDeliveryAddressFromAddressObject(obj);
+        }
+
+        profile.addresses = addresses;
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        upsertProfileAddressBookToFirestore(profile);
+        addressBookSelectedId = obj.id;
+        renderAddressBookList();
+    }
+
+    function deriveCheckoutAddressObjectFromProfile(profile){
+        profile = profile || {};
+        var addr = profile.deliveryAddress || null;
+        if(!addr && profile.addressMain){
+            addr = normalizeDeliveryAddressFromString(profile.addressMain);
+            if(profile.addressDetails){
+                var parts = String(profile.addressDetails || '').split(',');
+                addr.barangay = addr.barangay || (parts[0] || '').trim();
+            }
+        }
+        addr = addr || { region: '', province: '', city: '', barangay: '', street: '' };
+        var baseStreet = addr.street || profile.addressMain || '';
+        var fullName = addr.fullName || '';
+        var line1 = (fullName ? (fullName + ', ') : '') + (baseStreet || '');
+        var line2Parts = [addr.barangay, addr.city, addr.province, addr.region, addr.postalCode].filter(Boolean);
+        return {
+            fullName: fullName,
+            phone: profile.phone || '',
+            street: addr.street || '',
+            postalCode: addr.postalCode || '',
+            notes: '',
+            region: addr.region || '',
+            province: addr.province || '',
+            city: addr.city || '',
+            barangay: addr.barangay || '',
+            line1: line1,
+            line2: line2Parts.join(', ')
+        };
+    }
+
+    function syncProfileFromFirestoreForCheckout(){
+        try{
+            ensureFirebaseReady(function(err){
+                if(err) return;
+                firebase.auth().onAuthStateChanged(function(user){
+                    if(!user || !user.uid) return;
+                    try{
+                        var db = firebase.firestore();
+                        db.doc('users/' + user.uid).get().then(function(doc){
+                            if(!doc || !doc.exists) return;
+                            var data = doc.data() || {};
+                            var local = {};
+                            try{ local = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ local = {}; }
+                            var merged = {
+                                uid: user.uid,
+                                email: data.email || local.email || user.email || '',
+                                name: data.name || data.displayName || local.name || '',
+                                phone: data.phone || local.phone || '',
+                                addressMain: data.addressMain || local.addressMain || '',
+                                addressDetails: data.addressDetails || local.addressDetails || '',
+                                deliveryAddress: data.deliveryAddress || local.deliveryAddress || null,
+                                addresses: Array.isArray(data.addresses) ? data.addresses : (local.addresses || []),
+                                defaultAddressId: data.defaultAddressId || local.defaultAddressId || ''
+                            };
+                            localStorage.setItem('profile', JSON.stringify(merged));
+                            localStorage.setItem('profile_updated_at', String(Date.now()));
+
+                            var hasCheckoutOverride = !!localStorage.getItem('checkoutAddressObject');
+                            if(!hasCheckoutOverride){
+                                var defEntry = null;
+                                if(Array.isArray(merged.addresses) && merged.addresses.length){
+                                    if(merged.defaultAddressId){
+                                        defEntry = merged.addresses.find(function(a){ return a.id === merged.defaultAddressId; }) || null;
+                                    }
+                                    if(!defEntry){
+                                        defEntry = merged.addresses.find(function(a){ return a.isDefault; }) || merged.addresses[0];
+                                    }
+                                }
+                                if(defEntry){
+                                    normalizeAddressEntry(defEntry);
+                                    localStorage.setItem('checkoutAddressObject', JSON.stringify(defEntry));
+                                    localStorage.setItem('checkoutAddressMain', defEntry.line1 || defEntry.street || '');
+                                    localStorage.setItem('checkoutAddressDetails', defEntry.line2 || '');
+                                } else if(merged.deliveryAddress){
+                                    var derived = deriveCheckoutAddressObjectFromProfile(merged);
+                                    localStorage.setItem('checkoutAddressObject', JSON.stringify(derived));
+                                    localStorage.setItem('checkoutAddressMain', derived.line1 || derived.street || '');
+                                    localStorage.setItem('checkoutAddressDetails', derived.line2 || '');
+                                }
+                            }
+                            initCheckoutProfileDisplay();
+                            try{ updateCheckoutShippingDisplay(); }catch(e){}
+                            try{ renderCheckoutCart(); }catch(e){}
+                        }).catch(function(){});
+                    }catch(e){ /* ignore */ }
+                });
+            });
+        }catch(e){ /* ignore */ }
+    }
+
+    // Initialize checkout UI from active profile (name, email, address). Falls back to any checkoutAddressMain override.
+    function initCheckoutProfileDisplay(){
+        try{
+            var p = getActiveProfile() || {};
+            var accountEl = document.getElementById('accountEmail');
+            if(accountEl){
+                accountEl.textContent = (p && p.email) ? p.email : 'Not signed in';
+            }
+            var addrMainEl = document.querySelector('.checkout-address-main');
+            var addrDetailsEl = document.querySelector('.checkout-address-details');
+            var storedObj = null;
+            try{ storedObj = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ storedObj = null; }
+            var storedAddr = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress');
+            if(storedObj && (storedObj.line1 || storedObj.line2)){
+                if(addrMainEl) addrMainEl.textContent = storedObj.line1 || 'EMPTY';
+                if(addrDetailsEl) addrDetailsEl.textContent = storedObj.line2 || '';
+            } else if(storedAddr){
+                if(addrMainEl) addrMainEl.textContent = (storedAddr.split('\n')[0] || storedAddr);
+                if(addrDetailsEl) addrDetailsEl.textContent = (storedAddr.split('\n').slice(1).join(', ') || '');
+            } else {
+                // Use profile fields. If profile has no addressMain, show EXACT text 'EMPTY' per requirement.
+                if(p && p.deliveryAddress){
+                    var derivedObj = deriveCheckoutAddressObjectFromProfile(p);
+                    if(addrMainEl) addrMainEl.textContent = derivedObj.line1 || 'EMPTY';
+                    if(addrDetailsEl) addrDetailsEl.textContent = derivedObj.line2 || '';
+                } else {
+                    var profileHasAddress = p && p.addressMain && (('' + p.addressMain).trim().length > 0);
+                    if(profileHasAddress){
+                        var mainText = '';
+                        if(p.name && (''+p.name).trim().length) mainText += p.name + ', ';
+                        mainText += p.addressMain;
+                        if(addrMainEl) addrMainEl.textContent = mainText;
+                        if(addrDetailsEl) addrDetailsEl.textContent = (p.addressDetails || '');
+                    } else {
+                        if(addrMainEl) addrMainEl.textContent = 'EMPTY';
+                        if(addrDetailsEl) addrDetailsEl.textContent = '';
+                    }
+                }
+            }
+        }catch(e){ console.error('initCheckoutProfileDisplay error', e); }
+    }
+
+    // Listen for profile or checkout address changes from other tabs and refresh UI
+    window.addEventListener('storage', function(e){
+        try{
+            if(!e) return;
+            if(e.key === 'profile' || e.key === 'profile_updated_at' || e.key === 'checkoutAddressMain' || e.key === 'checkoutAddressObject'){
+                initCheckoutProfileDisplay();
+                try{ updateCheckoutShippingDisplay(); }catch(err){}
+                try{ renderCheckoutCart(); }catch(err){}
+            }
+        }catch(err){ /* ignore */ }
+    });
+    // Cart rendering
+    function renderCheckoutCart() {
+        var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        if(!Array.isArray(cart) || cart.length === 0){
+            try{
+                var snap = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]');
+                if(Array.isArray(snap) && snap.length) cart = snap;
+            }catch(e){}
+        }
+        var cartList = document.getElementById('checkoutCartList');
+        var subtotal = 0;
+        cartList.innerHTML = '';
+        if(!Array.isArray(cart) || cart.length === 0){
+            cartList.innerHTML = '<div style="color:#666;padding:12px 4px;">Your cart is empty.</div>';
+        }
+        cart.forEach(function(item) {
+            var qty = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
+            var priceNum = (typeof item.price === 'number') ? item.price : Number(String(item.price || '').replace(/[^0-9.]/g,'')) || 0;
+            var itemTotal = (priceNum * qty);
+            subtotal += itemTotal;
+            var div = document.createElement('div');
+            div.className = 'checkout-cart-item';
+            div.innerHTML = `
+                <img src="${item.image || 'IMAGE/NIKE1.png'}" class="checkout-cart-img" alt="${item.title || item.name || 'Item'}">
+                <div class="checkout-cart-info">
+                    <div class="checkout-cart-title-row">
+                        <span class="checkout-cart-title">${item.title || item.name || 'Item'}</span>
+                        <span class="checkout-cart-price">₱${(priceNum * qty).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                    </div>
+                    <div class="checkout-cart-size">Size: ${item.size || '-'}</div>
+                    <div class="checkout-cart-qty">QTY: ${qty}</div>
+                </div>
+            `;
+            cartList.appendChild(div);
+        });
+        document.getElementById('checkoutSubtotal').textContent = '₱' + subtotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        // ensure shipping reflects current delivery selection
+        try{ updateCheckoutShippingDisplay(); }catch(e){}
+    var stored = localStorage.getItem('checkoutShipping');
+    // default to 0 when no shipping has been selected; only J&T selection will set a non-zero value
+    var shipping = (stored !== null) ? Number(stored) : 0;
+        var label = localStorage.getItem('checkoutShippingLabel') || 'Shipping';
+        var shipValEl = document.getElementById('checkoutShippingValue');
+        var shipLblEl = document.getElementById('checkoutShippingLabel');
+        if(shipValEl) shipValEl.textContent = '₱' + shipping.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        if(shipLblEl) shipLblEl.textContent = label;
+        // Packaging fee is already included in the J&T shipping value — do not show/add it separately in cart
+        try{
+            var pkgEl = document.getElementById('checkoutPackagingValue');
+            if(pkgEl){
+                // hide the entire row (label + value) so 'Packaging' text is not visible on checkout page
+                var row = pkgEl.closest ? pkgEl.closest('.checkout-cart-summary-row') : (pkgEl.parentNode || null);
+                if(row) row.style.display = 'none';
+            }
+        }catch(e){}
+        document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+    window.addEventListener('DOMContentLoaded', function(){
+        // Guard: prevent entering checkout with an empty cart (e.g., via back button)
+        try{
+            var cartGuard = JSON.parse(localStorage.getItem('cart') || '[]');
+            if(!Array.isArray(cartGuard) || cartGuard.length === 0){
+                var shopUrl = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e){ return 'product-list.html'; } })();
+                window.location.replace(shopUrl);
+                return;
+            }
+        }catch(e){
+            var shopUrl2 = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e2){ return 'product-list.html'; } })();
+            window.location.replace(shopUrl2);
+            return;
+        }
+        try{ renderCheckoutCart(); }catch(e){}
+        try{ initAddressEditor(); }catch(e){}
+        try{ initCheckoutProfileDisplay(); }catch(e){}
+        try{ syncProfileFromFirestoreForCheckout(); }catch(e){}
+        try{
+            var host = document.getElementById('addressEditorHost');
+            var editor = document.getElementById('checkoutAddressEditor');
+            if(host && editor && !host.contains(editor)) host.appendChild(editor);
+            if(editor) editor.style.display = 'none';
+        }catch(e){}
+        try{
+            var row = document.getElementById('addressEditorRow');
+            if(row){
+                row.addEventListener('keydown', function(ev){
+                    if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openAddressBookModal(); }
+                });
+            }
+        }catch(e){}
+        try{
+            var cartSnap = JSON.parse(localStorage.getItem('cart') || '[]');
+            if(Array.isArray(cartSnap) && cartSnap.length){
+                localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartSnap));
+            }
+        }catch(e){}
+    });
+
+    // Proceed from checkout to payment: persist the chosen delivery/payment and the customer name shown on the page
+    function proceedToPayment(){
+        try{
+            var cartNow = JSON.parse(localStorage.getItem('cart') || '[]');
+            if(!Array.isArray(cartNow) || cartNow.length === 0){
+                alert('Your cart is empty.');
+                var shopUrl0 = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e){ return 'product-list.html'; } })();
+                window.location.replace(shopUrl0);
+                return;
+            }
+            localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartNow));
+        }catch(e){}
+
+        // Require a complete structured address before placing order
+        try{
+            var bestAddr = getBestCheckoutAddressObject();
+            if(!isDeliveryAddressComplete(bestAddr)){
+                alert('Please complete your shipping address before placing the order.');
+                var editor = document.getElementById('checkoutAddressEditor');
+                if(editor) editor.style.display = 'block';
+                return;
+            }
+            localStorage.setItem('checkoutAddressObject', JSON.stringify(bestAddr));
+            localStorage.setItem('checkoutAddressMain', bestAddr.line1 || bestAddr.street || '');
+            localStorage.setItem('checkoutAddressDetails', bestAddr.line2 || '');
+        }catch(e){
+            alert('Please complete your shipping address before placing the order.');
+            var editor2 = document.getElementById('checkoutAddressEditor');
+            if(editor2) editor2.style.display = 'block';
+            return;
+        }
+        try{
+            // delivery label
+            var deliveryEl = document.querySelector('.checkout-delivery-option.selected .checkout-delivery-label') || document.querySelector('.checkout-delivery-label');
+            var deliveryLabel = deliveryEl ? deliveryEl.textContent.trim() : '';
+            if(deliveryLabel) localStorage.setItem('checkoutDelivery', deliveryLabel);
+        }catch(e){}
+
+        // Ensure delivery code is persisted (in case user didn't toggle selection during this session)
+        try{
+            var sel = document.querySelector('.checkout-delivery-option.selected') || document.querySelector('.checkout-delivery-option[aria-checked="true"]') || document.querySelector('.checkout-delivery-option');
+            if(sel){
+                var c = sel.dataset && sel.dataset.code ? sel.dataset.code : (sel.querySelector('input[type="radio"]') ? sel.querySelector('input[type="radio"]').value : '');
+                if(c) localStorage.setItem('checkoutDeliveryCode', c);
+            }
+        }catch(e){}
+
+        // ensure shipping is calculated and stored (shared helper)
+        try{ updateCheckoutShippingDisplay(); }catch(e){ console.error('Shipping calc error', e); }
+        try{
+            // payment label
+            var paymentEl = document.querySelector('.checkout-payment-option.selected .checkout-payment-label') || document.querySelector('.checkout-payment-label');
+            var paymentLabel = paymentEl ? paymentEl.textContent.trim() : '';
+            if(paymentLabel) localStorage.setItem('checkoutPayment', paymentLabel);
+        }catch(e){}
+        // Ensure payment code is persisted (in case user didn't toggle selection during this session)
+        try{
+            var selPay = document.querySelector('.checkout-payment-option.selected') || document.querySelector('.checkout-payment-option[aria-checked="true"]') || document.querySelector('.checkout-payment-option');
+            if(selPay){
+                var pc = selPay.dataset && selPay.dataset.code ? selPay.dataset.code : (selPay.querySelector('input[type="radio"]') ? selPay.querySelector('input[type="radio"]').value : '');
+                if(pc) localStorage.setItem('checkoutPaymentCode', pc);
+            }
+        }catch(e){}
+        try{
+            // prefer the active profile's name when available
+            var profile = (function(){ try{ return JSON.parse(localStorage.getItem('profile') || '{}'); }catch(e){ return {}; } })();
+            if(profile && profile.name){
+                localStorage.setItem('checkoutCustomerName', profile.name);
+            } else {
+                // derive customer name from address main (before the first comma)
+                var addr = document.querySelector('.checkout-address-main');
+                if(addr){
+                    var txt = addr.textContent.trim();
+                    var name = txt.split(',')[0].trim();
+                    if(name) localStorage.setItem('checkoutCustomerName', name);
+                }
+            }
+            // persist customer email as well (use profile email when available)
+            try{
+                if(profile && profile.email) localStorage.setItem('checkoutCustomerEmail', profile.email);
+                else localStorage.removeItem('checkoutCustomerEmail');
+            }catch(e){}
+            // ensure there is a persisted checkoutAddressMain for downstream pages: prefer explicit override, else profile.addressMain
+            try{
+                var storedAddr = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress');
+                if(!storedAddr){
+                    if(profile && profile.addressMain){
+                        // store profile addressMain (not including name) so other flows can geocode/parse
+                        localStorage.setItem('checkoutAddressMain', profile.addressMain);
+                        if(profile.addressDetails) localStorage.setItem('checkoutAddressDetails', profile.addressDetails);
+                    } else {
+                        // ensure removal so downstream code sees empty
+                        localStorage.removeItem('checkoutAddressMain');
+                        localStorage.removeItem('checkoutAddressDetails');
+                    }
+                }
+            }catch(e){}
+        }catch(e){}
+        // persist any edited PSGC address data (already validated above)
+        try{
+            var addrObj = getBestCheckoutAddressObject();
+            if(addrObj){
+                localStorage.setItem('checkoutAddressObject', JSON.stringify(addrObj));
+                localStorage.setItem('checkoutAddressMain', addrObj.line1 || addrObj.street || '');
+                localStorage.setItem('checkoutAddressDetails', addrObj.line2 || '');
+            }
+        }catch(e){}
+        // Use replace so Checkout is removed from browser history after continuing
+        persistCheckoutToFirestore().finally(function(){
+            window.location.replace('payment.html');
+        });
+    }
+
+    function ensureFirebaseReady(cb){
+        try{
+            var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+            function loadScript(src){
+                return new Promise(function(resolve, reject){
+                    var s = document.createElement('script');
+                    s.src = src; s.onload = resolve; s.onerror = function(){ reject(new Error('failed to load '+src)); };
+                    document.head.appendChild(s);
+                });
+            }
+            function loadConfig(){
+                if(window.FIREBASE_CONFIG) return Promise.resolve();
+                return loadScript('js/firebase-config.js');
+            }
+            function init(){
+                try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }
+                catch(e){ if(cb) cb(e); }
+            }
+            if(window.firebase && firebase.firestore && firebase.auth){
+                loadConfig().then(function(){ init(); }).catch(function(err){ if(cb) cb(err); });
+                return;
+            }
+            loadConfig().then(function(){
+                return loadScript(base + 'firebase-app-compat.js')
+                    .then(function(){ return loadScript(base + 'firebase-auth-compat.js'); })
+                    .then(function(){ return loadScript(base + 'firebase-firestore-compat.js'); });
+            }).then(function(){ init(); }).catch(function(err){ if(cb) cb(err); });
+        }catch(e){ if(cb) cb(e); }
+    }
+
+    function normalizeDeliveryAddressFromAddressObject(addressObject){
+        if(!addressObject) return null;
+        return {
+            fullName: addressObject.fullName || '',
+            phone: addressObject.phone || '',
+            postalCode: addressObject.postalCode || '',
+            region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+            province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+            city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+            barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+            street: addressObject.street || addressObject.line1 || ''
+        };
+    }
+
+    function normalizeDeliveryAddressFromString(addressText){
+        if(!addressText) return null;
+        return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+    }
+
+    function generateOrderId(){
+        return 'SP' + Date.now() + Math.floor(Math.random() * 1000);
+    }
+
+    function buildCheckoutPayload(cart){
+        cart = Array.isArray(cart) ? cart : [];
+        var shipping = Number(localStorage.getItem('checkoutShipping') || 0);
+        var shippingLabel = localStorage.getItem('checkoutShippingLabel') || '';
+        var paymentLabel = localStorage.getItem('checkoutPayment') || '';
+        var paymentCode = localStorage.getItem('checkoutPaymentCode') || '';
+        var deliveryLabel = localStorage.getItem('checkoutDelivery') || '';
+        var deliveryCode = localStorage.getItem('checkoutDeliveryCode') || '';
+        var customerName = localStorage.getItem('checkoutCustomerName') || '';
+        var customerEmail = localStorage.getItem('checkoutCustomerEmail') || '';
+        var addressMain = localStorage.getItem('checkoutAddressMain') || localStorage.getItem('checkoutAddress') || '';
+        var addressDetails = localStorage.getItem('checkoutAddressDetails') || '';
+        var addressObject = null;
+        try{ addressObject = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ addressObject = null; }
+        var deliveryAddress = normalizeDeliveryAddressFromAddressObject(addressObject) || normalizeDeliveryAddressFromString(addressMain);
+        // Reuse an existing checkoutOrderId only if it matches the current cart snapshot.
+        // This prevents reuse of an old order id when starting a new checkout (which
+        // caused previously-created orders to be overwritten).
+        var orderId = localStorage.getItem('checkoutOrderId') || '';
+        try{
+            var snapshotStr = localStorage.getItem('checkoutCartSnapshot') || null;
+            var snapshotObj = snapshotStr ? JSON.parse(snapshotStr) : null;
+            var cartsEqual = false;
+            try{ cartsEqual = JSON.stringify(snapshotObj) === JSON.stringify(cart); }catch(e){ cartsEqual = false; }
+            if(!orderId || !cartsEqual){
+                orderId = generateOrderId();
+                try{ localStorage.setItem('checkoutOrderId', orderId); }catch(e){}
+                try{ localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cart || [])); }catch(e){}
+            }
+        }catch(e){
+            // Fallback: ensure there's an order id stored
+            if(!orderId){ orderId = generateOrderId(); try{ localStorage.setItem('checkoutOrderId', orderId); }catch(e){} }
+        }
+
+        var subtotal = 0;
+        cart.forEach(function(it){
+            var qty = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
+            var priceNum = (typeof it.price === 'number') ? it.price : Number(String(it.price || '').replace(/[^0-9.]/g,'')) || 0;
+            subtotal += priceNum * qty;
+        });
+        var total = subtotal + shipping;
+
+        return {
+            order_id: orderId,
+            status: 'Pending payment',
+            payment_method: paymentCode || paymentLabel || '',
+            paymentMethod: paymentLabel || paymentCode || '',
+            deliveryMethod: deliveryLabel || deliveryCode || '',
+            deliveryCode: deliveryCode || '',
+            shipping_fee: shipping,
+            shipping: shipping,
+            shipping_label: shippingLabel,
+            shippingLabel: shippingLabel,
+            total: total,
+            customerName: customerName,
+            customerEmail: customerEmail,
+            deliveryAddress: deliveryAddress,
+            // legacy fields kept for backward compatibility
+            delivery_address: addressMain,
+            addressDetails: addressDetails,
+            addressObject: addressObject
+        };
+    }
+
+    function persistCheckoutToFirestore(){
+        return new Promise(function(resolve){
+            try{
+                var cartNow = [];
+                try{ cartNow = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ cartNow = []; }
+                if(!Array.isArray(cartNow) || cartNow.length === 0){
+                    try{ cartNow = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ cartNow = []; }
+                }
+                if(!Array.isArray(cartNow) || cartNow.length === 0) return resolve(false);
+
+                ensureFirebaseReady(function(err){
+                    if(err) return resolve(false);
+                    firebase.auth().onAuthStateChanged(function(user){
+                        if(!user) return resolve(false);
+                        try{
+                            var db = firebase.firestore();
+                            var checkoutRef = db.collection('checkouts').doc(user.uid);
+                            var payload = buildCheckoutPayload(cartNow);
+                            if(!payload.customerEmail && user.email) payload.customerEmail = user.email;
+                            payload.user_id = user.uid;
+                            payload.items = cartNow.map(function(it){
+                                return {
+                                    product_id: it.product_id || it.id || '',
+                                    name: it.name || it.title || '',
+                                    price: Number(it.price || 0),
+                                    qty: Number(it.qty || it.quantity || 1),
+                                    image_url: it.image_url || it.image || '',
+                                    size: it.size || ''
+                                };
+                            });
+
+                            checkoutRef.set(payload, { merge: true }).then(function(){
+                                return checkoutRef.collection('items').get();
+                            }).then(function(snap){
+                                var batch = db.batch();
+                                snap.forEach(function(doc){ batch.delete(doc.ref); });
+                                cartNow.forEach(function(it, idx){
+                                    var itemRef = checkoutRef.collection('items').doc('item-' + idx);
+                                    batch.set(itemRef, {
+                                        product_id: it.product_id || it.id || '',
+                                        name: it.name || it.title || '',
+                                        price: Number(it.price || 0),
+                                        qty: Number(it.qty || it.quantity || 1),
+                                        image_url: it.image_url || it.image || '',
+                                        size: it.size || ''
+                                    });
+                                });
+                                return batch.commit();
+                            }).then(function(){
+                                // also upsert to orders collection so orders exist immediately
+                                var orderId = payload.order_id || payload.id || localStorage.getItem('checkoutOrderId') || '';
+                                if(!orderId){ orderId = generateOrderId(); try{ localStorage.setItem('checkoutOrderId', orderId); }catch(e){} }
+                                var orderRef = db.collection('orders').doc(String(orderId));
+                                var orderPayload = Object.assign({}, payload, {
+                                    id: orderId,
+                                    created_at: firebase.firestore.FieldValue.serverTimestamp()
+                                });
+                                return orderRef.set(orderPayload, { merge: true }).then(function(){
+                                    return orderRef.collection('items').get().then(function(itemsSnap){
+                                        var batch = db.batch();
+                                        itemsSnap.forEach(function(doc){ batch.delete(doc.ref); });
+                                        cartNow.forEach(function(it, idx){
+                                            var itemRef = orderRef.collection('items').doc('item-' + idx);
+                                            batch.set(itemRef, {
+                                                product_id: it.product_id || it.id || '',
+                                                name: it.name || it.title || '',
+                                                price: Number(it.price || 0),
+                                                qty: Number(it.qty || it.quantity || 1),
+                                                image_url: it.image_url || it.image || '',
+                                                size: it.size || ''
+                                            });
+                                        });
+                                        return batch.commit();
+                                    });
+                                });
+                            }).then(function(){ resolve(true); }).catch(function(){ resolve(false); });
+                        }catch(e){ resolve(false); }
+                    });
+                });
+            }catch(e){ resolve(false); }
+        });
+    }
+    </script>
+    <script src="cart-storage.js"></script>
+</body>
+
+    <!-- ===== Cart Overlay + Sidebar HTML (universal) ===== -->
+    <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
+    <aside id="cartSidebar" class="cart-sidebar" aria-hidden="true" role="complementary">
+        <div class="cart-header-row">
+            <div>
+                <span class="cart-header-title">Cart (<span id="cartCount">0</span>)</span>
+            </div>
+            <button id="closeCartBtn" class="cart-close" aria-label="Close cart"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+        </div>
+        <div class="cart-divider"></div>
+        <div id="cartItems" class="cart-items">
+            <div class="cart-empty">Your cart is empty</div>
+        </div>
+        <div class="cart-divider"></div>
+        <div class="cart-subtotal-row">
+            <span class="cart-subtotal-label">Subtotal</span>
+            <span id="cartSubtotal" class="cart-subtotal-value">₱0.00</span>
+        </div>
+        <button id="checkoutBtn" class="cart-checkout-btn">Checkout</button>
+    </aside>
+    <!-- ===== Cart Sidebar Behavior (universal) ===== -->
+    <script>
+    (function(){
+        let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        function parsePriceToNumber(priceText) {
+            if (!priceText) return 0;
+            var v = priceText.replace(/[^0-9.]/g, '');
+            return parseFloat(v || 0);
+        }
+        function formatPHP(amount) {
+            try {
+                return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+            } catch (e) {
+                return '₱' + Number(amount).toFixed(2);
+            }
+        }
+        function saveCartToLocalStorage() {
+            localStorage.setItem('cart', JSON.stringify(cart));
+        }
+        const cartOverlay = document.getElementById('cartOverlay');
+        const cartSidebar = document.getElementById('cartSidebar');
+        const cartItemsContainer = document.getElementById('cartItems');
+        const cartCountEl = document.getElementById('cartCount');
+        const cartSubtotalEl = document.getElementById('cartSubtotal');
+        const closeCartBtn = document.getElementById('closeCartBtn');
+        const checkoutBtn = document.getElementById('checkoutBtn');
+        function getNavCartButton() {
+            const img = document.querySelector('img[alt="Cart"]');
+            if (!img) return null;
+            return img.closest('button');
+        }
+        function openCartSidebar() {
+            cartOverlay.classList.add('show');
+            cartSidebar.classList.add('open');
+            document.body.style.overflow = 'hidden';
+            cartSidebar.setAttribute('aria-hidden', 'false');
+            cartOverlay.setAttribute('aria-hidden', 'false');
+        }
+        function closeCartSidebar() {
+            cartOverlay.classList.remove('show');
+            cartSidebar.classList.remove('open');
+            document.body.style.overflow = '';
+            cartSidebar.setAttribute('aria-hidden', 'true');
+            cartOverlay.setAttribute('aria-hidden', 'true');
+        }
+        function renderCart() {
+            cartItemsContainer.innerHTML = '';
+            if (cart.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'cart-empty';
+                empty.textContent = 'Your cart is empty';
+                cartItemsContainer.appendChild(empty);
+                cartCountEl.textContent = 0;
+                cartSubtotalEl.textContent = formatPHP(0);
+                saveCartToLocalStorage();
+                return;
+            }
+            let subtotal = 0;
+            let totalQty = 0;
+            cart.forEach((item, index) => {
+                subtotal += item.price * item.quantity;
+                totalQty += item.quantity;
+                const box = document.createElement('div');
+                box.className = 'cart-item-box';
+                const img = document.createElement('img');
+                img.className = 'cart-item-img';
+                img.src = item.image || 'IMAGE/NIKE1.png';
+                img.alt = item.title || 'Product';
+                const middle = document.createElement('div');
+                middle.className = 'cart-item-middle';
+                const title = document.createElement('div');
+                title.className = 'cart-item-title';
+                title.textContent = item.title;
+                const brand = document.createElement('div');
+                brand.className = 'cart-item-brand';
+                brand.textContent = item.brand;
+                const size = document.createElement('div');
+                size.className = 'cart-item-size';
+                size.textContent = 'Size: ' + (item.size || '');
+                const qtyControls = document.createElement('div');
+                qtyControls.className = 'cart-quantity-controls';
+                const lessenBtn = document.createElement('button');
+                lessenBtn.className = 'qty-btn decrease';
+                lessenBtn.setAttribute('data-index', index);
+                const lessenImg = document.createElement('img');
+                lessenImg.src = 'IMAGE/LessenBTN.png';
+                lessenImg.alt = '-';
+                lessenImg.style.width = '22px';
+                lessenImg.style.height = '22px';
+                lessenBtn.appendChild(lessenImg);
+                const qtyText = document.createElement('span');
+                qtyText.className = 'cart-item-qty';
+                qtyText.textContent = item.quantity;
+                const addBtn = document.createElement('button');
+                addBtn.className = 'qty-btn increase';
+                addBtn.setAttribute('data-index', index);
+                const addImg = document.createElement('img');
+                addImg.src = 'IMAGE/AddBTN.png';
+                addImg.alt = '+';
+                addImg.style.width = '22px';
+                addImg.style.height = '22px';
+                addBtn.appendChild(addImg);
+                qtyControls.appendChild(lessenBtn);
+                qtyControls.appendChild(qtyText);
+                qtyControls.appendChild(addBtn);
+                middle.appendChild(title);
+                middle.appendChild(brand);
+                middle.appendChild(size);
+                middle.appendChild(qtyControls);
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'cart-item-remove';
+                removeBtn.setAttribute('data-index', index);
+                const trashImg = document.createElement('img');
+                trashImg.src = 'IMAGE/TrashIcon.png';
+                trashImg.alt = 'Remove';
+                trashImg.style.width = '18px';
+                trashImg.style.height = '18px';
+                removeBtn.appendChild(trashImg);
+                const priceEl = document.createElement('div');
+                priceEl.className = 'cart-item-price';
+                priceEl.textContent = formatPHP(item.price * item.quantity);
+                box.appendChild(img);
+                box.appendChild(middle);
+                box.appendChild(removeBtn);
+                box.appendChild(priceEl);
+                cartItemsContainer.appendChild(box);
+            });
+            cartCountEl.textContent = totalQty;
+            cartSubtotalEl.textContent = formatPHP(subtotal);
+            attachCartEvents();
+        }
+        function attachCartEvents() {
+            document.querySelectorAll('.qty-btn.decrease').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        if (cart[idx].quantity > 1) {
+                            cart[idx].quantity--;
+                        }
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            document.querySelectorAll('.qty-btn.increase').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        cart[idx].quantity++;
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            document.querySelectorAll('.cart-item-remove').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx)) {
+                        cart.splice(idx, 1);
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const navCartBtn = getNavCartButton();
+            if (navCartBtn) {
+                navCartBtn.removeAttribute('onclick');
+                navCartBtn.addEventListener('click', function(e){
+                    e.preventDefault();
+                    openCartSidebar();
+                });
+            }
+            if (closeCartBtn) closeCartBtn.addEventListener('click', closeCartSidebar);
+            if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
+            renderCart();
+            if (checkoutBtn) {
+                checkoutBtn.addEventListener('click', function(){
+                    window.location.href = 'checkout.html';
+                });
+            }
+        });
+    })();
+    </script>
+    <footer class="footer-section">
+        <div class="site-container">
+            <div class="footer-row">
+                <div class="footer-left">
+                    <div class="footer-header">Have questions?</div>
+                    <div class="footer-subheader">Contact us at our facebook page</div>
+                    <div class="footer-subheader" style="margin-top:18px;">Or via phone/email</div>
+                    <div class="footer-divider"></div>
+                    <div class="footer-note">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br><br>© 2025 Shoe Pao Footwear. All rights reserved.</div>
+                </div>
+                <div class="footer-right">
+                    <a href="about-us.html" class="footer-link">About Us</a>
+                    <a href="shipping.html" class="footer-link">Shipping</a>
+                    <a href="returns.html" class="footer-link">Returns & Exchanges</a>
+                    <a href="privacy.html" class="footer-link">Privacy Policy</a>
+                    <a href="terms.html" class="footer-link">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+</html>

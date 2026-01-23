@@ -1,0 +1,2679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders - SHOEPAO</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="js/ensure-server.js"></script>
+    <style>
+        body.orders-body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background: #fff;
+            margin: 0;
+            padding: 0;
+            color: #222;
+        }
+        .orders-navbar {
+            width: 100vw;
+            background: #fff;
+            box-shadow: 0 1px 0 #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 44px;
+            height: 72px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .orders-navbar-left {
+            display: flex;
+            align-items: center;
+            gap: 38px;
+        }
+        .orders-navbar-logo {
+            height: 38px;
+            width: auto;
+            cursor: pointer;
+        }
+        .orders-navbar-link {
+            font-size: 1.08rem;
+            font-weight: 500;
+            color: #222;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.15s;
+        }
+        .orders-navbar-link:hover {
+            color: #b71c1c;
+        }
+        .orders-navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+        .orders-header {
+            font-size: 2rem;
+            font-weight: 600;
+            margin: 48px 0 24px 120px;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .orders-page {
+            display:flex;
+            flex-direction:column;
+            gap:10px;
+        }
+        .orders-table-card {
+            background:#fff;
+            border:1px solid #eee;
+            border-radius:14px;
+            padding:18px;
+            box-shadow:0 8px 24px rgba(34,34,34,0.06);
+        }
+        #ordersSearch {
+            background:#fff;
+            border:1px solid #e4e4e4;
+            border-radius:10px;
+            padding:10px 14px;
+            font-size:0.95rem;
+        }
+        .filter-btn {
+            border:1px solid #e2e2e2;
+            border-radius:999px;
+            background:#fff;
+            font-weight:600;
+            transition:background 0.15s, border-color 0.15s, box-shadow 0.15s;
+        }
+        .filter-btn:hover { background:#f6f6f6; border-color:#d8d8d8; box-shadow:0 4px 10px rgba(0,0,0,0.06); }
+        .orders-tabs {
+            gap:8px;
+        }
+        .orders-tab-btn {
+            border-radius:999px;
+            border:1px solid #e0e0e0;
+            background:#fff;
+            padding:8px 14px;
+            font-size:0.9rem;
+            font-weight:600;
+        }
+        .orders-tab-btn.active { background:#111; color:#fff; border-color:#111; }
+        #ordersTable {
+            width:100%;
+            border-collapse:separate;
+            border-spacing:0 8px;
+        }
+        #ordersTable thead th {
+            text-transform:uppercase;
+            font-size:0.78rem;
+            letter-spacing:0.03em;
+            color:#666;
+            border-bottom:0;
+        }
+        #ordersTable tbody tr {
+            background:#fff;
+            border-radius:12px;
+            box-shadow:0 2px 10px rgba(0,0,0,0.04);
+            transition:transform 0.12s ease, box-shadow 0.12s ease;
+            cursor:pointer;
+        }
+        #ordersTable tbody tr:hover {
+            transform:translateY(-1px);
+            box-shadow:0 6px 14px rgba(0,0,0,0.08);
+        }
+        #ordersTable td {
+            border-bottom:none;
+            padding:12px 12px;
+            vertical-align:middle;
+        }
+        #ordersTable tbody td:first-child {
+            border-top-left-radius:12px;
+            border-bottom-left-radius:12px;
+        }
+        #ordersTable tbody td:last-child {
+            border-top-right-radius:12px;
+            border-bottom-right-radius:12px;
+        }
+        .actions-cell { width: 220px; }
+        .order-actions-row { justify-content:flex-end; }
+        .order-actions-row .action-btn { font-size:0.78rem; padding:6px 10px; }
+        .bulk-actions button { box-shadow:0 4px 10px rgba(0,0,0,0.06); }
+        .bulk-actions button.primary:hover { background:#000; }
+        .bulk-actions button.danger:hover { background:#8f1515; }
+
+        .orders-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 32px;
+            margin-left: 120px;
+            margin-bottom: 180px;
+        }
+        .order-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(34,34,34,0.07);
+            width: 300px;
+            min-width: 300px;
+            max-width: 340px;
+            margin-bottom: 0;
+            padding: 0 0 18px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            border: 1px solid #eee;
+        }
+        .order-status-box {
+            background: #f5f5f5;
+            border-radius: 8px 8px 0 0;
+            padding: 12px 18px 10px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .order-status-icon {
+            width: 28px;
+            height: 28px;
+        }
+        .order-status-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+        .order-status-label {
+            font-size: 1.01rem;
+            font-weight: 500;
+            color: #222;
+        }
+        .order-status-date {
+            font-size: 0.93rem;
+            color: #666;
+            margin-top: 1px;
+        }
+        .order-card-img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 0 0 0 0;
+            margin-bottom: 0;
+        }
+        .order-card-divider {
+            width: 100%;
+            height: 1.5px;
+            background: #eee;
+            margin: 0 0 0 0;
+        }
+        .order-card-info-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 18px 0 18px;
+            font-size: 1.01rem;
+        }
+        .order-card-qty {
+            color: #444;
+        }
+        .order-card-price {
+            font-weight: 600;
+            color: #222;
+        }
+        .order-card-code-row {
+            padding: 4px 18px 0 18px;
+            font-size: 0.97rem;
+            color: #444;
+        }
+        .order-card-btn-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        .order-card-btn {
+            background: #8B0000;
+            color: #fff;
+            border: none;
+            border-radius: 22px;
+            padding: 10px 0;
+            width: 90%;
+            font-size: 0.93rem;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(34,34,34,0.10);
+        }
+        .order-card-btn:hover {
+            background: #5a0000;
+        }
+        /* Gear button for order rows (admin) */
+        .order-gear-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .order-gear-btn img {
+            width: 40px;
+            height: 40px;
+            opacity: 0.98;
+        }
+        .order-gear-btn:hover img { opacity: 1; transform: scale(1.02); }
+
+        /* Compact actions cell so Actions column sits closer to Tracking */
+        .actions-cell {
+            padding: 6px 6px;
+            border-bottom: 1px solid #fafafa;
+            min-width: 44px;
+            text-align: right;
+            vertical-align: middle;
+        }
+        @media (max-width: 900px) {
+            .orders-header, .orders-list {
+                margin-left: 12px;
+            }
+            .orders-table-card {
+                padding:14px;
+            }
+            #ordersTable {
+                border-spacing:0 12px;
+            }
+            .actions-cell { width:auto; }
+            .order-actions-row { justify-content:flex-start; }
+            .orders-list {
+                gap: 18px;
+                flex-direction: column;
+                flex-wrap: nowrap;
+            }
+        }
+        .cart-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            max-height: 340px;
+            padding-right: 8px;
+        }
+        .orders-tabs {
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+            margin:0 0 14px 0;
+        }
+        .orders-tab-btn {
+            padding:8px 14px;
+            border-radius:999px;
+            border:1px solid #ddd;
+            background:#fff;
+            cursor:pointer;
+            font-family:'Poppins',Arial,sans-serif;
+            font-size:0.95rem;
+            font-weight:600;
+            color:#222;
+        }
+        .orders-tab-btn.active {
+            background:#222;
+            color:#fff;
+            border-color:#222;
+        }
+        .status-badge {
+            display:inline-flex;
+            align-items:center;
+            padding:4px 10px;
+            border-radius:999px;
+            font-size:0.85rem;
+            font-weight:600;
+            border:1px solid transparent;
+            gap:6px;
+        }
+        .badge-pending { background:#fff3cd; color:#856404; border-color:#ffeeba; }
+        .badge-confirmed { background:#e6f4ea; color:#1e7e34; border-color:#cfe9d7; }
+        .badge-processing { background:#e7f1ff; color:#0b5ed7; border-color:#cfe2ff; }
+        .badge-shipped { background:#e8f0fe; color:#1a73e8; border-color:#d2e3fc; }
+        .badge-delivered { background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9; }
+        .badge-refund-requested { background:#fff3e0; color:#ef6c00; border-color:#ffe0b2; }
+        .badge-refunded { background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9; }
+        .badge-cancelled { background:#f1f3f5; color:#495057; border-color:#dee2e6; }
+        .badge-archived { background:#eceff1; color:#455a64; border-color:#cfd8dc; }
+        .status-icon { font-size:0.95rem; line-height:1; }
+        .actions-cell .action-btn { margin: 2px 0; }
+
+        .orders-toolbar {
+            display:flex;
+            align-items:center;
+            gap:12px;
+            flex-wrap:wrap;
+            margin:8px 0 12px 0;
+        }
+        .bulk-actions {
+            display:flex;
+            align-items:center;
+            gap:8px;
+            flex-wrap:wrap;
+        }
+        .bulk-actions button {
+            padding:8px 12px;
+            border-radius:10px;
+            border:1px solid #ddd;
+            background:#fff;
+            cursor:pointer;
+            font-family:'Poppins',Arial,sans-serif;
+            font-size:0.9rem;
+            font-weight:600;
+        }
+        .bulk-actions button.primary { background:#111; color:#fff; border-color:#111; }
+        .bulk-actions button.danger { background:#b71c1c; color:#fff; border-color:#b71c1c; }
+        .bulk-actions button:disabled { opacity:0.45; cursor:not-allowed; }
+
+        .action-btn {
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+            padding:6px 10px;
+            border-radius:999px;
+            border:1px solid #e0e0e0;
+            background:#fff;
+            font-size:0.85rem;
+            font-weight:600;
+            cursor:pointer;
+            font-family:'Poppins',Arial,sans-serif;
+        }
+        .action-btn.primary { background:#111; color:#fff; border-color:#111; }
+        .action-btn.success { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+        .action-btn.warning { background:#ef6c00; color:#fff; border-color:#ef6c00; }
+        .action-btn.danger { background:#b71c1c; color:#fff; border-color:#b71c1c; }
+        .action-btn.neutral { background:#f3f5f7; color:#222; border-color:#e2e6ea; }
+
+        .order-actions-row {
+            display:flex;
+            flex-wrap:wrap;
+            gap:6px;
+        }
+
+        .orders-drawer-overlay {
+            position:fixed;
+            inset:0;
+            background:rgba(34,34,34,0.35);
+            z-index:100005;
+            display:none;
+            justify-content:flex-end;
+        }
+        .orders-drawer {
+            background:#fff;
+            width:520px;
+            max-width:100vw;
+            height:100vh;
+            padding:20px 20px 24px 20px;
+            box-shadow:-10px 0 28px rgba(0,0,0,0.18);
+            display:flex;
+            flex-direction:column;
+            gap:14px;
+            overflow:hidden;
+        }
+        .drawer-header {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+        }
+        .drawer-title { font-size:1.2rem; font-weight:700; }
+        .drawer-close { background:none; border:none; cursor:pointer; }
+        .drawer-content {
+            overflow-y:auto;
+            padding-right:6px;
+            display:flex;
+            flex-direction:column;
+            gap:14px;
+        }
+        .drawer-section { border:1px solid #eee; border-radius:12px; padding:12px; }
+        .drawer-section h3 { margin:0 0 8px 0; font-size:1rem; }
+        .drawer-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
+        .drawer-label { color:#666; font-size:0.85rem; }
+        .drawer-value { font-weight:600; font-size:0.95rem; }
+        .drawer-items { display:flex; flex-direction:column; gap:10px; }
+        .drawer-item {
+            display:flex;
+            gap:10px;
+            align-items:center;
+            border:1px solid #f1f1f1;
+            border-radius:10px;
+            padding:8px;
+        }
+        .drawer-item img { width:52px; height:52px; object-fit:cover; border-radius:8px; }
+        .drawer-item-meta { display:flex; flex-direction:column; gap:2px; flex:1; }
+        .drawer-item-name { font-weight:600; font-size:0.95rem; }
+        .drawer-item-sub { color:#666; font-size:0.85rem; }
+        .drawer-item-price { font-weight:600; font-size:0.9rem; }
+        .drawer-actions { display:flex; flex-wrap:wrap; gap:8px; }
+        .drawer-input, .drawer-textarea {
+            width:100%;
+            border:1px solid #e0e0e0;
+            border-radius:8px;
+            padding:8px 10px;
+            font-family:'Poppins',Arial,sans-serif;
+            font-size:0.92rem;
+        }
+        .drawer-textarea { min-height:84px; resize:vertical; }
+        .totals-row { display:flex; justify-content:space-between; margin-top:6px; font-size:0.95rem; }
+        .totals-row.total { font-weight:700; font-size:1.02rem; }
+        .payment-proof-wrap { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+        .payment-proof-thumb {
+            width:120px;
+            height:120px;
+            border-radius:10px;
+            border:1px solid #e6e6e6;
+            background:#fafafa;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            overflow:hidden;
+        }
+        .payment-proof-thumb img { width:100%; height:100%; object-fit:cover; }
+        .payment-proof-meta { display:flex; flex-direction:column; gap:6px; }
+        .payment-proof-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .payment-proof-actions a { text-decoration:none; }
+
+        @media (max-width: 760px) {
+            .orders-drawer { width:100%; border-radius:0; }
+            .drawer-grid { grid-template-columns:1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="nav-left">
+            <div class="nav-left-inner">
+                <a class="logo-wrap" href="dashboard.html" aria-label="Shoe Pao dashboard">
+                    <img src="IMAGE/SHOEPAOLOGO.png" alt="ShoePao logo">
+                    <span class="site-title">Shoe Pao Footwear</span>
+                </a>
+                <a class="nav-item" href="dashboard.html">OVERVIEW</a>
+                <a class="nav-item" href="orders.html">Orders</a>
+                <a class="nav-item" href="inventory.html">Inventory</a>
+                <a class="nav-item" href="accounts.html">Accounts</a>
+            </div>
+        </div>
+        <div class="nav-right">
+            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
+                <img src="IMAGE/USERICON.png" alt="User">
+            </button>
+        </div>
+    </header>
+    <div class="site-container">
+    <div class="orders-page">
+        <div class="orders-header" style="padding:24px 120px 8px 120px;">
+            <h1 style="margin:0;font-size:2rem;font-weight:700;">Orders</h1>
+            <div style="color:#666;margin-top:6px;font-size:0.98rem;font-weight:400;">Manage Your Transactions</div>
+        </div>
+
+        <div style="height:18px;"></div>
+        <div style="width:calc(100% - 240px);margin:0 120px 24px 120px;">
+            <div style="height:1px;background:#eee;margin-bottom:18px;border-radius:2px;"></div>
+
+            <div class="orders-table-card" style="background:#fff;border:1px solid #eee;border-radius:12px;padding:18px;">
+                <div class="orders-tabs" id="ordersTabs">
+                    <button class="orders-tab-btn active" data-tab="all">All Orders</button>
+                    <button class="orders-tab-btn" data-tab="cancel-requests">Cancellation Requests</button>
+                    <button class="orders-tab-btn" data-tab="return-requests">Return / Refund Requests</button>
+                    <button class="orders-tab-btn" data-tab="cancelled">Cancelled Orders</button>
+                    <button class="orders-tab-btn" data-tab="archived">Archived</button>
+                </div>
+                
+                <div class="table-top-row" style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
+                    <input id="ordersSearch" type="search" placeholder="Search" style="flex:1 1 360px;padding:10px 14px;border:1px solid #e6e6e6;border-radius:8px;font-family:'Poppins',Arial,sans-serif;">
+
+                    <div style="display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;">
+                        <button class="filter-btn" data-sort="date" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:18px;border:1px solid #ddd;background:#fff;cursor:pointer;"><img src="IMAGE/Date.png" alt="Date" style="width:18px;height:18px"> Date</button>
+                        <button class="filter-btn" data-sort="payment" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:18px;border:1px solid #ddd;background:#fff;cursor:pointer;"><img src="IMAGE/Pay.png" alt="Pay" style="width:18px;height:18px"> Payment Method</button>
+                        <button class="filter-btn" data-sort="id" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:18px;border:1px solid #ddd;background:#fff;cursor:pointer;"><img src="IMAGE/USERICON.png" alt="ID" style="width:18px;height:18px"> Order ID</button>
+                        <button class="filter-btn" data-sort="status" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:18px;border:1px solid #ddd;background:#fff;cursor:pointer;"><img src="IMAGE/CheckIcon.png" alt="Status" style="width:18px;height:18px"> Status</button>
+                    </div>
+                </div>
+
+                <div class="orders-toolbar">
+                    <div class="bulk-actions">
+                        <button id="bulkConfirmBtn" class="primary" disabled>Confirm</button>
+                        <button id="bulkCancelBtn" class="danger" disabled>Cancel</button>
+                        <button id="bulkArchiveBtn" disabled>Archive</button>
+                    </div>
+                    <div id="bulkSelectionHint" style="color:#666;font-size:0.9rem;">No orders selected</div>
+                </div>
+
+                <div style="overflow:auto;">
+                    <table id="ordersTable" style="width:100%;font-family:'Poppins',Arial,sans-serif;">
+                        <thead>
+                            <tr style="background:#fafafa;">
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;"><input type="checkbox" id="selectAllCheckbox" class="order-checkbox" aria-label="Select all orders" /></th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Order ID</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Customer</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Date</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Total</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Status</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Tracking</th>
+                                <th style="padding:12px;text-align:left;border-bottom:2px solid #eee;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersTbody">
+                            <!-- rows inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Order Details Drawer -->
+    <div id="orderDrawerOverlay" class="orders-drawer-overlay" aria-hidden="true">
+        <aside id="orderDrawer" class="orders-drawer" role="dialog" aria-modal="true" aria-labelledby="orderDrawerTitle">
+            <div class="drawer-header">
+                <div id="orderDrawerTitle" class="drawer-title">Order Details</div>
+                <button id="orderDrawerClose" class="drawer-close" aria-label="Close order details">
+                    <img src="IMAGE/X.png" alt="Close" style="width:22px;height:22px;">
+                </button>
+            </div>
+            <div class="drawer-content">
+                <div class="drawer-section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <div id="drawerStatusBadge"></div>
+                        <div id="drawerActions" class="drawer-actions"></div>
+                    </div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Customer</h3>
+                    <div class="drawer-grid">
+                        <div>
+                            <div class="drawer-label">Name</div>
+                            <div id="drawerCustomerName" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Phone</div>
+                            <div id="drawerCustomerPhone" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Email</div>
+                            <div id="drawerCustomerEmail" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Address</div>
+                            <div id="drawerCustomerAddress" class="drawer-value"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Order Metadata</h3>
+                    <div class="drawer-grid">
+                        <div>
+                            <div class="drawer-label">Order ID</div>
+                            <div id="drawerOrderId" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Payment Method</div>
+                            <div id="drawerPaymentMethod" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Payment Status</div>
+                            <div id="drawerPaymentStatus" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Delivery Method</div>
+                            <div id="drawerDeliveryMethod" class="drawer-value"></div>
+                        </div>
+                        <div>
+                            <div class="drawer-label">Estimated Delivery</div>
+                            <div id="drawerEst" class="drawer-value"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Tracking</h3>
+                    <div class="drawer-grid">
+                        <div>
+                            <div class="drawer-label">Carrier</div>
+                                <input id="drawerTrackingCarrier" class="drawer-input" placeholder="e.g., J&T Express" maxlength="24" style="max-width:220px;" />
+                        </div>
+                        <div>
+                            <div class="drawer-label">Tracking Number</div>
+                                <input id="drawerTrackingNumber" class="drawer-input" placeholder="Not assigned" maxlength="32" style="max-width:220px;" />
+                        </div>
+                    </div>
+                    <div style="margin-top:8px;color:#666;font-size:0.85rem;">AfterShip integration placeholder (API hook coming soon).</div>
+                    <div style="margin-top:8px;display:flex;gap:8px;">
+                        <button id="drawerSimulateBtn" class="action-btn neutral">Simulate tracking</button>
+                        <button id="drawerRefreshTrackingBtn" class="action-btn">Refresh tracking</button>
+                        <button id="drawerSaveToServerBtn" class="action-btn">Save order to server</button>
+                    </div>
+                </div>
+                <div class="drawer-section" id="drawerPaymentVerification" style="display:none;">
+                    <h3>Payment Verification</h3>
+                    <div class="payment-proof-wrap">
+                        <div id="drawerProofThumb" class="payment-proof-thumb">
+                            <span style="color:#888;font-size:0.85rem;">No proof</span>
+                        </div>
+                        <div class="payment-proof-meta">
+                            <div><span class="drawer-label">Reference Number</span></div>
+                            <div id="drawerReferenceNumber" class="drawer-value"></div>
+                            <div><span class="drawer-label">Proof File</span></div>
+                            <div id="drawerProofName" class="drawer-value"></div>
+                            <div class="payment-proof-actions">
+                                <a id="drawerProofOpen" class="action-btn neutral" target="_blank" rel="noopener">Open Proof</a>
+                                <button id="drawerConfirmPaymentBtn" class="action-btn success">Confirm Payment</button>
+                            </div>
+                            <div id="drawerPaymentHint" style="color:#666;font-size:0.85rem;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Items</h3>
+                    <div id="drawerItems" class="drawer-items"></div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Totals</h3>
+                    <div class="totals-row"><span>Subtotal</span><span id="drawerSubtotal"></span></div>
+                    <div class="totals-row"><span>Shipping</span><span id="drawerShipping"></span></div>
+                    <div class="totals-row"><span>Discounts</span><span id="drawerDiscounts"></span></div>
+                    <div class="totals-row total"><span>Total</span><span id="drawerTotal"></span></div>
+                </div>
+                <div class="drawer-section">
+                    <h3>Admin Notes</h3>
+                    <textarea id="drawerAdminNotes" class="drawer-textarea" placeholder="Add internal notes..."></textarea>
+                    <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+                        <button id="saveAdminNotesBtn" class="action-btn neutral">Save Notes</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Cancellation Review Modal (admin) -->
+    <div id="cancelReviewModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100000;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div style="font-weight:700;font-size:1.05rem;">Client Cancellation Review</div>
+                <button id="closeCancelReviewBtn" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+            </div>
+            <div id="cancelReviewContent" style="margin-bottom:12px;color:#444;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button id="cancelFooterCloseBtn" onclick="closeCancelReviewModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Close</button>
+                <button id="adminRevokeBtn" style="background:#fff;border:1px solid #b71c1c;padding:8px 14px;border-radius:10px;color:#b71c1c;cursor:pointer;">Revoke Cancellation</button>
+                <button id="adminConfirmCancelBtn" style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;">Confirm Cancellation</button>
+            </div>
+        </div>
+    </div>
+    </div>
+    <!-- Refund Review Modal (admin) -->
+    <div id="refundReviewModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100000;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div style="font-weight:700;font-size:1.05rem;">Client Refund Review</div>
+            </div>
+            <div id="refundReviewContent" style="margin-bottom:12px;color:#444;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button id="refundFooterCloseBtn" onclick="closeRefundReviewModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Close</button>
+                <button id="adminRevokeRefundBtn" style="background:#fff;border:1px solid #b71c1c;padding:8px 14px;border-radius:10px;color:#b71c1c;cursor:pointer;">Revoke Refund</button>
+                <button id="adminConfirmRefundBtn" style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;">Confirm Refund</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer removed for admin orders page to avoid showing the black/site footer -->
+
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <script>
+    // Navigation bar functions
+    function goToHome() { window.location.href = 'home.html'; }
+    function goToProfile() {
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
+    }
+    function goToProductList() { window.location.href = 'product-list.html'; }
+    function goToOrders() { window.location.href = 'orders.html'; }
+    function goToWishlist() { window.location.href = 'wishlist.html'; }
+    function goToFAQ() { window.location.href = 'privacy.html'; }
+    function goToContact() { window.location.href = 'contact.html'; }
+    function goToUserPage() {
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
+    }
+    function goToCartPage() { window.location.href = 'cart.html'; }
+    function toggleSearchBox() {
+        var box = document.getElementById('searchBox');
+        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+        if (box.style.display === 'block') {
+            document.getElementById('searchInput').focus();
+        }
+    }
+    function searchKeyDown(e) {
+        if (e.key === 'Enter') {
+            var val = document.getElementById('searchInput').value.trim();
+            if (val) {
+                window.location.href = 'product-list.html?search=' + encodeURIComponent(val);
+            }
+        }
+    }
+    
+    // Orders table data + rendering, search and sort
+    (function(){
+        const year = new Date().getFullYear();
+
+        // Load persisted orders from localStorage if present; otherwise start with an empty list.
+        let ordersData = [];
+        try {
+            ordersData = JSON.parse(localStorage.getItem('orders') || '[]');
+            if (!Array.isArray(ordersData)) ordersData = [];
+        } catch (e) {
+            ordersData = [];
+        }
+
+                // Attempt to fetch authoritative orders from the server and merge key fields
+                // (tracking_number, courier_name, status) into the local cache so admin UI shows
+                // server-assigned tracking numbers without requiring a manual DevTools sync.
+                (async function trySyncFromServer(){
+                    try{
+                        const resp = await fetch(API_BASE + '/api/orders');
+                        if(!resp.ok) return;
+                        const j = await resp.json();
+                        if(!j) return;
+                        // Accept either { orders: [...] } or an array directly
+                        const srv = Array.isArray(j.orders) ? j.orders : (Array.isArray(j) ? j : (j.orders || []));
+                        if(!Array.isArray(srv) || !srv.length) return;
+                        // Replace local cache with server authoritative list so admin UI shows
+                        // server-side tracking, status and totals immediately.
+                        try{
+                            // Normalize by merging to ensure ids are set
+                            const merged = sortOrdersByNewest(mergeOrdersById([], srv));
+                            ordersData = merged;
+                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                            currentList = ordersData.slice();
+                            try{ renderTable(currentList); }catch(e){}
+                        }catch(e){ /* ignore set/caching errors */ }
+                    }catch(e){ /* ignore network errors */ }
+                })();
+
+        let currentList = ordersData.slice();
+        let selectedOrderIds = new Set();
+        let sortState = { key: null, asc: true };
+        let activeTab = 'all';
+        let selectedOrders = new Set();
+        let currentDrawerOrderId = null;
+    let ordersLoaded = false;
+    // Dev API base for Node backend. Change or make dynamic for production.
+    // API base points to PHP proxy so browser requests go through Apache/PHP.
+    const API_BASE = (function(){ try{ var p = window.location.pathname.replace(/\/+$|^\/+/, ''); var seg = p.split('/'); var root = seg.length > 0 ? '/' + seg[0] : ''; return root + '/server-proxy.php'; }catch(e){ return '/server-proxy.php'; } })();
+
+        function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:0}); }
+
+        function toDateValue(value){
+            if(!value) return null;
+            try{
+                if(typeof value.toDate === 'function') return value.toDate();
+                if(typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+                if(typeof value._seconds === 'number') return new Date(value._seconds * 1000);
+            }catch(e){ /* ignore */ }
+            try{ return new Date(value); }catch(e){ return null; }
+        }
+
+        function formatOrderDateTime(value){
+            var d = toDateValue(value);
+            if(!d) return '';
+            try{ return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return d.toLocaleString(); }
+        }
+
+        function getOrderCreatedAtValue(order){
+            return toDateValue(order && (order.created_at || order.createdAt || order.date || order.createdAtUtc)) || new Date(0);
+        }
+
+        function sortOrdersByNewest(list){
+            return list.sort(function(a,b){
+                return getOrderCreatedAtValue(b) - getOrderCreatedAtValue(a);
+            });
+        }
+
+        function mergeOrdersById(baseList, incomingList){
+            var map = new Map();
+            (baseList || []).forEach(function(o){
+                var id = String(o && (o.id || o.orderId || o.order_id) || '');
+                if(!id) return;
+                map.set(id, o);
+            });
+            (incomingList || []).forEach(function(o){
+                var id = String(o && (o.id || o.orderId || o.order_id) || '');
+                if(!id) return;
+                var existing = map.get(id) || {};
+                map.set(id, Object.assign({}, existing, o, { id: id }));
+            });
+            return Array.from(map.values());
+        }
+
+        async function fetchOrdersFromFirestore(){
+            if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return [];
+            if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+            const db = firebase.firestore();
+            const snap = await db.collection('orders').orderBy('created_at','desc').get();
+            const results = [];
+            snap.forEach(function(doc){
+                const data = Object.assign({}, doc.data());
+                if(!data.id) data.id = data.id || doc.id || data.orderId || doc.id;
+                results.push(data);
+            });
+            return results;
+        }
+
+        async function initializeOrders(){
+            try{
+                var fetched = [];
+                // Prefer authoritative server copy first so client always matches admin/state on load.
+                try{
+                    const resp = await fetch(API_BASE + '/api/orders');
+                    if(resp && resp.ok){
+                        const j = await resp.json();
+                        // API might return { orders: [...] } or an array directly
+                        if(j){
+                            if(Array.isArray(j.orders)) fetched = j.orders;
+                            else if(Array.isArray(j)) fetched = j;
+                        }
+                    }
+                }catch(e){
+                    // server not reachable — we'll fall back below
+                }
+
+                // If server had no orders or wasn't reachable, try Firestore then localStorage
+                if(!fetched || !fetched.length){
+                    try{
+                        const fromFs = await fetchOrdersFromFirestore();
+                        if(Array.isArray(fromFs) && fromFs.length) fetched = fromFs;
+                    }catch(fetchErr){
+                        console.warn('Firestore fetch failed, falling back to localStorage', fetchErr);
+                    }
+                }
+
+                if(!fetched || !fetched.length){
+                    try{
+                        fetched = JSON.parse(localStorage.getItem('orders') || '[]');
+                        if(!Array.isArray(fetched)) fetched = [];
+                    }catch(e){ fetched = []; }
+                }
+
+                // Use server/authoritative data as the source of truth for rendering and cache it locally
+                ordersData = sortOrdersByNewest(mergeOrdersById([], fetched));
+                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){/* ignore */}
+            }catch(e){
+                console.error('Failed to initialize orders', e);
+                ordersData = [];
+            } finally {
+                ordersLoaded = true;
+                applySearch();
+            }
+        }
+
+        function statusBadge(label, type, icon){
+            var cls = 'status-badge ' + (type ? ('badge-' + type) : '');
+            var iconHtml = icon ? ('<span class="status-icon" aria-hidden="true">' + icon + '</span>') : '';
+            return '<span class="' + cls + '">' + iconHtml + '<span>' + label + '</span></span>';
+        }
+
+        function normalizeStatus(s){ return String(s||'').toLowerCase().trim(); }
+
+        function normalizeDeliveryAddressFromAddressObject(addressObject){
+            if(!addressObject) return null;
+            return {
+                fullName: addressObject.fullName || '',
+                phone: addressObject.phone || '',
+                postalCode: addressObject.postalCode || '',
+                region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+                province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+                city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+                barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+                street: addressObject.street || addressObject.line1 || ''
+            };
+        }
+
+        function normalizeDeliveryAddressFromString(addressText){
+            if(!addressText) return null;
+            return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+        }
+
+        function formatDeliveryAddressText(addrObj){
+            if(!addrObj) return '';
+            var parts = [];
+            if(addrObj.street) parts.push(addrObj.street);
+            if(addrObj.barangay) parts.push(addrObj.barangay);
+            if(addrObj.city) parts.push(addrObj.city);
+            if(addrObj.province) parts.push(addrObj.province);
+            if(addrObj.region) parts.push(addrObj.region);
+            if(addrObj.postalCode) parts.push(addrObj.postalCode);
+            return parts.join(', ');
+        }
+
+        function getOrderDeliveryAddressText(order){
+            var deliveryObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+            return formatDeliveryAddressText(deliveryObj) || order.delivery_address || order.shippingAddress || '';
+        }
+
+        // Compute estimated delivery window based on province/region (Luzon:1-3 days; Visayas/Mindanao:1-7 days)
+        function computeEstimatedDelivery(order){
+            try{
+                var addr = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+                var token = '';
+                if(addr){ token = String((addr.province || addr.city || addr.region) || '').toLowerCase(); }
+                if(!token) token = String(order.shippingRegion || order.shipping_region || order.shipping || '').toLowerCase();
+                if(!token) return '';
+                var visayas = ['cebu','leyte','samar','biliran','bohol','iloilo','capiz','antique','guimaras','negros','masbate','siquijor'];
+                var mindanao = ['davao','zamboanga','misamis','bukidnon','lanao','cotabato','sultan','agusan','surigao','dinagat','camiguin'];
+                for(var i=0;i<visayas.length;i++){ if(token.indexOf(visayas[i]) !== -1 || token.indexOf('visayas') !== -1) return '1–7 days'; }
+                for(var j=0;j<mindanao.length;j++){ if(token.indexOf(mindanao[j]) !== -1 || token.indexOf('mindanao') !== -1) return '1–7 days'; }
+                return '1–3 days';
+            }catch(e){ return ''; }
+        }
+
+        function getOrderRecipientName(order){
+            var addrObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || null;
+            return (addrObj && addrObj.fullName) || order.customerName || order.name || order.recipient_name || '';
+        }
+
+        function getOrderRecipientPhone(order){
+            var addrObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || null;
+            return (addrObj && addrObj.phone) || order.customerPhone || order.phone || order.contact || order.recipient_phone || '';
+        }
+
+        function getOrderPaymentMethodLabel(order){
+            var label = order.paymentLabel || order.paymentMethod || order.payment_method || order.payment || '';
+            if(!label && order.paymentCode){
+                if(order.paymentCode === 'qr_ph') label = 'QR PH';
+                else if(order.paymentCode === 'bank_transfer') label = 'Bank Transfer';
+                else if(order.paymentCode === 'cod') label = 'Cash on Delivery';
+            }
+            return label || '';
+        }
+
+        function getOrderPaymentCode(order){
+            var code = (order.paymentCode || order.payment_code || '').toString().toLowerCase();
+            if(code) return code;
+            var method = (order.payment_method || order.paymentMethod || order.paymentLabel || order.payment || '').toString().toLowerCase();
+            if(method.indexOf('cash') !== -1 || method.indexOf('cod') !== -1) return 'cod';
+            if(method.indexOf('bank') !== -1) return 'bank_transfer';
+            if(method.indexOf('qr') !== -1) return 'qr_ph';
+            return '';
+        }
+
+        function getOrderReferenceNumber(order){
+            return order.referenceNumber || order.reference_number || order.payment_reference || order.payment_payload || '';
+        }
+
+        function getOrderPaymentProof(order){
+            return {
+                data: order.payment_proof || order.paymentProof || order.proofImage || order.proof_image || '',
+                name: order.payment_proof_name || order.paymentProofName || order.proofName || ''
+            };
+        }
+
+        // Update only the payment verification portion of the drawer for a given order object.
+        // This is called both when the drawer initially opens and when a server copy arrives
+        // so that newly uploaded proof images enable the confirm button immediately.
+        function updateDrawerVerification(row){
+            try{
+                var verificationSection = document.getElementById('drawerPaymentVerification');
+                var proofThumb = document.getElementById('drawerProofThumb');
+                var proofNameEl = document.getElementById('drawerProofName');
+                var refEl = document.getElementById('drawerReferenceNumber');
+                var proofOpen = document.getElementById('drawerProofOpen');
+                var confirmBtn = document.getElementById('drawerConfirmPaymentBtn');
+                var hintEl = document.getElementById('drawerPaymentHint');
+                var state = canonicalStatusFromOrder(row);
+                var paymentCode = getOrderPaymentCode(row);
+                var proof = getOrderPaymentProof(row);
+                var referenceNumber = getOrderReferenceNumber(row);
+                if(!verificationSection) return;
+                if(state === 'pending payment'){
+                    verificationSection.style.display = '';
+                    if(paymentCode === 'cod'){
+                        if(proofThumb) proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">COD order</span>';
+                        if(proofNameEl) proofNameEl.textContent = 'Not required for COD';
+                        if(refEl) refEl.textContent = 'Not required for COD';
+                        if(proofOpen){ proofOpen.style.display = 'none'; }
+                        if(confirmBtn){ confirmBtn.textContent = 'Confirm COD'; confirmBtn.style.display = ''; confirmBtn.disabled = false; }
+                        if(hintEl) hintEl.textContent = 'Confirm once COD order is acknowledged.';
+                    } else {
+                        if(proofThumb){
+                            if(proof.data){
+                                var proofStr = String(proof.data || '');
+                                var isImage = (proofStr.indexOf('data:image') === 0) || (/^https?:\/\//i.test(proofStr));
+                                if(isImage){
+                                    proofThumb.innerHTML = '<img src="' + proof.data + '" alt="Proof of payment">';
+                                } else {
+                                    proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">Proof file</span>';
+                                }
+                            } else {
+                                proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">No proof uploaded</span>';
+                            }
+                        }
+                        if(proofNameEl) proofNameEl.textContent = proof.name || 'Not provided';
+                        if(refEl) refEl.textContent = referenceNumber || 'Not provided';
+                        if(proofOpen){
+                            if(proof.data){
+                                proofOpen.href = proof.data;
+                                proofOpen.style.display = '';
+                            } else {
+                                proofOpen.removeAttribute('href');
+                                proofOpen.style.display = 'none';
+                            }
+                        }
+                        if(confirmBtn){
+                            // TEMPORARY: allow confirm even when no proof is uploaded so admins can test flows.
+                            confirmBtn.textContent = 'Confirm Payment';
+                            confirmBtn.style.display = '';
+                            confirmBtn.disabled = false; // do not block for testing
+                        }
+                        if(hintEl) hintEl.textContent = proof.data ? 'Verify proof and reference number before confirming.' : 'Awaiting proof of payment upload. (Testing: proof not required)';
+                    }
+                } else {
+                    verificationSection.style.display = 'none';
+                }
+            }catch(e){ console.warn('updateDrawerVerification failed', e); }
+        }
+
+        function canonicalStatusFromOrder(order){
+            var statusRaw = normalizeStatus(order && order.status);
+            if(order && order.archived) return 'archived';
+            if(statusRaw === 'archived') return 'archived';
+            if(statusRaw === 'cancelled') return 'cancelled';
+            if(statusRaw === 'delivered') return 'delivered';
+            if(statusRaw === 'shipped') return 'shipped';
+            if(statusRaw === 'processing') return 'processing';
+            if(statusRaw === 'confirmed') return 'confirmed';
+            if(statusRaw === 'approved') return 'confirmed';
+            if(statusRaw === 'refund processing') return 'refund requested';
+            if(statusRaw === 'refunded') return 'refunded';
+            if(order && order.returnRequest && order.returnRequest.requestedAt){
+                var refundStatus = normalizeStatus(order.returnRequest.refundStatus || '');
+                if(refundStatus === 'refunded') return 'refunded';
+                return 'refund requested';
+            }
+            if(statusRaw === 'pending' || statusRaw === 'pending payment' || !statusRaw) return 'pending payment';
+            return statusRaw;
+        }
+
+        function statusMetaForState(state){
+            var map = {
+                'pending payment': { label: 'Pending Payment', type: 'pending', icon: '⏳' },
+                'confirmed': { label: 'Confirmed', type: 'confirmed', icon: '✅' },
+                'processing': { label: 'Processing', type: 'processing', icon: '⚙️' },
+                'shipped': { label: 'Shipped', type: 'shipped', icon: '🚚' },
+                'delivered': { label: 'Delivered', type: 'delivered', icon: '📦' },
+                'refund requested': { label: 'Refund Requested', type: 'refund-requested', icon: '🧾' },
+                'refunded': { label: 'Refunded', type: 'refunded', icon: '💸' },
+                'cancelled': { label: 'Cancelled', type: 'cancelled', icon: '✖️' },
+                'archived': { label: 'Archived', type: 'archived', icon: '🗂️' }
+            };
+            return map[state] || { label: titleCase(state || 'Pending Payment'), type: 'pending', icon: '⏳' };
+        }
+
+        var ORDER_TRANSITIONS = {
+            'pending payment': ['confirmed','cancelled'],
+            'confirmed': ['processing','cancelled'],
+            'processing': ['shipped','cancelled'],
+            'shipped': ['delivered'],
+            'delivered': ['archived'],
+            'refund requested': ['refunded'],
+            'refunded': ['archived'],
+            'cancelled': ['archived'],
+            'archived': []
+        };
+
+        function canTransition(current, next){
+            if(!current || !next) return false;
+            if(current === next) return true;
+            if(next === 'refund requested' && current !== 'archived' && current !== 'cancelled') return true;
+            if(current === 'refund requested' && ['pending payment','confirmed','processing','shipped','delivered'].indexOf(next) !== -1) return true;
+            var allowed = ORDER_TRANSITIONS[current] || [];
+            return allowed.indexOf(next) !== -1;
+        }
+
+        function filterByTab(list){
+            if(activeTab === 'cancel-requests'){
+                return list.filter(function(o){ return o.cancelRequest && o.cancelRequest.requestedAt; });
+            }
+            if(activeTab === 'return-requests'){
+                return list.filter(function(o){ return o.returnRequest && o.returnRequest.requestedAt; });
+            }
+            if(activeTab === 'cancelled'){
+                return list.filter(function(o){ return normalizeStatus(o.status) === 'cancelled'; });
+            }
+            if(activeTab === 'archived'){
+                return list.filter(function(o){ return !!o.archived || normalizeStatus(o.status) === 'archived'; });
+            }
+            return list;
+        }
+
+        function findInventoryIndexForItem(inv, item){
+            try{
+                if(!Array.isArray(inv)) return -1;
+                var itemId = item && (item.product_id || item.productId || item.id) ? String(item.product_id || item.productId || item.id) : '';
+                if(itemId){
+                    var idIdx = inv.findIndex(function(i){ return String(i.id||'') === itemId || String(i.productId||'') === itemId; });
+                    if(idIdx !== -1) return idIdx;
+                }
+                var title = (item && (item.name || item.title || item.productName) || '').toString().trim();
+                var brand = (item && (item.brand || item.productBrand) || '').toString().trim();
+                if(title){
+                    var exactIdx = inv.findIndex(function(i){ return String(i.name||'').trim() === title; });
+                    if(exactIdx !== -1) return exactIdx;
+                    var containsIdx = inv.findIndex(function(i){ return title && String(i.name||'').toLowerCase().indexOf(title.toLowerCase()) !== -1; });
+                    if(containsIdx !== -1) return containsIdx;
+                }
+                if(brand){
+                    var brandIdx = inv.findIndex(function(i){ return String(i.brand||'').toLowerCase() === brand.toLowerCase(); });
+                    if(brandIdx !== -1) return brandIdx;
+                }
+                return -1;
+            }catch(e){ return -1; }
+        }
+
+        function adjustAdminInventoryStock(items, direction){
+            var updated = false;
+            try{
+                var adminProducts = JSON.parse(localStorage.getItem('shoeInventoryData')||'null');
+                if(!Array.isArray(adminProducts) || !adminProducts.length) return false;
+                items.forEach(function(it){
+                    var qty = Number(it.qty || it.quantity || 1) || 0;
+                    if(!qty) return;
+                    var size = (it.size || it.eu || it.size_eu || '').toString().trim();
+                    if(!size) return;
+                    var title = (it.name || it.title || it.productName || '').toString().trim();
+                    var itemId = (it.product_id || it.productId || it.id || '').toString().trim();
+                    adminProducts.forEach(function(p){
+                        var pId = (p && (p.id || p.sku)) ? String(p.id || p.sku) : '';
+                        var matchesProduct = itemId && pId && itemId === pId;
+                        var colors = Array.isArray(p.colors) ? p.colors : [];
+                        colors.forEach(function(c){
+                            var name = ((p.model||'') + (c && c.name ? (' ' + c.name) : '')).trim();
+                            if(!matchesProduct && title){
+                                if(String(name).toLowerCase() !== String(title).toLowerCase()) return;
+                            }
+                            if(!Array.isArray(c.sizes)) return;
+                            c.sizes.forEach(function(s){
+                                if(String(s.eu) === String(size)){
+                                    var cur = Number(s.stock || 0) || 0;
+                                    var next = cur + (direction * qty);
+                                    s.stock = Math.max(0, next);
+                                    updated = true;
+                                }
+                            });
+                        });
+                    });
+                });
+                if(updated){
+                    localStorage.setItem('shoeInventoryData', JSON.stringify(adminProducts));
+                }
+            }catch(e){ /* ignore */ }
+            return updated;
+        }
+
+        function adjustInventoryStock(items, direction){
+            var updated = false;
+            try{
+                var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                if(Array.isArray(inv) && inv.length){
+                    items.forEach(function(it){
+                        var qty = Number(it.qty || it.quantity || 1) || 0;
+                        if(!qty) return;
+                        var size = (it.size || it.eu || it.size_eu || '').toString().trim();
+                        if(!size) return;
+                        var idx = findInventoryIndexForItem(inv, it);
+                        if(idx === -1) return;
+                        if(!inv[idx].sizes) inv[idx].sizes = {};
+                        var cur = Number(inv[idx].sizes[size] || 0) || 0;
+                        var next = cur + (direction * qty);
+                        inv[idx].sizes[size] = Math.max(0, next);
+                        updated = true;
+                    });
+                    if(updated){
+                        localStorage.setItem('inventory', JSON.stringify(inv));
+                    }
+                }
+            }catch(e){ /* ignore */ }
+            var adminUpdated = adjustAdminInventoryStock(items, direction);
+            return updated || adminUpdated;
+        }
+
+        function fetchOrderItemsFromFirestore(orderId){
+            return new Promise(function(resolve){
+                try{
+                    if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return resolve([]);
+                    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                    var db = firebase.firestore();
+                    var docRef = db.collection('orders').doc(String(orderId));
+                    docRef.get().then(function(doc){
+                        if(doc.exists){
+                            return docRef.collection('items').get().then(function(snap){
+                                resolve(snap.docs.map(function(d){ return d.data(); }));
+                            }).catch(function(){ resolve((doc.data() && doc.data().items) || []); });
+                        }
+                        return db.collection('orders').where('id','==',String(orderId)).limit(1).get().then(function(q){
+                            if(q.empty) return resolve([]);
+                            var d = q.docs[0];
+                            return db.collection('orders').doc(d.id).collection('items').get().then(function(snap){
+                                resolve(snap.docs.map(function(dd){ return dd.data(); }));
+                            }).catch(function(){ resolve((d.data() && d.data().items) || []); });
+                        }).catch(function(){ resolve([]); });
+                    }).catch(function(){ resolve([]); });
+                }catch(e){ resolve([]); }
+            });
+        }
+
+        function restockOrderItems(orderId, row){
+            var directItems = (row && Array.isArray(row.items) && row.items.length) ? row.items : null;
+            var promise = directItems ? Promise.resolve(directItems) : fetchOrderItemsFromFirestore(orderId);
+            return promise.then(function(items){
+                if(!items || !items.length) return false;
+                return adjustInventoryStock(items, 1);
+            }).catch(function(){ return false; });
+        }
+
+        function titleCase(str){
+            if(!str && str !== 0) return '';
+            return String(str).split(/(\s+)/).map(token=>{
+                // preserve whitespace tokens
+                if(/\s+/.test(token)) return token;
+                // keep tokens that start with non-letter (numbers, #, TR) unchanged
+                if(!/[a-zA-Z]/.test(token.charAt(0))) return token;
+                return token.charAt(0).toUpperCase() + token.slice(1);
+            }).join('');
+        }
+
+        function actionButton(label, style, action, icon){
+            var iconHtml = icon ? ('<span aria-hidden="true">' + icon + '</span>') : '';
+            return '<button class="action-btn ' + style + '" data-action="' + action + '">' + iconHtml + '<span>' + label + '</span></button>';
+        }
+
+        function getAvailableActions(order){
+            var state = canonicalStatusFromOrder(order);
+            var actions = [];
+            if(state === 'pending payment'){
+                actions.push({ action:'confirm', label:'Confirm', style:'success', icon:'✅' });
+                actions.push({ action:'cancel', label:'Cancel', style:'danger', icon:'✖️' });
+            } else if(state === 'confirmed'){
+                actions.push({ action:'start-processing', label:'Start Processing', style:'primary', icon:'⚙️' });
+                actions.push({ action:'cancel', label:'Cancel', style:'danger', icon:'✖️' });
+            } else if(state === 'processing'){
+                actions.push({ action:'mark-shipped', label:'Mark Shipped', style:'primary', icon:'🚚' });
+                actions.push({ action:'cancel', label:'Cancel', style:'danger', icon:'✖️' });
+            } else if(state === 'shipped'){
+                actions.push({ action:'mark-delivered', label:'Mark Delivered', style:'success', icon:'📦' });
+            } else if(state === 'refund requested'){
+                actions.push({ action:'mark-refunded', label:'Mark Refunded', style:'success', icon:'💸' });
+            }
+
+            if(order && order.cancelRequest && order.cancelRequest.requestedAt && !order.cancelRequest.approvedAt && !order.cancelRequest.rejectedAt){
+                actions.push({ action:'review-cancel', label:'Review Cancel', style:'warning', icon:'⚠️' });
+            }
+            if(order && order.returnRequest && order.returnRequest.requestedAt && !order.returnRequest.refundedAt){
+                actions.push({ action:'review-refund', label:'Review Refund', style:'warning', icon:'⚠️' });
+            }
+
+            if(state === 'cancelled' || state === 'refunded' || state === 'delivered'){
+                actions.push({ action:'archive', label:'Archive', style:'neutral', icon:'🗂️' });
+            }
+            return actions;
+        }
+
+        function renderTable(list){
+            const tbody = document.getElementById('ordersTbody');
+            tbody.innerHTML = '';
+            list.forEach((row) => {
+                const tr = document.createElement('tr');
+                var fallbackProfileName = '';
+                try{ fallbackProfileName = JSON.parse(localStorage.getItem('profile')||'{}').name || ''; }catch(e){}
+                var displayName = row.customerName || row.name || fallbackProfileName || '';
+                var state = canonicalStatusFromOrder(row);
+                var meta = statusMetaForState(state);
+                var statusHtml = statusBadge(meta.label, meta.type, meta.icon);
+                var trackingNumber = row.tracking_number || row.trackingNumber || row.tracking || '';
+                var carrier = row.trackingCarrier || row.courier_name || row.courier || '';
+                // Shorten display for carrier and tracking number in the table for readability
+                function short(s, n){ if(!s) return ''; s = String(s); return (s.length > n) ? (s.slice(0,n-1) + '…') : s; }
+                var carrierDisplay = carrier ? short(titleCase(carrier), 20) : '';
+                var trackingDisplay = trackingNumber ? short(trackingNumber, 14) : '';
+                var trackingHtml = 'Not assigned';
+                if(trackingDisplay || carrierDisplay){ trackingHtml = (carrierDisplay ? (carrierDisplay + ' • ') : '') + (trackingDisplay || 'Not assigned'); }
+                var actions = getAvailableActions(row)
+                    .map(function(a){ return actionButton(a.label, a.style, a.action, a.icon); })
+                    .join('');
+
+                tr.innerHTML = `
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">
+                        <input type="checkbox" class="row-select" data-id="${row.id}" aria-label="Select order ${row.id}">
+                    </td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${row.id}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${titleCase(displayName)}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${formatOrderDateTime(row.created_at || row.date) || ''}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${formatPHP(row.total)}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${statusHtml}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;" title="${(carrier ? (carrier + ' • ') : '') + (trackingNumber || '')}">${trackingHtml}</td>
+                    <td class="actions-cell">
+                        <div class="order-actions-row">${actions || ''}</div>
+                    </td>
+                `;
+
+                tr.addEventListener('click', function(){ openOrderDrawer(row); });
+
+                setTimeout(function(){
+                    var checkbox = tr.querySelector('.row-select');
+                    if(checkbox){
+                        checkbox.checked = selectedOrderIds.has(String(row.id));
+                        checkbox.addEventListener('click', function(e){ e.stopPropagation(); });
+                        checkbox.addEventListener('change', function(){
+                            toggleSelectOrder(row.id, checkbox.checked);
+                        });
+                    }
+                    tr.querySelectorAll('.action-btn').forEach(function(btn){
+                        btn.addEventListener('click', function(e){
+                            e.stopPropagation();
+                            handleOrderAction(row, btn.getAttribute('data-action'));
+                        });
+                    });
+                }, 0);
+                                tbody.appendChild(tr);
+
+                                // If this row lacks a tracking number, do a best-effort fetch of the
+                                // authoritative server order so the table can show server-assigned
+                                // tracking_number without requiring the admin to open the drawer.
+                                try{
+                                    (function(localRow, localTr){
+                                        try{
+                                            var hasTracking = localRow.tracking_number || localRow.trackingNumber || localRow.tracking || '';
+                                            if(!hasTracking && window.fetch){
+                                                fetch(API_BASE + '/api/orders/' + encodeURIComponent(localRow.id)).then(function(resp){ if(!resp.ok) throw new Error('no order'); return resp.json(); }).then(function(j){
+                                                    if(!j || !j.order) return;
+                                                    var srv = j.order || {};
+                                                    var tn = srv.tracking_number || srv.tracking || srv.trackingNumber || '';
+                                                    var carrier = srv.courier_name || srv.courier || '';
+                                                    if(tn){
+                                                        // update in-memory data structures
+                                                        try{
+                                                            // update the row object so future actions see it
+                                                            localRow.tracking_number = tn;
+                                                            localRow.courier_name = carrier || localRow.courier_name;
+                                                            // update ordersData and currentList caches
+                                                            try{
+                                                                for(var i=0;i<ordersData.length;i++){ if(String(ordersData[i].id) === String(localRow.id)){ ordersData[i] = Object.assign({}, ordersData[i], { tracking_number: tn, courier_name: carrier || ordersData[i].courier_name || '' }); break; } }
+                                                                for(var jidx=0;jidx<currentList.length;jidx++){ if(String(currentList[jidx].id) === String(localRow.id)){ currentList[jidx] = Object.assign({}, currentList[jidx], { tracking_number: tn, courier_name: carrier || currentList[jidx].courier_name || '' }); break; } }
+                                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                            }catch(e){}
+                                                        }catch(e){}
+                                                        // update the table cell text
+                                                        try{
+                                                            var td = localTr.querySelectorAll('td')[6];
+                                                            if(td){
+                                                                var short = function(s,n){ if(!s) return ''; s=String(s); return (s.length>n)?(s.slice(0,n-1)+'…'):s; };
+                                                                var carrierDisplay = carrier ? short((carrier+'').replace(/\b(\w)/g, function(m){ return m.toUpperCase(); }), 20) : '';
+                                                                var trackingDisplay = tn ? short(tn, 14) : '';
+                                                                var trackingHtml = 'Not assigned';
+                                                                if(trackingDisplay || carrierDisplay) trackingHtml = (carrierDisplay ? (carrierDisplay + ' • ') : '') + (trackingDisplay || 'Not assigned');
+                                                                td.textContent = trackingHtml;
+                                                                td.title = (carrier ? (carrier + ' • ') : '') + tn;
+                                                            }
+                                                        }catch(e){}
+                                                    }
+                                                }).catch(function(){ /* ignore */ });
+                                            }
+                                        }catch(e){}
+                                    })(row, tr);
+                                }catch(e){}
+            });
+            syncSelectAllCheckbox();
+            updateBulkUI();
+        }
+
+        function toggleSelectOrder(orderId, isSelected){
+            var key = String(orderId);
+            if(isSelected) selectedOrderIds.add(key);
+            else selectedOrderIds.delete(key);
+            syncSelectAllCheckbox();
+            updateBulkUI();
+        }
+
+        function syncSelectAllCheckbox(){
+            var selectAll = document.getElementById('selectAllCheckbox');
+            if(!selectAll) return;
+            if(!currentList.length){
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+                return;
+            }
+            var selectedCount = currentList.filter(function(o){ return selectedOrderIds.has(String(o.id)); }).length;
+            selectAll.checked = selectedCount === currentList.length && selectedCount > 0;
+            selectAll.indeterminate = selectedCount > 0 && selectedCount < currentList.length;
+        }
+
+        function updateBulkUI(){
+            var hint = document.getElementById('bulkSelectionHint');
+            var count = selectedOrderIds.size;
+            if(hint) hint.textContent = count ? (count + ' selected') : 'No orders selected';
+            var confirmBtn = document.getElementById('bulkConfirmBtn');
+            var cancelBtn = document.getElementById('bulkCancelBtn');
+            var archiveBtn = document.getElementById('bulkArchiveBtn');
+            var disabled = count === 0;
+            if(confirmBtn) confirmBtn.disabled = disabled;
+            if(cancelBtn) cancelBtn.disabled = disabled;
+            if(archiveBtn) archiveBtn.disabled = disabled;
+        }
+
+        function applyBulkAction(action){
+            if(!selectedOrderIds.size) return;
+            if(action === 'cancel' && !confirm('Cancel selected orders?')) return;
+            if(action === 'archive' && !confirm('Archive selected orders?')) return;
+            selectedOrderIds.forEach(function(id){
+                var order = ordersData.find(function(o){ return String(o.id) === String(id); });
+                if(!order) return;
+                if(action === 'confirm') updateOrder(id, { status: 'confirmed' });
+                if(action === 'cancel') updateOrder(id, { status: 'cancelled', previousStatus: order.status || 'pending payment' });
+                if(action === 'archive') updateOrder(id, { status: 'archived', archived: true, archivedAt: new Date().toISOString() });
+            });
+            selectedOrderIds.clear();
+            applySearch();
+        }
+
+        let activeDrawerOrderId = null;
+
+        function openOrderDrawer(row){
+            activeDrawerOrderId = row.id;
+            // expose full row to other handlers for actions like saving to server
+            window.activeDrawerRow = row;
+            var state = canonicalStatusFromOrder(row);
+            var meta = statusMetaForState(state);
+            document.getElementById('drawerStatusBadge').innerHTML = statusBadge(meta.label, meta.type, meta.icon);
+            document.getElementById('drawerActions').innerHTML = getAvailableActions(row)
+                .map(function(a){ return actionButton(a.label, a.style, a.action, a.icon); })
+                .join('');
+
+            var name = getOrderRecipientName(row);
+            var phone = getOrderRecipientPhone(row);
+            var email = row.customerEmail || row.email || '';
+            var address = getOrderDeliveryAddressText(row);
+
+            document.getElementById('drawerCustomerName').textContent = name || 'Not provided';
+            document.getElementById('drawerCustomerPhone').textContent = phone || 'Not provided';
+            document.getElementById('drawerCustomerEmail').textContent = email || 'Not provided';
+            document.getElementById('drawerCustomerAddress').textContent = address || 'Not provided';
+
+            var payLabel = getOrderPaymentMethodLabel(row);
+            var deliveryLabel = row.deliveryLabel || row.deliveryMethod || row.delivery_method || '';
+            if(!deliveryLabel && row.deliveryCode){
+                if(row.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery';
+                else if(row.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove';
+                else if(row.deliveryCode === 'jnt') deliveryLabel = 'J&T Express';
+            }
+
+            document.getElementById('drawerOrderId').textContent = row.id || '';
+            document.getElementById('drawerPaymentMethod').textContent = payLabel || 'Not provided';
+            document.getElementById('drawerPaymentStatus').textContent = row.paymentStatus || row.payment_status || 'Not provided';
+            document.getElementById('drawerDeliveryMethod').textContent = deliveryLabel || 'Not provided';
+            try{ var drawerEst = computeEstimatedDelivery(row); document.getElementById('drawerEst').textContent = drawerEst ? ('Est. Delivery: ' + drawerEst) : ''; }catch(e){ document.getElementById('drawerEst').textContent = ''; }
+
+            // Populate tracking/carrier inputs from order data (use stored courier/tracking if available,
+            // otherwise default to delivery method for carrier)
+            try{
+                var carrierInput = document.getElementById('drawerTrackingCarrier');
+                var trackingInput = document.getElementById('drawerTrackingNumber');
+                if(carrierInput){ carrierInput.value = row.courier_name || row.courier || row.trackingCarrier || deliveryLabel || ''; }
+                if(trackingInput){ trackingInput.value = row.tracking_number || row.trackingNumber || row.tracking || ''; }
+            }catch(e){ /* ignore */ }
+
+                    // Always attempt to fetch the authoritative server copy when opening the drawer
+            // so server-generated fields (tracking_number, courier_name, status) surface immediately.
+                    try{
+                        if(window.fetch){
+                            fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(row.id))).then(function(r2){
+                                // If server reports 404 (order unknown), automatically save this local order to the server
+                                if(r2 && r2.status === 404){
+                                    try{
+                                        // Use existing helper to save the order to server (idempotent)
+                                        window.saveOrderToServer(row, function(err, srv){
+                                            if(err) { console.warn('Auto-save to server failed', err); return; }
+                                            try{
+                                                var srvOrder = srv || {};
+                                                if(srvOrder.tracking_number && trackingInput) trackingInput.value = srvOrder.tracking_number;
+                                                if(srvOrder.courier_name && carrierInput) carrierInput.value = srvOrder.courier_name;
+                                                var idx = ordersData.findIndex(o2 => String(o2.id) === String(row.id));
+                                                if(idx !== -1){
+                                                    ordersData[idx] = Object.assign({}, ordersData[idx], { courier_name: srvOrder.courier_name || '', tracking_number: srvOrder.tracking_number || '', status: srvOrder.status || '' });
+                                                    try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                    try{ if(ordersLoaded) applySearch(); }catch(e){}
+                                                }
+                                                try{ if(window.activeDrawerRow && String(window.activeDrawerRow.id) === String(row.id)){ window.activeDrawerRow.courier_name = srvOrder.courier_name || window.activeDrawerRow.courier_name; window.activeDrawerRow.tracking_number = srvOrder.tracking_number || window.activeDrawerRow.tracking_number; } }catch(e){}
+                                            }catch(e){ console.warn('failed to apply auto-saved server order to drawer', e); }
+                                        });
+                                    }catch(e){ console.warn('auto-save attempt failed', e); }
+                                    return null;
+                                }
+                                if(!r2 || !r2.ok) return null;
+                                return r2.json();
+                            }).then(function(j){
+                                if(!j || !j.order) return;
+                                var o = j.order;
+                                try{
+                                    if(o.tracking_number && trackingInput){ trackingInput.value = o.tracking_number; }
+                                    if(o.courier_name && carrierInput){ carrierInput.value = o.courier_name; }
+                                    // Persist canonical fields into local ordersData and localStorage without triggering Firestore writes.
+                                    try{
+                                        var idx = ordersData.findIndex(o2 => String(o2.id) === String(row.id));
+                                        if(idx !== -1){
+                                            ordersData[idx] = Object.assign({}, ordersData[idx], { courier_name: o.courier_name || '', tracking_number: o.tracking_number || '', status: o.status || '' });
+                                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                            // re-render table to reflect new values
+                                            try{ if(ordersLoaded) { applySearch(); } }catch(e){}
+                                        }
+                                    }catch(e){ console.warn('failed to persist server order locally', e); }
+                                    // also update the in-memory activeDrawerRow so the UI uses the canonical values
+                                    try{ 
+                                        if(window.activeDrawerRow && String(window.activeDrawerRow.id) === String(row.id)){
+                                            window.activeDrawerRow.courier_name = o.courier_name || window.activeDrawerRow.courier_name;
+                                            window.activeDrawerRow.tracking_number = o.tracking_number || window.activeDrawerRow.tracking_number;
+                                        }
+                                        // Refresh the verification UI in case the server copy contains newly uploaded proof
+                                        try{ updateDrawerVerification(window.activeDrawerRow || o); }catch(e){}
+                                    }catch(e){}
+                                }catch(e){ console.warn('failed to apply server order to drawer', e); }
+                            }).catch(function(err){ console.warn('failed to fetch server order for drawer', err); });
+                        }
+                    }catch(e){ console.warn('drawer server fetch failed', e); }
+
+            // Payment verification (for pending orders) — use helper so we can refresh when server copy arrives
+            try{ updateDrawerVerification(row); }catch(e){ console.warn('failed to init drawer verification', e); }
+
+            var trackingCarrierInput = document.getElementById('drawerTrackingCarrier');
+            var trackingNumberInput = document.getElementById('drawerTrackingNumber');
+            trackingCarrierInput.value = row.trackingCarrier || row.carrier || '';
+            trackingNumberInput.value = row.trackingNumber || row.tracking || '';
+            trackingNumberInput.placeholder = trackingNumberInput.value ? '' : 'Not assigned';
+
+            var notes = row.adminNotes || row.admin_notes || '';
+            document.getElementById('drawerAdminNotes').value = notes;
+
+            renderDrawerItems(row, row.items || []);
+            renderDrawerTotals(row, row.items || []);
+
+            document.getElementById('orderDrawerOverlay').style.display = 'flex';
+            document.getElementById('orderDrawerOverlay').setAttribute('aria-hidden','false');
+            document.body.style.overflow = 'hidden';
+
+            if(confirmBtn){
+                // Use the live activeDrawerRow when invoking actions so the UI reflects
+                // any server-side updates fetched after opening the drawer (e.g. proof upload).
+                confirmBtn.onclick = function(){ handleOrderAction(window.activeDrawerRow || row, 'confirm'); };
+            }
+
+            setTimeout(function(){
+                document.querySelectorAll('#drawerActions .action-btn').forEach(function(btn){
+                    btn.addEventListener('click', function(){
+                        // Prefer the most-recent activeDrawerRow (may have been updated by server fetch)
+                        handleOrderAction(window.activeDrawerRow || row, btn.getAttribute('data-action'));
+                    });
+                });
+            }, 0);
+
+            if(!row.items || !row.items.length){
+                fetchOrderItemsFromFirestore(row.id).then(function(items){
+                    renderDrawerItems(row, items);
+                    renderDrawerTotals(row, items);
+                });
+            }
+        }
+
+        function closeOrderDrawer(){
+            document.getElementById('orderDrawerOverlay').style.display = 'none';
+            document.getElementById('orderDrawerOverlay').setAttribute('aria-hidden','true');
+            document.body.style.overflow = '';
+            activeDrawerOrderId = null;
+        }
+
+        function renderDrawerItems(row, items){
+            var container = document.getElementById('drawerItems');
+            container.innerHTML = '';
+            if(!items || !items.length){
+                container.innerHTML = '<div style="color:#666;">No items found.</div>';
+                return;
+            }
+            items.forEach(function(item){
+                var name = item.name || item.title || item.productName || 'Item';
+                var variant = item.variant || item.size || item.size_eu || item.eu || 'Standard';
+                var qty = item.qty || item.quantity || 1;
+                var price = item.price || item.unitPrice || item.amount || 0;
+                var img = item.image || item.imageUrl || item.img || 'IMAGE/NIKE1.png';
+                var lineTotal = Number(price) * Number(qty);
+                var div = document.createElement('div');
+                div.className = 'drawer-item';
+                div.innerHTML = ''
+                    + '<img src="' + img + '" alt="' + name + '">' 
+                    + '<div class="drawer-item-meta">'
+                    + '<div class="drawer-item-name">' + name + '</div>'
+                    + '<div class="drawer-item-sub">Variant/Size: ' + variant + '</div>'
+                    + '<div class="drawer-item-sub">Qty: ' + qty + '</div>'
+                    + '</div>'
+                    + '<div class="drawer-item-price">' + formatPHP(lineTotal) + '</div>';
+                container.appendChild(div);
+            });
+        }
+
+        function renderDrawerTotals(row, items){
+            var subtotal = Number(row.subtotal || row.subTotal || row.itemsSubtotal || 0) || 0;
+            var shipping = Number(row.shipping || row.shippingFee || row.shipping_fee || 0) || 0;
+            var discounts = Number(row.discounts || row.discount || 0) || 0;
+            var srcItems = Array.isArray(items) && items.length ? items : (Array.isArray(row.items) ? row.items : []);
+            if(!subtotal && srcItems.length){
+                subtotal = srcItems.reduce(function(acc, item){
+                    var price = Number(item.price || item.unitPrice || item.amount || 0) || 0;
+                    var qty = Number(item.qty || item.quantity || 1) || 1;
+                    return acc + (price * qty);
+                }, 0);
+            }
+            var total = Number(row.total || 0) || (subtotal + shipping - discounts);
+            document.getElementById('drawerSubtotal').textContent = formatPHP(subtotal);
+            document.getElementById('drawerShipping').textContent = formatPHP(shipping);
+            document.getElementById('drawerDiscounts').textContent = discounts ? ('- ' + formatPHP(discounts)) : formatPHP(0);
+            document.getElementById('drawerTotal').textContent = formatPHP(total);
+        }
+
+        // AfterShip integration placeholder (future use)
+        function buildAfterShipPayload(order){
+            return {
+                tracking_number: order.trackingNumber || order.tracking || '',
+                carrier: order.trackingCarrier || order.carrier || '',
+                order_id: order.id || ''
+            };
+        }
+
+        // Save a client-only order to the server (dev helper).
+        // cb(err, serverOrder)
+        window.saveOrderToServer = function(ord, cb){
+            cb = cb || function(){};
+            try{
+                // Attempt to build a sensible items array. Prefer ord.items, then checkout snapshot, then cart.
+                var items = [];
+                if(Array.isArray(ord.items) && ord.items.length){
+                    items = ord.items;
+                } else {
+                    try{ items = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ items = []; }
+                    if(!Array.isArray(items) || items.length === 0){ try{ items = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ items = []; } }
+                }
+                // Normalize items and coerce any nested ids to primitives
+                items = (Array.isArray(items) ? items : []).map(function(it){
+                    var rawPid = it.product_id || it.productId || it.id || it.sku || '';
+                    if(rawPid && typeof rawPid === 'object'){
+                        rawPid = rawPid.id || rawPid._id || rawPid.sku || JSON.stringify(rawPid);
+                    }
+                    return {
+                        product_id: String(rawPid || ''),
+                        name: String(it.name || it.title || it.productName || ''),
+                        qty: Number(it.qty || it.quantity || 1) || 1,
+                        price: Number(it.price || it.unitPrice || it.amount || 0) || 0,
+                        variant: String(it.variant || it.size || it.size_eu || it.eu || ''),
+                        image: String(it.image || it.imageUrl || it.img || '')
+                    };
+                });
+
+                // helper: convert Firestore Timestamp-like objects to ISO strings
+                function toIso(dt){
+                    try{
+                        if(!dt) return new Date().toISOString();
+                        if(typeof dt === 'string') return dt;
+                        // Firestore Timestamp-like
+                        if(typeof dt === 'object' && dt.seconds !== undefined){
+                            return new Date((Number(dt.seconds) * 1000) + (Number(dt.nanoseconds || 0) / 1e6)).toISOString();
+                        }
+                        if(dt instanceof Date) return dt.toISOString();
+                        return String(dt);
+                    }catch(e){ return new Date().toISOString(); }
+                }
+
+                var payload = {
+                    id: ord.id,
+                    user_id: ord.user_id || ord.customerEmail || ord.email || null,
+                    status: ord.status || 'Order placed',
+                    total: Number(ord.total || 0),
+                    shipping_fee: Number(ord.shipping_fee || ord.shipping || 0),
+                    discount: Number(ord.discount || ord.discountAmount || ord.discount || 0),
+                    payment_method: ord.payment_method || ord.paymentMethod || ord.paymentLabel || '',
+                    created_at: toIso(ord.created_at || ord.createdAt || new Date()),
+                    delivery_address: ord.delivery_address || ord.deliveryAddress || ord.shippingAddress || ord.checkoutAddress || '',
+                    recipient_name: ord.recipient_name || ord.customerName || ord.recipientName || '',
+                    recipient_phone: ord.recipient_phone || ord.customerPhone || ord.recipientPhone || '',
+                    courier_name: ord.courier_name || ord.trackingCarrier || ord.courier || ord.deliveryLabel || '',
+                    tracking_number: ord.tracking_number || ord.trackingNumber || ord.tracking || '',
+                    items: items
+                };
+
+                fetch('api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function(r){
+                    // handle non-2xx responses gracefully
+                    if(!r.ok){
+                        return r.json().then(function(errBody){
+                            const msg = errBody && errBody.error ? errBody.error : ('HTTP ' + r.status);
+                            // If the server reports a constraint/unique error (409), try to fetch the server copy
+                            if(r.status === 409){
+                                // attempt to fetch by provided id and return that as a helpful result
+                                if(payload.id){
+                                    fetch(API_BASE + '/api/orders/' + encodeURIComponent(payload.id)).then(function(r2){ if(r2.ok){ r2.json().then(function(j2){ cb(new Error(msg), j2.order); }).catch(function(){ cb(new Error(msg)); }); } else { cb(new Error(msg)); } }).catch(function(){ cb(new Error(msg)); });
+                                    return;
+                                }
+                            }
+                            cb(new Error(msg));
+                        }).catch(function(){ cb(new Error('Server returned ' + r.status)); });
+                    }
+                    return r.json();
+                }).then(function(j){
+                    if(!j) return; // handled above
+                    // If server returned the authoritative order object (including auto-generated tracking), use it
+                    if(j && j.order){ cb(null, j.order); return; }
+                    if(j && j.orderId){
+                        // Fetch authoritative server copy
+                        fetch(API_BASE + '/api/orders/' + encodeURIComponent(j.orderId)).then(function(r2){ return r2.json(); }).then(function(j2){
+                            if(j2 && j2.order){ cb(null, j2.order); return; }
+                            cb(new Error('Saved but failed to fetch server copy'));
+                        }).catch(function(err){ cb(err || new Error('Fetch server copy failed')); });
+                        return;
+                    }
+                    if(j && j.error){ cb(new Error(j.error)); } else { cb(new Error('Failed to save to server')); }
+                }).catch(function(err){ cb(err || new Error('Network error')); });
+            }catch(e){ cb(e || new Error('saveOrderToServer failed')); }
+        };
+
+        function handleOrderAction(order, action){
+            if(!action) return;
+            if(action === 'review-cancel'){ openCancelReviewById(order.id); return; }
+            if(action === 'review-refund'){ openRefundReviewById(order.id); return; }
+            if(action === 'archive'){
+                if(!confirm('Archive this order?')) return;
+                updateOrder(order.id, { status: 'archived', archived: true, archivedAt: new Date().toISOString() });
+                return;
+            }
+            if(action === 'cancel'){
+                if(!confirm('Cancel this order?')) return;
+                updateOrder(order.id, { status: 'cancelled', previousStatus: order.status || 'pending payment' });
+                return;
+            }
+            if(action === 'confirm'){
+                // TEMPORARY: allow confirming without proof to facilitate testing.
+                // This bypasses the previous proof requirement (we may re-enable later).
+                updateOrder(order.id, { status: 'confirmed' });
+                return;
+            }
+            if(action === 'start-processing'){ updateOrder(order.id, { status: 'processing' }); return; }
+            if(action === 'mark-shipped'){
+                // Transition to 'shipped' and automatically start the server-side simulation
+                updateOrder(order.id, { status: 'shipped' });
+                try{
+                    fetch(API_BASE + '/api/orders/' + encodeURIComponent(order.id) + '/simulate/start', { method: 'POST' }).then(function(r){ return r.json(); }).then(function(j){ if(j && j.ok){ console.log('Simulation started for', order.id); } }).catch(function(e){ console.warn('Failed to start simulation', e); });
+                }catch(e){ console.warn('simulate start failed', e); }
+                return;
+            }
+            if(action === 'mark-delivered'){ updateOrder(order.id, { status: 'delivered' }); return; }
+            if(action === 'mark-refunded'){
+                updateOrder(order.id, {
+                    status: 'refunded',
+                    returnRequest: Object.assign({}, order.returnRequest || {}, { refundStatus: 'Refunded', refundedAt: new Date().toISOString() })
+                });
+                return;
+            }
+        }
+
+        // Update an order in ordersData (and persist to localStorage), then refresh the current view
+        function updateOrder(orderId, changes, options){
+            options = options || {};
+            try{
+                var idx = ordersData.findIndex(o => String(o.id) === String(orderId));
+                if(idx === -1) return;
+                var currentOrder = ordersData[idx];
+                var prevStatus = currentOrder && currentOrder.status ? String(currentOrder.status) : '';
+                var hasStatusChange = Object.prototype.hasOwnProperty.call(changes, 'status') || Object.prototype.hasOwnProperty.call(changes, 'archived');
+                if(hasStatusChange){
+                    var currentState = canonicalStatusFromOrder(currentOrder);
+                    var nextState = canonicalStatusFromOrder(Object.assign({}, currentOrder, changes));
+                    if(!canTransition(currentState, nextState)){
+                        alert('Invalid status transition: ' + titleCase(currentState) + ' → ' + titleCase(nextState));
+                        return;
+                    }
+                }
+                var merged = Object.assign({}, currentOrder, changes);
+                ordersData[idx] = merged;
+                // If this change includes a status update, persist it to the server so
+                // the server remains the canonical source of truth for status and
+                // tracking-driven timelines.
+                try{
+                    if(Object.prototype.hasOwnProperty.call(changes, 'status') && window.fetch){
+                        var upd = { status: String(merged.status || '') };
+                        // also send courier/tracking when present
+                        if(merged.courier_name || merged.tracking_number){ upd.courier_name = merged.courier_name || ''; upd.tracking_number = merged.tracking_number || ''; }
+                        fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(upd) }).then(function(r){ return r.json(); }).then(function(j){
+                            if(j && j.order){
+                                try{ var s = j.order; ordersData[idx] = Object.assign({}, ordersData[idx], { courier_name: s.courier_name || '', tracking_number: s.tracking_number || '', status: s.status || '' }); try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){} }catch(e){}
+                            }
+                        }).catch(function(err){ console.warn('Failed to persist order status to server', err); });
+                    }
+                }catch(e){ console.warn('persist to server skipped', e); }
+                try { localStorage.setItem('orders', JSON.stringify(ordersData)); } catch(e) { console.error('persist failed', e); }
+                applySearch();
+                if(activeDrawerOrderId && String(activeDrawerOrderId) === String(orderId)){
+                    var updatedOrder = ordersData.find(o => String(o.id) === String(orderId));
+                    if(updatedOrder) openOrderDrawer(updatedOrder);
+                }
+                if(!options.skipRestock){
+                    var prevNorm = String(prevStatus||'').toLowerCase();
+                    var nextNorm = String(merged.status||'').toLowerCase();
+                    var shouldRestock = (prevNorm !== 'cancelled' && nextNorm === 'cancelled' && merged.stockAdjusted === true && !merged.stockRestocked);
+                    if(shouldRestock){
+                        restockOrderItems(orderId, merged).then(function(did){
+                            if(did){
+                                updateOrder(orderId, { stockRestocked: true, stockAdjusted: false }, { skipRestock: true });
+                            }
+                        });
+                    }
+                }
+                try{
+                    if(window.FIREBASE_CONFIG && window.firebase && firebase.firestore){
+                        if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                        const db = firebase.firestore();
+                        const payload = Object.assign({}, ordersData.find(o=>String(o.id)===String(orderId)) || {}, { updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        const candidateRef = db.collection('orders').doc(String(orderId));
+                        candidateRef.get().then(snap => {
+                            if(snap.exists){
+                                return candidateRef.set(payload, { merge: true });
+                            }
+                            return db.collection('orders').where('id','==',String(orderId)).limit(1).get().then(q => {
+                                if(!q.empty){
+                                    const foundDoc = q.docs[0];
+                                    return db.collection('orders').doc(foundDoc.id).set(payload, { merge: true });
+                                }
+                                return candidateRef.set(payload, { merge: true });
+                            });
+                        }).then(()=>{ console.log('Order', orderId, 'updated in Firestore (with fallback logic)'); }).catch(err=>{ console.warn('Failed to update order in Firestore', err); });
+                    }
+                }catch(e){ console.warn('Firestore update skipped', e); }
+            }catch(e){console.error(e)}
+        }
+
+        window.adminApproveCancel = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.cancelRequest) return;
+            var payload = {
+                status: 'cancelled',
+                previousStatus: row.previousStatus || row.status || 'Pending',
+                cancelRequest: Object.assign({}, row.cancelRequest, { approvedAt: new Date().toISOString(), rejectedAt: null })
+            };
+            updateOrder(orderId, payload);
+        };
+
+        window.adminRejectCancel = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.cancelRequest) return;
+            var note = prompt('Add admin note (optional):', row.cancelRequest.adminNote || '') || '';
+            var payload = {
+                status: row.previousStatus || row.status || 'Pending',
+                cancelRequest: Object.assign({}, row.cancelRequest, { rejectedAt: new Date().toISOString(), adminNote: note })
+            };
+            updateOrder(orderId, payload);
+        };
+
+        window.adminApproveReturn = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.returnRequest) return;
+            var payload = {
+                status: 'refund requested',
+                previousStatus: row.previousStatus || row.status || 'delivered',
+                returnRequest: Object.assign({}, row.returnRequest, { approvedAt: new Date().toISOString(), rejectedAt: null, refundStatus: 'Requested' })
+            };
+            updateOrder(orderId, payload);
+        };
+
+        window.adminMarkRefunded = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.returnRequest) return;
+            var payload = {
+                status: 'refunded',
+                returnRequest: Object.assign({}, row.returnRequest, { refundStatus: 'Refunded', refundedAt: new Date().toISOString() })
+            };
+            updateOrder(orderId, payload);
+        };
+
+        window.adminRejectReturn = function(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row || !row.returnRequest) return;
+            var note = prompt('Add admin note (optional):', row.returnRequest.adminNote || '') || '';
+            var payload = {
+                status: row.previousStatus || row.status || 'Pending',
+                returnRequest: Object.assign({}, row.returnRequest, { rejectedAt: new Date().toISOString(), adminNote: note, refundStatus: 'Rejected' })
+            };
+            updateOrder(orderId, payload);
+        };
+
+        // Close admin modal + drawer
+        document.addEventListener('DOMContentLoaded', function(){
+            var closeBtn = document.getElementById('adminOrderModalClose');
+            var overlay = document.getElementById('adminOrderModalOverlay');
+            if(closeBtn) closeBtn.addEventListener('click', function(){ overlay.style.display='none'; document.body.style.overflow=''; });
+            if(overlay) overlay.addEventListener('click', function(e){ if(e.target===overlay){ overlay.style.display='none'; document.body.style.overflow=''; } });
+
+            var drawerOverlay = document.getElementById('orderDrawerOverlay');
+            var drawerClose = document.getElementById('orderDrawerClose');
+            if(drawerClose) drawerClose.addEventListener('click', closeOrderDrawer);
+            if(drawerOverlay) drawerOverlay.addEventListener('click', function(e){ if(e.target === drawerOverlay){ closeOrderDrawer(); } });
+
+            var saveNotesBtn = document.getElementById('saveAdminNotesBtn');
+            if(saveNotesBtn) saveNotesBtn.addEventListener('click', function(){
+                if(!activeDrawerOrderId) return;
+                var notes = document.getElementById('drawerAdminNotes').value || '';
+                updateOrder(activeDrawerOrderId, { adminNotes: notes });
+            });
+
+            var trackingCarrierInput = document.getElementById('drawerTrackingCarrier');
+            var trackingNumberInput = document.getElementById('drawerTrackingNumber');
+            function persistTracking(){
+                if(!activeDrawerOrderId) return;
+                var carrierVal = trackingCarrierInput.value || '';
+                var tnVal = trackingNumberInput.value || '';
+                // normalize fields to server canonical names as well as local-friendly keys
+                var payload = { trackingCarrier: carrierVal, trackingNumber: tnVal, courier_name: carrierVal, tracking_number: tnVal };
+                updateOrder(activeDrawerOrderId, payload);
+                // If a tracking number was entered, attempt to create a tracker in AfterShip (best-effort)
+                try{
+                    if(tnVal && tnVal.length && window.fetch){
+                        var slug = carrierVal ? String(carrierVal).toLowerCase().replace(/\s+/g,'-') : '';
+                        fetch(API_BASE + '/api/orders/' + encodeURIComponent(activeDrawerOrderId) + '/aftership/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ courier_slug: slug, tracking_number: tnVal })
+                        }).then(function(r){ return r.json(); }).then(function(j){ if(j && j.ok){ console.log('AfterShip tracker created', j); } else if(j && j.error){ console.warn('AfterShip create error', j.error); } }).catch(function(e){ console.warn('AfterShip create request failed', e); });
+                    }
+                }catch(e){ /* ignore */ }
+            }
+            if(trackingCarrierInput) trackingCarrierInput.addEventListener('change', persistTracking);
+            if(trackingNumberInput) trackingNumberInput.addEventListener('change', persistTracking);
+            var simulateBtn = document.getElementById('drawerSimulateBtn');
+            var refreshTrackingBtn = document.getElementById('drawerRefreshTrackingBtn');
+            // Hide manual simulation/refresh controls - simulation is automatic when admin marks shipped
+            try{ if(simulateBtn) simulateBtn.style.display = 'none'; }catch(e){}
+            try{ if(refreshTrackingBtn) refreshTrackingBtn.style.display = 'none'; }catch(e){}
+            var saveToServerBtn = document.getElementById('drawerSaveToServerBtn');
+            if(saveToServerBtn){
+                // Auto-save to server without prompting (dev convenience)
+                saveToServerBtn.addEventListener('click', function(){
+                    if(!window.activeDrawerRow) return alert('No order selected');
+                    var ord = window.activeDrawerRow;
+                    // Use existing helper to save; update local copy on success
+                    window.saveOrderToServer(ord, function(err, srv){
+                        if(err){ alert('Failed to save to server: ' + (err && err.message || err)); return; }
+                        try{
+                            var srvOrder = srv || {};
+                            updateOrder(srvOrder.id || ord.id, { courier_name: srvOrder.courier_name || '', tracking_number: srvOrder.tracking_number || '', status: srvOrder.status || '' });
+                            alert('Order saved to server as ' + (srvOrder.id || srvOrder.orderId || ord.id));
+                        }catch(e){ alert('Saved but failed to update local copy'); }
+                    });
+                    return;
+                    // Attempt to build a sensible items array. Prefer the explicit ord.items when present,
+                    // otherwise fall back to checkout snapshot or cart stored in localStorage.
+                    var items = [];
+                    try{
+                        if(Array.isArray(ord.items) && ord.items.length){
+                            items = ord.items;
+                        } else {
+                            try{ items = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ items = []; }
+                            if(!Array.isArray(items) || items.length === 0){ try{ items = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ items = []; } }
+                        }
+                        // Normalize common item fields for server schema (qty, price, name, variant) and coerce nested ids
+                        items = (Array.isArray(items) ? items : []).map(function(it){
+                            var rawPid = it.product_id || it.productId || it.id || it.sku || '';
+                            if(rawPid && typeof rawPid === 'object'){
+                                rawPid = rawPid.id || rawPid._id || rawPid.sku || JSON.stringify(rawPid);
+                            }
+                            return {
+                                product_id: String(rawPid || ''),
+                                name: String(it.name || it.title || it.productName || ''),
+                                qty: Number(it.qty || it.quantity || 1) || 1,
+                                price: Number(it.price || it.unitPrice || it.amount || 0) || 0,
+                                variant: String(it.variant || it.size || it.size_eu || it.eu || ''),
+                                image: String(it.image || it.imageUrl || it.img || '')
+                            };
+                        });
+                    }catch(e){ items = []; }
+
+                    // build payload mapping known fields
+                    function toIso(dt){
+                        try{
+                            if(!dt) return new Date().toISOString();
+                            if(typeof dt === 'string') return dt;
+                            if(typeof dt === 'object' && dt.seconds !== undefined){
+                                return new Date((Number(dt.seconds) * 1000) + (Number(dt.nanoseconds || 0) / 1e6)).toISOString();
+                            }
+                            if(dt instanceof Date) return dt.toISOString();
+                            return String(dt);
+                        }catch(e){ return new Date().toISOString(); }
+                    }
+
+                    var payload = {
+                        id: ord.id,
+                        user_id: ord.user_id || ord.customerEmail || ord.email || null,
+                        status: ord.status || 'Order placed',
+                        total: Number(ord.total || 0),
+                        shipping_fee: Number(ord.shipping_fee || ord.shipping || 0),
+                        discount: Number(ord.discount || ord.discountAmount || ord.discount || 0),
+                        payment_method: ord.payment_method || ord.paymentMethod || ord.paymentLabel || '',
+                        created_at: toIso(ord.created_at || ord.createdAt || new Date()),
+                        delivery_address: ord.delivery_address || ord.deliveryAddress || ord.shippingAddress || ord.checkoutAddress || '',
+                        recipient_name: ord.recipient_name || ord.customerName || ord.recipientName || '',
+                        recipient_phone: ord.recipient_phone || ord.customerPhone || ord.recipientPhone || '',
+                        courier_name: ord.courier_name || ord.trackingCarrier || ord.courier || ord.deliveryLabel || '',
+                        tracking_number: ord.tracking_number || ord.trackingNumber || ord.tracking || '',
+                        items: items
+                    };
+                    fetch(API_BASE + '/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function(r){ return r.json(); }).then(function(j){
+                        if(!j) { alert('Failed to save to server'); return; }
+                        if(j.order){
+                            try{
+                                var srv = j.order;
+                                updateOrder(srv.id || ord.id, { courier_name: srv.courier_name || '', tracking_number: srv.tracking_number || '', status: srv.status || '' });
+                                alert('Order saved to server as ' + (srv.id || j.orderId));
+                            }catch(e){ alert('Saved but failed to update local copy'); }
+                            return;
+                        }
+                        if(j && j.orderId){
+                            // fetch authoritative server copy and persist locally
+                            fetch(API_BASE + '/api/orders/' + encodeURIComponent(j.orderId)).then(function(r2){ return r2.json(); }).then(function(j2){
+                                if(j2 && j2.order){
+                                    try{
+                                        var srv = j2.order;
+                                        updateOrder(srv.id || ord.id, { courier_name: srv.courier_name || '', tracking_number: srv.tracking_number || '', status: srv.status || '' });
+                                        alert('Order saved to server as ' + (srv.id || j.orderId));
+                                    }catch(e){ alert('Saved but failed to update local copy'); }
+                                } else {
+                                    alert('Saved to server but failed to fetch server copy');
+                                }
+                            }).catch(function(){ alert('Saved to server but failed to fetch server copy'); });
+                            return;
+                        }
+                        if(j && j.error){ alert('Failed to save to server: ' + j.error); } else { alert('Failed to save to server'); }
+                    }).catch(function(e){ alert('Failed to save to server: ' + (e && e.message || '')); });
+                });
+            }
+            // Cancel review modal close
+            var crClose = document.getElementById('closeCancelReviewBtn');
+            if(crClose) crClose.addEventListener('click', function(){ closeCancelReviewModal(); });
+            var crOverlay = document.getElementById('cancelReviewModalOverlay');
+            if(crOverlay) crOverlay.addEventListener('click', function(e){ if(e.target === crOverlay){ closeCancelReviewModal(); } });
+            // admin confirm/revoke handlers
+            var revokeBtn = document.getElementById('adminRevokeBtn');
+            var confirmBtn = document.getElementById('adminConfirmCancelBtn');
+            if(revokeBtn) revokeBtn.addEventListener('click', function(){ adminRevokeCancellation(); });
+            if(confirmBtn) confirmBtn.addEventListener('click', function(){ adminConfirmCancellation(); });
+            // Refund review modal close
+            var rfClose = document.getElementById('refundFooterCloseBtn');
+            if(rfClose) rfClose.addEventListener('click', function(){ closeRefundReviewModal(); });
+            var rfOverlay = document.getElementById('refundReviewModalOverlay');
+            if(rfOverlay) rfOverlay.addEventListener('click', function(e){ if(e.target === rfOverlay){ closeRefundReviewModal(); } });
+            var revokeRf = document.getElementById('adminRevokeRefundBtn');
+            var confirmRf = document.getElementById('adminConfirmRefundBtn');
+            if(revokeRf) revokeRf.addEventListener('click', function(){ adminRevokeRefund(); });
+            if(confirmRf) confirmRf.addEventListener('click', function(){ adminConfirmRefund(); });
+        });
+        // Listen for orders updates from other tabs/windows and refresh
+        window.addEventListener('storage', function(e){
+            if(e.key === 'orders'){
+                try{
+                    ordersData = JSON.parse(localStorage.getItem('orders') || '[]');
+                    if(!Array.isArray(ordersData)) ordersData = [];
+                    ordersData = sortOrdersByNewest(mergeOrdersById([], ordersData));
+                    currentList = ordersData.slice();
+                    applySort(); renderTable(currentList);
+                }catch(err){/* ignore */}
+            }
+        });
+
+        // Attach a realtime Firestore listener to keep the orders table in sync across admins
+        (function attachRealtimeOrders(){
+            try{
+                if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)){
+                    console.log('Firebase not available - realtime orders disabled');
+                    return;
+                }
+                if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                const db = firebase.firestore();
+                const q = db.collection('orders').orderBy('created_at','desc');
+                const unsubscribe = q.onSnapshot(snapshot => {
+                    try{
+                        const incoming = [];
+                        snapshot.docChanges().forEach(change => {
+                            const doc = change.doc;
+                            const data = Object.assign({}, doc.data());
+                            if(!data.id) data.id = data.id || doc.id || data.orderId || doc.id;
+                            if(change.type === 'removed'){
+                                ordersData = ordersData.filter(o => String(o.id) !== String(data.id) && String(o.id) !== String(doc.id));
+                                return;
+                            }
+                            incoming.push(data);
+                        });
+                        if(incoming.length){
+                            ordersData = sortOrdersByNewest(mergeOrdersById(ordersData, incoming));
+                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                            if(ordersLoaded) applySearch();
+                        }
+                    }catch(err){
+                        console.error('Orders realtime update failed', err);
+                    }
+                }, err => { console.error('Orders realtime listener error', err); });
+
+                window.addEventListener('beforeunload', function(){ try{ unsubscribe(); }catch(e){} });
+                console.log('Realtime orders listener attached');
+            }catch(e){ console.warn('Failed to attach realtime orders listener', e); }
+        })();
+
+        // Open cancel review modal for a given order id
+        function openCancelReviewById(orderId){
+            var row = ordersData.find(function(o){ return o.id === orderId; });
+            if(!row) return;
+            var content = document.getElementById('cancelReviewContent');
+            if(!content) return;
+            var html = '<div style="font-weight:600;margin-bottom:8px;">Order ID: ' + (row.id||'') + '</div>';
+            html += '<div style="margin-bottom:8px;">Customer: ' + (row.name || '') + '</div>';
+            if(row.cancelRequest){
+                html += '<div style="margin-bottom:8px;"><strong>Reason:</strong> ' + (row.cancelRequest.cancellationReason || '') + '</div>';
+                if(row.cancelRequest.requestedAt){ html += '<div style="color:#666;font-size:0.95rem;margin-bottom:6px;">Submitted: ' + new Date(row.cancelRequest.requestedAt).toLocaleString() + '</div>'; }
+                if(row.cancelRequest.approvedAt){ html += '<div style="color:green;font-weight:600;margin-bottom:6px;">Admin approved cancellation</div>'; }
+                if(row.cancelRequest.rejectedAt){ html += '<div style="color:#b71c1c;font-weight:600;margin-bottom:6px;">Cancellation rejected</div>'; }
+            }
+            content.innerHTML = html;
+            // stash current id
+            content.setAttribute('data-order-id', orderId);
+            // ensure footer buttons and top close are visible (restore from revoke-form state)
+            try{ var cClose = document.getElementById('cancelFooterCloseBtn'); if(cClose) cClose.style.display = ''; }catch(e){}
+            try{ var cRevoke = document.getElementById('adminRevokeBtn'); if(cRevoke) cRevoke.style.display = ''; }catch(e){}
+            try{ var cConfirm = document.getElementById('adminConfirmCancelBtn'); if(cConfirm) cConfirm.style.display = ''; }catch(e){}
+            try{ var topClose = document.getElementById('closeCancelReviewBtn'); if(topClose) topClose.style.display = ''; }catch(e){}
+            document.getElementById('cancelReviewModalOverlay').style.display = 'flex'; document.body.style.overflow='hidden';
+        }
+
+        function closeCancelReviewModal(){ var o = document.getElementById('cancelReviewModalOverlay'); if(!o) return; o.style.display='none'; document.body.style.overflow=''; }
+
+        function adminConfirmCancellation(){
+            var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            if(typeof adminApproveCancel === 'function') adminApproveCancel(id);
+            closeCancelReviewModal();
+        }
+
+        function adminRevokeCancellation(){
+            var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            if(typeof adminRejectCancel === 'function') adminRejectCancel(id);
+        }
+
+        // Render the admin revoke form for cancellations (checkbox reasons + Other textbox)
+        function openCancelRevokeForm(orderId){
+            var content = document.getElementById('cancelReviewContent'); if(!content) return;
+            var html = '<div style="font-weight:600;margin-bottom:8px;">Revoke Cancellation</div>';
+            html += '<div style="margin-bottom:8px;">Select reason(s) for revoking this cancellation request:</div>';
+            html += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">';
+            var reasons = [
+                'Cancellation Policy Violation',
+                'Order Being Shipped',
+                'Other'
+            ];
+            reasons.forEach(function(r, i){
+                if(r === 'Other'){
+                    html += '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="adminCancelRevokeReason" id="adminCancelOtherChk" /> Other: <input id="adminCancelOtherText" type="text" placeholder="Specify other reason" style="margin-left:8px;flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;" /></label>';
+                } else {
+                    html += '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="adminCancelRevokeReason" data-reason="' + r.replace(/"/g,'&quot;') + '" /> ' + r + '</label>';
+                }
+            });
+            html += '</div>';
+            html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:nowrap;">';
+            html += '<button id="backToCancelBtn" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;display:inline-block;min-width:110px;">Go Back</button>';
+            html += '<button id="confirmAdminCancelRevokeBtn" style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;display:inline-block;min-width:120px;">Confirm Revoke</button>';
+            html += '</div>';
+            content.innerHTML = html;
+            content.setAttribute('data-order-id', orderId);
+            // wire buttons
+            setTimeout(function(){
+                var back = document.getElementById('backToCancelBtn'); if(back) back.addEventListener('click', function(){ openCancelReviewById(orderId); });
+                var confirm = document.getElementById('confirmAdminCancelRevokeBtn'); if(confirm) confirm.addEventListener('click', function(){ adminConfirmRevokeCancellation(); });
+            }, 10);
+            // hide the modal footer default buttons while revocation form is shown
+            try{ var cClose = document.getElementById('cancelFooterCloseBtn'); if(cClose) cClose.style.display = 'none'; }catch(e){}
+            try{ var cRevoke = document.getElementById('adminRevokeBtn'); if(cRevoke) cRevoke.style.display = 'none'; }catch(e){}
+            try{ var cConfirm = document.getElementById('adminConfirmCancelBtn'); if(cConfirm) cConfirm.style.display = 'none'; }catch(e){}
+            // hide the top-right close (X) while revocation form is shown
+            try{ var topClose = document.getElementById('closeCancelReviewBtn'); if(topClose) topClose.style.display = 'none'; }catch(e){}
+        }
+
+        // Confirm the admin revoke for cancellation: collect reasons, validate, persist revocation metadata and restore previous status
+        function adminConfirmRevokeCancellation(){
+            var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            if(typeof adminRejectCancel === 'function') adminRejectCancel(id);
+            closeCancelReviewModal();
+        }
+
+        // Refund review functions
+        function openRefundReviewById(orderId){
+            var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
+            if(!row) return;
+            var content = document.getElementById('refundReviewContent'); if(!content) return;
+            var html = '<div style="font-weight:600;margin-bottom:8px;">Order ID: ' + (row.id||'') + '</div>';
+            html += '<div style="margin-bottom:8px;">Customer: ' + (row.name || '') + '</div>';
+            if(row.returnRequest){
+                html += '<div style="margin-bottom:8px;"><strong>Reason:</strong> ' + (row.returnRequest.returnReason || '') + '</div>';
+                html += '<div style="margin-bottom:8px;"><strong>Refund method:</strong> ' + (row.returnRequest.refundMethod || '') + '</div>';
+                if(row.returnRequest.requestedAt){ html += '<div style="color:#666;font-size:0.95rem;margin-bottom:6px;">Submitted: ' + new Date(row.returnRequest.requestedAt).toLocaleString() + '</div>'; }
+                if(Array.isArray(row.returnRequest.proofImages) && row.returnRequest.proofImages.length){
+                    html += '<div style="margin-top:8px;margin-bottom:8px;"><strong>Uploaded proof:</strong><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
+                        + row.returnRequest.proofImages.map(function(p){ return '<img src="' + p + '" alt="Proof" style="max-width:120px;border:1px solid #eee;border-radius:8px;object-fit:contain;"/>'; }).join('')
+                        + '</div></div>';
+                }
+                if(row.returnRequest.approvedAt){ html += '<div style="color:green;font-weight:600;margin-bottom:6px;">Admin approved refund</div>'; }
+                if(row.returnRequest.rejectedAt){ html += '<div style="color:#b71c1c;font-weight:600;margin-bottom:6px;">Refund request rejected</div>'; }
+            }
+            content.innerHTML = html;
+            content.setAttribute('data-order-id', orderId);
+            // ensure footer buttons for refund review are visible when showing the review
+            try{ var fClose = document.getElementById('refundFooterCloseBtn'); if(fClose) fClose.style.display = ''; }catch(e){}
+            try{ var rRevoke = document.getElementById('adminRevokeRefundBtn'); if(rRevoke) rRevoke.style.display = ''; }catch(e){}
+            try{ var rConfirm = document.getElementById('adminConfirmRefundBtn'); if(rConfirm) rConfirm.style.display = ''; }catch(e){}
+            document.getElementById('refundReviewModalOverlay').style.display = 'flex'; document.body.style.overflow='hidden';
+        }
+
+        function closeRefundReviewModal(){ var o = document.getElementById('refundReviewModalOverlay'); if(!o) return; o.style.display='none'; document.body.style.overflow=''; }
+
+        function adminConfirmRefund(){
+            var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            if(typeof adminMarkRefunded === 'function') adminMarkRefunded(id);
+            closeRefundReviewModal();
+        }
+
+        // When admin clicks Revoke (first step), show a revocation reasons form inside the same modal
+        function adminRevokeRefund(){
+            var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            if(typeof adminRejectReturn === 'function') adminRejectReturn(id);
+        }
+
+        // Render the admin revoke form (checkbox reasons + Other textbox)
+        function openRefundRevokeForm(orderId){
+            var content = document.getElementById('refundReviewContent'); if(!content) return;
+            var html = '<div style="font-weight:600;margin-bottom:8px;">Revoke Refund</div>';
+            html += '<div style="margin-bottom:8px;">Select reason(s) for revoking this refund request:</div>';
+            html += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">';
+            var reasons = [
+                'Policy Violations',
+                'Product Condition',
+                'Customer Error',
+                'Refusal of Delivery without Valid Cause',
+                'Proof of Delivery',
+                'Lack of Evidence',
+                'Prior Refund/Chargeback',
+                'Fraudulent Behavior'
+            ];
+            reasons.forEach(function(r, i){
+                html += '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="adminRevokeReason" data-reason="' + r.replace(/"/g,'&quot;') + '" /> ' + r + '</label>';
+            });
+            html += '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="adminRevokeReason" id="adminRevokeOtherChk" /> Other: <input id="adminRevokeOtherText" type="text" placeholder="Specify other reason" style="margin-left:8px;flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;" /></label>';
+            html += '</div>';
+            // use compact inline buttons: Go Back and Confirm Revoke
+            html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:nowrap;">';
+            html += '<button id="backToRefundBtn" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;display:inline-block;min-width:110px;">Go Back</button>';
+            html += '<button id="confirmAdminRevokeBtn" style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;display:inline-block;min-width:120px;">Confirm Revoke</button>';
+            html += '</div>';
+            content.innerHTML = html;
+            content.setAttribute('data-order-id', orderId);
+            // wire buttons
+            setTimeout(function(){
+                var back = document.getElementById('backToRefundBtn'); if(back) back.addEventListener('click', function(){ openRefundReviewById(orderId); });
+                var confirm = document.getElementById('confirmAdminRevokeBtn'); if(confirm) confirm.addEventListener('click', function(){ adminConfirmRevokeRefund(); });
+            }, 10);
+            // hide the modal footer default buttons while revocation form is shown
+            try{ var fClose = document.getElementById('refundFooterCloseBtn'); if(fClose) fClose.style.display = 'none'; }catch(e){}
+            try{ var rRevoke = document.getElementById('adminRevokeRefundBtn'); if(rRevoke) rRevoke.style.display = 'none'; }catch(e){}
+            try{ var rConfirm = document.getElementById('adminConfirmRefundBtn'); if(rConfirm) rConfirm.style.display = 'none'; }catch(e){}
+        }
+
+        // Confirm the admin revoke: collect reasons, validate, persist revocation metadata and restore previous status
+        function adminConfirmRevokeRefund(){
+            var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
+            if(typeof adminRejectReturn === 'function') adminRejectReturn(id);
+            closeRefundReviewModal();
+        }
+
+        function matchesSearch(row, q){
+            if(!q) return true;
+            q = q.toLowerCase();
+            return (row.id + ' ' + (row.customerName || row.name) + ' ' + (row.email || '') + ' ' + (row.phone || '') + ' ' + row.date + ' ' + row.payment + ' ' + row.total + ' ' + row.status + ' ' + (row.trackingNumber || row.tracking || '') + ' ' + (row.trackingCarrier || row.carrier || '')).toLowerCase().indexOf(q) !== -1;
+        }
+
+        function applySearch(){
+            const q = document.getElementById('ordersSearch').value.trim();
+            const filtered = ordersData.filter(r => matchesSearch(r, q));
+            currentList = filterByTab(filtered);
+            applySort();
+            renderTable(currentList);
+        }
+
+        function applySort(){
+            if(!sortState.key){
+                sortOrdersByNewest(currentList);
+                return;
+            }
+            currentList.sort((a,b)=>{
+                let A=a[sortState.key];
+                let B=b[sortState.key];
+                if(sortState.key==='total'){
+                    return sortState.asc ? A-B : B-A;
+                }
+                if(sortState.key==='date'){
+                    return sortState.asc ? getOrderCreatedAtValue(a) - getOrderCreatedAtValue(b) : getOrderCreatedAtValue(b) - getOrderCreatedAtValue(a);
+                }
+                // string compare
+                A = (A||'').toString().toLowerCase();
+                B = (B||'').toString().toLowerCase();
+                if(A < B) return sortState.asc ? -1 : 1;
+                if(A > B) return sortState.asc ? 1 : -1;
+                return 0;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async function(){
+            document.getElementById('ordersSearch').addEventListener('input', function(){ applySearch(); });
+            var selectAll = document.getElementById('selectAllCheckbox');
+            if(selectAll){
+                selectAll.addEventListener('change', function(){
+                    var isChecked = selectAll.checked;
+                    currentList.forEach(function(o){
+                        toggleSelectOrder(o.id, isChecked);
+                    });
+                    renderTable(currentList);
+                });
+            }
+            var bulkConfirmBtn = document.getElementById('bulkConfirmBtn');
+            var bulkCancelBtn = document.getElementById('bulkCancelBtn');
+            var bulkArchiveBtn = document.getElementById('bulkArchiveBtn');
+            if(bulkConfirmBtn) bulkConfirmBtn.addEventListener('click', function(){ applyBulkAction('confirm'); });
+            if(bulkCancelBtn) bulkCancelBtn.addEventListener('click', function(){ applyBulkAction('cancel'); });
+            if(bulkArchiveBtn) bulkArchiveBtn.addEventListener('click', function(){ applyBulkAction('archive'); });
+            document.querySelectorAll('.filter-btn').forEach(btn=>{
+                btn.addEventListener('click', function(){
+                    const keyMap = { date: 'date', payment: 'payment', id: 'id', status: 'status' };
+                    const key = keyMap[btn.dataset.sort];
+                    if(sortState.key === key){ sortState.asc = !sortState.asc; } else { sortState.key = key; sortState.asc = true; }
+                    applySort();
+                    renderTable(currentList);
+                });
+            });
+            document.querySelectorAll('#ordersTabs .orders-tab-btn').forEach(function(btn){
+                btn.addEventListener('click', function(){
+                    document.querySelectorAll('#ordersTabs .orders-tab-btn').forEach(function(b){ b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    activeTab = btn.getAttribute('data-tab') || 'all';
+                    applySearch();
+                });
+            });
+            await initializeOrders();
+        });
+    })();
+    // Sticky footer fallback for short content
+    function stickyFooter() {
+        var body = document.body,
+            html = document.documentElement,
+            footer = document.querySelector('footer');
+        if(!footer) return; // nothing to do when there is no footer on the page
+        var contentHeight = Math.max(body.scrollHeight, body.offsetHeight,
+            html.clientHeight, html.scrollHeight, html.offsetHeight);
+        if (contentHeight < window.innerHeight) {
+            footer.style.position = 'fixed';
+            footer.style.left = '0';
+            footer.style.right = '0';
+            footer.style.bottom = '0';
+        } else {
+            footer.style.position = 'relative';
+        }
+    }
+    window.addEventListener('load', stickyFooter);
+    window.addEventListener('resize', stickyFooter);
+    </script>
+    <script src="cart-storage.js"></script>
+
+    <footer class="footer-section">
+        <div class="site-container">
+            <div class="footer-row">
+                <div class="footer-left">
+                    <div class="footer-header">Have questions?</div>
+                    <div class="footer-subheader">Contact us at our facebook page</div>
+                    <div class="footer-subheader" style="margin-top:18px;">Or via phone/email</div>
+                    <div class="footer-divider"></div>
+                    <div class="footer-note">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br><br>© 2025 Shoe Pao Footwear. All rights reserved.</div>
+                </div>
+                <div class="footer-right">
+                    <a href="about-us.html" class="footer-link">About Us</a>
+                    <a href="shipping.html" class="footer-link">Shipping</a>
+                    <a href="returns.html" class="footer-link">Returns & Exchanges</a>
+                    <a href="privacy.html" class="footer-link">Privacy Policy</a>
+                    <a href="terms.html" class="footer-link">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</body>
+
+    <!-- ===== Cart Overlay + Sidebar HTML (universal) ===== -->
+    <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
+    <aside id="cartSidebar" class="cart-sidebar" aria-hidden="true" role="complementary">
+        <div class="cart-header-row">
+            <div>
+                <span class="cart-header-title">Cart (<span id="cartCount">0</span>)</span>
+            </div>
+            <button id="closeCartBtn" class="cart-close" aria-label="Close cart"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+        </div>
+        <div class="cart-divider"></div>
+        <div id="cartItems" class="cart-items">
+            <div class="cart-empty">Your cart is empty</div>
+        </div>
+        <div class="cart-divider"></div>
+        <div class="cart-subtotal-row">
+            <span class="cart-subtotal-label">Subtotal</span>
+            <span id="cartSubtotal" class="cart-subtotal-value">₱0.00</span>
+        </div>
+        <button id="checkoutBtn" class="cart-checkout-btn">Checkout</button>
+    </aside>
+    <!-- ===== Cart Sidebar Behavior (universal) ===== -->
+    <script>
+    (function(){
+        let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        function parsePriceToNumber(priceText) {
+            if (!priceText) return 0;
+            var v = priceText.replace(/[^0-9.]/g, '');
+            return parseFloat(v || 0);
+        }
+        function formatPHP(amount) {
+            try {
+                return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+            } catch (e) {
+                return '₱' + Number(amount).toFixed(2);
+            }
+        }
+        function saveCartToLocalStorage() {
+            localStorage.setItem('cart', JSON.stringify(cart));
+        }
+        const cartOverlay = document.getElementById('cartOverlay');
+        const cartSidebar = document.getElementById('cartSidebar');
+        const cartItemsContainer = document.getElementById('cartItems');
+        const cartCountEl = document.getElementById('cartCount');
+        const cartSubtotalEl = document.getElementById('cartSubtotal');
+        const closeCartBtn = document.getElementById('closeCartBtn');
+        const checkoutBtn = document.getElementById('checkoutBtn');
+        function getNavCartButton() {
+            const img = document.querySelector('img[alt="Cart"]');
+            if (!img) return null;
+            return img.closest('button');
+        }
+        function openCartSidebar() {
+            cartOverlay.classList.add('show');
+            cartSidebar.classList.add('open');
+            document.body.style.overflow = 'hidden';
+            cartSidebar.setAttribute('aria-hidden', 'false');
+            cartOverlay.setAttribute('aria-hidden', 'false');
+        }
+        function closeCartSidebar() {
+            cartOverlay.classList.remove('show');
+            cartSidebar.classList.remove('open');
+            document.body.style.overflow = '';
+            cartSidebar.setAttribute('aria-hidden', 'true');
+            cartOverlay.setAttribute('aria-hidden', 'true');
+        }
+        function renderCart() {
+            cartItemsContainer.innerHTML = '';
+            if (cart.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'cart-empty';
+                empty.textContent = 'Your cart is empty';
+                cartItemsContainer.appendChild(empty);
+                cartCountEl.textContent = 0;
+                cartSubtotalEl.textContent = formatPHP(0);
+                saveCartToLocalStorage();
+                return;
+            }
+            let subtotal = 0;
+            let totalQty = 0;
+            cart.forEach((item, index) => {
+                subtotal += item.price * item.quantity;
+                totalQty += item.quantity;
+                const box = document.createElement('div');
+                box.className = 'cart-item-box';
+                const img = document.createElement('img');
+                img.className = 'cart-item-img';
+                img.src = item.image || 'IMAGE/NIKE1.png';
+                img.alt = item.title || 'Product';
+                const middle = document.createElement('div');
+                middle.className = 'cart-item-middle';
+                const title = document.createElement('div');
+                title.className = 'cart-item-title';
+                title.textContent = item.title;
+                const brand = document.createElement('div');
+                brand.className = 'cart-item-brand';
+                brand.textContent = item.brand;
+                const size = document.createElement('div');
+                size.className = 'cart-item-size';
+                size.textContent = 'Size: ' + (item.size || '');
+                const qtyControls = document.createElement('div');
+                qtyControls.className = 'cart-quantity-controls';
+                const lessenBtn = document.createElement('button');
+                lessenBtn.className = 'qty-btn decrease';
+                lessenBtn.setAttribute('data-index', index);
+                const lessenImg = document.createElement('img');
+                lessenImg.src = 'IMAGE/LessenBTN.png';
+                lessenImg.alt = '-';
+                lessenImg.style.width = '22px';
+                lessenImg.style.height = '22px';
+                lessenBtn.appendChild(lessenImg);
+                const qtyText = document.createElement('span');
+                qtyText.className = 'cart-item-qty';
+                qtyText.textContent = item.quantity;
+                const addBtn = document.createElement('button');
+                addBtn.className = 'qty-btn increase';
+                addBtn.setAttribute('data-index', index);
+                const addImg = document.createElement('img');
+                addImg.src = 'IMAGE/AddBTN.png';
+                addImg.alt = '+';
+                addImg.style.width = '22px';
+                addImg.style.height = '22px';
+                addBtn.appendChild(addImg);
+                qtyControls.appendChild(lessenBtn);
+                qtyControls.appendChild(qtyText);
+                qtyControls.appendChild(addBtn);
+                middle.appendChild(title);
+                middle.appendChild(brand);
+                middle.appendChild(size);
+                middle.appendChild(qtyControls);
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'cart-item-remove';
+                removeBtn.setAttribute('data-index', index);
+                const trashImg = document.createElement('img');
+                trashImg.src = 'IMAGE/TrashIcon.png';
+                trashImg.alt = 'Remove';
+                trashImg.style.width = '18px';
+                trashImg.style.height = '18px';
+                removeBtn.appendChild(trashImg);
+                const priceEl = document.createElement('div');
+                priceEl.className = 'cart-item-price';
+                priceEl.textContent = formatPHP(item.price * item.quantity);
+                box.appendChild(img);
+                box.appendChild(middle);
+                box.appendChild(removeBtn);
+                box.appendChild(priceEl);
+                cartItemsContainer.appendChild(box);
+            });
+            cartCountEl.textContent = totalQty;
+            cartSubtotalEl.textContent = formatPHP(subtotal);
+            attachCartEvents();
+        }
+        function attachCartEvents() {
+            document.querySelectorAll('.qty-btn.decrease').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        if (cart[idx].quantity > 1) {
+                            cart[idx].quantity--;
+                        }
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            document.querySelectorAll('.qty-btn.increase').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        cart[idx].quantity++;
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            document.querySelectorAll('.cart-item-remove').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx)) {
+                        cart.splice(idx, 1);
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const navCartBtn = getNavCartButton();
+            if (navCartBtn) {
+                navCartBtn.removeAttribute('onclick');
+                navCartBtn.addEventListener('click', function(e){
+                    e.preventDefault();
+                    openCartSidebar();
+                });
+            }
+            if (closeCartBtn) closeCartBtn.addEventListener('click', closeCartSidebar);
+            if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
+            renderCart();
+            if (checkoutBtn) {
+                checkoutBtn.addEventListener('click', function(){
+                    window.location.href = 'checkout.html';
+                });
+            }
+        });
+    })();
+    </script>
+                 <style>
+                     .orders-body {
+                         min-height: 100vh;
+                         display: flex;
+                         flex-direction: column;
+                     }
+                     main.orders-main {
+                         flex: 1 0 auto;
+                         min-height: 0;
+                         display: flex;
+                         flex-direction: column;
+                     }
+                 </style>

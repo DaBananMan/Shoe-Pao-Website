@@ -1,0 +1,107 @@
+﻿{
+    "tracking":  [
+                     {
+                         "status":  "Order placed",
+                         "message":  "Order placed",
+                         "timestamp":  "2026-01-22T13:57:44.090Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Tracking assigned",
+                         "message":  "Tracking number: TRKMKPMTBJH1QUM",
+                         "timestamp":  "2026-01-22T13:57:44.090Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Preparing",
+                         "message":  "Preparing",
+                         "timestamp":  "2026-01-22T15:54:15.063Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Picked up",
+                         "message":  "Picked up",
+                         "timestamp":  "2026-01-22T15:54:25.080Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "In transit",
+                         "message":  "In transit",
+                         "timestamp":  "2026-01-22T15:54:35.083Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Out for delivery",
+                         "message":  "Out for delivery",
+                         "timestamp":  "2026-01-22T15:54:45.090Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Delivered",
+                         "message":  "Delivered",
+                         "timestamp":  "2026-01-22T15:54:55.103Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Preparing",
+                         "message":  "Preparing",
+                         "timestamp":  "2026-01-22T16:08:57.143Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Picked up",
+                         "message":  "Picked up",
+                         "timestamp":  "2026-01-22T16:09:07.152Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "In transit",
+                         "message":  "In transit",
+                         "timestamp":  "2026-01-22T16:09:17.154Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Out for delivery",
+                         "message":  "Out for delivery",
+                         "timestamp":  "2026-01-22T16:09:27.169Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Delivered",
+                         "message":  "Delivered",
+                         "timestamp":  "2026-01-22T16:09:37.171Z",
+                         "location":  null
+                     },
+                     {
+                         "status":  "Preparing",
+                         "message":  "Preparing",
+                         "timestamp":  "2026-01-22T16:25:46.515Z",
+                         "location":  "Cattleya St Brgy 168, Caloocan, Philippines, 1420"
+                     },
+                     {
+                         "status":  "Picked up",
+                         "message":  "Picked up",
+                         "timestamp":  "2026-01-22T16:25:56.528Z",
+                         "location":  "Caloocan Local Hub - Loaded Truck"
+                     },
+                     {
+                         "status":  "In transit",
+                         "message":  "In transit",
+                         "timestamp":  "2026-01-22T16:26:06.538Z",
+                         "location":  "QUEZON CITY Sorting Center"
+                     },
+                     {
+                         "status":  "Out for delivery",
+                         "message":  "Out for delivery",
+                         "timestamp":  "2026-01-22T16:26:16.551Z",
+                         "location":  "Arrived at QUEZON CITY"
+                     },
+                     {
+                         "status":  "Delivered",
+                         "message":  "Delivered",
+                         "timestamp":  "2026-01-22T16:26:26.552Z",
+                         "location":  "78 Silverlane Avenue"
+                     }
+                 ],
+    "error":  "AfterShip API error: 404"
+}

@@ -1,0 +1,4 @@
+# Route API requests under this folder to PHP proxy which will auto-start the Node server if needed
+RewriteEngine On
+# In per-directory context this matches requests starting with 'api/' relative to this folder
+RewriteRule ^api/.*$ server-proxy.php [L,QSA]
