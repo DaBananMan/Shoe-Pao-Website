@@ -327,7 +327,7 @@
 
         // Find the index of an order in the full orders array by its id
         function findOrderIndexById(id){
-            try{ var orders = JSON.parse(localStorage.getItem('orders')||'[]'); return orders.findIndex(function(o){ return (o && (o.id||'')) === id; }); }catch(e){ return -1; }
+            try{ var orders = JSON.parse(localStorage.getItem('client_orders')||'[]'); return orders.findIndex(function(o){ return (o && (o.id||'')) === id; }); }catch(e){ return -1; }
         }
 
         // Wrapper helpers that operate by order id (safe when rendering filtered lists)
@@ -429,7 +429,7 @@
                 var api = window.ShoePaoRatings;
                 if(!api){ alert('Ratings system is not loaded.'); return; }
 
-                var orders = JSON.parse(localStorage.getItem('orders')||'[]');
+                var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
                 var order = Array.isArray(orders) ? orders.find(function(o){ return (o && (o.id||'')) === orderId; }) : null;
                 if(!order) return;
 
@@ -677,7 +677,7 @@
                                 return o;
                             }).catch(function(){ o.items = []; return o; });
                         })).then(function(fullOrders){
-                            try{ localStorage.setItem('orders', JSON.stringify(fullOrders)); }catch(e){}
+                            try{ localStorage.setItem('client_orders', JSON.stringify(fullOrders)); }catch(e){}
                             fullOrders.forEach(function(order){
                                 const itemCount = (order.items || []).reduce((s,it)=>s + (it.qty||it.quantity||1), 0);
                                 const firstImage = getOrderRepresentativeImage(order);
@@ -759,13 +759,45 @@
             }catch(e){/* ignore */}
         });
 
+        // Listen for admin broadcasts so this client can refresh affected orders without a full reload
+        try{
+            var CLIENT_API_BASE = (function(){ try{ var p = window.location.pathname.replace(/\/+$|^\/+/,''); var seg = p.split('/'); var root = seg.length > 0 ? '/' + seg[0] : ''; return root + '/server-proxy.php'; }catch(e){ return '/server-proxy.php'; } })();
+        }catch(e){ var CLIENT_API_BASE = '/server-proxy.php'; }
+        window.addEventListener('storage', function(e){
+            try{
+                if(e.key === 'orders_update'){
+                    var payload = null;
+                    try{ payload = JSON.parse(e.newValue || '{}'); }catch(err){}
+                    if(payload && payload.id){
+                        var id = payload.id;
+                        // Avoid noisy 404s for client-only orders by checking existence first
+                        fetch(CLIENT_API_BASE + '/api/orders/' + encodeURIComponent(id) + '/exists').then(function(r){ if(!r.ok) throw new Error('exists check failed'); return r.json(); }).then(function(ex){
+                            if(!ex || !ex.exists) return null;
+                            return fetch(CLIENT_API_BASE + '/api/orders/' + encodeURIComponent(id)).then(function(r2){ if(!r2.ok) throw new Error('no order'); return r2.json(); });
+                        }).then(function(j){
+                            var serverOrder = (j && j.order) ? j.order : (j && j.id ? j : null);
+                            if(!serverOrder) return;
+                            try{
+                                var clientOrders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
+                                var idx = clientOrders.findIndex(function(o){ return o && (o.id||'') === serverOrder.id; });
+                                if(idx === -1) clientOrders.unshift(serverOrder);
+                                else clientOrders[idx] = Object.assign({}, clientOrders[idx], serverOrder);
+                                localStorage.setItem('client_orders', JSON.stringify(clientOrders));
+                            }catch(e){/* ignore persist errors */}
+                            try{ renderOrders(); }catch(e){}
+                        }).catch(function(){ /* ignore fetch failures */ });
+                    }
+                }
+            }catch(e){}
+        });
+
         // Orders are loaded from the server; no local storage sync needed.
 
         window.removeOrder = function(idx){
-            var orders = JSON.parse(localStorage.getItem('orders')||'[]');
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
             if (!orders || !orders[idx]) return;
             orders.splice(idx,1);
-            localStorage.setItem('orders', JSON.stringify(orders));
+            localStorage.setItem('client_orders', JSON.stringify(orders));
             renderOrders(); closeOrderModal();
         }
 
@@ -882,7 +914,7 @@
                 if(!otherText || !otherText.value || otherText.value.trim().length < 3) return;
                 reason = otherText.value.trim();
             }
-            var orders = JSON.parse(localStorage.getItem('orders')||'[]');
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
             var idx = _pendingCancelIndex;
             var order = (orders && orders[idx]) ? orders[idx] : null;
             var orderId = _pendingCancelOrderId || (order && order.id) || null;
@@ -899,12 +931,12 @@
                     adminNote: ''
                 }
             };
-            if(order){
-                order.previousStatus = cancelPayload.previousStatus;
-                order.cancelRequest = cancelPayload.cancelRequest;
-                orders[idx] = order;
-                localStorage.setItem('orders', JSON.stringify(orders));
-            }
+                if(order){
+                    order.previousStatus = cancelPayload.previousStatus;
+                    order.cancelRequest = cancelPayload.cancelRequest;
+                    orders[idx] = order;
+                    localStorage.setItem('client_orders', JSON.stringify(orders));
+                }
             updateOrderInFirestore(orderId, cancelPayload);
             window.closeCancelModal && window.closeCancelModal();
             renderOrders();
@@ -917,7 +949,7 @@
             _pendingRefundIndex = idx;
             _pendingRefundOrderId = orderId || null;
             try{
-                var orders = JSON.parse(localStorage.getItem('orders')||'[]');
+                var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
                 var order = (orders && orders[idx]) ? orders[idx] : null;
                 if(order && !isWithinReturnWindow(order)){
                     alert('Return window has expired for this order.');
@@ -949,7 +981,7 @@
                 reason = otherText.value.trim();
             }
 
-            var orders = JSON.parse(localStorage.getItem('orders')||'[]');
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
             var idx = _pendingRefundIndex;
             var order = (orders && orders[idx]) ? orders[idx] : null;
             var orderId = _pendingRefundOrderId || (order && order.id) || null;
@@ -979,7 +1011,7 @@
                     order.previousStatus = refundPayload.previousStatus;
                     order.returnRequest = refundPayload.returnRequest;
                     orders[idx] = order;
-                    localStorage.setItem('orders', JSON.stringify(orders));
+                    localStorage.setItem('client_orders', JSON.stringify(orders));
                 }
                 updateOrderInFirestore(orderId, refundPayload);
                 window.closeRefundModal && window.closeRefundModal();
@@ -996,7 +1028,7 @@
         }
 
         window.openOrderModal = function(idx){
-            var orders = JSON.parse(localStorage.getItem('orders')||'[]');
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
             var order = orders[idx];
             if(!order) return;
             document.getElementById('orderModalId').textContent = 'Order ID: ' + order.id;

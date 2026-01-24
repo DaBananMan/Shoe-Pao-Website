@@ -389,13 +389,25 @@ app.post('/api/orders/:orderId/aftership/refresh', async (req, res) => {
     const t = apiResp && (apiResp.data && apiResp.data.tracking) ? apiResp.data.tracking : apiResp.tracking || null;
     const checkpoints = (t && Array.isArray(t.checkpoints)) ? t.checkpoints : [];
     // Insert any new checkpoints into OrderTracking (avoid duplicates by timestamp+message)
-    const existing = db.prepare('SELECT message, timestamp FROM OrderTracking WHERE order_id = ?').all(id).map(r => (r.message + '||' + r.timestamp));
+    const existingRows = (db.prepare('SELECT id, status, message, timestamp, location FROM OrderTracking WHERE order_id = ?').all(id) || []).reduce((acc, r) => {
+      const k = String(r.message || '') + '||' + String(r.timestamp || ''); acc[k] = r; return acc; }, {});
   const insert = db.prepare('INSERT INTO OrderTracking (order_id, status, message, timestamp, location) VALUES (?, ?, ?, ?, ?)');
     const tx = db.transaction(() => {
         checkpoints.forEach(cp => {
-        const key = (cp.message || cp.tag || '') + '||' + (cp.checkpoint_time || cp.time || cp.created_at || '');
-        if (!existing.includes(key)) {
-          insert.run(id, (cp.tag || cp.message || ''), (cp.message || cp.tag || ''), (cp.checkpoint_time || cp.time || cp.created_at || new Date().toISOString()), (cp.location || cp.city || getRandomLocation({})));
+        const msg = (cp.message || cp.tag || '');
+        const ts = (cp.checkpoint_time || cp.time || cp.created_at || '');
+        const key = String(msg) + '||' + String(ts);
+        const existing = existingRows[key];
+        if (!existing) {
+          insert.run(id, (cp.tag || cp.message || ''), (cp.message || cp.tag || ''), ts || new Date().toISOString(), (cp.location || cp.city || getRandomLocation({})));
+        } else {
+          // if incoming differs in status/message/location, append a new timeline row instead of mutating
+          const incomingStatus = (cp.tag || cp.message || '');
+          const incomingMessage = (cp.message || cp.tag || '');
+          const incomingLocation = (cp.location || cp.city || '');
+          if (String(existing.status || '') !== String(incomingStatus) || String(existing.message || '') !== String(incomingMessage) || String(existing.location || '') !== String(incomingLocation)) {
+            insert.run(id, incomingStatus, incomingMessage, ts || new Date().toISOString(), incomingLocation || getRandomLocation({}));
+          }
         }
       });
     });
@@ -453,16 +465,43 @@ app.post('/api/aftership/webhook', (req, res) => {
     const tn = tracking.tracking_number || tracking.trackingNumber || tracking.tracking_number;
     if (!tn) return res.status(200).json({ ok: true, note: 'no tracking number' });
     // find order by tracking_number
-    const order = db.prepare('SELECT id FROM Orders WHERE tracking_number = ?').get(tn);
+    const order = db.prepare('SELECT id, status FROM Orders WHERE tracking_number = ?').get(tn);
     if (!order) return res.status(200).json({ ok: true, note: 'order not found for tracking' });
     const checkpoints = Array.isArray(tracking.checkpoints) ? tracking.checkpoints : [];
   const insert = db.prepare('INSERT INTO OrderTracking (order_id, status, message, timestamp, location) VALUES (?, ?, ?, ?, ?)');
-    const existing = db.prepare('SELECT message, timestamp FROM OrderTracking WHERE order_id = ?').all(order.id).map(r => (r.message + '||' + r.timestamp));
+  const existingRows = (db.prepare('SELECT id, status, message, timestamp, location FROM OrderTracking WHERE order_id = ?').all(order.id) || []).reduce((acc, r) => { const k = String(r.message || '') + '||' + String(r.timestamp || ''); acc[k] = r; return acc; }, {});
+    // Determine if we should accept updates: if the order is already 'out for delivery' or 'delivered',
+    // block further checkpoint updates unless the incoming data signals 'delivered' (so we can transition).
+    const curOrderStatus = order && order.status ? String(order.status).toLowerCase() : '';
+    const statusLocked = (curOrderStatus === 'out for delivery' || curOrderStatus === 'delivered');
+
+    // If locked and there are checkpoints, inspect the last checkpoint's mapped status
+    if (statusLocked && checkpoints && checkpoints.length) {
+      const lastCp = checkpoints[checkpoints.length - 1];
+      const tagCp = lastCp.tag || lastCp.status || lastCp.message || '';
+      const mappedStatus = mapAftershipTagToOrderStatus(tagCp);
+      // Allow only a transition to 'delivered' when locked; otherwise ignore the webhook to preserve timeline
+      if (mappedStatus !== 'delivered') {
+        return res.status(200).json({ ok: true, note: 'skipped: order status locked at out for delivery/delivered' });
+      }
+      // otherwise fall through and allow insertion of the delivered checkpoint
+    }
+
     const tx = db.transaction(() => {
       checkpoints.forEach(cp => {
-        const key = (cp.message || cp.tag || '') + '||' + (cp.checkpoint_time || cp.time || cp.created_at || '');
-        if (!existing.includes(key)) {
-          insert.run(order.id, (cp.tag || cp.message || ''), (cp.message || cp.tag || ''), (cp.checkpoint_time || cp.time || cp.created_at || new Date().toISOString()), (cp.location || cp.city || getRandomLocation({})));
+        const msg = (cp.message || cp.tag || '');
+        const ts = (cp.checkpoint_time || cp.time || cp.created_at || '');
+        const key = String(msg) + '||' + String(ts);
+        const existing = existingRows[key];
+        if (!existing) {
+          insert.run(order.id, (cp.tag || cp.message || ''), (cp.message || cp.tag || ''), ts || new Date().toISOString(), (cp.location || cp.city || getRandomLocation({})));
+        } else {
+          const incomingStatus = (cp.tag || cp.message || '');
+          const incomingMessage = (cp.message || cp.tag || '');
+          const incomingLocation = (cp.location || cp.city || '');
+          if (String(existing.status || '') !== String(incomingStatus) || String(existing.message || '') !== String(incomingMessage) || String(existing.location || '') !== String(incomingLocation)) {
+            insert.run(order.id, incomingStatus, incomingMessage, ts || new Date().toISOString(), incomingLocation || getRandomLocation({}));
+          }
         }
       });
     });
@@ -818,13 +857,37 @@ if (AFTERSHIP_KEY) {
           const t = apiResp && (apiResp.data && apiResp.data.tracking) ? apiResp.data.tracking : apiResp.tracking || null;
           const checkpoints = (t && Array.isArray(t.checkpoints)) ? t.checkpoints : [];
           if (checkpoints.length) {
-            const existing = db.prepare('SELECT message, timestamp FROM OrderTracking WHERE order_id = ?').all(r.id).map(x => (x.message + '||' + x.timestamp));
-            const insert = db.prepare('INSERT INTO OrderTracking (order_id, status, message, timestamp) VALUES (?, ?, ?, ?)');
+                // If the order is already 'out for delivery' or 'delivered', avoid changing its timeline
+                // unless the latest checkpoint maps to 'delivered' (so we can record final delivery).
+                const curRowStatus = db.prepare('SELECT status FROM Orders WHERE id = ?').get(r.id);
+                const curOrderStatus = curRowStatus && curRowStatus.status ? String(curRowStatus.status).toLowerCase() : '';
+                const statusLocked = (curOrderStatus === 'out for delivery' || curOrderStatus === 'delivered');
+                if (statusLocked) {
+                  const lastCp = checkpoints[checkpoints.length - 1];
+                  const mapped = mapAftershipTagToOrderStatus(lastCp && (lastCp.tag || lastCp.status || lastCp.message));
+                  if (mapped !== 'delivered') {
+                    // skip updates for locked orders to preserve timeline; continue to next order
+                    continue;
+                  }
+                  // otherwise allow processing so delivered event is recorded
+                }
+                const existingRows = (db.prepare('SELECT id, status, message, timestamp, location FROM OrderTracking WHERE order_id = ?').all(r.id) || []).reduce((acc, row) => { const k = String(row.message || '') + '||' + String(row.timestamp || ''); acc[k] = row; return acc; }, {});
+            const insert = db.prepare('INSERT INTO OrderTracking (order_id, status, message, timestamp, location) VALUES (?, ?, ?, ?, ?)');
             const tx = db.transaction(() => {
               checkpoints.forEach(cp => {
-                      const key = (cp.message || cp.tag || '') + '||' + (cp.checkpoint_time || cp.time || cp.created_at || '');
-                      if (!existing.includes(key)) {
-                        insert.run(r.id, (cp.tag || cp.message || ''), (cp.message || cp.tag || ''), (cp.checkpoint_time || cp.time || cp.created_at || new Date().toISOString()), (cp.location || cp.city || getRandomLocation(r)));
+                      const msg = (cp.message || cp.tag || '');
+                      const ts = (cp.checkpoint_time || cp.time || cp.created_at || '');
+                      const key = String(msg) + '||' + String(ts);
+                      const existing = existingRows[key];
+                      if (!existing) {
+                        insert.run(r.id, (cp.tag || cp.message || ''), (cp.message || cp.tag || ''), ts || new Date().toISOString(), (cp.location || cp.city || getRandomLocation(r)));
+                      } else {
+                        const incomingStatus = (cp.tag || cp.message || '');
+                        const incomingMessage = (cp.message || cp.tag || '');
+                        const incomingLocation = (cp.location || cp.city || '');
+                        if (String(existing.status || '') !== String(incomingStatus) || String(existing.message || '') !== String(incomingMessage) || String(existing.location || '') !== String(incomingLocation)) {
+                          insert.run(r.id, incomingStatus, incomingMessage, ts || new Date().toISOString(), incomingLocation || getRandomLocation(r));
+                        }
                       }
                     });
             });

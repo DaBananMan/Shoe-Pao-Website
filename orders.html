@@ -843,7 +843,22 @@
                 var id = String(o && (o.id || o.orderId || o.order_id) || '');
                 if(!id) return;
                 var existing = map.get(id) || {};
-                map.set(id, Object.assign({}, existing, o, { id: id }));
+                try{
+                    // If existing entry was an optimistic local merge, prefer it when its optimistic
+                    // timestamp is newer than the server-provided updated timestamp.
+                    var existingOptimTs = existing && existing._optimistic_ts ? Number(existing._optimistic_ts) : 0;
+                    var serverTs = 0;
+                    try{ serverTs = new Date(o && (o.updated_at || o.updatedAt || o.updated || o.serverUpdatedAt) || 0).getTime() || 0; }catch(e){}
+                    if(existing && existing._optimistic && existingOptimTs && existingOptimTs > serverTs){
+                        // Keep optimistic values (existing) overriding server incoming where they differ.
+                        map.set(id, Object.assign({}, o, existing, { id: id }));
+                    } else {
+                        // Server wins / normal merge
+                        map.set(id, Object.assign({}, existing, o, { id: id }));
+                    }
+                }catch(e){
+                    map.set(id, Object.assign({}, existing, o, { id: id }));
+                }
             });
             return Array.from(map.values());
         }
@@ -1386,7 +1401,11 @@
                                         try{
                                             var hasTracking = localRow.tracking_number || localRow.trackingNumber || localRow.tracking || '';
                                             if(!hasTracking && window.fetch){
-                                                fetch(API_BASE + '/api/orders/' + encodeURIComponent(localRow.id)).then(function(resp){ if(!resp.ok) throw new Error('no order'); return resp.json(); }).then(function(j){
+                                                // Check existence first to avoid noisy 404s for client-only orders
+                                                fetch(API_BASE + '/api/orders/' + encodeURIComponent(localRow.id) + '/exists').then(function(r){ if(!r.ok) throw new Error('exists check failed'); return r.json(); }).then(function(ex){
+                                                    if(!ex || !ex.exists) return; // no server copy yet
+                                                    return fetch(API_BASE + '/api/orders/' + encodeURIComponent(localRow.id)).then(function(resp){ if(!resp.ok) throw new Error('no order'); return resp.json(); });
+                                                }).then(function(j){
                                                     if(!j || !j.order) return;
                                                     var srv = j.order || {};
                                                     var tn = srv.tracking_number || srv.tracking || srv.trackingNumber || '';
@@ -1602,6 +1621,7 @@
             document.getElementById('orderDrawerOverlay').setAttribute('aria-hidden','false');
             document.body.style.overflow = 'hidden';
 
+            var confirmBtn = document.getElementById('drawerConfirmPaymentBtn');
             if(confirmBtn){
                 // Use the live activeDrawerRow when invoking actions so the UI reflects
                 // any server-side updates fetched after opening the drawer (e.g. proof upload).
@@ -1748,7 +1768,7 @@
                     items: items
                 };
 
-                fetch('api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function(r){
+                fetch(API_BASE + '/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function(r){
                     // handle non-2xx responses gracefully
                     if(!r.ok){
                         return r.json().then(function(errBody){
@@ -1856,6 +1876,8 @@
                     }
                 }catch(e){ console.warn('persist to server skipped', e); }
                 try { localStorage.setItem('orders', JSON.stringify(ordersData)); } catch(e) { console.error('persist failed', e); }
+                // Broadcast a lightweight update so client tabs can refresh without a full reload
+                try{ localStorage.setItem('orders_update', JSON.stringify({ id: orderId, status: merged.status || '', ts: Date.now() })); }catch(e){}
                 applySearch();
                 if(activeDrawerOrderId && String(activeDrawerOrderId) === String(orderId)){
                     var updatedOrder = ordersData.find(o => String(o.id) === String(orderId));
@@ -2128,6 +2150,33 @@
                     currentList = ordersData.slice();
                     applySort(); renderTable(currentList);
                 }catch(err){/* ignore */}
+            }
+            if(e.key === 'orders_update'){
+                try{
+                    var payload = JSON.parse(e.newValue || '{}');
+                    if(payload && payload.id){
+                        var id = payload.id;
+                        // fetch authoritative server copy and merge
+                        fetch(API_BASE + '/api/orders/' + encodeURIComponent(id)).then(function(r){ if(!r.ok) throw new Error('no order'); return r.json(); }).then(function(j){
+                            var serverOrder = (j && j.order) ? j.order : (j && j.id ? j : null);
+                            if(!serverOrder) return;
+                            try{
+                                var idx = ordersData.findIndex(function(o){ return String(o.id) === String(serverOrder.id); });
+                                if(idx === -1){ ordersData.unshift(serverOrder); }
+                                else { ordersData[idx] = Object.assign({}, ordersData[idx], serverOrder); }
+                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                ordersData = sortOrdersByNewest(mergeOrdersById([], ordersData));
+                                currentList = ordersData.slice();
+                                applySort(); renderTable(currentList);
+                                // refresh drawer if it's open for this id
+                                if(activeDrawerOrderId && String(activeDrawerOrderId) === String(id)){
+                                    var updated = ordersData.find(function(o){ return String(o.id) === String(id); });
+                                    if(updated) openOrderDrawer(updated);
+                                }
+                            }catch(e){}
+                        }).catch(function(){ /* ignore fetch errors */ });
+                    }
+                }catch(e){}
             }
         });
 

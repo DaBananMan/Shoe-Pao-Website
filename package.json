@@ -4,7 +4,8 @@
   "description": "Build helper to produce a UMD bundle for CameraKit + AR wrapper for ShoePao",
   "private": true,
   "scripts": {
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "simulate-webhook": "node server/simulate-webhook.js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^26.0.0",

@@ -43,6 +43,12 @@
   </style>
 </head>
 <body>
+  <script>
+    // Debug smoke-check removed in production build
+  </script>
+  <script>
+    // Raw JSON fallback removed
+  </script>
   <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04)">
     <div class="site-container" style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 24px;height:72px">
       <a href="home.html" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">
@@ -59,6 +65,8 @@
   <div class="page">
     <div class="breadcrumb">Home / Orders / <span id="orderBreadcrumb">Order</span></div>
 
+    <!-- Debug overlay removed -->
+
     <div id="orderHeader" class="card">
       <div class="header-row">
         <div>
@@ -74,8 +82,7 @@
         <div class="pill" id="paymentPill">Payment: —</div>
         <div id="orderActions" style="margin-left:auto;display:flex;gap:8px;align-items:center">
           <!-- Admin action buttons (visible when admin uses the detail page) -->
-          <button id="odConfirmBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;display:none">Confirm</button>
-          <button id="odMarkShippedBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #b71c1c;background:#b71c1c;color:#fff;cursor:pointer;display:none">Mark Shipped</button>
+          <!-- 'Mark Shipped' removed per request; admins can still mark shipped from the admin orders list. -->
           <button id="odMarkDeliveredBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #0e7a3c;background:#0e7a3c;color:#fff;cursor:pointer;display:none">Mark Delivered</button>
           <button id="odCancelBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #eee;background:#fff;color:#b71c1c;cursor:pointer;display:none">Cancel</button>
         </div>
@@ -207,7 +214,7 @@
                 }
               }catch(e){}
               // re-render using simulated status
-              try{ console.debug('simulate -> advancing to', nextStep, 'for', idKey); renderOrder(ord, serverOrderCache.items || [], buildDisplayTracking(ord, serverOrderCache.tracking || [])); }catch(e){}
+              try{ console.debug('simulate -> advancing to', nextStep, 'for', idKey); var simItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(ord, simItems, buildDisplayTracking(ord, serverOrderCache.tracking || [])); }catch(e){}
             }catch(e){ /* ignore per-interval errors */ }
           };
           var timer = setInterval(tick, intervalMs);
@@ -221,11 +228,11 @@
             var dsNow = ordNow ? getDisplayStatus(ordNow) : null;
             var idxNow = (window._orderSimState && window._orderSimState[idKey] && typeof window._orderSimState[idKey].idx === 'number') ? window._orderSimState[idKey].idx : stepIndexForDisplayStatus(dsNow);
             var forcedNext = steps[idxNow + 1];
-            if(forcedNext && forcedNext !== 'delivered'){
+                if(forcedNext && forcedNext !== 'delivered'){
               try{
                 if(ordNow) ordNow._display_status = forcedNext;
                 if(window._orderSimState) window._orderSimState[idKey].idx = idxNow + 1;
-                try{ renderOrder(ordNow || { id: idKey, _display_status: forcedNext }, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(ordNow || { id: idKey, _display_status: forcedNext }, (serverOrderCache && serverOrderCache.tracking) || [])); }catch(e){}
+                    try{ var fnItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(ordNow || { id: idKey, _display_status: forcedNext }, fnItems, buildDisplayTracking(ordNow || { id: idKey, _display_status: forcedNext }, (serverOrderCache && serverOrderCache.tracking) || [])); }catch(e){}
               }catch(e){}
             }
           }catch(e){}
@@ -233,6 +240,31 @@
           console.debug('startSimulationForOrder: timer started for', idKey, 'intervalMs=', intervalMs);
         }catch(e){ console.warn('startSimulationForOrder failed', e); }
       }
+
+      // Listen for admin broadcast updates so detail view refreshes when status changes
+      try{
+        window.addEventListener('storage', function(e){
+          try{
+            if(e.key === 'orders_update'){
+              var payload = null;
+              try{ payload = JSON.parse(e.newValue || '{}'); }catch(err){}
+              var changedId = payload && payload.id ? payload.id : null;
+              if(!changedId) return;
+              // If this detail page is showing the changed order, fetch latest from server and re-render
+              try{
+                if(typeof orderId !== 'undefined' && String(orderId) === String(changedId)){
+                  fetch(API_BASE + '/api/orders/' + encodeURIComponent(changedId)).then(function(r){ if(!r.ok) throw new Error('no order'); return r.json(); }).then(function(j){
+                    if(j && j.order){
+              try{ serverOrderCache = { order: j.order, items: ((j.items && j.items.length) ? j.items : ((serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []))), tracking: (serverOrderCache && serverOrderCache.tracking) || [] }; }catch(e){}
+                try{ fetch(API_BASE + '/api/orders/' + encodeURIComponent(changedId) + '/tracking').then(function(r2){ return r2.json(); }).then(function(tj){ serverOrderCache.tracking = (tj && tj.tracking) ? tj.tracking : serverOrderCache.tracking || []; var upItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, upItems, buildDisplayTracking(serverOrderCache.order, serverOrderCache.tracking || [])); }).catch(function(){ var upItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, upItems, buildDisplayTracking(serverOrderCache.order, serverOrderCache.tracking || [])); }); }catch(e){ var upItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, upItems, buildDisplayTracking(serverOrderCache.order, serverOrderCache.tracking || [])); }
+                    }
+                  }).catch(function(){});
+                }
+              }catch(e){}
+            }
+          }catch(e){}
+        });
+      }catch(e){}
       // Helper to update order status from the order-detail page and refresh view
       function updateOrderStatusFromDetail(id, status){
         try{
@@ -262,6 +294,18 @@
             // update client cache and UI immediately
             try{ serverOrderCache = { order: optimisticOrder, items: optimisticItems, tracking: optimisticTracking }; }catch(e){}
             try{ renderOrder(optimisticOrder, optimisticItems, optimisticTracking); }catch(e){}
+            // Also persist an optimistic merge into admin localStorage so other tabs (and reloads)
+            // reflect the new status immediately. We merge only the single order to avoid
+            // clobbering unrelated admin data. Mark this entry as optimistic with a timestamp
+            // so server merges can prefer authoritative server values when available.
+            try{
+              try{ optimisticOrder._optimistic = true; optimisticOrder._optimistic_ts = Date.now(); }catch(e){}
+              var adminOrders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
+              var ai = adminOrders.findIndex(function(o){ return o && String(o.id) === String(optimisticOrder.id); });
+              if(ai === -1){ adminOrders.unshift(optimisticOrder); } else { adminOrders[ai] = Object.assign({}, adminOrders[ai], optimisticOrder); }
+              try{ localStorage.setItem('orders', JSON.stringify(adminOrders)); }catch(e){}
+              try{ localStorage.setItem('orders_update', JSON.stringify({ id: optimisticOrder.id, status: optimisticOrder.status || '', ts: Date.now(), optimistic: true })); }catch(e){}
+            }catch(e){}
             // If we just moved the order to 'shipped' or equivalent, start the client-side simulation
             try{ var ds = getDisplayStatus(optimisticOrder); if(String(ds||'').toLowerCase() === 'shipped' || String(optimisticOrder.status||'').toLowerCase() === 'shipped'){ startSimulationForOrder(id || orderId); } }catch(e){}
           }catch(e){/* ignore optimistic render errors */}
@@ -307,7 +351,9 @@
                         console.debug('reconcile: injected simulated _display_status=', j.order._display_status, 'simIdx=', simIdx, 'for', simKey);
                       }
                     }catch(e){}
-                    renderOrder(j.order, j.items || [], buildDisplayTracking(j.order, tracked)); }).catch(function(){
+                    try{ renderOrder(j.order, (j.items && j.items.length) ? j.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, tracked)); }catch(e){ renderOrder(j.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, tracked)); }
+                    try{ localStorage.setItem('orders_update', JSON.stringify({ id: j.order.id, status: j.order.status || '', ts: Date.now() })); }catch(e){}
+                    }).catch(function(){
                       try{
                         var simKey = id || orderId;
                         if(window._orderSimState && window._orderSimState[simKey] && !j.order._display_status){
@@ -317,8 +363,10 @@
                           console.debug('reconcile(catch): injected simulated _display_status=', j.order._display_status, 'simIdx=', simIdx, 'for', simKey);
                         }
                       }catch(e){}
-                      renderOrder(j.order, j.items || [], buildDisplayTracking(j.order, [])); }); }
-              catch(e){ renderOrder(j.order, j.items || [], buildDisplayTracking(j.order, [])); }
+                      try{ renderOrder(j.order, (j.items && j.items.length) ? j.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, [])); }catch(e){ renderOrder(j.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, [])); }
+                      try{ localStorage.setItem('orders_update', JSON.stringify({ id: j.order.id, status: j.order.status || '', ts: Date.now() })); }catch(e){}
+                      }); }
+              catch(e){ try{ renderOrder(j.order, (j.items && j.items.length) ? j.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, [])); }catch(err){ renderOrder(j.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, [])); } }
             } else {
               // fallback: re-fetch server order
               try{
@@ -326,7 +374,7 @@
                   if(j2 && j2.order){
                     fetch(API_BASE + '/api/orders/' + encodeURIComponent(id || orderId) + '/tracking').then(function(r3){ return r3.json(); }).then(function(tj){
                       var tracked = (tj && tj.tracking) ? tj.tracking : [];
-                      try{ serverOrderCache = { order: j2.order, items: j2.items || [], tracking: tracked }; }catch(e){}
+                      try{ serverOrderCache = { order: j2.order, items: (j2.items && j2.items.length) ? j2.items : (serverOrderCache && serverOrderCache.items) || [], tracking: tracked }; }catch(e){}
                       // decide whether to stop or continue simulation based on tracking
                       try{
                         var hasOutForDelivery = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
@@ -347,8 +395,9 @@
                             console.debug('reconcile(fallback): injected simulated _display_status=', j2.order._display_status, 'simIdx=', simIdx, 'for', simKey);
                           }
                         }catch(e){}
-                        renderOrder(j2.order, j2.items || [], buildDisplayTracking(j2.order, tracked));
-                    }).catch(function(){ try{ serverOrderCache = { order: j2.order, items: j2.items || [], tracking: [] }; }catch(e){} renderOrder(j2.order, j2.items || [], buildDisplayTracking(j2.order, [])); });
+                        try{ renderOrder(j2.order, (j2.items && j2.items.length) ? j2.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j2.order, tracked)); }catch(e){ renderOrder(j2.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j2.order, tracked)); }
+                        try{ localStorage.setItem('orders_update', JSON.stringify({ id: j2.order.id, status: j2.order.status || '', ts: Date.now() })); }catch(e){}
+                    }).catch(function(){ try{ serverOrderCache = { order: j2.order, items: (j2.items && j2.items.length) ? j2.items : (serverOrderCache && serverOrderCache.items) || [], tracking: [] }; }catch(e){} try{ renderOrder(j2.order, (j2.items && j2.items.length) ? j2.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j2.order, [])); }catch(e){ renderOrder(j2.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j2.order, [])); } });
                   }
                 }).catch(function(){});
               }catch(e){}
@@ -497,9 +546,17 @@
       function buildDisplayTracking(order, providedTracking){
         try{
           var PICKUP_LOCATION = 'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3, Bacoor, Philippines, 4102';
-          // normalize provided tracking into map by status/message
+          // normalize provided tracking into map by status/message -> array of events
+          // We'll keep arrays so we can pick the most recent event per status when needed.
           var map = {};
-          (providedTracking || []).forEach(function(ev){ if(ev && (ev.status || ev.message)) map[(String(ev.status||ev.message).trim()).toLowerCase()] = ev; });
+          (providedTracking || []).forEach(function(ev){
+            try{
+              if(!ev || !(ev.status || ev.message)) return;
+              var k = String(ev.status || ev.message).trim().toLowerCase();
+              if(!map[k]) map[k] = [];
+              map[k].push(ev);
+            }catch(e){}
+          });
 
           // derive delivery address short location
           var deliveryAddrObj = order && (order.deliveryAddress || (order.addressObject ? normalizeDeliveryAddressFromAddressObject(order.addressObject) : null));
@@ -530,15 +587,29 @@
           var result = [];
           for(var i=0;i<seq.length;i++){
             var s = seq[i];
-            var existing = map[String(s.key).toLowerCase()];
-            if(existing){
+            var existingArr = map[String(s.key).toLowerCase()];
+            if(Array.isArray(existingArr) && existingArr.length){
+              // pick the most recent event by timestamp if available
+              var chosen = existingArr[0];
+              try{
+                for(var j=1;j<existingArr.length;j++){
+                  var a = existingArr[j];
+                  var ta = a && (a.timestamp || a.time || a.date) ? new Date(a.timestamp || a.time || a.date) : null;
+                  var tc = chosen && (chosen.timestamp || chosen.time || chosen.date) ? new Date(chosen.timestamp || chosen.time || chosen.date) : null;
+                  if(ta && (!tc || ta.getTime() > tc.getTime())) chosen = a;
+                }
+              }catch(e){}
               // override the picked-up location with our canonical pickup location so the UI is consistent
               if(String(s.key).toLowerCase() === 'picked up'){
-                existing.location = s.location || existing.location || '';
+                chosen.location = s.location || chosen.location || '';
+              } else if(String(s.key).toLowerCase() === 'in transit'){
+                // Force 'in transit' to show a single region-level location rather than fluctuating coordinates
+                chosen.location = s.location || chosen.location || '';
               } else {
-                if(!existing.location) existing.location = s.location || '';
+                // prefer event-provided location; fall back to our synthesized location
+                if(!chosen.location) chosen.location = s.location || '';
               }
-              result.push(existing);
+              result.push(chosen);
             } else {
               result.push({ status: s.label, message: s.label, timestamp: new Date(base.getTime() + (times[i]||0)).toISOString(), location: s.location || '' });
             }
@@ -629,6 +700,9 @@
       }
 
   var orderId = getOrderId();
+    console.log('order-detail: resolved orderId ->', orderId);
+  // Debug no-op (previously updated an on-screen debug overlay)
+  function setDebug(msg){}
   // Dev API base (Node backend runs on port 3000). Change to '' or the production API origin as needed.
   // Use PHP proxy as API base so requests go through Apache/PHP (helps when Node isn't
   // directly reachable from the browser). Compute project root (first path segment)
@@ -672,22 +746,28 @@
       // local Firestore or localStorage data is stale).
       (function tryFetchServerOrder(){
         try{
+            console.log('order-detail: tryFetchServerOrder; API_BASE=', API_BASE, 'orderId=', orderId);
+            try{ setDebug('tryFetchServerOrder; API_BASE=' + API_BASE + '\norderId=' + orderId); }catch(e){}
           if(!window.fetch) return;
           // fetch order details
-          fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId)).then(function(r){ if(!r.ok) throw new Error('no server order'); return r.json(); }).then(function(j){
+            fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId)).then(function(r){ if(!r.ok) throw new Error('no server order'); return r.json(); }).then(function(j){
+              console.log('order-detail: server /api/orders response', j && j.order ? 'has order' : 'no order');
+              try{ setDebug('server /api/orders response -> ' + (j && j.order ? 'has order' : 'no order')); }catch(e){}
             if(!j || !j.order) return;
             var srvOrder = j.order || {};
-            var srvItems = j.items || [];
+            var srvItems = (j.items && j.items.length) ? j.items : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []);
             // fetch server tracking events
             fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId) + '/tracking').then(function(r2){ return r2.json(); }).then(function(tj){
+                console.log('order-detail: /tracking response, length=', (tj && tj.tracking && tj.tracking.length) || 0);
+                try{ setDebug('/tracking length=' + ((tj && tj.tracking && tj.tracking.length) || 0)); }catch(e){}
               var tracked = (tj && tj.tracking) ? tj.tracking : [];
               // cache server results so Firestore rendering can merge them
-              try{ serverOrderCache = { order: srvOrder, items: srvItems, tracking: tracked }; }catch(e){}
+              try{ serverOrderCache = { order: srvOrder, items: (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracking: tracked }; }catch(e){}
               // Persist server authoritative values back to localStorage and Firestore so all sources stay in sync
               try{
                 // Update localStorage orders array (merge/replace single order)
                 try{
-                  var _orders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
+                  var _orders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
                   var replaced = false;
                   for(var i=0;i<_orders.length;i++){
                     if(String(_orders[i] && _orders[i].id) === String(srvOrder.id || orderId)){
@@ -757,11 +837,13 @@
                     }catch(e){}
                   }
                 }catch(e){}
-                renderOrder(srvOrder, srvItems, tracked);
+                try{ renderOrder(srvOrder, (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracked); }catch(e){ renderOrder(srvOrder, (serverOrderCache && serverOrderCache.items) || [], tracked); }
               }catch(e){}
             }).catch(function(){
-              try{ serverOrderCache = { order: srvOrder, items: srvItems, tracking: [] }; }catch(e){}
-              try{ renderOrder(srvOrder, srvItems, []); }catch(e){}
+                console.warn('order-detail: tracking fetch failed, falling back');
+                try{ setDebug('tracking fetch failed'); }catch(e){}
+              try{ serverOrderCache = { order: srvOrder, items: (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracking: [] }; }catch(e){}
+              try{ renderOrder(srvOrder, (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), []); }catch(e){ renderOrder(srvOrder, (serverOrderCache && serverOrderCache.items) || [], []); }
             });
           }).catch(function(){ /* ignore - fallback to firebase */ });
         }catch(e){ /* ignore */ }
@@ -776,10 +858,10 @@
       fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId)).then(function(r){ if(!r.ok) throw new Error('no server order'); return r.json(); }).then(function(j){
               if(!j || !j.order) return;
               var srvOrder = j.order || {};
-              var srvItems = j.items || [];
+              var srvItems = (j.items && j.items.length) ? j.items : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []);
               fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId) + '/tracking').then(function(r2){ return r2.json(); }).then(function(tj){
                 var tracked = (tj && tj.tracking) ? tj.tracking : [];
-                try{ serverOrderCache = { order: srvOrder, items: srvItems, tracking: tracked }; }catch(e){}
+                try{ serverOrderCache = { order: srvOrder, items: (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracking: tracked }; }catch(e){}
                 try{
                   try{
                     var hasOutForDelivery = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
@@ -801,7 +883,7 @@
                       }catch(e){}
                     }
                   }catch(e){}
-                  renderOrder(srvOrder, srvItems, tracked);
+                  try{ renderOrder(srvOrder, (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracked); }catch(e){ renderOrder(srvOrder, (serverOrderCache && serverOrderCache.items) || [], tracked); }
                 }catch(e){}
               }).catch(function(){ /* ignore tracking fetch errors */ });
             }).catch(function(){ /* ignore order fetch errors */ });
@@ -903,7 +985,7 @@
                 }
               }
               if(!replaced){ var newEntry = Object.assign({}, order); _orders.unshift(newEntry); }
-              try{ localStorage.setItem('orders', JSON.stringify(_orders)); }catch(e){}
+              try{ localStorage.setItem('client_orders', JSON.stringify(_orders)); }catch(e){}
             }catch(e){}
             // Try to merge into Firestore document if firebase is ready/configured
             try{ ensureFirebaseReady(function(err){ if(!err && window.firebase && firebase.firestore){ try{ firebase.firestore().collection('orders').doc(String(order.id || orderId)).set({ tracking_number: order.tracking_number }, { merge: true }); }catch(e){} } }); }catch(e){}
@@ -921,7 +1003,10 @@
             }catch(e){}
           }
         }catch(e){}
-        document.getElementById('paymentPill').textContent = 'Payment: ' + (order.payment_method || order.paymentLabel || '—');
+        (function(){
+          function safeSetText(id, val){ try{ var el = document.getElementById(id); if(!el) return; el.textContent = (val === undefined || val === null) ? '—' : String(val); }catch(e){} }
+          safeSetText('paymentPill', 'Payment: ' + (order.payment_method || order.paymentLabel || '—'));
+        })();
 
         var deliveryAddrObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
         var address = formatDeliveryAddressText(deliveryAddrObj) || order.delivery_address || order.shippingAddress || '';
@@ -938,14 +1023,50 @@
             computedSubtotal += Number(it.price || 0) * qty;
           });
         }catch(e){}
-        var subtotalVal = (order.subtotal || order.sub_total || computedSubtotal || 0);
+        // Determine subtotal: prefer explicit order.subtotal, else computed from items.
+        // If both are missing (server may omit items in some responses), fall back
+        // to any previously-cached subtotal saved in serverOrderCache or localStorage.
+        (function(){
+          function lookupPersistedSubtotal(){
+            try{
+              if(serverOrderCache && serverOrderCache.order){ var s = serverOrderCache.order.subtotal || serverOrderCache.order.sub_total; if(s) return s; }
+            }catch(e){}
+            try{
+              var _all = JSON.parse(localStorage.getItem('client_orders')||'[]') || JSON.parse(localStorage.getItem('orders')||'[]') || [];
+              for(var i=0;i<_all.length;i++){ try{ if(_all[i] && String(_all[i].id) === String(order.id || orderId)){ return _all[i].subtotal || _all[i].sub_total || null; } }catch(e){} }
+            }catch(e){}
+            return null;
+          }
+          var persisted = lookupPersistedSubtotal();
+          var subtotalVal = (order.subtotal || order.sub_total || (computedSubtotal > 0 ? computedSubtotal : (persisted !== null ? persisted : 0)));
+          // If there are no passed items and the server/order omitted subtotal, prefer
+          // the last-rendered subtotal when available so polling doesn't transiently
+          // clear the UI. Only use this when items array is empty and no subtotal
+          // was provided by the server.
+          try{
+            var itemsEmpty = !(Array.isArray(items) && items.length);
+            if(itemsEmpty && !(order.subtotal || order.sub_total) && window.__lastRenderedSubtotal && Number(window.__lastRenderedSubtotal) > 0){
+              subtotalVal = Number(window.__lastRenderedSubtotal);
+            }
+          }catch(e){}
+          // persist last rendered subtotal for future polls
+          window.__lastRenderedSubtotal = subtotalVal;
+          // expose subtotalVal for later code in this scope
+          this._subtotalVal = subtotalVal;
+        }).call(this);
         var shippingVal = (order.shipping_fee || order.shipping || 0);
         var discountVal = (order.discount || 0);
+        // retrieve subtotalVal set above
+        var subtotalVal = (typeof this._subtotalVal !== 'undefined') ? this._subtotalVal : (order.subtotal || order.sub_total || computedSubtotal || 0);
         var totalVal = (order.total || (subtotalVal + shippingVal - discountVal) || 0);
-        document.getElementById('summarySubtotal').textContent = formatPHP(subtotalVal);
-        document.getElementById('summaryShipping').textContent = formatPHP(shippingVal);
-        document.getElementById('summaryDiscount').textContent = formatPHP(discountVal);
-        document.getElementById('summaryTotal').textContent = formatPHP(totalVal);
+
+        // Update summary DOM now that subtotal/shipping/discount/total are known
+        try{
+          var _ss = document.getElementById('summarySubtotal'); if(_ss) _ss.textContent = formatPHP(subtotalVal) || '₱0.00';
+          var _sh = document.getElementById('summaryShipping'); if(_sh) _sh.textContent = formatPHP(shippingVal) || '₱0.00';
+          var _sd = document.getElementById('summaryDiscount'); if(_sd) _sd.textContent = formatPHP(discountVal) || '₱0.00';
+          var _st = document.getElementById('summaryTotal'); if(_st) _st.textContent = formatPHP(totalVal) || '₱0.00';
+        }catch(e){ console.warn('renderOrder: failed to set summary fields', e); }
 
   // Build a display tracking sequence that prefers server-provided events
   // but fills in a full AfterShip-like flow (Picked up -> In transit -> Out for delivery -> Delivered)
@@ -959,21 +1080,28 @@
         // Update admin action buttons (if present in DOM)
         try{
           var s = (order && order.status) ? String(order.status).toLowerCase() : '';
-          var odConfirm = document.getElementById('odConfirmBtn');
           var odMarkShipped = document.getElementById('odMarkShippedBtn');
           var odMarkDelivered = document.getElementById('odMarkDeliveredBtn');
           var odCancel = document.getElementById('odCancelBtn');
-          if(odConfirm){
-            odConfirm.style.display = (s === 'pending payment' || s === 'pending' ? '' : 'none');
-            odConfirm.onclick = function(){ updateOrderStatusFromDetail(order.id || orderId, 'confirmed'); };
-          }
+          // Show ship button for admin workflows when order is in preparing/confirmed/processing
           if(odMarkShipped){
             odMarkShipped.style.display = (s === 'processing' || s === 'confirmed' ? '' : 'none');
             odMarkShipped.onclick = function(){ updateOrderStatusFromDetail(order.id || orderId, 'shipped'); };
           }
+          // For clients: show an "Order Received" button when the order reaches Out for Delivery
+          // Use tracking events as a hint when available (best-effort). Clicking this marks the order as delivered.
+          try{
+            var hasOutForDelivery = Array.isArray(tracking) && tracking.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
+            var hasDelivered = Array.isArray(tracking) && tracking.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('delivered') !== -1; });
+          }catch(e){ var hasOutForDelivery = false; var hasDelivered = false; }
           if(odMarkDelivered){
-            odMarkDelivered.style.display = (s === 'shipped' || s === 'in transit' ? '' : 'none');
-            odMarkDelivered.onclick = function(){ updateOrderStatusFromDetail(order.id || orderId, 'delivered'); };
+            // show when server status explicitly indicates out for delivery OR tracking contains out-for-delivery
+            // but never show when the server/tracking already indicates delivered.
+            var showDeliveredBtn = (s === 'out for delivery' || s === 'out_for_delivery' || hasOutForDelivery) && !hasDelivered && s !== 'delivered';
+            odMarkDelivered.style.display = (showDeliveredBtn ? '' : 'none');
+            // label as Order Received for the client-facing detail page
+            try{ odMarkDelivered.textContent = 'Order Received'; }catch(e){}
+            odMarkDelivered.onclick = function(){ if(!showDeliveredBtn) return; updateOrderStatusFromDetail(order.id || orderId, 'delivered'); };
           }
           if(odCancel){
             odCancel.style.display = (s !== 'cancelled' && s !== 'archived' ? '' : 'none');
@@ -1010,7 +1138,13 @@
       }
 
       ensureFirebaseReady(function(err){
-        if(err){ showError('Firebase not configured.'); return; }
+        if(err){
+          // If Firebase isn't available, render from server/local cache instead of showing an error.
+          if(serverOrderCache && serverOrderCache.order){ try{ var cachedItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, cachedItems, serverOrderCache.tracking || []); }catch(e){} return; }
+          if(localOrderCache){ try{ renderOrder(localOrderCache, localItemsCache || [], []); }catch(e){} return; }
+          showError('Firebase not configured.');
+          return;
+        }
         try{
           var db = firebase.firestore();
           var orderDoc = db.collection('orders').doc(orderId);
@@ -1020,10 +1154,13 @@
             orderDoc.collection('tracking').orderBy('timestamp','asc').get()
           ]).then(function(results){
             var orderSnap = results[0];
-            if(!orderSnap.exists){ showError('Order not found'); return; }
-            var fsOrder = orderSnap.data() || {};
-            var fsItems = results[1].docs.map(function(d){ return d.data(); });
-            var fsTracking = results[2].docs.map(function(d){ return d.data(); });
+            // If Firestore doc is missing, don't treat that as fatal when we already
+            // have authoritative server data (serverOrderCache) or a local cache.
+            // Previously this returned early and hid the server-rendered details.
+            if(!orderSnap.exists && !serverOrderCache && !localOrderCache){ showError('Order not found'); return; }
+            var fsOrder = orderSnap.exists ? (orderSnap.data() || {}) : {};
+            var fsItems = (results[1] && results[1].docs) ? results[1].docs.map(function(d){ return d.data(); }) : [];
+            var fsTracking = (results[2] && results[2].docs) ? results[2].docs.map(function(d){ return d.data(); }) : [];
 
             // Build final view model for the order. Priority (most authoritative first):
             // 1) serverOrderCache (fresh server API response), 2) localStorage card cache,
@@ -1083,10 +1220,24 @@
             // External tracking (AfterShip) integration disabled in order-detail view.
             // The server still returns canonical tracking and courier fields which are
             // rendered above; we avoid polling external services from the client page.
-          }).catch(function(e){ showError(e && e.message ? e.message : 'Unable to load order.'); });
-        }catch(e){ showError('Unable to load order.'); }
+            }).catch(function(e){
+              // If Firestore read fails, fall back to server/local caches before surfacing an error.
+              if(serverOrderCache && serverOrderCache.order){ try{ var cachedItems2 = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, cachedItems2, serverOrderCache.tracking || []); }catch(err){} return; }
+              if(localOrderCache){ try{ renderOrder(localOrderCache, localItemsCache || [], []); }catch(err){} return; }
+              showError(e && e.message ? e.message : 'Unable to load order.');
+            });
+        }catch(e){
+          // If unexpected errors occur while attempting Firestore-based rendering,
+          // prefer server/local cached rendering when available.
+          if(serverOrderCache && serverOrderCache.order){ try{ var cachedItems3 = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, cachedItems3, serverOrderCache.tracking || []); }catch(err){} return; }
+          if(localOrderCache){ try{ renderOrder(localOrderCache, localItemsCache || [], []); }catch(err){} return; }
+          showError('Unable to load order.');
+        }
       });
     })();
-  </script>
-</body>
+
+    // safeRenderFallback removed; relying on canonical render path
+    </script>
+  </body>
 </html>
+            var odMarkShipped = document.getElementById('odMarkShippedBtn');

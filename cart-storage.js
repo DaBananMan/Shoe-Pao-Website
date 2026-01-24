@@ -431,6 +431,7 @@ function clearAccountLocalDataByEmail(email){
             var orders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
             var filtered = orders.filter(function(o){ var candidates = [o.email, o.customerEmail, (o.profile && o.profile.email), (o.customer && o.customer.email)]; return !candidates.some(function(c){ return (c||'').toLowerCase() === (email||'').toLowerCase(); }); });
             localStorage.setItem('orders', JSON.stringify(filtered));
+            try{ localStorage.setItem('client_orders', JSON.stringify((JSON.parse(localStorage.getItem('client_orders')||'[]')||[]).filter(function(o){ var candidates = [o.email, o.customerEmail, (o.profile && o.profile.email), (o.customer && o.customer.email)]; return !candidates.some(function(c){ return (c||'').toLowerCase() === (email||'').toLowerCase(); }); }))); }catch(e){}
         }catch(e){}
         // Remove cart if it appears to belong to the deleted user (best-effort: compare profile email to cart owner if stored)
         try{

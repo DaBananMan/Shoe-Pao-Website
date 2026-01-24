@@ -132,9 +132,9 @@
             }catch(e){}
             // orders
             try{
-                var orders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
+                 var orders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
                 orders = orders.filter(function(o){ var candidates = [o.email, o.customerEmail, (o.profile && o.profile.email), (o.customer && o.customer.email)]; return !candidates.some(function(c){ return (c||'').toLowerCase() === lc; }); });
-                localStorage.setItem('orders', JSON.stringify(orders));
+                 localStorage.setItem('client_orders', JSON.stringify(orders));
             }catch(e){}
             // wishlists: handle array or object
             try{
@@ -188,7 +188,7 @@
             var users = getUsers() || [];
             // Backfill missing user names from orders if possible (persist so it appears in profiles/accounts)
             try{
-                var orders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
+                var orders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
                 var didUpdate = false;
                 users = users.map(function(u){
                     var hasName = (u.firstName && u.firstName.trim()) || (u.lastName && u.lastName.trim()) || (u.name && u.name.trim());
