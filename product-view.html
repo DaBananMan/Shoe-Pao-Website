@@ -1382,19 +1382,51 @@
                 </div>
             <div class="productview-size-label">Select Size</div>
             <div class="productview-size-row">
-                <div id="sizeButtons" style="display:flex;flex-wrap:wrap;gap:8px;">
-                    <button type="button" class="btn ghost product-size-btn" data-eu="36">36 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="37">37 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="38">38 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="39">39 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="40">40 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="41">41 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="42">42 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="43">43 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="44">44 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="45">45 EU</button>
-                </div>
+                <div id="sizeButtons" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
             </div>
+        <!-- JS for rendering only added sizes for the selected variant, including 0-stock (grayed out) -->
+        <script>
+        (function(){
+            function renderSizeButtons() {
+                var sizeButtons = document.getElementById('sizeButtons');
+                if (!sizeButtons) return;
+                sizeButtons.innerHTML = '';
+                var sizesMap = window._productStockMap;
+                if (!sizesMap || Object.keys(sizesMap).length === 0) {
+                    sizeButtons.innerHTML = '<span style="color:#888;font-size:1.05rem;">No sizes available for this color.</span>';
+                    return;
+                }
+                Object.keys(sizesMap).sort(function(a,b){return Number(a)-Number(b);}).forEach(function(eu) {
+                    var stock = sizesMap[eu];
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn ghost product-size-btn';
+                    btn.setAttribute('data-eu', eu);
+                    btn.textContent = eu + ' EU';
+                    if (stock <= 0) {
+                        btn.disabled = true;
+                        btn.classList.add('oos');
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                    }
+                    btn.addEventListener('click', function() { selectSize(btn); });
+                    sizeButtons.appendChild(btn);
+                });
+            }
+            // Patch loadProductStockFromFirestore to re-render size buttons after loading
+            var origLoadProductStockFromFirestore = window.loadProductStockFromFirestore;
+            window.loadProductStockFromFirestore = function(cb) {
+                origLoadProductStockFromFirestore(function(err, map) {
+                    if (!err) renderSizeButtons();
+                    if (cb) cb(err, map);
+                });
+            };
+            // If _productStockMap is already loaded, render immediately
+            if (window._productStockMap) renderSizeButtons();
+            // Also re-render on color/variant change if you have such logic (add hooks as needed)
+            window.renderSizeButtons = renderSizeButtons;
+        })();
+        </script>
             <div class="productview-size-conversion" id="sizeConversion">Select a size to see the US equivalent.</div>
             <div id="sizeStock" class="productview-size-stock"></div>
             <div class="productview-action-row">
@@ -1680,45 +1712,175 @@ On page.</div>
             loadNext();
         }catch(e){ if(cb) cb(e); }
     }
+    // Allow anonymous sign-in to read stock when rules require auth
+    try{ if(window.ALLOW_ANON_SIGNIN === undefined) window.ALLOW_ANON_SIGNIN = true; }catch(e){}
+
+    var _productStockMap = null;
+    var _currentProductDoc = null;
+
+    function getProductContext(){
+        try{
+            var params = new URLSearchParams(window.location.search || '');
+            var pid = (params.get('pid') || params.get('productId') || '').trim();
+            var brand = (params.get('brand') || '').trim();
+            var title = (params.get('name') || params.get('title') || '').trim();
+            var color = (params.get('color') || '').trim();
+            var price = (params.get('price') || '').trim();
+            var img = (params.get('img') || '').trim();
+            var badge = (params.get('badge') || '').trim();
+            // Fallbacks (legacy, non-inventory data only)
+            if(!pid) { try{ pid = (localStorage.getItem('productId') || '').trim(); }catch(e){} }
+            if(!brand) {
+                try{ brand = (localStorage.getItem('productBrand') || '').trim(); }catch(e){}
+                if(!brand){ try{ brand = ((document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim(); }catch(e){} }
+            }
+            if(!title) {
+                try{ title = (localStorage.getItem('productTitle') || '').trim(); }catch(e){}
+                if(!title){ try{ title = ((document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim(); }catch(e){} }
+            }
+            if(!color) { try{ color = (localStorage.getItem('productColor') || '').trim(); }catch(e){} }
+            if(!price) { try{ price = (localStorage.getItem('productPrice') || '').trim(); }catch(e){} }
+            if(!img) { try{ img = (localStorage.getItem('productImg') || '').trim(); }catch(e){} }
+            if(!badge) { try{ badge = (localStorage.getItem('productBadge') || '').trim(); }catch(e){} }
+            return { productId: pid, brand: brand, title: title, color: color, price: price, img: img, badge: badge };
+        }catch(e){ return { productId: '', brand: '', title: '', color: '', price: '', img: '', badge: '' }; }
+    }
+
+    function getSelectedVariantColor(){
+        try{
+            var ctx = getProductContext();
+            var title = (ctx.title || '').trim();
+            var modelData = null;
+            try{ modelData = JSON.parse(localStorage.getItem('modelData')||'null'); }catch(e){}
+            if(modelData && Array.isArray(modelData.variants)){
+                var v = modelData.variants.find(function(x){ return (x.name||'').toString().trim() === title; }) || modelData.variants[0];
+                if(v && v.color) return String(v.color);
+            }
+            if(ctx.color) return String(ctx.color);
+            // fallback: last word heuristic
+            var parts = title.split(/\s+/);
+            if(parts.length > 1) return parts[parts.length-1];
+        }catch(e){}
+        return '';
+    }
+
+    function sizesMapFromVariantDoc(v){
+        var sizesMap = {};
+        try{
+            if(Array.isArray(v.sizes)){
+                v.sizes.forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
+            } else if (v.sizeMap && typeof v.sizeMap === 'object') {
+                Object.keys(v.sizeMap).forEach(function(k){ sizesMap[String(k)] = Number(v.sizeMap[k]||0)||0; });
+            } else if (v.sizesMap && typeof v.sizesMap === 'object') {
+                Object.keys(v.sizesMap).forEach(function(k){ sizesMap[String(k)] = Number(v.sizesMap[k]||0)||0; });
+            } else {
+                for(var eu=35; eu<=45; eu++){
+                    var val = v['s'+eu];
+                    if(val === undefined) val = v['stock'+eu];
+                    if(val !== undefined) sizesMap[String(eu)] = Number(val||0)||0;
+                }
+            }
+        }catch(e){}
+        return sizesMap;
+    }
+
+    function loadProductStockFromFirestore(cb){
+        ensureFirebaseReady(function(err){
+            if(err) { if(cb) cb(err); return; }
+            try{
+                if(window.ALLOW_ANON_SIGNIN === true && firebase.auth && !firebase.auth().currentUser){
+                    firebase.auth().signInAnonymously().catch(function(){});
+                }
+            }catch(e){}
+            try{
+                var db = firebase.firestore();
+                var ctx = getProductContext();
+                var pid = (ctx.productId || '').trim();
+                var brand = (ctx.brand || '').trim();
+                var title = (ctx.title || '').trim();
+                var colorHint = getSelectedVariantColor();
+                var normalize = function(s){ return (s||'').toString().toLowerCase().replace(/\s+/g,' ').trim(); };
+
+                var productPromise = pid
+                    ? db.collection('products').doc(pid).get().then(function(snap){
+                        try{
+                            if(snap && snap.exists) return snap;
+                            // If pid looks like a variant id (e.g. SKU:color), try resolving by SKU in products
+                            var basePid = String(pid || '').split(':')[0];
+                            if(basePid && basePid !== pid){
+                                return db.collection('products').where('sku','==',basePid).get();
+                            }
+                            return snap;
+                        }catch(e){ return snap; }
+                    })
+                    : (brand
+                        ? db.collection('products').where('brand','==',brand).get()
+                        : (title ? Promise.all([
+                            db.collection('products').where('model','==',title).get(),
+                            db.collection('products').where('name','==',title).get()
+                          ]) : Promise.resolve(null)));
+                productPromise.then(function(prodSnap){
+                    var prod = null;
+                    if(prodSnap && prodSnap.exists){ prod = Object.assign({ id: prodSnap.id }, prodSnap.data()); }
+                    if(prodSnap && Array.isArray(prodSnap)){
+                        // merge result sets from model/name queries
+                        var merged = [];
+                        prodSnap.forEach(function(s){ if(s && s.docs){ s.docs.forEach(function(d){ merged.push(Object.assign({ id: d.id }, d.data())); }); } });
+                        prod = merged.find(function(p){ return normalize(p.model||p.name||'') === normalize(title); }) || merged[0] || null;
+                    }
+                                        if(!prod && prodSnap && prodSnap.docs){
+                                                var docs = prodSnap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
+                                                var base = title;
+                                                if(colorHint){ base = title.replace(new RegExp('\u00a0','g'),' ').replace(new RegExp(colorHint+'$','i'),'').trim(); }
+                                                var titleNorm = normalize(title);
+                                                var baseNorm = normalize(base);
+                                                prod = docs.find(function(p){ return normalize(p.model||p.name||'') === titleNorm; })
+                                                    || docs.find(function(p){ return normalize(p.model||p.name||'') === baseNorm; })
+                                                    || docs.find(function(p){ return titleNorm && normalize(p.model||p.name||'').indexOf(titleNorm) !== -1; })
+                                                    || docs.find(function(p){ return baseNorm && normalize(p.model||p.name||'').indexOf(baseNorm) !== -1; })
+                                                    || (docs.length === 1 ? docs[0] : null);
+                                        }
+                    var resolvedPid = pid || (prod && prod.id ? String(prod.id) : '');
+                    return Promise.all([Promise.resolve(prod), resolvedPid ? db.collection('variants').where('productId','==',resolvedPid).get() : Promise.resolve(null)]);
+                }).then(function(res){
+                    var prod = res[0];
+                    _currentProductDoc = prod || null;
+                    var variantsSnap = res[1];
+                    var sizesMap = null;
+                    if(variantsSnap && variantsSnap.docs){
+                        var colorNorm = normalize(colorHint);
+                        var vMatch = variantsSnap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); })
+                          .find(function(v){ return colorNorm && normalize(v.colorName||v.name||v.color||'') === colorNorm; })
+                          || variantsSnap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); })[0];
+                        if(vMatch) sizesMap = sizesMapFromVariantDoc(vMatch);
+                    }
+                    if(!sizesMap && prod && Array.isArray(prod.colors)){
+                        var cMatch = prod.colors.find(function(c){ return colorHint && normalize(c.name||'') === normalize(colorHint); }) || prod.colors[0];
+                        if(cMatch && Array.isArray(cMatch.sizes)){
+                            sizesMap = {};
+                            cMatch.sizes.forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
+                        }
+                    }
+                    _productStockMap = sizesMap || null;
+                    if(cb) cb(null, _productStockMap);
+                }).catch(function(e){ if(cb) cb(e); });
+            }catch(e){ if(cb) cb(e); }
+        });
+    }
     // AR Modal functions
     // Helper: QR image URL for a data string
     function qrImageUrlFor(data, size) {
         try { if(!data) return ''; var s = (size && Number.isFinite(Number(size))) ? Number(size) : 300; return 'https://api.qrserver.com/v1/create-qr-code/?size=' + encodeURIComponent(s + 'x' + s) + '&data=' + encodeURIComponent(String(data)); } catch (e) { return ''; }
     }
 
-    // Try to find the AR link for the current product by inspecting localStorage inventory and productId/title
+    // Try to find the AR link for the current product by using Firestore product data
     function getProductArLink() {
         try {
-            var pid = (localStorage.getItem('productId') || '').trim();
-            var title = (localStorage.getItem('productTitle') || '').trim();
-            var brand = (localStorage.getItem('productBrand') || '').trim();
-            // Prefer admin-managed inventory key if present
-            var inv = null;
-            try { inv = JSON.parse(localStorage.getItem('shoeInventoryData') || 'null'); } catch(e) { inv = null; }
-            if (!Array.isArray(inv) || !inv.length) {
-                try { inv = JSON.parse(localStorage.getItem('inventory') || '[]'); } catch(e) { inv = []; }
+            if(_currentProductDoc){
+                return _currentProductDoc.arLink || _currentProductDoc.ar_link || _currentProductDoc.arUrl || _currentProductDoc.ar_url || '';
             }
-            if (Array.isArray(inv) && inv.length) {
-                // match by id/sku first
-                if (pid) {
-                    var found = inv.find(function(p){ return String(p.id||p.sku||'').trim() === pid; });
-                    if (found) return found.arLink || found.ar_link || found.arUrl || found.ar_url || '';
-                }
-                // match by exact title/name
-                if (title) {
-                    var f2 = inv.find(function(p){ return (p.name||p.model||p.title||'').toString().trim() === title; });
-                    if (f2) return f2.arLink || f2.ar_link || f2.arUrl || f2.ar_url || '';
-                    // contains
-                    var f3 = inv.find(function(p){ return title && ((p.name||p.model||'')+'').toString().toLowerCase().indexOf(title.toLowerCase()) !== -1; });
-                    if (f3) return f3.arLink || f3.ar_link || f3.arUrl || f3.ar_url || '';
-                }
-                // match by brand fallback
-                if (brand) {
-                    var f4 = inv.find(function(p){ return (p.brand||'').toString().toLowerCase() === brand.toLowerCase(); });
-                    if (f4) return f4.arLink || f4.ar_link || f4.arUrl || f4.ar_url || '';
-                }
-            }
-        } catch (e) { console.error('getProductArLink', e); }
+        } catch (e) { /* ignore */ }
+        // fallback: attempt to fetch by context on demand (async callers use openARModal flow)
         return '';
     }
 
@@ -1857,39 +2019,12 @@ On page.</div>
             // Lookup inventory for available quantity for this product and size
             if (elStock) {
                 try {
-                    var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
-                    var title = (localStorage.getItem('productTitle') || (document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim();
-                    var brand = (localStorage.getItem('productBrand') || (document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim();
-                    var found = null;
-                    if (Array.isArray(inv) && inv.length) {
-                        // try exact name match first
-                        found = inv.find(function(i){ return (i.name||'').toString().trim() === title; });
-                        if(!found) {
-                            // try contains title
-                            found = inv.find(function(i){ return title && (i.name||'').toString().toLowerCase().indexOf(title.toLowerCase()) !== -1; });
-                        }
-                        if(!found && brand) {
-                            // fallback: match brand
-                            found = inv.find(function(i){ return (i.brand||'').toString().toLowerCase() === brand.toLowerCase(); });
-                        }
-                        // Additional fallback: try fuzzy/base-model match in case published row names differ by color/formatting.
-                        if(!found && title) {
-                            try{
-                                var normalize = function(s){ return (s||'').toString().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); };
-                                var tNorm = normalize(title);
-                                for(var ii=0; ii<inv.length && !found; ii++){
-                                    var rn = (inv[ii].name||'').toString();
-                                    var rNorm = normalize(rn);
-                                    if(!rNorm) continue;
-                                    // if either name contains the other, treat as match
-                                    if(rNorm.indexOf(tNorm) !== -1 || tNorm.indexOf(rNorm) !== -1){ found = inv[ii]; break; }
-                                }
-                            }catch(_){ }
-                        }
+                    var qty = null;
+                    if(_productStockMap && eu){
+                        qty = (_productStockMap[eu] !== undefined) ? Number(_productStockMap[eu]) : null;
                     }
 
-                        if (found && eu) {
-                        var qty = (found.sizes && (found.sizes[eu] !== undefined)) ? Number(found.sizes[eu]) : null;
+                    if (qty !== null && eu) {
                         var addBtnEl = document.querySelector('.productview-cart-btn');
                         if (qty === null) {
                             elStock.textContent = 'Stock: not available for this size';
@@ -1953,38 +2088,9 @@ On page.</div>
     }
 
     // Update the size buttons' enabled/disabled state based on inventory for this product
+    // updateSizeButtons is now handled by renderSizeButtons
     function updateSizeButtons(){
-        try{
-            var btns = document.querySelectorAll('#sizeButtons .product-size-btn');
-            if(!btns || !btns.length) return;
-            var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            var title = (localStorage.getItem('productTitle') || (document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim();
-            var brand = (localStorage.getItem('productBrand') || (document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim();
-            var found = null;
-            if (Array.isArray(inv) && inv.length) {
-                found = inv.find(function(i){ return (i.name||'').toString().trim() === title; });
-                if(!found){ found = inv.find(function(i){ return title && (i.name||'').toString().toLowerCase().indexOf(title.toLowerCase()) !== -1; }); }
-                if(!found && brand){ found = inv.find(function(i){ return (i.brand||'').toString().toLowerCase() === brand.toLowerCase(); }); }
-            }
-            btns.forEach(function(b){
-                try{
-                    var eu = b.getAttribute('data-eu');
-                    var qty = (found && found.sizes && (found.sizes[eu] !== undefined)) ? Number(found.sizes[eu]) : null;
-                            // clear previous state classes; preserve only out-of-stock marker
-                            b.classList.remove('oos');
-                            if(qty === null){
-                                b.disabled = false;
-                            } else if(qty <= 0){
-                                b.disabled = true;
-                                b.classList.add('oos');
-                            } else {
-                                // available: keep button enabled and visually neutral (black/white)
-                                b.disabled = false;
-                                // do not add 'low-stock' visual class on the button; low-stock is shown in the stocks line
-                            }
-                }catch(ee){}
-            });
-        }catch(e){}
+        if (window.renderSizeButtons) window.renderSizeButtons();
     }
 
     function renderGenderFitDisplay(raw){
@@ -2043,23 +2149,8 @@ On page.</div>
 
     function getInventoryGenderFit(overrides){
         try{
-            var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            var pid = (overrides && overrides.productId) || (localStorage.getItem('productId') || '').trim();
-            var invTitle = (overrides && overrides.title) || (localStorage.getItem('productTitle') || (document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim();
-            var invBrand = (overrides && overrides.brand) || (localStorage.getItem('productBrand') || (document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim();
-            var found = null;
-            if(Array.isArray(inv) && inv.length){
-                if(pid){
-                    found = inv.find(function(i){
-                        var iid = (i.productId || i.id || '').toString().trim();
-                        return iid && iid === pid;
-                    });
-                }
-                if(!found && invTitle){ found = inv.find(function(i){ return (i.name||'').toString().trim() === invTitle; }); }
-                if(!found && invTitle){ found = inv.find(function(i){ return invTitle && (i.name||'').toString().toLowerCase().indexOf(invTitle.toLowerCase()) !== -1; }); }
-                if(!found && invBrand){ found = inv.find(function(i){ return (i.brand||'').toString().toLowerCase() === invBrand.toLowerCase(); }); }
-            }
-            if(found) return resolveGenderFit(found);
+            if(_currentProductDoc) return resolveGenderFit(_currentProductDoc, overrides);
+            if(overrides) return resolveGenderFit(overrides);
         }catch(e){}
         return '';
     }
@@ -2071,7 +2162,7 @@ On page.</div>
         }catch(e){}
     }
 
-    // Load product data from localStorage
+    // Load product data from query params (with legacy fallbacks)
     window.addEventListener('DOMContentLoaded', function() {
         function renderRatingsUI(){
             try{
@@ -2162,11 +2253,12 @@ On page.</div>
         var modelData = null;
         try{ modelData = JSON.parse(localStorage.getItem('modelData')||'null'); }catch(e){ modelData = null; }
 
-        var brand = localStorage.getItem('productBrand');
-        var title = localStorage.getItem('productTitle');
-        var price = localStorage.getItem('productPrice');
-        var img = localStorage.getItem('productImg');
-        var badge = localStorage.getItem('productBadge');
+        var ctx = getProductContext();
+        var brand = ctx.brand;
+        var title = ctx.title;
+        var price = ctx.price;
+        var img = ctx.img;
+        var badge = ctx.badge;
         if (brand) document.getElementById('productBrand').textContent = brand;
         if (title) document.getElementById('productTitle').textContent = title;
         if (price) document.getElementById('productPrice').textContent = price;
@@ -2660,6 +2752,24 @@ On page.</div>
 
         // Hook nav cart button (remove its inline navigation and replace with open sidebar)
         document.addEventListener('DOMContentLoaded', function() {
+            try{
+                loadProductStockFromFirestore(function(){
+                    try{ updateSizeButtons(); }catch(e){}
+                    try{
+                        var selected = document.querySelector('#sizeButtons .product-size-btn.selected') || document.querySelector('#sizeButtons .product-size-btn.primary');
+                        if(selected) selectSize(selected);
+                    }catch(e){}
+                    try{
+                        if(!_productStockMap){
+                            setTimeout(function(){
+                                loadProductStockFromFirestore(function(){
+                                    try{ updateSizeButtons(); }catch(e){}
+                                });
+                            }, 800);
+                        }
+                    }catch(e){}
+                });
+            }catch(e){}
             const navCartBtn = getNavCartButton();
             if (navCartBtn) {
                 navCartBtn.removeAttribute('onclick');
@@ -2706,7 +2816,7 @@ On page.</div>
                     const priceText = (document.getElementById('productPrice') && document.getElementById('productPrice').textContent) || '';
                     const priceNum = parsePriceToNumber(priceText);
                     const image = (document.getElementById('mainShoeImg') && document.getElementById('mainShoeImg').src) || '';
-                    const productId = (localStorage.getItem('productId') || '').trim();
+                    const productId = (getProductContext().productId || '').trim();
 
                     // Persist selected EU size number (e.g. '41') in cart item
                     const prod = {
@@ -2750,6 +2860,7 @@ On page.</div>
     })();
     </script>
     <script src="js/ratings-storage.js"></script>
+    <script src="js/firebase-config.js"></script>
     <script src="cart-storage.js"></script>
 </body>
     

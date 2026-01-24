@@ -368,36 +368,45 @@
 
         function _normalizeText(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
 
+        var __productsCache = [];
+        var __productsCacheLoaded = false;
+        var __productsCacheLoading = false;
+
+        function _primeProductsCache(){
+            try{
+                if(__productsCacheLoaded || __productsCacheLoading) return;
+                if(typeof ensureFirebaseReady !== 'function') return;
+                __productsCacheLoading = true;
+                ensureFirebaseReady(function(err){
+                    if(err){ __productsCacheLoading = false; return; }
+                    try{
+                        var db = firebase.firestore();
+                        db.collection('products').get().then(function(snap){
+                            __productsCache = [];
+                            snap.forEach(function(doc){ __productsCache.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                            __productsCacheLoaded = true;
+                            __productsCacheLoading = false;
+                        }).catch(function(){ __productsCacheLoading = false; });
+                    }catch(e){ __productsCacheLoading = false; }
+                });
+            }catch(e){ __productsCacheLoading = false; }
+        }
+
         function _resolveProductIdByName(brand, title){
             try{
                 if(!title) return '';
-                var products = JSON.parse(localStorage.getItem('products')||'[]');
-                if(Array.isArray(products)){
+                var products = Array.isArray(__productsCache) ? __productsCache : [];
+                if(products.length){
                     var t = _normalizeText(title);
                     var b = _normalizeText(brand);
                     var match = products.find(function(p){
                         if(!p) return false;
-                        var pn = _normalizeText(p.name || p.title);
+                        var pn = _normalizeText(p.model || p.name || p.title);
                         if(!pn || pn !== t) return false;
                         if(!b) return true;
                         return _normalizeText(p.brand) === b;
                     });
                     if(match && match.id) return String(match.id);
-                }
-            }catch(e){}
-            try{
-                var inv = JSON.parse(localStorage.getItem('inventory')||'[]');
-                if(Array.isArray(inv)){
-                    var t2 = _normalizeText(title);
-                    var b2 = _normalizeText(brand);
-                    var match2 = inv.find(function(p){
-                        if(!p) return false;
-                        var pn = _normalizeText(p.name || p.title);
-                        if(!pn || pn !== t2) return false;
-                        if(!b2) return true;
-                        return _normalizeText(p.brand) === b2;
-                    });
-                    if(match2 && match2.id) return String(match2.id);
                 }
             }catch(e){}
             return '';
@@ -747,6 +756,7 @@
 
         window.renderOrders = renderOrders;
 
+        window.addEventListener('DOMContentLoaded', _primeProductsCache);
         window.addEventListener('DOMContentLoaded', renderOrders);
         // If URL has ?open=<orderId>, open that order modal by finding its index
         window.addEventListener('DOMContentLoaded', function(){
