@@ -267,3 +267,77 @@ Starting simulation for order SP1769252424625426 route: [
   'Arrived at QUEZON CITY',
   '78 Silverlane Avenue'
 ] starting at step index 1
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769257057390260',
+  user_id: '2t7KoGmsNEPrzqV2jQcld0Ve3nm2',
+  status: 'Pending payment',
+  total: '1464',
+  shipping_fee: '165',
+  discount: '0',
+  payment_method: 'cod',
+  created_at: '2026-01-24T12:17:42.112Z',
+  delivery_address: '78 Silverlane Avenue, SILVERLAND VILLAGE, BRGY Pasong Tamo, Pasong Tamo, Quezon City, National Capital Region (NCR)',
+  recipient_name: 'Uriel De Leon',
+  recipient_phone: '',
+  courier_name: 'J&T Express',
+  tracking_number: 'TRKMKS9Z27E1HE4'
+}
+Starting simulation for order SP1769257057390260 route: [
+  'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3 , Bacoor, Philippines, 4102',
+  'Caloocan Local Hub - Loaded Truck',
+  'QUEZON CITY Sorting Center',
+  'Arrived at QUEZON CITY',
+  '78 Silverlane Avenue'
+] starting at step index 1
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769259821540877',
+  user_id: '2t7KoGmsNEPrzqV2jQcld0Ve3nm2',
+  status: 'Pending payment',
+  total: '2560',
+  shipping_fee: '165',
+  discount: '0',
+  payment_method: 'cod',
+  created_at: '2026-01-24T13:03:46.573Z',
+  delivery_address: '78 Silverlane Avenue, SILVERLAND VILLAGE, BRGY Pasong Tamo, Pasong Tamo, Quezon City, National Capital Region (NCR)',
+  recipient_name: 'Uriel De Leon',
+  recipient_phone: '',
+  courier_name: 'JRS',
+  tracking_number: 'TRKMKSBMBA1N0W'
+}
+Starting simulation for order SP1769259821540877 route: [
+  'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3 , Bacoor, Philippines, 4102',
+  'Caloocan Local Hub - Loaded Truck',
+  'QUEZON CITY Sorting Center',
+  'Arrived at QUEZON CITY',
+  '78 Silverlane Avenue'
+] starting at step index 1
