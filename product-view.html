@@ -1748,6 +1748,21 @@ On page.</div>
 
     function getSelectedVariantColor(){
         try{
+            if(window._selectedVariantColor){
+                return String(window._selectedVariantColor);
+            }
+            var selSwatch = document.querySelector('.productview-color-swatch.selected');
+            if(selSwatch){
+                var title = (selSwatch.getAttribute('title') || selSwatch.title || '').trim();
+                if(title) return title;
+                try{
+                    var item = selSwatch.closest('.productview-color-item');
+                    if(item){
+                        var lbl = item.querySelector('.productview-color-name');
+                        if(lbl && lbl.textContent) return lbl.textContent.trim();
+                    }
+                }catch(e){}
+            }
             var ctx = getProductContext();
             var title = (ctx.title || '').trim();
             var modelData = null;
@@ -1989,6 +2004,18 @@ On page.</div>
                 var m = txt.match(/\d+(?:\.\d+)?/);
                 eu = m ? m[0] : null;
             }
+
+            // Update size button selected state (for dynamically-rendered buttons)
+            try {
+                if (el && el.classList && el.classList.contains('product-size-btn')) {
+                    document.querySelectorAll('#sizeButtons .product-size-btn').forEach(function(btn){
+                        btn.classList.remove('primary');
+                        btn.classList.add('ghost');
+                    });
+                    el.classList.remove('ghost');
+                    el.classList.add('primary');
+                }
+            } catch (e) { /* ignore */ }
 
             var conv = {
                 '36': '5',
@@ -2294,6 +2321,10 @@ On page.</div>
                     localStorage.setItem('productPrice', formatPrice(variant.price||0));
                     localStorage.setItem('productImg', variant.image || '');
                     localStorage.setItem('productId', variant.id || '');
+                    if(variant && variant.color){
+                        localStorage.setItem('productColor', String(variant.color));
+                        window._selectedVariantColor = String(variant.color);
+                    }
                 }catch(e){}
                 // Update UI
                 var bEl = document.getElementById('productBrand'); if(bEl) bEl.textContent = modelData.brand||'';
@@ -2322,9 +2353,17 @@ On page.</div>
                 }catch(_){ }
                 // Update non-selectable gender fit display for this variant (inventory first)
                 try{ renderInventoryGenderFit(resolveGenderFit(variant, modelData)); }catch(e){}
-                updateSizeButtons();
-                var sel = document.querySelector('#sizeButtons .product-size-btn.primary');
-                if(sel) selectSize(sel); else { var stockEl = document.getElementById('sizeStock'); if(stockEl) stockEl.textContent=''; var convEl=document.getElementById('sizeConversion'); if(convEl) convEl.textContent='Select a size to see the US equivalent.'; }
+                try{
+                    loadProductStockFromFirestore(function(){
+                        updateSizeButtons();
+                        var sel = document.querySelector('#sizeButtons .product-size-btn.primary');
+                        if(sel) selectSize(sel); else { var stockEl = document.getElementById('sizeStock'); if(stockEl) stockEl.textContent=''; var convEl=document.getElementById('sizeConversion'); if(convEl) convEl.textContent='Select a size to see the US equivalent.'; }
+                    });
+                }catch(e){
+                    updateSizeButtons();
+                    var selFallback = document.querySelector('#sizeButtons .product-size-btn.primary');
+                    if(selFallback) selectSize(selFallback); else { var stockEl2 = document.getElementById('sizeStock'); if(stockEl2) stockEl2.textContent=''; var convEl2=document.getElementById('sizeConversion'); if(convEl2) convEl2.textContent='Select a size to see the US equivalent.'; }
+                }
                 try{ renderRatingsUI(); }catch(e){}
             }
             function setMainImageSrc(src){
@@ -2367,6 +2406,13 @@ On page.</div>
                     // set selected state
                     document.querySelectorAll('.productview-color-swatch').forEach(function(x){ x.classList.remove('selected'); });
                     sw.classList.add('selected');
+                    try{
+                        var selColor = v.color || sw.title || (lbl && lbl.textContent) || '';
+                        if(selColor){
+                            window._selectedVariantColor = String(selColor);
+                            localStorage.setItem('productColor', String(selColor));
+                        }
+                    }catch(e){}
                     selectedIndex = idx;
                     applyVariant(v);
                 });
