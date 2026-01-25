@@ -1460,9 +1460,7 @@
         <div class="productview-reviews-divider"></div>
         <div class="productview-reviews-center" id="ratingsBreakdown"></div>
         <div class="productview-reviews-divider"></div>
-        <div class="productview-reviews-right">
-            <button class="productview-review-btn" id="writeReviewBtn" type="button">Write a Review</button>
-        </div>
+        <div class="productview-reviews-right"></div>
     </div>
     <div class="productview-section-divider"></div>
     <div class="productview-recommend-header">You may also like</div>
@@ -1860,6 +1858,7 @@ On page.</div>
                 }).then(function(res){
                     var prod = res[0];
                     _currentProductDoc = prod || null;
+                    try{ renderInventoryDescription(_currentProductDoc); }catch(e){}
                     var variantsSnap = res[1];
                     var sizesMap = null;
                     if(variantsSnap && variantsSnap.docs){
@@ -2189,6 +2188,32 @@ On page.</div>
         }catch(e){}
     }
 
+    function _formatInventoryDescription(doc){
+        try{
+            if(!doc) return '';
+            var desc = doc.description || doc.desc || doc.details || doc.productDescription || doc.productDesc || doc.summary || doc.blurb || '';
+            if(Array.isArray(desc)) desc = desc.join('\n');
+            if(desc && typeof desc === 'object'){
+                desc = desc.html || desc.text || '';
+            }
+            desc = String(desc || '').trim();
+            if(!desc) return '';
+            if(desc.indexOf('<') === -1) return desc.replace(/\n+/g, '<br>');
+            return desc;
+        }catch(e){ return ''; }
+    }
+
+    function renderInventoryDescription(doc){
+        try{
+            var el = document.getElementById('productDesc');
+            if(!el) return false;
+            var html = _formatInventoryDescription(doc);
+            if(!html) return false;
+            el.innerHTML = html;
+            return true;
+        }catch(e){ return false; }
+    }
+
     // Load product data from query params (with legacy fallbacks)
     window.addEventListener('DOMContentLoaded', function() {
         function renderRatingsUI(){
@@ -2203,11 +2228,57 @@ On page.</div>
                 var keyPrimary = api.getProductKey({ productId: productId, brand: brand, title: title });
                 var keyFallback = api.getProductKey({ brand: brand, title: title });
 
+                function normText(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
+                function clampStars(v){ var s = Math.round(Number(v)||0); if(!isFinite(s) || s<=0) return 0; return Math.max(1, Math.min(5, s)); }
+                function summarizeList(list){
+                    var breakdown = {1:0,2:0,3:0,4:0,5:0};
+                    var sum = 0;
+                    var count = 0;
+                    (list || []).forEach(function(r){
+                        var s = clampStars(r && r.stars);
+                        if(!s) return;
+                        sum += s;
+                        count += 1;
+                        breakdown[s] = (breakdown[s] || 0) + 1;
+                    });
+                    return { avg: count ? (sum / count) : 0, count: count, breakdown: breakdown };
+                }
+
                 var key = keyPrimary;
                 var summary = api.getSummary(key);
+                var listForRecent = api.getRatings(key);
                 if(summary.count === 0 && keyFallback && keyFallback !== keyPrimary){
                     var s2 = api.getSummary(keyFallback);
-                    if(s2 && s2.count > 0){ key = keyFallback; summary = s2; }
+                    if(s2 && s2.count > 0){ key = keyFallback; summary = s2; listForRecent = api.getRatings(key); }
+                }
+                if(summary.count === 0 && (brand || title) && typeof api.getAllRatings === 'function'){
+                    try{
+                        var all = api.getAllRatings() || {};
+                        var matchList = [];
+                        var nBrand = normText(brand);
+                        var nTitle = normText(title);
+                        Object.keys(all).forEach(function(k){
+                            (all[k] || []).forEach(function(r){
+                                if(!r) return;
+                                var rb = normText(r.brand);
+                                var rt = normText(r.title);
+                                if((nBrand && rb && rb === nBrand) || (nTitle && rt && rt === nTitle)){
+                                    if(nBrand && rb && rb !== nBrand) return;
+                                    if(nTitle && rt && rt !== nTitle) return;
+                                    matchList.push(r);
+                                }
+                            });
+                        });
+                        if(matchList.length){
+                            matchList.sort(function(a,b){
+                                var da = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                                var db = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                                return db - da;
+                            });
+                            summary = summarizeList(matchList);
+                            listForRecent = matchList;
+                        }
+                    }catch(e){}
                 }
                 var avg = summary.count ? summary.avg : 0;
                 var avgFixed = summary.count ? avg.toFixed(2) : '0.00';
@@ -2224,7 +2295,7 @@ On page.</div>
 
                 var recent = document.getElementById('ratingsRecent');
                 if(recent){
-                    var list = api.getRatings(key).slice(0,2);
+                    var list = (listForRecent || []).slice(0,2);
                     function toFirstName(nameOrEmail){
                         if(!nameOrEmail) return 'Customer';
                         var raw = String(nameOrEmail).trim();
@@ -2319,7 +2390,9 @@ On page.</div>
                     localStorage.setItem('productBrand', modelData.brand||'');
                     localStorage.setItem('productTitle', variant.name || ((modelData.baseName||'') + (variant.color?(' '+variant.color):'')) );
                     localStorage.setItem('productPrice', formatPrice(variant.price||0));
-                    localStorage.setItem('productImg', variant.image || '');
+                    var imgList = Array.isArray(variant.images) ? variant.images.filter(Boolean) : [];
+                    var primaryImg = imgList.length ? imgList[0] : (variant.image || '');
+                    localStorage.setItem('productImg', primaryImg || '');
                     localStorage.setItem('productId', variant.id || '');
                     if(variant && variant.color){
                         localStorage.setItem('productColor', String(variant.color));
@@ -2330,9 +2403,14 @@ On page.</div>
                 var bEl = document.getElementById('productBrand'); if(bEl) bEl.textContent = modelData.brand||'';
                 var tEl = document.getElementById('productTitle'); if(tEl) tEl.textContent = localStorage.getItem('productTitle')||variant.name||'';
                 var pEl = document.getElementById('productPrice'); if(pEl) pEl.textContent = formatPrice(variant.price||0);
-                if(variant.image){ setMainImageSrc(variant.image); }
-                // update thumbnails to use same image for now
-                document.querySelectorAll('.productview-thumb').forEach(function(th){ th.src = variant.image || th.src; });
+                var variantImages = Array.isArray(variant.images) ? variant.images.filter(Boolean) : [];
+                if(!variantImages.length && variant.image) variantImages = [variant.image];
+                if(variantImages[0]){ setMainImageSrc(variantImages[0]); }
+                // update thumbnails to use variant images when available
+                document.querySelectorAll('.productview-thumb').forEach(function(th, idx){
+                    if(variantImages[idx]) th.src = variantImages[idx];
+                    else if(variantImages[0]) th.src = variantImages[0];
+                });
                 // flip for Nike
                 try {
                     var mEl = document.getElementById('mainShoeImg');
@@ -2400,7 +2478,7 @@ On page.</div>
                 sw.type = 'button';
                 sw.className = 'productview-color-swatch';
                 sw.title = v.color || v.name || 'Color';
-                var imgEl = document.createElement('img'); imgEl.alt = v.color||'color'; imgEl.src = v.image || 'IMAGE/NIKE1.png';
+                var imgEl = document.createElement('img'); imgEl.alt = v.color||'color'; imgEl.src = (v.images && v.images[0]) ? v.images[0] : (v.image || 'IMAGE/NIKE1.png');
                 sw.appendChild(imgEl);
                 sw.addEventListener('click', function(){
                     // set selected state
@@ -2417,7 +2495,11 @@ On page.</div>
                     applyVariant(v);
                 });
                 // pause shuffle and preview on swatch hover
-                sw.addEventListener('mouseenter', function(){ stopVariantShuffle(); setMainImageSrc(v.image || imgEl.src); });
+                sw.addEventListener('mouseenter', function(){
+                    var hoverImg = (v.images && v.images[0]) ? v.images[0] : (v.image || imgEl.src);
+                    stopVariantShuffle();
+                    setMainImageSrc(hoverImg);
+                });
                 sw.addEventListener('mouseleave', function(){ if((centerEl && centerEl.matches(':hover')) || colorRow.matches(':hover')) startVariantShuffle(); else stopVariantShuffle(); });
                 var lbl = document.createElement('div'); lbl.className = 'productview-color-name'; lbl.textContent = v.color || (function(){ var nm = (v.name||'').toString(); var col=(v.color||'').toString(); try{ if(col){ var esc = col.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); var re = new RegExp('\\s*' + esc + '\\s*$', 'i'); return nm.replace(re,'').trim(); } }catch(_){} return nm; })();
                 item.appendChild(sw);
@@ -2438,10 +2520,18 @@ On page.</div>
                 shuffleTimer = setInterval(function(){
                     shuffleIdx = (shuffleIdx + 1) % modelData.variants.length;
                     var vv = modelData.variants[shuffleIdx];
-                    setMainImageSrc(vv.image || '');
+                    var vvImg = (vv.images && vv.images[0]) ? vv.images[0] : (vv.image || '');
+                    setMainImageSrc(vvImg || '');
                 }, 1200);
             }
-            function stopVariantShuffle(){ if(shuffleTimer){ clearInterval(shuffleTimer); shuffleTimer = null; } try{ var vv = modelData.variants[selectedIndex]; setMainImageSrc((vv && vv.image) ? vv.image : (document.getElementById('mainShoeImg')||{}).src); }catch(_){} }
+            function stopVariantShuffle(){
+                if(shuffleTimer){ clearInterval(shuffleTimer); shuffleTimer = null; }
+                try{
+                    var vv = modelData.variants[selectedIndex];
+                    var vvImg = (vv && vv.images && vv.images[0]) ? vv.images[0] : ((vv && vv.image) ? vv.image : (document.getElementById('mainShoeImg')||{}).src);
+                    setMainImageSrc(vvImg || (document.getElementById('mainShoeImg')||{}).src);
+                }catch(_){}
+            }
             if(centerEl){ centerEl.addEventListener('mouseenter', startVariantShuffle); centerEl.addEventListener('mouseleave', stopVariantShuffle); }
             colorRow.addEventListener('mouseenter', startVariantShuffle);
             colorRow.addEventListener('mouseleave', stopVariantShuffle);
@@ -2485,7 +2575,11 @@ On page.</div>
         // Optionally update badge
         // Description
         if (title && !modelData) {
-            document.getElementById('productDesc').innerHTML = title + '<br>With Free Socks<br>Sizes: 41 42 43 44 45 / 8 8.5 9.5 10 11 US<br><span style="font-weight:600;">MENS</span>';
+            var usedInventoryDesc = false;
+            try{ usedInventoryDesc = renderInventoryDescription(_currentProductDoc); }catch(e){ usedInventoryDesc = false; }
+            if(!usedInventoryDesc){
+                document.getElementById('productDesc').innerHTML = title + '<br>With Free Socks<br>Sizes: 41 42 43 44 45 / 8 8.5 9.5 10 11 US<br><span style="font-weight:600;">MENS</span>';
+            }
         }
 
         // initial ratings render (non-variant pages)
@@ -2528,17 +2622,6 @@ On page.</div>
             }
         }catch(e){}
     })();
-    // If inventory is changed in another tab or by admin, refresh displayed stock for selected size
-    window.addEventListener('storage', function(e){
-        try {
-            if (e.key === 'inventory') {
-                // refresh size buttons availability and re-run select logic for current selection
-                updateSizeButtons();
-                var btn = document.querySelector('#sizeButtons .product-size-btn.primary');
-                if (btn) selectSize(btn);
-            }
-        } catch (ex) { }
-    });
     </script>
 
     <!-- ===== ADDED: Cart Sidebar Behavior (necessary additions) ===== -->
@@ -2759,7 +2842,7 @@ On page.</div>
                                 var incRes = window.tryIncrementCartItem(cart, idx);
                                 if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                     if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                    else alert('Maximum of 3 pairs of shoes per order.');
+                                    else alert('Maximum of 3 items per order allowed.');
                                     return;
                                 }
                                 if (incRes && incRes.success === false && incRes.reason === 'max_reached') {
@@ -2889,7 +2972,7 @@ On page.</div>
                             var msg = 'Unable to add to cart.';
                             if (res && res.reason === 'out_of_stock') msg = 'This size is out of stock.';
                             else if (res && res.reason === 'max_reached') msg = 'You can only add up to ' + (res.maxAllowed || 1) + ' of this size.';
-                            else if (res && res.reason === 'max_pairs') msg = 'Maximum of 3 pairs of shoes per order.';
+                            else if (res && res.reason === 'max_pairs') msg = 'Maximum of 3 items per order allowed.';
                             if (elStock) { elStock.style.color = '#b71c1c'; elStock.textContent = msg; }
                             else alert(msg);
                         }
