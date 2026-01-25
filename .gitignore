@@ -21,3 +21,7 @@ node_modules/
 serviceAccountKey.json
 shoe-pao-storage.json
 service-account.json
+*.db-wal
+*.db-shm
+data/*.db-wal
+data/*.db-shm
