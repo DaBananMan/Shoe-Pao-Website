@@ -13,6 +13,126 @@ function getCart() {
     return JSON.parse(localStorage.getItem('cart') || '[]');
 }
 
+var MAX_PAIRS_PER_ORDER = 3;
+
+// In-memory inventory rows cache (from Firestore products/variants)
+var __inventoryRowsCache = [];
+var __inventoryRowsLoaded = false;
+var __inventoryRowsLoading = false;
+
+function refreshInventoryRowsCache(){
+    try{
+        if(__inventoryRowsLoading) return;
+        if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return;
+        if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+        __inventoryRowsLoading = true;
+        var db = firebase.firestore();
+        Promise.all([db.collection('products').get(), db.collection('variants').get()])
+            .then(function(res){
+                var products = [];
+                res[0].forEach(function(doc){ products.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                var variants = [];
+                res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                var map = {};
+                variants.forEach(function(v){
+                    var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || null;
+                    if(!pid) return;
+                    map[pid] = map[pid] || [];
+                    map[pid].push({
+                        id: v.id || ('color-' + Math.random().toString(36).slice(2,9)),
+                        name: v.colorName || v.name || v.color || 'Color',
+                        code: v.colorCode || v.code || '#ffffff',
+                        sizes: Array.isArray(v.sizes) ? v.sizes : []
+                    });
+                });
+                __inventoryRowsCache = [];
+                products.forEach(function(p){
+                    var pid = p.id || p.productId || p.sku || '';
+                    var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors : (map[pid] || []);
+                    var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : (p.image || '');
+                    (colorsArr || []).forEach(function(c){
+                        var sizesMap = {};
+                        (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
+                        __inventoryRowsCache.push({
+                            id: (p.sku || p.id || '') + ':' + (c.id || c.name || ''),
+                            productId: p.id || '',
+                            name: (p.model || p.name || '') + (c.name ? (' ' + c.name) : ''),
+                            brand: p.brand || '',
+                            color: c.name || '',
+                            image: baseImg || '',
+                            sizes: sizesMap,
+                            price: Number((p.pricing && (p.pricing.sale || p.pricing.original)) || p.price || 0),
+                            originalPrice: Number((p.pricing && p.pricing.original) || p.originalPrice || 0),
+                            gender: p.gender || ''
+                        });
+                    });
+                });
+                __inventoryRowsLoaded = true;
+                __inventoryRowsLoading = false;
+            })
+            .catch(function(){ __inventoryRowsLoading = false; });
+    }catch(e){ __inventoryRowsLoading = false; }
+}
+
+function getInventoryRowsCache(){
+    if(!__inventoryRowsLoaded && !__inventoryRowsLoading){ refreshInventoryRowsCache(); }
+    return Array.isArray(__inventoryRowsCache) ? __inventoryRowsCache : [];
+}
+
+function getCartTotalPairs(cart){
+    try{
+        cart = Array.isArray(cart) ? cart : getCart();
+        var total = 0;
+        cart.forEach(function(item){
+            var qty = (typeof item.qty === 'number') ? item.qty : ((typeof item.quantity === 'number') ? item.quantity : 1);
+            total += Number(qty) || 0;
+        });
+        return total;
+    }catch(e){ return 0; }
+}
+
+function showMaxPairsMessage(){
+    try{ alert('Maximum of 3 pairs of shoes per order.'); }catch(e){}
+}
+
+function canAddPairs(cart, addQty){
+    try{
+        var total = getCartTotalPairs(cart);
+        var inc = Number(addQty || 0) || 0;
+        return (total + inc) <= MAX_PAIRS_PER_ORDER;
+    }catch(e){ return false; }
+}
+
+function tryIncrementCartItem(cart, idx){
+    try{
+        cart = Array.isArray(cart) ? cart : getCart();
+        if(!cart[idx]) return { success:false, reason:'invalid_index' };
+        try{
+            var item = cart[idx];
+            var current = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
+            var maxAllowed = (window.getMaxAllowedForProduct && typeof window.getMaxAllowedForProduct === 'function') ? window.getMaxAllowedForProduct(item) : Number.POSITIVE_INFINITY;
+            if(Number.isFinite(maxAllowed) && current >= maxAllowed){
+                return { success:false, reason:'max_reached', maxAllowed: maxAllowed };
+            }
+        }catch(e){}
+        if(!canAddPairs(cart, 1)) return { success:false, reason:'max_pairs' };
+        if(typeof cart[idx].qty === 'number') cart[idx].qty++;
+        else if(typeof cart[idx].quantity === 'number') cart[idx].quantity++;
+        else cart[idx].qty = (cart[idx].qty || cart[idx].quantity || 1) + 1;
+        return { success:true };
+    }catch(e){ return { success:false, reason:'error' }; }
+}
+
+function tryDecrementCartItem(cart, idx){
+    try{
+        cart = Array.isArray(cart) ? cart : getCart();
+        if(!cart[idx]) return { success:false, reason:'invalid_index' };
+        if(typeof cart[idx].qty === 'number') { if(cart[idx].qty > 1) cart[idx].qty--; }
+        else if(typeof cart[idx].quantity === 'number') { if(cart[idx].quantity > 1) cart[idx].quantity--; }
+        return { success:true };
+    }catch(e){ return { success:false, reason:'error' }; }
+}
+
 function saveCart(cart) {
     try{
         if(Array.isArray(cart) && cart.length === 0){
@@ -24,6 +144,7 @@ function saveCart(cart) {
     try{
         localStorage.setItem('checkoutCartSnapshot', JSON.stringify(Array.isArray(cart) ? cart : []));
     }catch(e){}
+    try{ window.dispatchEvent(new CustomEvent('cart:updated', { detail: { cart: Array.isArray(cart) ? cart : [] } })); }catch(e){}
 }
 
 function addToCart(product) {
@@ -59,6 +180,10 @@ function addToCart(product) {
     try {
         var cart = getCart();
         var maxAllowed = getMaxAllowedForProduct(product);
+        var incomingQty = product.qty || product.quantity || 1;
+        if (!canAddPairs(cart, incomingQty)) {
+            return { success: false, reason: 'max_pairs', maxPairs: MAX_PAIRS_PER_ORDER };
+        }
         // If product stock is 0 and not marked pre-order, don't add
         if (maxAllowed === 0 && !product.preOrder) {
             return { success: false, reason: 'out_of_stock' };
@@ -87,8 +212,13 @@ function addToCart(product) {
         });
         if (found) {
             var current = (found.qty || found.quantity || 1);
-            var incoming = product.qty || product.quantity || 1;
+            var incoming = incomingQty;
             var newQty = current + incoming;
+            var totalPairs = getCartTotalPairs(cart);
+            var totalIfAdded = totalPairs - current + newQty;
+            if (totalIfAdded > MAX_PAIRS_PER_ORDER) {
+                return { success: false, reason: 'max_pairs', maxPairs: MAX_PAIRS_PER_ORDER };
+            }
             if (newQty > maxAllowed) {
                 found.qty = maxAllowed;
                 saveCart(cart);
@@ -101,7 +231,7 @@ function addToCart(product) {
                 try{ if(!found.inventoryId && product.inventoryId) found.inventoryId = product.inventoryId; }catch(e){}
             }
         } else {
-            var incoming = product.qty || product.quantity || 1;
+            var incoming = incomingQty;
             if (incoming > maxAllowed) product.qty = maxAllowed;
             // Ensure new cart item carries the inventoryId when available
             try{ if(!product.inventoryId){ var _m = findInventoryItemForProduct(product); if(_m && _m.id) product.inventoryId = _m.id; } }catch(e){}
@@ -126,7 +256,7 @@ function addToCart(product) {
 // Find inventory item matching a product (by id, name exact, contains title, or brand)
 function findInventoryItemForProduct(product) {
     try {
-        var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+        var inv = getInventoryRowsCache();
         if (!Array.isArray(inv) || inv.length === 0) return null;
         // prefer id match
         if (product.id) {
@@ -205,6 +335,11 @@ function getCartTotals(cart) {
 // expose helpers globally
 window.computePackagingFee = computePackagingFee;
 window.getCartTotals = getCartTotals;
+window.getCartTotalPairs = getCartTotalPairs;
+window.tryIncrementCartItem = tryIncrementCartItem;
+window.tryDecrementCartItem = tryDecrementCartItem;
+window.showMaxPairsMessage = showMaxPairsMessage;
+window.MAX_PAIRS_PER_ORDER = MAX_PAIRS_PER_ORDER;
 
 // Update any cart sidebar UI elements if present on the page.
 function renderCartSidebarUI(){
@@ -360,6 +495,7 @@ function clearAccountLocalDataByEmail(email){
             var orders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
             var filtered = orders.filter(function(o){ var candidates = [o.email, o.customerEmail, (o.profile && o.profile.email), (o.customer && o.customer.email)]; return !candidates.some(function(c){ return (c||'').toLowerCase() === (email||'').toLowerCase(); }); });
             localStorage.setItem('orders', JSON.stringify(filtered));
+            try{ localStorage.setItem('client_orders', JSON.stringify((JSON.parse(localStorage.getItem('client_orders')||'[]')||[]).filter(function(o){ var candidates = [o.email, o.customerEmail, (o.profile && o.profile.email), (o.customer && o.customer.email)]; return !candidates.some(function(c){ return (c||'').toLowerCase() === (email||'').toLowerCase(); }); }))); }catch(e){}
         }catch(e){}
         // Remove cart if it appears to belong to the deleted user (best-effort: compare profile email to cart owner if stored)
         try{
@@ -611,7 +747,7 @@ function openCartItemEditor(index){
                 var invItem = null;
                 try{
                     // Prefer direct inventoryId on the cart item (added at add-time) for exact lookup.
-                    var invAllProbe = JSON.parse(localStorage.getItem('inventory') || '[]');
+                    var invAllProbe = getInventoryRowsCache();
                     if(item && item.inventoryId){
                         try{ invItem = invAllProbe.find(function(x){ return x && x.id && String(x.id) === String(item.inventoryId); }); }catch(e){}
                     }
@@ -636,7 +772,7 @@ function openCartItemEditor(index){
                 // shows every color/row that exists in the inventory for this model. This covers
                 // two common patterns: (A) variants array inside a single inventory row, and
                 // (B) multiple inventory rows (one per color) that share the same name/model.
-                var invAll = JSON.parse(localStorage.getItem('inventory') || '[]');
+                var invAll = getInventoryRowsCache();
                 var matchedRows = [];
                 try{
                     var norm = function(s){ return (String(s||'').trim().toLowerCase()); };
@@ -699,7 +835,7 @@ function openCartItemEditor(index){
             } else {
                 try{ modal._colorsSource = 'fallback'; }catch(e){}
                 // Fallback: scan inventory but be conservative: prefer exact name or id matches only
-                var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+                var inv = getInventoryRowsCache();
                 inv.forEach(function(r){
                     if(!r) return;
                     var added = false;
@@ -969,3 +1105,6 @@ window.getMaxAllowedForProduct = getMaxAllowedForProduct;
 window.findInventoryItemForProduct = findInventoryItemForProduct;
 window.renderCartSidebarItems = renderCartSidebarItems;
 window.openCartItemEditor = openCartItemEditor;
+
+// Prime inventory cache when possible
+try{ refreshInventoryRowsCache(); }catch(e){}

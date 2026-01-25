@@ -313,7 +313,7 @@
                 </label>
                 <label class="address-field">
                     <span class="address-label">Postal code</span>
-                    <input id="profilePostalInput" type="text" placeholder="e.g. 1118" />
+                    <input id="profilePostalInput" type="text" placeholder="e.g. 1118" maxlength="4" inputmode="numeric" pattern="\d{4}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)" />
                 </label>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
@@ -868,7 +868,7 @@
             }catch(err){ /* ignore users update errors */ }
             // Backfill existing orders that don't have a customerName
             try{
-                var orders = JSON.parse(localStorage.getItem('orders') || '[]');
+                var orders = JSON.parse(localStorage.getItem('client_orders') || '[]');
                 var updated = 0;
                 if(Array.isArray(orders) && orders.length){
                     for(var i=0;i<orders.length;i++){
@@ -877,7 +877,7 @@
                             updated++;
                         }
                     }
-                    if(updated>0) localStorage.setItem('orders', JSON.stringify(orders));
+                    if(updated>0) localStorage.setItem('client_orders', JSON.stringify(orders));
                 }
             }catch(err){/* ignore orders parse errors */}
             alert('Profile saved!' + (typeof updated !== 'undefined' && updated>0 ? ('\nBackfilled ' + updated + ' existing order(s)') : ''));
@@ -1214,8 +1214,12 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        if (cart[idx].quantity > 1) {
-                            cart[idx].quantity--;
+                        if (window.tryDecrementCartItem) {
+                            window.tryDecrementCartItem(cart, idx);
+                        } else {
+                            if (cart[idx].quantity > 1) {
+                                cart[idx].quantity--;
+                            }
                         }
                         renderCart();
                         saveCartToLocalStorage();
@@ -1226,7 +1230,16 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        cart[idx].quantity++;
+                        if (window.tryIncrementCartItem) {
+                            var incRes = window.tryIncrementCartItem(cart, idx);
+                            if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                else alert('Maximum of 3 pairs of shoes per order.');
+                                return;
+                            }
+                        } else {
+                            cart[idx].quantity++;
+                        }
                         renderCart();
                         saveCartToLocalStorage();
                     }

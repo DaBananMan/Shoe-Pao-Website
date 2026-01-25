@@ -20,3 +20,4 @@ Firebase/*.json
 node_modules/
 serviceAccountKey.json
 shoe-pao-storage.json
+service-account.json

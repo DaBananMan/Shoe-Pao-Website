@@ -123,6 +123,20 @@
         .productview-color-swatch.selected { border-color:#222; box-shadow:0 0 0 2px #2222 }
         .productview-color-item { display:flex; flex-direction:column; align-items:center; gap:4px }
         .productview-color-name { font-size:0.85rem; color:#444; max-width:78px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+        .gender-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #222;
+            background: #fff;
+            pointer-events: none;
+            user-select: none;
+        }
         .productview-price {
             font-size: 1.25rem;
             font-weight: 600;
@@ -1368,25 +1382,56 @@
                 </div>
             <div class="productview-size-label">Select Size</div>
             <div class="productview-size-row">
-                <div id="sizeButtons" style="display:flex;flex-wrap:wrap;gap:8px;">
-                    <button type="button" class="btn ghost product-size-btn" data-eu="36">36 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="37">37 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="38">38 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="39">39 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="40">40 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="41">41 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="42">42 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="43">43 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="44">44 EU</button>
-                    <button type="button" class="btn ghost product-size-btn" data-eu="45">45 EU</button>
-                </div>
+                <div id="sizeButtons" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
             </div>
+        <!-- JS for rendering only added sizes for the selected variant, including 0-stock (grayed out) -->
+        <script>
+        (function(){
+            function renderSizeButtons() {
+                var sizeButtons = document.getElementById('sizeButtons');
+                if (!sizeButtons) return;
+                sizeButtons.innerHTML = '';
+                var sizesMap = window._productStockMap;
+                if (!sizesMap || Object.keys(sizesMap).length === 0) {
+                    sizeButtons.innerHTML = '<span style="color:#888;font-size:1.05rem;">No sizes available for this color.</span>';
+                    return;
+                }
+                Object.keys(sizesMap).sort(function(a,b){return Number(a)-Number(b);}).forEach(function(eu) {
+                    var stock = sizesMap[eu];
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'btn ghost product-size-btn';
+                    btn.setAttribute('data-eu', eu);
+                    btn.textContent = eu + ' EU';
+                    if (stock <= 0) {
+                        btn.disabled = true;
+                        btn.classList.add('oos');
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                    }
+                    btn.addEventListener('click', function() { selectSize(btn); });
+                    sizeButtons.appendChild(btn);
+                });
+            }
+            // Patch loadProductStockFromFirestore to re-render size buttons after loading
+            var origLoadProductStockFromFirestore = window.loadProductStockFromFirestore;
+            window.loadProductStockFromFirestore = function(cb) {
+                origLoadProductStockFromFirestore(function(err, map) {
+                    if (!err) renderSizeButtons();
+                    if (cb) cb(err, map);
+                });
+            };
+            // If _productStockMap is already loaded, render immediately
+            if (window._productStockMap) renderSizeButtons();
+            // Also re-render on color/variant change if you have such logic (add hooks as needed)
+            window.renderSizeButtons = renderSizeButtons;
+        })();
+        </script>
             <div class="productview-size-conversion" id="sizeConversion">Select a size to see the US equivalent.</div>
             <div id="sizeStock" class="productview-size-stock"></div>
             <div class="productview-action-row">
                 <button class="productview-cart-btn">Add to Cart</button>
                     <button class="productview-wishlist productview-icon" id="wishlistBtn" title="Add to Wishlist"><img src="IMAGE/WISHLISTICON.png" alt="Wishlist" style="width:54px;height:54px;object-fit:contain;"></button>
-                    <button class="productview-review-icon productview-icon" id="reviewBtn" title="Write a Review" onclick="scrollToReviews()"><img src="IMAGE/REVIEWICON.jpg" alt="Review" style="width:54px;height:54px;object-fit:contain;"></button>
                 <div id="wishlistPopup" class="wishlist-popup">Added to Wishlist!</div>
             </div>
             <div class="productview-divider"></div>
@@ -1544,19 +1589,19 @@ On page.</div>
                 <div style="font-weight:700;font-size:12px;color:#444;margin-bottom:6px;">Mens</div>
                 <table>
                     <thead>
-                        <tr><th>EU</th><th>US</th></tr>
+                        <tr><th>EU</th><th>US</th><th>CM</th></tr>
                     </thead>
                     <tbody>
-                        <tr class="sg-row" data-eu="36"><td>36</td><td>5</td></tr>
-                        <tr class="sg-row" data-eu="37"><td>37</td><td>5.5</td></tr>
-                        <tr class="sg-row" data-eu="38"><td>38</td><td>6.5</td></tr>
-                        <tr class="sg-row" data-eu="39"><td>39</td><td>7</td></tr>
-                        <tr class="sg-row" data-eu="40"><td>40</td><td>7.5</td></tr>
-                        <tr class="sg-row" data-eu="41"><td>41</td><td>8</td></tr>
-                        <tr class="sg-row" data-eu="42"><td>42</td><td>8.5</td></tr>
-                        <tr class="sg-row" data-eu="43"><td>43</td><td>9.5</td></tr>
-                        <tr class="sg-row" data-eu="44"><td>44</td><td>10</td></tr>
-                        <tr class="sg-row" data-eu="45"><td>45</td><td>11</td></tr>
+                        <tr class="sg-row" data-eu="36"><td>36</td><td>5</td><td>23</td></tr>
+                        <tr class="sg-row" data-eu="37"><td>37</td><td>5.5</td><td>23.5</td></tr>
+                        <tr class="sg-row" data-eu="38"><td>38</td><td>6.5</td><td>24</td></tr>
+                        <tr class="sg-row" data-eu="39"><td>39</td><td>7</td><td>24.5</td></tr>
+                        <tr class="sg-row" data-eu="40"><td>40</td><td>7.5</td><td>25</td></tr>
+                        <tr class="sg-row" data-eu="41"><td>41</td><td>8</td><td>26</td></tr>
+                        <tr class="sg-row" data-eu="42"><td>42</td><td>8.5</td><td>26.5</td></tr>
+                        <tr class="sg-row" data-eu="43"><td>43</td><td>9.5</td><td>27.5</td></tr>
+                        <tr class="sg-row" data-eu="44"><td>44</td><td>10</td><td>28</td></tr>
+                        <tr class="sg-row" data-eu="45"><td>45</td><td>11</td><td>29</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1564,24 +1609,23 @@ On page.</div>
                 <div style="font-weight:700;font-size:12px;color:#444;margin-bottom:6px;">Womens</div>
                 <table>
                     <thead>
-                        <tr><th>EU</th><th>US</th></tr>
+                        <tr><th>EU</th><th>US</th><th>CM</th></tr>
                     </thead>
                     <tbody>
-                        <tr class="sg-row" data-eu="36"><td>36</td><td>6</td></tr>
-                        <tr class="sg-row" data-eu="37"><td>37</td><td>6.5</td></tr>
-                        <tr class="sg-row" data-eu="38"><td>38</td><td>7.5</td></tr>
-                        <tr class="sg-row" data-eu="39"><td>39</td><td>8</td></tr>
-                        <tr class="sg-row" data-eu="40"><td>40</td><td>8.5</td></tr>
-                        <tr class="sg-row" data-eu="41"><td>41</td><td>9</td></tr>
-                        <tr class="sg-row" data-eu="42"><td>42</td><td>9.5</td></tr>
-                        <tr class="sg-row" data-eu="43"><td>43</td><td>10.5</td></tr>
-                        <tr class="sg-row" data-eu="44"><td>44</td><td>11</td></tr>
-                        <tr class="sg-row" data-eu="45"><td>45</td><td>12</td></tr>
+                        <tr class="sg-row" data-eu="36"><td>36</td><td>6</td><td>23</td></tr>
+                        <tr class="sg-row" data-eu="37"><td>37</td><td>6.5</td><td>23.5</td></tr>
+                        <tr class="sg-row" data-eu="38"><td>38</td><td>7.5</td><td>24</td></tr>
+                        <tr class="sg-row" data-eu="39"><td>39</td><td>8</td><td>24.5</td></tr>
+                        <tr class="sg-row" data-eu="40"><td>40</td><td>8.5</td><td>25</td></tr>
+                        <tr class="sg-row" data-eu="41"><td>41</td><td>9</td><td>26</td></tr>
+                        <tr class="sg-row" data-eu="42"><td>42</td><td>9.5</td><td>26.5</td></tr>
+                        <tr class="sg-row" data-eu="43"><td>43</td><td>10.5</td><td>27.5</td></tr>
+                        <tr class="sg-row" data-eu="44"><td>44</td><td>11</td><td>28</td></tr>
+                        <tr class="sg-row" data-eu="45"><td>45</td><td>12</td><td>29</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
-        <div style="font-size:11px;color:#666;margin-top:8px;">Note: Women's sizes are approximate conversions and may vary by brand.</div>
     </aside>
 
     <!-- QR generator: include local generator and fallback rendering so QR always appears offline -->
@@ -1668,45 +1712,175 @@ On page.</div>
             loadNext();
         }catch(e){ if(cb) cb(e); }
     }
+    // Allow anonymous sign-in to read stock when rules require auth
+    try{ if(window.ALLOW_ANON_SIGNIN === undefined) window.ALLOW_ANON_SIGNIN = true; }catch(e){}
+
+    var _productStockMap = null;
+    var _currentProductDoc = null;
+
+    function getProductContext(){
+        try{
+            var params = new URLSearchParams(window.location.search || '');
+            var pid = (params.get('pid') || params.get('productId') || '').trim();
+            var brand = (params.get('brand') || '').trim();
+            var title = (params.get('name') || params.get('title') || '').trim();
+            var color = (params.get('color') || '').trim();
+            var price = (params.get('price') || '').trim();
+            var img = (params.get('img') || '').trim();
+            var badge = (params.get('badge') || '').trim();
+            // Fallbacks (legacy, non-inventory data only)
+            if(!pid) { try{ pid = (localStorage.getItem('productId') || '').trim(); }catch(e){} }
+            if(!brand) {
+                try{ brand = (localStorage.getItem('productBrand') || '').trim(); }catch(e){}
+                if(!brand){ try{ brand = ((document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim(); }catch(e){} }
+            }
+            if(!title) {
+                try{ title = (localStorage.getItem('productTitle') || '').trim(); }catch(e){}
+                if(!title){ try{ title = ((document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim(); }catch(e){} }
+            }
+            if(!color) { try{ color = (localStorage.getItem('productColor') || '').trim(); }catch(e){} }
+            if(!price) { try{ price = (localStorage.getItem('productPrice') || '').trim(); }catch(e){} }
+            if(!img) { try{ img = (localStorage.getItem('productImg') || '').trim(); }catch(e){} }
+            if(!badge) { try{ badge = (localStorage.getItem('productBadge') || '').trim(); }catch(e){} }
+            return { productId: pid, brand: brand, title: title, color: color, price: price, img: img, badge: badge };
+        }catch(e){ return { productId: '', brand: '', title: '', color: '', price: '', img: '', badge: '' }; }
+    }
+
+    function getSelectedVariantColor(){
+        try{
+            var ctx = getProductContext();
+            var title = (ctx.title || '').trim();
+            var modelData = null;
+            try{ modelData = JSON.parse(localStorage.getItem('modelData')||'null'); }catch(e){}
+            if(modelData && Array.isArray(modelData.variants)){
+                var v = modelData.variants.find(function(x){ return (x.name||'').toString().trim() === title; }) || modelData.variants[0];
+                if(v && v.color) return String(v.color);
+            }
+            if(ctx.color) return String(ctx.color);
+            // fallback: last word heuristic
+            var parts = title.split(/\s+/);
+            if(parts.length > 1) return parts[parts.length-1];
+        }catch(e){}
+        return '';
+    }
+
+    function sizesMapFromVariantDoc(v){
+        var sizesMap = {};
+        try{
+            if(Array.isArray(v.sizes)){
+                v.sizes.forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
+            } else if (v.sizeMap && typeof v.sizeMap === 'object') {
+                Object.keys(v.sizeMap).forEach(function(k){ sizesMap[String(k)] = Number(v.sizeMap[k]||0)||0; });
+            } else if (v.sizesMap && typeof v.sizesMap === 'object') {
+                Object.keys(v.sizesMap).forEach(function(k){ sizesMap[String(k)] = Number(v.sizesMap[k]||0)||0; });
+            } else {
+                for(var eu=35; eu<=45; eu++){
+                    var val = v['s'+eu];
+                    if(val === undefined) val = v['stock'+eu];
+                    if(val !== undefined) sizesMap[String(eu)] = Number(val||0)||0;
+                }
+            }
+        }catch(e){}
+        return sizesMap;
+    }
+
+    function loadProductStockFromFirestore(cb){
+        ensureFirebaseReady(function(err){
+            if(err) { if(cb) cb(err); return; }
+            try{
+                if(window.ALLOW_ANON_SIGNIN === true && firebase.auth && !firebase.auth().currentUser){
+                    firebase.auth().signInAnonymously().catch(function(){});
+                }
+            }catch(e){}
+            try{
+                var db = firebase.firestore();
+                var ctx = getProductContext();
+                var pid = (ctx.productId || '').trim();
+                var brand = (ctx.brand || '').trim();
+                var title = (ctx.title || '').trim();
+                var colorHint = getSelectedVariantColor();
+                var normalize = function(s){ return (s||'').toString().toLowerCase().replace(/\s+/g,' ').trim(); };
+
+                var productPromise = pid
+                    ? db.collection('products').doc(pid).get().then(function(snap){
+                        try{
+                            if(snap && snap.exists) return snap;
+                            // If pid looks like a variant id (e.g. SKU:color), try resolving by SKU in products
+                            var basePid = String(pid || '').split(':')[0];
+                            if(basePid && basePid !== pid){
+                                return db.collection('products').where('sku','==',basePid).get();
+                            }
+                            return snap;
+                        }catch(e){ return snap; }
+                    })
+                    : (brand
+                        ? db.collection('products').where('brand','==',brand).get()
+                        : (title ? Promise.all([
+                            db.collection('products').where('model','==',title).get(),
+                            db.collection('products').where('name','==',title).get()
+                          ]) : Promise.resolve(null)));
+                productPromise.then(function(prodSnap){
+                    var prod = null;
+                    if(prodSnap && prodSnap.exists){ prod = Object.assign({ id: prodSnap.id }, prodSnap.data()); }
+                    if(prodSnap && Array.isArray(prodSnap)){
+                        // merge result sets from model/name queries
+                        var merged = [];
+                        prodSnap.forEach(function(s){ if(s && s.docs){ s.docs.forEach(function(d){ merged.push(Object.assign({ id: d.id }, d.data())); }); } });
+                        prod = merged.find(function(p){ return normalize(p.model||p.name||'') === normalize(title); }) || merged[0] || null;
+                    }
+                                        if(!prod && prodSnap && prodSnap.docs){
+                                                var docs = prodSnap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); });
+                                                var base = title;
+                                                if(colorHint){ base = title.replace(new RegExp('\u00a0','g'),' ').replace(new RegExp(colorHint+'$','i'),'').trim(); }
+                                                var titleNorm = normalize(title);
+                                                var baseNorm = normalize(base);
+                                                prod = docs.find(function(p){ return normalize(p.model||p.name||'') === titleNorm; })
+                                                    || docs.find(function(p){ return normalize(p.model||p.name||'') === baseNorm; })
+                                                    || docs.find(function(p){ return titleNorm && normalize(p.model||p.name||'').indexOf(titleNorm) !== -1; })
+                                                    || docs.find(function(p){ return baseNorm && normalize(p.model||p.name||'').indexOf(baseNorm) !== -1; })
+                                                    || (docs.length === 1 ? docs[0] : null);
+                                        }
+                    var resolvedPid = pid || (prod && prod.id ? String(prod.id) : '');
+                    return Promise.all([Promise.resolve(prod), resolvedPid ? db.collection('variants').where('productId','==',resolvedPid).get() : Promise.resolve(null)]);
+                }).then(function(res){
+                    var prod = res[0];
+                    _currentProductDoc = prod || null;
+                    var variantsSnap = res[1];
+                    var sizesMap = null;
+                    if(variantsSnap && variantsSnap.docs){
+                        var colorNorm = normalize(colorHint);
+                        var vMatch = variantsSnap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); })
+                          .find(function(v){ return colorNorm && normalize(v.colorName||v.name||v.color||'') === colorNorm; })
+                          || variantsSnap.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); })[0];
+                        if(vMatch) sizesMap = sizesMapFromVariantDoc(vMatch);
+                    }
+                    if(!sizesMap && prod && Array.isArray(prod.colors)){
+                        var cMatch = prod.colors.find(function(c){ return colorHint && normalize(c.name||'') === normalize(colorHint); }) || prod.colors[0];
+                        if(cMatch && Array.isArray(cMatch.sizes)){
+                            sizesMap = {};
+                            cMatch.sizes.forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
+                        }
+                    }
+                    _productStockMap = sizesMap || null;
+                    if(cb) cb(null, _productStockMap);
+                }).catch(function(e){ if(cb) cb(e); });
+            }catch(e){ if(cb) cb(e); }
+        });
+    }
     // AR Modal functions
     // Helper: QR image URL for a data string
     function qrImageUrlFor(data, size) {
         try { if(!data) return ''; var s = (size && Number.isFinite(Number(size))) ? Number(size) : 300; return 'https://api.qrserver.com/v1/create-qr-code/?size=' + encodeURIComponent(s + 'x' + s) + '&data=' + encodeURIComponent(String(data)); } catch (e) { return ''; }
     }
 
-    // Try to find the AR link for the current product by inspecting localStorage inventory and productId/title
+    // Try to find the AR link for the current product by using Firestore product data
     function getProductArLink() {
         try {
-            var pid = (localStorage.getItem('productId') || '').trim();
-            var title = (localStorage.getItem('productTitle') || '').trim();
-            var brand = (localStorage.getItem('productBrand') || '').trim();
-            // Prefer admin-managed inventory key if present
-            var inv = null;
-            try { inv = JSON.parse(localStorage.getItem('shoeInventoryData') || 'null'); } catch(e) { inv = null; }
-            if (!Array.isArray(inv) || !inv.length) {
-                try { inv = JSON.parse(localStorage.getItem('inventory') || '[]'); } catch(e) { inv = []; }
+            if(_currentProductDoc){
+                return _currentProductDoc.arLink || _currentProductDoc.ar_link || _currentProductDoc.arUrl || _currentProductDoc.ar_url || '';
             }
-            if (Array.isArray(inv) && inv.length) {
-                // match by id/sku first
-                if (pid) {
-                    var found = inv.find(function(p){ return String(p.id||p.sku||'').trim() === pid; });
-                    if (found) return found.arLink || found.ar_link || found.arUrl || found.ar_url || '';
-                }
-                // match by exact title/name
-                if (title) {
-                    var f2 = inv.find(function(p){ return (p.name||p.model||p.title||'').toString().trim() === title; });
-                    if (f2) return f2.arLink || f2.ar_link || f2.arUrl || f2.ar_url || '';
-                    // contains
-                    var f3 = inv.find(function(p){ return title && ((p.name||p.model||'')+'').toString().toLowerCase().indexOf(title.toLowerCase()) !== -1; });
-                    if (f3) return f3.arLink || f3.ar_link || f3.arUrl || f3.ar_url || '';
-                }
-                // match by brand fallback
-                if (brand) {
-                    var f4 = inv.find(function(p){ return (p.brand||'').toString().toLowerCase() === brand.toLowerCase(); });
-                    if (f4) return f4.arLink || f4.ar_link || f4.arUrl || f4.ar_url || '';
-                }
-            }
-        } catch (e) { console.error('getProductArLink', e); }
+        } catch (e) { /* ignore */ }
+        // fallback: attempt to fetch by context on demand (async callers use openARModal flow)
         return '';
     }
 
@@ -1845,39 +2019,12 @@ On page.</div>
             // Lookup inventory for available quantity for this product and size
             if (elStock) {
                 try {
-                    var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
-                    var title = (localStorage.getItem('productTitle') || (document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim();
-                    var brand = (localStorage.getItem('productBrand') || (document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim();
-                    var found = null;
-                    if (Array.isArray(inv) && inv.length) {
-                        // try exact name match first
-                        found = inv.find(function(i){ return (i.name||'').toString().trim() === title; });
-                        if(!found) {
-                            // try contains title
-                            found = inv.find(function(i){ return title && (i.name||'').toString().toLowerCase().indexOf(title.toLowerCase()) !== -1; });
-                        }
-                        if(!found && brand) {
-                            // fallback: match brand
-                            found = inv.find(function(i){ return (i.brand||'').toString().toLowerCase() === brand.toLowerCase(); });
-                        }
-                        // Additional fallback: try fuzzy/base-model match in case published row names differ by color/formatting.
-                        if(!found && title) {
-                            try{
-                                var normalize = function(s){ return (s||'').toString().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); };
-                                var tNorm = normalize(title);
-                                for(var ii=0; ii<inv.length && !found; ii++){
-                                    var rn = (inv[ii].name||'').toString();
-                                    var rNorm = normalize(rn);
-                                    if(!rNorm) continue;
-                                    // if either name contains the other, treat as match
-                                    if(rNorm.indexOf(tNorm) !== -1 || tNorm.indexOf(rNorm) !== -1){ found = inv[ii]; break; }
-                                }
-                            }catch(_){ }
-                        }
+                    var qty = null;
+                    if(_productStockMap && eu){
+                        qty = (_productStockMap[eu] !== undefined) ? Number(_productStockMap[eu]) : null;
                     }
 
-                        if (found && eu) {
-                        var qty = (found.sizes && (found.sizes[eu] !== undefined)) ? Number(found.sizes[eu]) : null;
+                    if (qty !== null && eu) {
                         var addBtnEl = document.querySelector('.productview-cart-btn');
                         if (qty === null) {
                             elStock.textContent = 'Stock: not available for this size';
@@ -1941,41 +2088,81 @@ On page.</div>
     }
 
     // Update the size buttons' enabled/disabled state based on inventory for this product
+    // updateSizeButtons is now handled by renderSizeButtons
     function updateSizeButtons(){
+        if (window.renderSizeButtons) window.renderSizeButtons();
+    }
+
+    function renderGenderFitDisplay(raw){
         try{
-            var btns = document.querySelectorAll('#sizeButtons .product-size-btn');
-            if(!btns || !btns.length) return;
-            var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
-            var title = (localStorage.getItem('productTitle') || (document.getElementById('productTitle') && document.getElementById('productTitle').textContent) || '').trim();
-            var brand = (localStorage.getItem('productBrand') || (document.getElementById('productBrand') && document.getElementById('productBrand').textContent) || '').trim();
-            var found = null;
-            if (Array.isArray(inv) && inv.length) {
-                found = inv.find(function(i){ return (i.name||'').toString().trim() === title; });
-                if(!found){ found = inv.find(function(i){ return title && (i.name||'').toString().toLowerCase().indexOf(title.toLowerCase()) !== -1; }); }
-                if(!found && brand){ found = inv.find(function(i){ return (i.brand||'').toString().toLowerCase() === brand.toLowerCase(); }); }
+            var genderWrap = document.getElementById('genderOptions');
+            var genderRow = document.getElementById('genderOptionsRow');
+            if(!genderWrap || !genderRow) return;
+
+            function parseGenderParts(value){
+                var parts = [];
+                if(Array.isArray(value)) parts = value.map(function(x){ return (x||'').toString().trim(); }).filter(Boolean);
+                else {
+                    parts = (value||'').toString().split(/[,\/|;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+                    if(parts.length === 0){
+                        var s = (value||'').toString();
+                        if(/men/i.test(s)) parts.push('Men');
+                        if(/women/i.test(s)) parts.push('Women');
+                        if(/unisex/i.test(s)) parts.push('Unisex');
+                    }
+                }
+                var normalized = [];
+                parts.forEach(function(p){
+                    if(!p) return;
+                    if(/^m(en)?$/i.test(p)) normalized.push('Men');
+                    else if(/^w(omen)?$/i.test(p)) normalized.push('Women');
+                    else if(/unisex/i.test(p)) normalized.push('Unisex');
+                    else normalized.push(p);
+                });
+                return Array.from(new Set(normalized));
             }
-            btns.forEach(function(b){
-                try{
-                    var eu = b.getAttribute('data-eu');
-                    var qty = (found && found.sizes && (found.sizes[eu] !== undefined)) ? Number(found.sizes[eu]) : null;
-                            // clear previous state classes; preserve only out-of-stock marker
-                            b.classList.remove('oos');
-                            if(qty === null){
-                                b.disabled = false;
-                            } else if(qty <= 0){
-                                b.disabled = true;
-                                b.classList.add('oos');
-                            } else {
-                                // available: keep button enabled and visually neutral (black/white)
-                                b.disabled = false;
-                                // do not add 'low-stock' visual class on the button; low-stock is shown in the stocks line
-                            }
-                }catch(ee){}
-            });
+
+            var genders = parseGenderParts(raw);
+            genderWrap.innerHTML = '';
+            if(!genders.length){
+                genderRow.style.display = 'none';
+                return;
+            }
+            genderRow.style.display = '';
+            var firstGender = genders[0];
+            var chip = document.createElement('span');
+            chip.className = 'gender-chip';
+            chip.textContent = firstGender;
+            genderWrap.appendChild(chip);
         }catch(e){}
     }
 
-    // Load product data from localStorage
+    function resolveGenderFit(source, fallback){
+        try{
+            var v = source && (source.gender || source.genderFit || source.genderFitting);
+            if(v !== undefined && v !== null && String(v).trim() !== '') return v;
+            var f = fallback && (fallback.gender || fallback.genderFit || fallback.genderFitting);
+            if(f !== undefined && f !== null && String(f).trim() !== '') return f;
+        }catch(e){}
+        return '';
+    }
+
+    function getInventoryGenderFit(overrides){
+        try{
+            if(_currentProductDoc) return resolveGenderFit(_currentProductDoc, overrides);
+            if(overrides) return resolveGenderFit(overrides);
+        }catch(e){}
+        return '';
+    }
+
+    function renderInventoryGenderFit(fallbackRaw){
+        try{
+            var invRaw = getInventoryGenderFit();
+            renderGenderFitDisplay(invRaw || fallbackRaw || '');
+        }catch(e){}
+    }
+
+    // Load product data from query params (with legacy fallbacks)
     window.addEventListener('DOMContentLoaded', function() {
         function renderRatingsUI(){
             try{
@@ -2066,11 +2253,12 @@ On page.</div>
         var modelData = null;
         try{ modelData = JSON.parse(localStorage.getItem('modelData')||'null'); }catch(e){ modelData = null; }
 
-        var brand = localStorage.getItem('productBrand');
-        var title = localStorage.getItem('productTitle');
-        var price = localStorage.getItem('productPrice');
-        var img = localStorage.getItem('productImg');
-        var badge = localStorage.getItem('productBadge');
+        var ctx = getProductContext();
+        var brand = ctx.brand;
+        var title = ctx.title;
+        var price = ctx.price;
+        var img = ctx.img;
+        var badge = ctx.badge;
         if (brand) document.getElementById('productBrand').textContent = brand;
         if (title) document.getElementById('productTitle').textContent = title;
         if (price) document.getElementById('productPrice').textContent = price;
@@ -2089,86 +2277,11 @@ On page.</div>
             colorRow.style.display = '';
             if(genderRow) genderRow.style.display = '';
             var selectedIndex = 0;
-
-            // Build gender selector buttons from modelData variants' gender-fit
+            // Render gender fit from inventory (fallback to model data) - non-selectable
             try{
-                if(genderWrap){
-                    genderWrap.innerHTML = '';
-                    // collect normalized gender tokens
-                    var gset = new Set();
-                    modelData.variants.forEach(function(v){
-                        try{
-                            var raw = v && v.gender ? v.gender : '';
-                            var parts = [];
-                            if(Array.isArray(raw)) parts = raw.map(function(x){ return (x||'').toString().trim(); }).filter(Boolean);
-                            else {
-                                parts = (raw||'').toString().split(/[,\/|;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
-                                if(parts.length === 0){
-                                    var s = (raw||'').toString();
-                                    if(/men/i.test(s)) parts.push('Men');
-                                    if(/women/i.test(s)) parts.push('Women');
-                                    if(/unisex/i.test(s)) parts.push('Unisex');
-                                }
-                            }
-                            parts.forEach(function(p){ if(p){
-                                // canonicalize common tokens
-                                if(/^m(en)?$/i.test(p)) gset.add('Men');
-                                else if(/^w(omen)?$/i.test(p)) gset.add('Women');
-                                else if(/unisex/i.test(p)) gset.add('Unisex');
-                                else gset.add(p);
-                            }});
-                        }catch(_){ }
-                    });
-                    var order = ['Men','Women','Unisex'];
-                    var present = order.filter(function(o){ return gset.has(o); }).concat(Array.from(gset).filter(function(x){ return order.indexOf(x)===-1; }));
-                    // create buttons
-                    present.forEach(function(g){
-                        var btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'btn ghost product-size-btn gender-btn';
-                        btn.setAttribute('data-gender', g);
-                        btn.textContent = g;
-                        btn.addEventListener('click', function(e){
-                            try{
-                                genderWrap.querySelectorAll('[data-gender]').forEach(function(n){ n.classList.remove('primary'); n.classList.add('ghost'); });
-                                btn.classList.remove('ghost'); btn.classList.add('primary');
-                                // store selection for later (not persisted)
-                                genderWrap.setAttribute('data-selected-gender', g);
-                            }catch(_){}
-                        });
-                        genderWrap.appendChild(btn);
-                    });
-                    // Align gender buttons with the first row of size buttons and add extra spacing
-                    try{
-                        var alignGenderBtns = function(){
-                            var genderOpts = document.getElementById('genderOptions');
-                            var genderRowEl = document.getElementById('genderOptionsRow');
-                            if(!genderOpts || !genderRowEl) return;
-                            try{
-                                // keep label unwrapped and ensure buttons sit directly under the label's left edge
-                                requestAnimationFrame(function(){
-                                    try{
-                                        var captionEl = genderRowEl.querySelector('.productview-color-label');
-                                        if(captionEl){ captionEl.style.whiteSpace = 'nowrap'; captionEl.style.display = 'block'; }
-                                        genderOpts.style.marginLeft = '0px';
-                                        genderOpts.style.marginTop = '8px';
-                                    }catch(_){ }
-                                });
-                            }catch(_){ }
-                        };
-                        // run now and shortly after to account for fonts/images; also on resize
-                        alignGenderBtns();
-                        setTimeout(alignGenderBtns, 120);
-                        window.addEventListener('resize', function(){ setTimeout(alignGenderBtns,60); });
-                    }catch(_){ }
-                    // ensure one button is primary by default (will be overridden by applyVariant when variant has explicit gender)
-                    try{
-                        var anyPrimary = genderWrap.querySelector('[data-gender].primary');
-                        if(!anyPrimary){
-                            var firstBtn = genderWrap.querySelector('[data-gender]');
-                            if(firstBtn){ firstBtn.classList.remove('ghost'); firstBtn.classList.add('primary'); genderWrap.setAttribute('data-selected-gender', firstBtn.getAttribute('data-gender')||''); }
-                        }
-                    }catch(_){ }
+                if(modelData.variants && modelData.variants[selectedIndex]){
+                    var gfit = resolveGenderFit(modelData.variants[selectedIndex], modelData);
+                    renderInventoryGenderFit(gfit);
                 }
             }catch(e){}
 
@@ -2207,25 +2320,8 @@ On page.</div>
                 try{
                     document.querySelectorAll('#sizeButtons .product-size-btn').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); });
                 }catch(_){ }
-                // If gender buttons exist, set the active gender to this variant's gender if present
-                try{
-                    if(genderWrap && variant && variant.gender){
-                        var raw = (variant.gender||'').toString();
-                        var parts = raw.split(/[,\/|;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
-                        if(parts.length === 0) parts = [raw];
-                        var found = null;
-                        var nodes = Array.from(genderWrap.querySelectorAll('[data-gender]'));
-                        for(var pI=0;pI<parts.length && !found;pI++){
-                            var p = parts[pI];
-                            for(var i=0;i<nodes.length;i++){
-                                if((nodes[i].getAttribute('data-gender')||'').toString().toLowerCase() === p.toLowerCase()) { found = nodes[i]; break; }
-                            }
-                        }
-                        // clear previous selection
-                        genderWrap.querySelectorAll('[data-gender]').forEach(function(gb){ gb.classList.remove('primary'); gb.classList.add('ghost'); });
-                        if(found){ found.classList.remove('ghost'); found.classList.add('primary'); }
-                    }
-                }catch(e){}
+                // Update non-selectable gender fit display for this variant (inventory first)
+                try{ renderInventoryGenderFit(resolveGenderFit(variant, modelData)); }catch(e){}
                 updateSizeButtons();
                 var sel = document.querySelector('#sizeButtons .product-size-btn.primary');
                 if(sel) selectSize(sel); else { var stockEl = document.getElementById('sizeStock'); if(stockEl) stockEl.textContent=''; var convEl=document.getElementById('sizeConversion'); if(convEl) convEl.textContent='Select a size to see the US equivalent.'; }
@@ -2335,6 +2431,10 @@ On page.</div>
                     document.querySelectorAll('.productview-thumb').forEach(function(t){ t.style.transform = ''; });
                 }
             } catch (e) { /* ignore */ }
+        }
+        // Render gender fit from inventory for non-grouped products
+        if(!modelData){
+            try{ renderInventoryGenderFit(); }catch(e){}
         }
         // Optionally update badge
         // Description
@@ -2584,14 +2684,18 @@ On page.</div>
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        // Use qty if present, else quantity
-                        if (typeof cart[idx].qty === 'number') {
-                            if (cart[idx].qty > 1) {
-                                cart[idx].qty--;
-                            }
-                        } else if (typeof cart[idx].quantity === 'number') {
-                            if (cart[idx].quantity > 1) {
-                                cart[idx].quantity--;
+                        if (window.tryDecrementCartItem) {
+                            window.tryDecrementCartItem(cart, idx);
+                        } else {
+                            // Use qty if present, else quantity
+                            if (typeof cart[idx].qty === 'number') {
+                                if (cart[idx].qty > 1) {
+                                    cart[idx].qty--;
+                                }
+                            } else if (typeof cart[idx].quantity === 'number') {
+                                if (cart[idx].quantity > 1) {
+                                    cart[idx].quantity--;
+                                }
                             }
                         }
                         saveCartToLocalStorage();
@@ -2605,27 +2709,27 @@ On page.</div>
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
                         try {
-                            var item = cart[idx];
-                            var current = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
-                            var maxAllowed = (window.getMaxAllowedForProduct && typeof window.getMaxAllowedForProduct === 'function') ? window.getMaxAllowedForProduct(item) : 3;
-                            if (current >= maxAllowed) {
-                                // show inline small message
-                                var cStockEl = document.getElementById('sizeStock');
-                                if (cStockEl) { cStockEl.style.color = '#b71c1c'; cStockEl.textContent = 'Limit reached: you can only buy up to ' + maxAllowed + ' of this size.'; }
-                                else alert('Limit reached: you can only buy up to ' + maxAllowed + ' of this size.');
-                                return;
-                            }
-                            // increment
-                            if (typeof cart[idx].qty === 'number') {
-                                cart[idx].qty++;
-                            } else if (typeof cart[idx].quantity === 'number') {
-                                cart[idx].quantity++;
+                            if (window.tryIncrementCartItem) {
+                                var incRes = window.tryIncrementCartItem(cart, idx);
+                                if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                                    if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                    else alert('Maximum of 3 pairs of shoes per order.');
+                                    return;
+                                }
+                                if (incRes && incRes.success === false && incRes.reason === 'max_reached') {
+                                    var cStockEl = document.getElementById('sizeStock');
+                                    var maxAllowed = incRes.maxAllowed || 1;
+                                    if (cStockEl) { cStockEl.style.color = '#b71c1c'; cStockEl.textContent = 'Limit reached: you can only buy up to ' + maxAllowed + ' of this size.'; }
+                                    else alert('Limit reached: you can only buy up to ' + maxAllowed + ' of this size.');
+                                    return;
+                                }
                             } else {
-                                cart[idx].qty = current + 1;
+                                if (typeof cart[idx].qty === 'number') { cart[idx].qty++; }
+                                else if (typeof cart[idx].quantity === 'number') { cart[idx].quantity++; }
                             }
                             saveCartToLocalStorage();
                             renderCart();
-                        } catch (e) { /* fallback to previous behavior */
+                        } catch (e) {
                             if (typeof cart[idx].qty === 'number') { cart[idx].qty++; }
                             else if (typeof cart[idx].quantity === 'number') { cart[idx].quantity++; }
                             saveCartToLocalStorage(); renderCart();
@@ -2648,6 +2752,24 @@ On page.</div>
 
         // Hook nav cart button (remove its inline navigation and replace with open sidebar)
         document.addEventListener('DOMContentLoaded', function() {
+            try{
+                loadProductStockFromFirestore(function(){
+                    try{ updateSizeButtons(); }catch(e){}
+                    try{
+                        var selected = document.querySelector('#sizeButtons .product-size-btn.selected') || document.querySelector('#sizeButtons .product-size-btn.primary');
+                        if(selected) selectSize(selected);
+                    }catch(e){}
+                    try{
+                        if(!_productStockMap){
+                            setTimeout(function(){
+                                loadProductStockFromFirestore(function(){
+                                    try{ updateSizeButtons(); }catch(e){}
+                                });
+                            }, 800);
+                        }
+                    }catch(e){}
+                });
+            }catch(e){}
             const navCartBtn = getNavCartButton();
             if (navCartBtn) {
                 navCartBtn.removeAttribute('onclick');
@@ -2694,7 +2816,7 @@ On page.</div>
                     const priceText = (document.getElementById('productPrice') && document.getElementById('productPrice').textContent) || '';
                     const priceNum = parsePriceToNumber(priceText);
                     const image = (document.getElementById('mainShoeImg') && document.getElementById('mainShoeImg').src) || '';
-                    const productId = (localStorage.getItem('productId') || '').trim();
+                    const productId = (getProductContext().productId || '').trim();
 
                     // Persist selected EU size number (e.g. '41') in cart item
                     const prod = {
@@ -2721,6 +2843,7 @@ On page.</div>
                             var msg = 'Unable to add to cart.';
                             if (res && res.reason === 'out_of_stock') msg = 'This size is out of stock.';
                             else if (res && res.reason === 'max_reached') msg = 'You can only add up to ' + (res.maxAllowed || 1) + ' of this size.';
+                            else if (res && res.reason === 'max_pairs') msg = 'Maximum of 3 pairs of shoes per order.';
                             if (elStock) { elStock.style.color = '#b71c1c'; elStock.textContent = msg; }
                             else alert(msg);
                         }
@@ -2737,6 +2860,7 @@ On page.</div>
     })();
     </script>
     <script src="js/ratings-storage.js"></script>
+    <script src="js/firebase-config.js"></script>
     <script src="cart-storage.js"></script>
 </body>
     

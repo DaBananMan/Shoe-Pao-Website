@@ -4,7 +4,9 @@
   "description": "Build helper to produce a UMD bundle for CameraKit + AR wrapper for ShoePao",
   "private": true,
   "scripts": {
-    "build": "rollup -c"
+  "build": "rollup -c",
+  "start": "node server.js",
+  "simulate-webhook": "node server/simulate-webhook.js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^26.0.0",
@@ -19,6 +21,7 @@
     "express": "^5.2.1",
     "firebase": "^12.7.0",
     "firebase-admin": "^13.6.0",
+  "nodemailer": "^6.9.4",
     "minimist": "^1.2.8"
   },
   "main": "AR.js",
