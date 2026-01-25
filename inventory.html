@@ -53,6 +53,7 @@
         <h1>Footwear Inventory Manager</h1>
         <div class="header-actions">
             <button id="addProductBtn" class="primary">Add Product</button>
+            <button id="publishInventoryBtn" class="secondary" title="Publish current inventory to storefront">Publish to Site</button>
             <button id="exportInventoryBtn" class="secondary" title="Export inventory table to a Word document">Export to Word</button>
             <div class="searchbar">
                 <input id="searchInput" type="text" placeholder="Search brand, model, color, size" />
@@ -130,7 +131,6 @@
         appId: "1:590509920226:web:9daf77b2841e3d699633bb",
         measurementId: "G-JD4WGCKFQC"
       };
-            window.ALLOW_ANON_SIGNIN = true;
     </script>
 
     <!-- Firebase CDN (compat) - light and simple for this static site -->
@@ -308,14 +308,6 @@
                 </div>
                 <p class="muted" style="margin:0;">Manual tags are added on top of auto tags.</p>
             </div>
-            <div id="imagesSection">
-                <h3>Images</h3>
-                <div class="images-controls">
-                    <input id="imageFileInput" type="file" accept="image/*" multiple />
-                    <button id="importImageBtn" class="secondary" type="button">Import</button>
-                </div>
-                <div id="imagesList" class="images-list"></div>
-            </div>
             <div id="initialVariantSection">
                 <h3>Initial Color & Sizes</h3>
                 <div class="variant-controls">
@@ -334,167 +326,47 @@
     </dialog>
 
     <!-- Variant Modal -->
-        <dialog id="variantModal" class="modal">
-            <style>
-                .variant-modal-grid {
-                    display: flex;
-                    min-width: 600px;
-                    min-height: 340px;
-                    gap: 0;
-                }
-                .variant-sidebar {
-                    width: 180px;
-                    background: #faf9f9;
-                    border-right: 1px solid #eee;
-                    padding: 18px 10px 10px 10px;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 18px;
-                }
-                .variant-controls {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                    margin-bottom: 8px;
-                }
-                .variant-controls input[type="color"] {
-                    width: 32px; height: 32px; border: none; background: none; padding: 0;
-                }
-                #variantColorsList {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 4px;
-                }
-                #variantColorsList .color-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    padding: 7px 10px;
-                    border-radius: 7px;
-                    cursor: pointer;
-                    transition: background 0.13s;
-                }
-                #variantColorsList .color-item.active {
-                    background: #ffeaea;
-                    font-weight: 600;
-                    border-left: 4px solid var(--primary, #b71c1c);
-                }
-                #variantColorsList .color-dot {
-                    width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #ddd; display: inline-block;
-                }
-                #variantColorsList .color-actions {
-                    margin-left: auto;
-                    display: flex;
-                    gap: 2px;
-                }
-                .variant-editor {
-                    flex: 1;
-                    padding: 24px 24px 12px 24px;
-                    background: #fff;
-                    min-width: 320px;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 12px;
-                }
-                .sizes-editor {
-                    width: 100%;
-                    max-width: 420px;
-                    margin: 0 auto;
-                }
-                .size-card {
-                    background: #f8f8f8;
-                    border-radius: 10px;
-                    box-shadow: 0 1px 2px #0001;
-                    padding: 18px 18px 12px 18px;
-                    margin-bottom: 0;
-                }
-                .fill-actions {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    margin-bottom: 10px;
-                }
-                .fill-actions strong {
-                    font-size: 1.1em;
-                    margin-right: 8px;
-                }
-                .size-grid {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 7px;
-                }
-                .size-row {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    padding: 4px 0;
-                }
-                .size-row label {
-                    min-width: 48px;
-                    font-weight: 500;
-                }
-                .size-row input[type="number"] {
-                    width: 60px;
-                    padding: 3px 6px;
-                    border-radius: 5px;
-                    border: 1px solid #ddd;
-                    font-size: 1em;
-                }
-                .qty-controls {
-                    display: flex;
-                    gap: 2px;
-                }
-                .qty-btn {
-                    background: #eee;
-                    border: none;
-                    border-radius: 4px;
-                    width: 26px; height: 26px;
-                    font-size: 1.1em;
-                    cursor: pointer;
-                    transition: background 0.13s;
-                }
-                .qty-btn:hover { background: #e0e0e0; }
-                .danger[data-action], .danger[data-action]:hover {
-                    background: var(--danger, #e14d4d);
-                    color: #fff;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 0 10px;
-                    font-size: 0.98em;
-                    cursor: pointer;
-                }
-                .sizes-editor .muted {
-                    color: #888;
-                    font-size: 1em;
-                    margin: 12px 0 0 0;
-                }
-                @media (max-width: 700px) {
-                    .variant-modal-grid { flex-direction: column; min-width: 0; }
-                    .variant-sidebar { width: 100%; border-right: none; border-bottom: 1px solid #eee; }
-                    .variant-editor { padding: 16px 8px; }
-                }
-            </style>
-            <form method="dialog" id="variantForm">
-                <h2 style="margin-bottom:10px;">Manage Variants</h2>
-                <div class="variant-modal-grid">
-                    <aside class="variant-sidebar">
-                        <div class="variant-controls">
-                            <input id="variantColorName" placeholder="Color name" />
+    <dialog id="variantModal" class="modal">
+        <form method="dialog" id="variantForm">
+            <div class="variants-shell">
+                <aside class="variants-sidebar">
+                    <div class="variants-sidebar-header">
+                        <p class="eyebrow">Variants</p>
+                        <h2>Manage Colors &amp; Sizes</h2>
+                        <p class="muted">Build your color stories and adjust stock without leaving this panel.</p>
+                    </div>
+                    <div class="variant-controls variant-controls--stacked">
+                        <label class="field">
+                            <div class="field-title">Color Name</div>
+                            <input id="variantColorName" placeholder="e.g., Infrared" />
+                        </label>
+                        <label class="field">
+                            <div class="field-title">Swatch</div>
                             <input id="variantColorCode" type="color" />
-                            <button id="addColorBtn" class="secondary" type="button">Add Color</button>
+                        </label>
+                        <button id="addColorBtn" class="primary" type="button">Add Color</button>
+                    </div>
+                    <div class="variant-color-list-header">
+                        <span>Color Palette</span>
+                        <span class="muted hint">Tap a color to edit sizes</span>
+                    </div>
+                    <div id="variantColorsList" class="variant-color-list colors-list"></div>
+                </aside>
+                <section class="variants-detail-panel">
+                    <div id="sizesEditor" class="sizes-editor">
+                        <div class="variants-empty-state">
+                            <h3>Loading variants…</h3>
+                            <p>Select or add a color to manage its sizes.</p>
                         </div>
-                        <div id="variantColorsList" class="colors-list"></div>
-                    </aside>
-                    <section class="variant-editor">
-                        <div id="sizesEditor" class="sizes-editor"></div>
-                    </section>
-                </div>
-                <div class="modal-actions" style="margin-top:10px;">
-                    <button value="cancel" class="secondary">Close</button>
-                    <button id="saveVariantsBtn" value="default" class="primary">Save</button>
-                </div>
-            </form>
-        </dialog>
+                    </div>
+                </section>
+            </div>
+            <div class="modal-actions">
+                <button value="cancel" class="secondary">Close</button>
+                <button id="saveVariantsBtn" value="default" class="primary">Save</button>
+            </div>
+        </form>
+    </dialog>
 
     <!-- Bulk Price Modal -->
     <dialog id="bulkPriceModal" class="modal">
@@ -542,7 +414,7 @@
                         <option value="size">Specific size</option>
                     </select>
                 </label>
-                <input id="bulkRestockSize" type="number" min="35" max="45" step="1" placeholder="EU size (35–45)" />
+                <input id="bulkRestockSize" type="number" step="1" placeholder="Size (optional)" />
                 <input id="bulkRestockQty" type="number" min="0" step="1" placeholder="Quantity to add" />
             </div>
             <div class="modal-actions">

@@ -1210,6 +1210,8 @@
 
                     var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
                     var getItemId = function(it){ return String(it.product_id || it.productId || it.id || '').trim(); };
+                    var getItemInventoryId = function(it){ return String(it.inventoryId || it.inventory_id || it.product_id || it.productId || it.id || '').trim(); };
+                    var getItemVariantId = function(it){ return String(it.variantId || it.variant_id || it.variant || '').trim(); };
                     var getItemName = function(it){ return String(it.name || it.title || it.productName || '').trim(); };
                     var getItemBrand = function(it){ return String(it.brand || it.productBrand || '').trim(); };
                     var getItemColor = function(it){ return String(it.color || it.variant || it.colorName || '').trim(); };
@@ -1225,6 +1227,18 @@
                         var products = [];
                         variantsSnap.forEach(function(doc){ variants.push({ ref: doc.ref, id: doc.id, data: doc.data() || {} }); });
                         productsSnap.forEach(function(doc){ products.push({ ref: doc.ref, id: doc.id, data: doc.data() || {} }); });
+
+                        var variantsByProductId = {};
+                        variants.forEach(function(v){
+                            try{
+                                var d = v.data || {};
+                                var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
+                                if(!pid) return;
+                                var key = String(pid);
+                                if(!variantsByProductId[key]) variantsByProductId[key] = [];
+                                variantsByProductId[key].push(v);
+                            }catch(e){ /* ignore */ }
+                        });
 
                         var batch = db.batch();
                         var did = false;
@@ -1261,17 +1275,29 @@
                             var size = getItemSize(it);
                             if(!size) return;
                             var itemId = getItemId(it);
+                            var itemInventoryId = getItemInventoryId(it);
+                            var itemVariantId = getItemVariantId(it);
                             var itemName = getItemName(it);
                             var itemBrand = getItemBrand(it);
                             var itemColor = getItemColor(it);
 
                             // Update variants collection
                             var variantMatch = null;
-                            if(itemId){
+                            if(itemVariantId){
+                                variantMatch = variants.find(function(v){ return String(v.id) === itemVariantId; });
+                            }
+                            if(!variantMatch && itemId){
                                 variantMatch = variants.find(function(v){
                                     var d = v.data || {};
                                     var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
                                     return pid && String(pid) === itemId;
+                                });
+                            }
+                            if(!variantMatch && itemInventoryId){
+                                variantMatch = variants.find(function(v){
+                                    var d = v.data || {};
+                                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
+                                    return pid && String(pid) === itemInventoryId;
                                 });
                             }
                             if(!variantMatch && itemColor){
@@ -1327,7 +1353,13 @@
 
                             // Update products collection if sizes are embedded in colors
                             var productMatch = null;
-                            if(itemId){
+                            if(itemInventoryId){
+                                productMatch = products.find(function(p){
+                                    var d = p.data || {};
+                                    return String(d.id || d.sku || p.id || '') === itemInventoryId;
+                                });
+                            }
+                            if(!productMatch && itemId){
                                 productMatch = products.find(function(p){
                                     var d = p.data || {};
                                     return String(d.id || d.sku || p.id || '') === itemId;
@@ -1347,14 +1379,26 @@
                                     return true;
                                 });
                             }
+                            if(!variantMatch && productMatch){
+                                var pData = productMatch.data || {};
+                                var resolvedProductId = String(pData.id || pData.sku || productMatch.id || '');
+                                var list = resolvedProductId ? (variantsByProductId[resolvedProductId] || []) : [];
+                                if(list.length === 1){
+                                    variantMatch = list[0];
+                                }
+                            }
                             if(productMatch){
                                 var pState = getProductState(productMatch);
                                 if(pState){
                                     var pd = pState.data || {};
                                     if(Array.isArray(pd.colors)){
+                                        var colorNameToUse = itemColor;
+                                        if(!colorNameToUse && pd.colors.length === 1){
+                                            colorNameToUse = pd.colors[0].name || '';
+                                        }
                                         pd.colors = pd.colors.map(function(c){
-                                            if(itemColor){
-                                                if(normalize(c.name || '') !== normalize(itemColor)) return c;
+                                            if(colorNameToUse){
+                                                if(normalize(c.name || '') !== normalize(colorNameToUse)) return c;
                                             }
                                             if(Array.isArray(c.sizes)){
                                                 var sizes = c.sizes.map(function(s){
@@ -2035,11 +2079,12 @@
                 if(!options.skipStockAdjust){
                     var prevNorm = String(prevStatus||'').toLowerCase();
                     var nextNorm = String(merged.status||'').toLowerCase();
-                    var shouldDeduct = (prevNorm !== 'confirmed' && nextNorm === 'confirmed' && !merged.stockAdjusted);
+                    var alreadyAdjusted = (merged.stockAdjusted === true && merged.stockAdjustedSource === 'confirm');
+                    var shouldDeduct = (prevNorm !== 'confirmed' && nextNorm === 'confirmed' && !alreadyAdjusted);
                     if(shouldDeduct){
                         deductOrderItems(orderId, merged).then(function(did){
                             if(did){
-                                updateOrder(orderId, { stockAdjusted: true, stockRestocked: false }, { skipStockAdjust: true });
+                                updateOrder(orderId, { stockAdjusted: true, stockAdjustedSource: 'confirm', stockAdjustedAt: new Date().toISOString(), stockRestocked: false }, { skipStockAdjust: true });
                             }
                         });
                     }
@@ -2047,14 +2092,13 @@
                 if(!options.skipRestock){
                     var prevNorm = String(prevStatus||'').toLowerCase();
                     var nextNorm = String(merged.status||'').toLowerCase();
-                    // If stockAdjusted is missing (server-sourced orders), still attempt a restock on cancel.
-                    var adjustedFlag = merged.stockAdjusted;
-                    var allowRestock = (adjustedFlag === true || adjustedFlag === undefined || adjustedFlag === null);
+                    var adjustedFlag = merged.stockAdjusted === true;
+                    var allowRestock = adjustedFlag || (merged.stockAdjustedSource === 'confirm') || ['confirmed','processing','shipped','delivered'].indexOf(prevNorm) !== -1;
                     var shouldRestock = (prevNorm !== 'cancelled' && nextNorm === 'cancelled' && !merged.stockRestocked && allowRestock);
                     if(shouldRestock){
                         restockOrderItems(orderId, merged).then(function(did){
                             if(did){
-                                updateOrder(orderId, { stockRestocked: true, stockAdjusted: false }, { skipRestock: true });
+                                updateOrder(orderId, { stockRestocked: true, stockRestockedAt: new Date().toISOString(), stockAdjusted: false }, { skipRestock: true });
                             }
                         });
                     }

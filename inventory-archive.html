@@ -122,138 +122,46 @@
 
     <script src="js/firebase-config.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="js/storefront-inventory.js"></script>
+
     <script>
     (function(){
+        function getArchive(){ try{ return JSON.parse(localStorage.getItem('inventoryArchive')||'[]')||[];}catch(e){return[];} }
+        function saveArchive(list){ localStorage.setItem('inventoryArchive', JSON.stringify(list)); }
+        function getInventory(){ try{ return (window.getStorefrontInventory && window.getStorefrontInventory()) || []; }catch(e){return[];} }
+        function saveInventory(list){ /* Inventory is sourced from Firestore; do not store in localStorage */ }
         function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:2}); }
 
-        function ensureFirebaseReady(){
-            if(!window.FIREBASE_CONFIG) throw new Error('Firebase not configured');
-            if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
-            return firebase.firestore();
-        }
+        var sortState={key:null,asc:true};
+        function render(list){ var tbody=document.getElementById('archiveTbody'); tbody.innerHTML=''; list.forEach(function(row){
+            var tr=document.createElement('tr');
+            var sizes=[36,37,38,39,40,41,42,43,44,45];
+            var sizeCells = sizes.map(function(s){ return '<td class="size-col">'+(row.sizes && row.sizes[s]? row.sizes[s] : '')+'</td>'; }).join('');
+            tr.innerHTML = `
+                <td>${row.id}</td>
+                <td>${row.name}</td>
+                <td>${row.brand}</td>
+                <td>${row.color}</td>
+                ${sizeCells}
+                <td>${formatPHP(row.price)}</td>
+                <td class="actions-col"><button onclick="unarchiveRow('${row.id}')">🔁 Unarchive</button> <button onclick="deleteRow('${row.id}')">🗑 Delete</button></td>
+            `;
+            tbody.appendChild(tr);
+        }); }
 
-        var rowsCache = [];
+        window.unarchiveRow = function(id){ var a = getArchive(); var idx = a.findIndex(i=>i.id===id); if(idx===-1) return; var item=a.splice(idx,1)[0]; saveArchive(a); var inv=getInventory(); inv.unshift(item); saveInventory(inv); render(a); }
+        window.deleteRow = function(id){ if(!confirm('Delete permanently?')) return; var a=getArchive(); var idx=a.findIndex(i=>i.id===id); if(idx===-1) return; a.splice(idx,1); saveArchive(a); render(a); }
 
-        function buildRows(products, variants){
-            var map = {};
-            (variants || []).forEach(function(v){
-                var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || null;
-                if(!pid) return;
-                map[pid] = map[pid] || [];
-                map[pid].push({
-                    id: v.id || ('color-' + Math.random().toString(36).slice(2,9)),
-                    name: v.colorName || v.name || v.color || 'Color',
-                    sizes: Array.isArray(v.sizes) ? v.sizes : []
-                });
-            });
-            var out = [];
-            (products || []).forEach(function(p){
-                var pid = p.id || p.productId || p.sku || '';
-                var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors : (map[pid] || []);
-                (colorsArr || []).forEach(function(c){
-                    var sizesMap = {};
-                    (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
-                    out.push({
-                        id: pid || p.sku || '',
-                        productId: pid || p.id || '',
-                        name: (p.model || p.name || '') + (c.name ? (' ' + c.name) : ''),
-                        brand: p.brand || '',
-                        color: c.name || '',
-                        sizes: sizesMap,
-                        price: Number((p.pricing && (p.pricing.sale || p.pricing.original)) || p.price || 0)
-                    });
-                });
-            });
-            return out;
-        }
+        function matches(row,q){ if(!q) return true; q=q.toLowerCase(); if((row.id||'').toLowerCase().indexOf(q)!==-1) return true; if((row.name||'').toLowerCase().indexOf(q)!==-1) return true; if((row.brand||'').toLowerCase().indexOf(q)!==-1) return true; if((row.color||'').toLowerCase().indexOf(q)!==-1) return true; if((row.price||'').toString().indexOf(q)!==-1) return true; for(var s in row.sizes) if(String(row.sizes[s]).indexOf(q)!==-1) return true; return false; }
 
-        function loadArchive(){
-            try{
-                var db = ensureFirebaseReady();
-                Promise.all([
-                    db.collection('products').where('status','==','archived').get(),
-                    db.collection('variants').get()
-                ]).then(function(res){
-                    var products = [];
-                    res[0].forEach(function(doc){ products.push(Object.assign({ id: doc.id }, doc.data() || {})); });
-                    var variants = [];
-                    res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
-                    rowsCache = buildRows(products, variants);
-                    applySearch();
-                }).catch(function(e){ console.error(e); });
-            }catch(e){ console.error(e); }
-        }
-
-        function render(list){
-            var tbody = document.getElementById('archiveTbody');
-            tbody.innerHTML = '';
-            list.forEach(function(row){
-                var tr = document.createElement('tr');
-                var sizes = [36,37,38,39,40,41,42,43,44,45];
-                var sizeCells = sizes.map(function(s){ return '<td class="size-col">'+(row.sizes && row.sizes[s]? row.sizes[s] : '')+'</td>'; }).join('');
-                tr.innerHTML = `
-                    <td>${row.productId || row.id}</td>
-                    <td>${row.name}</td>
-                    <td>${row.brand}</td>
-                    <td>${row.color}</td>
-                    ${sizeCells}
-                    <td>${formatPHP(row.price)}</td>
-                    <td class="actions-col"><button onclick="unarchiveRow('${row.productId || row.id}')">🔁 Unarchive</button> <button onclick="deleteRow('${row.productId || row.id}')">🗑 Delete</button></td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        window.unarchiveRow = function(productId){
-            if(!productId) return;
-            try{
-                var db = ensureFirebaseReady();
-                db.collection('products').doc(String(productId)).set({ status: 'active' }, { merge: true }).then(function(){
-                    loadArchive();
-                });
-            }catch(e){ console.error(e); }
-        };
-
-        window.deleteRow = function(productId){
-            if(!productId) return;
-            if(!confirm('Delete permanently?')) return;
-            try{
-                var db = ensureFirebaseReady();
-                db.collection('products').doc(String(productId)).delete().then(function(){
-                    return db.collection('variants').where('productId','==',String(productId)).get();
-                }).then(function(snap){
-                    var batch = db.batch();
-                    snap.forEach(function(doc){ batch.delete(doc.ref); });
-                    return batch.commit();
-                }).then(function(){
-                    loadArchive();
-                });
-            }catch(e){ console.error(e); }
-        };
-
-        function matches(row,q){
-            if(!q) return true;
-            q = q.toLowerCase();
-            if((row.id||'').toLowerCase().indexOf(q)!==-1) return true;
-            if((row.name||'').toLowerCase().indexOf(q)!==-1) return true;
-            if((row.brand||'').toLowerCase().indexOf(q)!==-1) return true;
-            if((row.color||'').toLowerCase().indexOf(q)!==-1) return true;
-            if((row.price||'').toString().indexOf(q)!==-1) return true;
-            for(var s in row.sizes) if(String(row.sizes[s]).indexOf(q)!==-1) return true;
-            return false;
-        }
-
-        function applySearch(){
-            var q = document.getElementById('archiveSearch').value.trim();
-            var list = (rowsCache || []).filter(function(r){ return matches(r,q); });
-            render(list);
-        }
+        function applySearch(){ var q=document.getElementById('archiveSearch').value.trim(); var list = getArchive().filter(r=>matches(r,q)); render(list); }
 
         document.addEventListener('DOMContentLoaded', function(){
             document.getElementById('archiveSearch').addEventListener('input', applySearch);
             document.getElementById('goBackBtn').addEventListener('click', function(){ window.location.href='inventory.html'; });
-            loadArchive();
+            applySearch();
         });
     })();
     </script>

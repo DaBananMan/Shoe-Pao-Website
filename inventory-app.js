@@ -1211,15 +1211,23 @@
     const p = state.products.find(x => x.id === productId);
     const list = qs('#variantColorsList');
     // Render color list (actions moved into each color's size card for proximity)
-    list.innerHTML = p.colors.map(c => `<div class="color-item" data-id="${c.id}">
-      <span class="color-dot" style="background:${c.code}"></span>
-      <strong>${c.name}</strong>
-      <span class="muted">(${totalStockForColor(c)})</span>
-      <div class="color-actions">
-        <button class="secondary" data-action="edit-color">Edit</button>
-        <button class="danger" data-action="delete-color">Delete</button>
-      </div>
-    </div>`).join('');
+    list.innerHTML = p.colors.map(c => {
+      const stock = totalStockForColor(c);
+      const sizeCount = Array.isArray(c.sizes) ? c.sizes.length : 0;
+      return `<div class="color-item" data-id="${c.id}">
+        <div class="color-item-info">
+          <span class="color-dot" style="background:${c.code}"></span>
+          <div class="color-item-text">
+            <strong>${c.name}</strong>
+            <span class="muted">${stock} in stock • ${sizeCount} sizes</span>
+          </div>
+        </div>
+        <div class="color-actions">
+          <button class="ghost" data-action="edit-color">Edit</button>
+          <button class="ghost danger-text" data-action="delete-color">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
 
     bindColorActions(list);
 
@@ -1267,99 +1275,129 @@
     const editor = qs('#sizesEditor');
     editor.innerHTML = '';
     if (!p.colors.length) {
-      editor.innerHTML = '<p class="muted">No colors yet. Add one above.</p>';
+      editor.innerHTML = '<div class="variants-empty-state"><h3>No colors yet</h3><p>Add a color on the left to start assigning inventory.</p></div>';
       return;
     }
-    const selId = state.ui.editingVariantColorId || null;
+
     const listEl = qs('#variantColorsList');
+    let selId = state.ui.editingVariantColorId;
+    if (!selId || !p.colors.some(c => c.id === selId)) {
+      selId = p.colors[0] ? p.colors[0].id : null;
+      state.ui.editingVariantColorId = selId;
+    }
     if (listEl) listEl.querySelectorAll('.color-item').forEach(it => it.classList.toggle('active', it.dataset.id === selId));
 
-    const colorsToRender = selId ? p.colors.filter(c => c.id === selId) : p.colors;
-    colorsToRender.forEach(color => {
-      const card = document.createElement('div'); card.className = 'size-card';
-      // Header: color name + add size + clear
-      const fill = document.createElement('div'); fill.className = 'fill-actions';
-      fill.innerHTML = `
-        <div class="color-header">
-          <strong class="color-name">${color.name}</strong>
-          <button class="secondary" data-action="add-size" data-id="${color.id}">Add Size</button>
-          <button class="secondary clear-btn" data-action="clear-all" data-id="${color.id}">Clear</button>
-        </div>`;
-      card.appendChild(fill);
+    const color = p.colors.find(c => c.id === selId);
+    if (!color) {
+      editor.innerHTML = '<div class="variants-empty-state"><h3>Select a color</h3><p>Choose a color card to edit its sizes.</p></div>';
+      return;
+    }
 
+    const sizeList = Array.isArray(color.sizes) ? color.sizes : [];
+    const total = totalStockForColor(color);
+    const activeSizes = sizeList.filter(s => parseNum(s.stock, 0) > 0).length;
+
+    const summary = document.createElement('div'); summary.className = 'variant-selection-summary';
+    summary.innerHTML = `
+      <div class="variant-selection-color">
+        <span class="color-dot large" style="background:${color.code}"></span>
+        <div>
+          <p class="eyebrow">Selected color</p>
+          <h3>${color.name}</h3>
+        </div>
+      </div>
+      <div class="variant-selection-meta">
+        <div><span>Total stock</span><strong>${total}</strong></div>
+        <div><span>Sizes tracked</span><strong>${sizeList.length}</strong></div>
+        <div><span>Active sizes</span><strong>${activeSizes}</strong></div>
+      </div>
+      <div class="variant-selection-actions">
+        <button type="button" class="secondary" data-action="add-size" data-id="${color.id}">Add Size</button>
+        <button type="button" class="ghost" data-action="clear-all" data-id="${color.id}">Clear Sizes</button>
+      </div>`;
+    editor.appendChild(summary);
+
+    if (!sizeList.length) {
+      const empty = document.createElement('div');
+      empty.className = 'variants-empty-state small';
+      empty.innerHTML = `<h4>No sizes yet</h4><p>Use "Add Size" to start tracking ${color.name}.</p>`;
+      editor.appendChild(empty);
+    } else {
       const grid = document.createElement('div'); grid.className = 'size-grid';
-      if (!color.sizes.length) {
-        const emptyRow = document.createElement('div');
-        emptyRow.className = 'size-row';
-        emptyRow.innerHTML = '<span class="muted">No sizes added for this color.</span>';
-        grid.appendChild(emptyRow);
-      } else {
-        color.sizes.forEach(s => {
-          const row = document.createElement('div'); row.className = 'size-row';
-          row.innerHTML = `
-            <label>${s.eu}EU</label>
+      const sortedSizes = sizeList.slice().sort((a, b) => parseNum(a.eu, 0) - parseNum(b.eu, 0));
+      sortedSizes.forEach(s => {
+        const row = document.createElement('div'); row.className = 'size-row';
+        row.innerHTML = `
+          <span class="size-chip">${s.eu} EU</span>
+          <div class="size-stock-input">
+            <label>Stock</label>
             <input type="number" min="0" step="1" value="${s.stock}" data-color="${color.id}" data-size="${s.eu}" />
-            <div class="qty-controls">
-              <button type="button" class="qty-btn" data-action="decr" data-color="${color.id}" data-size="${s.eu}">−</button>
-              <button type="button" class="qty-btn" data-action="incr" data-color="${color.id}" data-size="${s.eu}">+</button>
-            </div>
-            <button type="button" class="danger" data-action="remove-size" data-color="${color.id}" data-size="${s.eu}">Remove</button>
-          `;
-          grid.appendChild(row);
-        });
-      }
-      card.appendChild(grid);
-      editor.appendChild(card);
-    });
+          </div>
+          <div class="qty-controls">
+            <button type="button" class="qty-btn" data-action="decr" data-color="${color.id}" data-size="${s.eu}">−</button>
+            <button type="button" class="qty-btn" data-action="incr" data-color="${color.id}" data-size="${s.eu}">+</button>
+          </div>
+          <button type="button" class="ghost danger-text" data-action="remove-size" data-color="${color.id}" data-size="${s.eu}">Remove</button>`;
+        grid.appendChild(row);
+      });
+      editor.appendChild(grid);
+    }
 
-    // Bind add size
     editor.querySelectorAll('[data-action="add-size"]').forEach(btn => btn.addEventListener('click', () => {
       const id = btn.dataset.id;
-      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = p.colors.find(y => y.id === id);
+      const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = prod.colors.find(y => y.id === id);
       let eu = prompt('Enter EU size to add (e.g. 36):');
       if (!eu) return;
       eu = parseNum(eu, null);
       if (!eu || c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
       c.sizes.push({ eu, stock: 0, sku: '' });
-      saveAll(); openVariantModal(p.id);
+      saveAll(); openVariantModal(prod.id);
     }));
 
-    // Bind remove size
+    editor.querySelectorAll('[data-action="clear-all"]').forEach(btn => btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = prod.colors.find(y => y.id === id);
+      if (!c || !c.sizes.length) return;
+      const ok = confirm(`Clear all sizes for ${c.name}?`);
+      if (!ok) return;
+      c.sizes = [];
+      saveAll(); openVariantModal(prod.id);
+    }));
+
     editor.querySelectorAll('[data-action="remove-size"]').forEach(btn => btn.addEventListener('click', () => {
       const colorId = btn.dataset.color;
       const eu = parseNum(btn.dataset.size);
-      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = p.colors.find(y => y.id === colorId);
+      const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = prod.colors.find(y => y.id === colorId);
       c.sizes = c.sizes.filter(z => z.eu !== eu);
-      saveAll(); openVariantModal(p.id);
+      saveAll(); openVariantModal(prod.id);
     }));
 
-    // Bind number inputs change
     editor.querySelectorAll('input[type="number"]').forEach(inp => {
       inp.addEventListener('change', (e) => {
         const colorId = e.target.dataset.color;
         const eu = parseNum(e.target.dataset.size);
         const qty = clampNum(parseNum(e.target.value), 0, 9999);
-        const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
-        const c = p.colors.find(y => y.id === colorId);
+        const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
+        const c = prod.colors.find(y => y.id === colorId);
         const s = c.sizes.find(z => z.eu === eu);
         if (s) s.stock = qty; saveAll();
       });
     });
 
-    // Bind qty +/- buttons
-    editor.querySelectorAll('.qty-btn').forEach(btn => btn.addEventListener('click', (e) => {
+    editor.querySelectorAll('.qty-btn').forEach(btn => btn.addEventListener('click', () => {
       const action = btn.dataset.action;
       const colorId = btn.dataset.color;
       const eu = parseNum(btn.dataset.size);
-      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = p.colors.find(y => y.id === colorId);
+      const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = prod.colors.find(y => y.id === colorId);
       const s = c.sizes.find(z => z.eu === eu);
       if (!s) return;
       const delta = action === 'incr' ? 1 : -1;
       s.stock = clampNum((Number(s.stock||0) || 0) + delta, 0, 9999);
-      saveAll(); openVariantModal(p.id);
+      saveAll(); openVariantModal(prod.id);
     }));
   }
 
