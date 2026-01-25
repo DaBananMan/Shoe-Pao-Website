@@ -2,4 +2,5 @@
 > shoepao-ar-build@0.1.0 start
 > node server.js
 
+firebase-admin initialized from service-account.json
 ShoePao server running on http://localhost:3000
