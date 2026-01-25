@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Order Details - SHOEPAO</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- Map rendering removed (routing integration disabled) -->
   <style>
     body{font-family:'Poppins',Arial,sans-serif;background:#f7f7f7;margin:0;color:#222}
     .page{max-width:1100px;margin:24px auto 120px;padding:0 20px}
@@ -42,6 +43,12 @@
   </style>
 </head>
 <body>
+  <script>
+    // Debug smoke-check removed in production build
+  </script>
+  <script>
+    // Raw JSON fallback removed
+  </script>
   <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04)">
     <div class="site-container" style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 24px;height:72px">
       <a href="home.html" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">
@@ -58,6 +65,8 @@
   <div class="page">
     <div class="breadcrumb">Home / Orders / <span id="orderBreadcrumb">Order</span></div>
 
+    <!-- Debug overlay removed -->
+
     <div id="orderHeader" class="card">
       <div class="header-row">
         <div>
@@ -71,6 +80,12 @@
         <div class="pill" id="courierPill">Courier: —</div>
         <div class="pill" id="trackingPill">Tracking: —</div>
         <div class="pill" id="paymentPill">Payment: —</div>
+        <div id="orderActions" style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <!-- Admin action buttons (visible when admin uses the detail page) -->
+          <!-- 'Mark Shipped' removed per request; admins can still mark shipped from the admin orders list. -->
+          <button id="odMarkDeliveredBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #0e7a3c;background:#0e7a3c;color:#fff;cursor:pointer;display:none">Mark Delivered</button>
+          <button id="odCancelBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #eee;background:#fff;color:#b71c1c;cursor:pointer;display:none">Cancel</button>
+        </div>
       </div>
     </div>
 
@@ -93,6 +108,7 @@
     <div class="card">
       <div class="section-title">Tracking Timeline</div>
       <div id="trackingTimeline" class="timeline"></div>
+  <!-- routing UI removed -->
     </div>
 
     <div class="card">
@@ -106,14 +122,290 @@
   <script src="js/firebase-config.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <!-- Leaflet removed: routing integration disabled -->
+  <script src="js/ensure-server.js"></script>
   <script>
     (function(){
       function formatPHP(n){
         try { return new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(Number(n||0)); }
         catch(e){ return '₱' + Number(n||0).toFixed(2); }
       }
+
+      // Simulate progression for an order's display status so the timeline moves
+      // through Picked up -> In transit -> Out for delivery -> Delivered smoothly.
+      function startSimulationForOrder(id){
+        try{
+          if(!window._orderSimTimers) window._orderSimTimers = {};
+          if(!window._orderSimState) window._orderSimState = {};
+          var idKey = id || orderId;
+          console.debug('startSimulationForOrder called for', idKey);
+          // don't start if already running
+          if(window._orderSimTimers[idKey]){ console.debug('startSimulationForOrder: timer already exists for', idKey); return; }
+          var intervalMs = 5000; // advance every 5s for testing
+          var steps = ['order placed','preparing','picked up','in transit','out for delivery','delivered'];
+          function stepIndexForDisplayStatus(s){
+            if(!s) return 0; var k = String(s||'').toLowerCase();
+            for(var i=0;i<steps.length;i++){ if(steps[i] === k) return i; }
+            // try mapping known admin statuses
+            if(k === 'shipped') return steps.indexOf('in transit');
+            if(k === 'confirmed' || k === 'processing') return steps.indexOf('preparing');
+            return 0;
+          }
+          
+          // initialize simulation state index from current server cache (if available)
+          try{
+            var initialIdx = 0;
+            if(window._orderSimState && window._orderSimState[idKey] && typeof window._orderSimState[idKey].idx === 'number'){
+              initialIdx = window._orderSimState[idKey].idx;
+            } else if(serverOrderCache && serverOrderCache.order){
+              try{ initialIdx = stepIndexForDisplayStatus(getDisplayStatus(serverOrderCache.order)); }catch(e){}
+            }
+            // If the server/admin status is 'shipped' or 'in transit', prefer starting
+            // the simulation at 'preparing' so Order placed + Preparing appear completed
+            // then progress to Picked up -> In transit -> Out for delivery.
+            try{
+              var serverStatus = serverOrderCache && serverOrderCache.order && serverOrderCache.order.status ? String(serverOrderCache.order.status).toLowerCase() : '';
+              var prepIdx = steps.indexOf('preparing');
+              if((!window._orderSimState || !window._orderSimState[idKey]) && (serverStatus === 'shipped' || serverStatus === 'in transit')){
+                // Only set to preparing when there's no saved simulation state; if a
+                // prior sim state exists we preserve it.
+                initialIdx = prepIdx;
+              }
+            }catch(e){}
+            window._orderSimState[idKey] = { idx: initialIdx };
+          }catch(e){ window._orderSimState[idKey] = { idx: 0 }; }
+          var tick = function(){
+            try{
+              if(!serverOrderCache || !serverOrderCache.order) return;
+              var ord = serverOrderCache.order;
+              var ds = getDisplayStatus(ord);
+              // prefer stored simulation index when present so the timer is idempotent
+              var idx = (window._orderSimState && window._orderSimState[idKey] && typeof window._orderSimState[idKey].idx === 'number') ? window._orderSimState[idKey].idx : stepIndexForDisplayStatus(ds);
+              if(idx < 0) idx = 0;
+              // compute next step
+              var nextIdx = idx + 1;
+              var nextStep = steps[nextIdx];
+              if(!nextStep){ try{ clearInterval(window._orderSimTimers[idKey]); delete window._orderSimTimers[idKey]; }catch(e){} return; }
+              if(nextStep === 'delivered'){
+                // Do not auto-mark as delivered; stop at 'out for delivery'.
+                // Stop the timer but KEEP the simulation state so the UI remains showing
+                // 'out for delivery' until the server reports out-for-delivery/delivered
+                try{ clearInterval(window._orderSimTimers[idKey]); delete window._orderSimTimers[idKey]; }catch(e){}
+                try{ if(window._orderSimState && typeof window._orderSimState[idKey] !== 'undefined'){
+                  // ensure the stored index points to 'out for delivery' (one step before delivered)
+                  var ofdIdx = steps.indexOf('out for delivery'); if(ofdIdx >= 0) window._orderSimState[idKey].idx = ofdIdx;
+                }}catch(e){}
+                return;
+              }
+              // Set a display status on the optimistic order so UI follows it
+              try{ ord._display_status = nextStep; console.debug('simulate set _display_status =', nextStep, 'for', idKey); }catch(e){}
+              // persist the simulation index for reconciliation after server responses
+              try{ if(window._orderSimState) window._orderSimState[idKey].idx = nextIdx; }catch(e){}
+              // Update display tracking timestamps for the next step
+              try{
+                if(Array.isArray(serverOrderCache.tracking) && serverOrderCache.tracking.length){
+                  var dt = new Date().toISOString();
+                  // find matching tracking entry and update its timestamp/location if needed
+                  for(var t=0;t<serverOrderCache.tracking.length;t++){
+                    var e = serverOrderCache.tracking[t] || {};
+                    var key = String(e.status || e.message || '').toLowerCase();
+                    if(key.indexOf(nextStep) !== -1 || key === nextStep){ serverOrderCache.tracking[t].timestamp = dt; break; }
+                  }
+                }
+              }catch(e){}
+              // re-render using simulated status
+              try{ console.debug('simulate -> advancing to', nextStep, 'for', idKey); var simItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(ord, simItems, buildDisplayTracking(ord, serverOrderCache.tracking || [])); }catch(e){}
+            }catch(e){ /* ignore per-interval errors */ }
+          };
+          var timer = setInterval(tick, intervalMs);
+          // run one immediate tick so the simulation visibly progresses without waiting the first interval
+          try{ tick(); }catch(e){}
+          // As an extra immediate step (defensive): if tick didn't advance because
+          // serverOrderCache wasn't available at the moment, try to compute and
+          // apply the next display step from available data so the UI moves.
+          try{
+            var ordNow = (serverOrderCache && serverOrderCache.order) ? serverOrderCache.order : null;
+            var dsNow = ordNow ? getDisplayStatus(ordNow) : null;
+            var idxNow = (window._orderSimState && window._orderSimState[idKey] && typeof window._orderSimState[idKey].idx === 'number') ? window._orderSimState[idKey].idx : stepIndexForDisplayStatus(dsNow);
+            var forcedNext = steps[idxNow + 1];
+                if(forcedNext && forcedNext !== 'delivered'){
+              try{
+                if(ordNow) ordNow._display_status = forcedNext;
+                if(window._orderSimState) window._orderSimState[idKey].idx = idxNow + 1;
+                    try{ var fnItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(ordNow || { id: idKey, _display_status: forcedNext }, fnItems, buildDisplayTracking(ordNow || { id: idKey, _display_status: forcedNext }, (serverOrderCache && serverOrderCache.tracking) || [])); }catch(e){}
+              }catch(e){}
+            }
+          }catch(e){}
+          window._orderSimTimers[idKey] = timer;
+          console.debug('startSimulationForOrder: timer started for', idKey, 'intervalMs=', intervalMs);
+        }catch(e){ console.warn('startSimulationForOrder failed', e); }
+      }
+
+      // Listen for admin broadcast updates so detail view refreshes when status changes
+      try{
+        window.addEventListener('storage', function(e){
+          try{
+            if(e.key === 'orders_update'){
+              var payload = null;
+              try{ payload = JSON.parse(e.newValue || '{}'); }catch(err){}
+              var changedId = payload && payload.id ? payload.id : null;
+              if(!changedId) return;
+              // If this detail page is showing the changed order, fetch latest from server and re-render
+              try{
+                if(typeof orderId !== 'undefined' && String(orderId) === String(changedId)){
+                  fetch(API_BASE + '/api/orders/' + encodeURIComponent(changedId)).then(function(r){ if(!r.ok) throw new Error('no order'); return r.json(); }).then(function(j){
+                    if(j && j.order){
+              try{ serverOrderCache = { order: j.order, items: ((j.items && j.items.length) ? j.items : ((serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []))), tracking: (serverOrderCache && serverOrderCache.tracking) || [] }; }catch(e){}
+                try{ fetch(API_BASE + '/api/orders/' + encodeURIComponent(changedId) + '/tracking').then(function(r2){ return r2.json(); }).then(function(tj){ serverOrderCache.tracking = (tj && tj.tracking) ? tj.tracking : serverOrderCache.tracking || []; var upItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, upItems, buildDisplayTracking(serverOrderCache.order, serverOrderCache.tracking || [])); }).catch(function(){ var upItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, upItems, buildDisplayTracking(serverOrderCache.order, serverOrderCache.tracking || [])); }); }catch(e){ var upItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, upItems, buildDisplayTracking(serverOrderCache.order, serverOrderCache.tracking || [])); }
+                    }
+                  }).catch(function(){});
+                }
+              }catch(e){}
+            }
+          }catch(e){}
+        });
+      }catch(e){}
+      // Helper to update order status from the order-detail page and refresh view
+      function updateOrderStatusFromDetail(id, status){
+        try{
+          if(!window.fetch) return;
+          // Optimistic UI update: render immediately with local state so the timeline
+          // updates smoothly without requiring a full reload.
+          try{
+            var currentServer = (serverOrderCache && serverOrderCache.order) ? serverOrderCache : { order: { id: id }, items: [], tracking: [] };
+              var optimisticOrder = Object.assign({}, currentServer.order || {}, { status: status });
+              // For optimistic UI: if admin moved order to 'shipped' start at 'preparing'.
+              // If admin moved to 'delivered' set display to 'delivered' immediately and
+              // clear any running simulation timers for this order.
+              try{
+                var st = String(status || '').toLowerCase();
+                if(st === 'shipped'){
+                  optimisticOrder._display_status = 'preparing';
+                  console.debug('optimistic set _display_status =', optimisticOrder._display_status, 'for', id);
+                } else if(st === 'delivered'){
+                  optimisticOrder._display_status = 'delivered';
+                  console.debug('optimistic set _display_status =', optimisticOrder._display_status, 'for', id);
+                  try{ if(window._orderSimTimers && window._orderSimTimers[id || orderId]){ clearInterval(window._orderSimTimers[id || orderId]); delete window._orderSimTimers[id || orderId]; } }catch(e){}
+                  try{ if(window._orderSimState) window._orderSimState[id || orderId] = { idx: 5 }; }catch(e){}
+                }
+              }catch(e){}
+            var optimisticItems = Array.isArray(currentServer.items) ? currentServer.items : [];
+            var optimisticTracking = buildDisplayTracking(optimisticOrder, currentServer.tracking || []);
+            // update client cache and UI immediately
+            try{ serverOrderCache = { order: optimisticOrder, items: optimisticItems, tracking: optimisticTracking }; }catch(e){}
+            try{ renderOrder(optimisticOrder, optimisticItems, optimisticTracking); }catch(e){}
+            // Also persist an optimistic merge into admin localStorage so other tabs (and reloads)
+            // reflect the new status immediately. We merge only the single order to avoid
+            // clobbering unrelated admin data. Mark this entry as optimistic with a timestamp
+            // so server merges can prefer authoritative server values when available.
+            try{
+              try{ optimisticOrder._optimistic = true; optimisticOrder._optimistic_ts = Date.now(); }catch(e){}
+              var adminOrders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
+              var ai = adminOrders.findIndex(function(o){ return o && String(o.id) === String(optimisticOrder.id); });
+              if(ai === -1){ adminOrders.unshift(optimisticOrder); } else { adminOrders[ai] = Object.assign({}, adminOrders[ai], optimisticOrder); }
+              try{ localStorage.setItem('orders', JSON.stringify(adminOrders)); }catch(e){}
+              try{ localStorage.setItem('orders_update', JSON.stringify({ id: optimisticOrder.id, status: optimisticOrder.status || '', ts: Date.now(), optimistic: true })); }catch(e){}
+            }catch(e){}
+            // If we just moved the order to 'shipped' or equivalent, start the client-side simulation
+            try{ var ds = getDisplayStatus(optimisticOrder); if(String(ds||'').toLowerCase() === 'shipped' || String(optimisticOrder.status||'').toLowerCase() === 'shipped'){ startSimulationForOrder(id || orderId); } }catch(e){}
+          }catch(e){/* ignore optimistic render errors */}
+
+          var payload = { status: status };
+          fetch(API_BASE + '/api/orders/' + encodeURIComponent(id || orderId), {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          }).then(function(r){ return r.json(); }).then(function(j){
+            if(j && j.order){
+              // merge server authoritative response into client cache
+              try{ serverOrderCache = { order: j.order, items: j.items || (serverOrderCache && serverOrderCache.items) || [], tracking: (serverOrderCache && serverOrderCache.tracking) || [] }; }catch(e){}
+                // If server confirmed delivered, ensure display shows delivered and stop any sim
+                try{
+                  var serverStatusAfter = (j && j.order && j.order.status) ? String(j.order.status).toLowerCase() : '';
+                  if(serverStatusAfter === 'delivered'){
+                    try{ j.order._display_status = 'delivered'; }catch(e){}
+                    try{ if(window._orderSimTimers && window._orderSimTimers[id || orderId]){ clearInterval(window._orderSimTimers[id || orderId]); delete window._orderSimTimers[id || orderId]; } }catch(e){}
+                    try{ if(window._orderSimState) window._orderSimState[id || orderId] = { idx: 5 }; }catch(e){}
+                  }
+                }catch(e){}
+              // attempt to refresh tracking as well; after fetching decide whether to stop simulation
+              try{ fetch(API_BASE + '/api/orders/' + encodeURIComponent(id || orderId) + '/tracking').then(function(r2){ return r2.json(); }).then(function(tj){ var tracked = (tj && tj.tracking) ? tj.tracking : []; try{ serverOrderCache.tracking = tracked; }catch(e){}
+                  // Determine if server tracking has progressed to out for delivery or delivered
+                  try{
+                    var hasOutForDelivery = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
+                    var hasDelivered = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('delivered') !== -1; });
+                    var serverStatus = (j && j.order && j.order.status) ? String(j.order.status).toLowerCase() : '';
+                    // If server shows delivered OR tracking contains delivered/out for delivery, stop simulation.
+                      if(hasDelivered || hasOutForDelivery || serverStatus === 'delivered'){
+                      try{ if(window._orderSimTimers && window._orderSimTimers[id || orderId]){ clearInterval(window._orderSimTimers[id || orderId]); delete window._orderSimTimers[id || orderId]; } }catch(e){}
+                    } else {
+                      // Otherwise restart simulation so the client continues to progress to out for delivery
+                      try{ startSimulationForOrder(id || orderId); }catch(e){}
+                    }
+                  }catch(e){}
+                    // If a simulation is already running, preserve its current simulated display
+                    try{
+                      var simKey = id || orderId;
+                      if(window._orderSimState && window._orderSimState[simKey] && !j.order._display_status){
+                        var simIdx = window._orderSimState[simKey].idx || 0;
+                        var simSteps = ['order placed','preparing','picked up','in transit','out for delivery','delivered'];
+                        j.order._display_status = simSteps[simIdx] || j.order.status;
+                        console.debug('reconcile: injected simulated _display_status=', j.order._display_status, 'simIdx=', simIdx, 'for', simKey);
+                      }
+                    }catch(e){}
+                    try{ renderOrder(j.order, (j.items && j.items.length) ? j.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, tracked)); }catch(e){ renderOrder(j.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, tracked)); }
+                    try{ localStorage.setItem('orders_update', JSON.stringify({ id: j.order.id, status: j.order.status || '', ts: Date.now() })); }catch(e){}
+                    }).catch(function(){
+                      try{
+                        var simKey = id || orderId;
+                        if(window._orderSimState && window._orderSimState[simKey] && !j.order._display_status){
+                          var simIdx = window._orderSimState[simKey].idx || 0;
+                          var simSteps = ['order placed','preparing','picked up','in transit','out for delivery','delivered'];
+                          j.order._display_status = simSteps[simIdx] || j.order.status;
+                          console.debug('reconcile(catch): injected simulated _display_status=', j.order._display_status, 'simIdx=', simIdx, 'for', simKey);
+                        }
+                      }catch(e){}
+                      try{ renderOrder(j.order, (j.items && j.items.length) ? j.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, [])); }catch(e){ renderOrder(j.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, [])); }
+                      try{ localStorage.setItem('orders_update', JSON.stringify({ id: j.order.id, status: j.order.status || '', ts: Date.now() })); }catch(e){}
+                      }); }
+              catch(e){ try{ renderOrder(j.order, (j.items && j.items.length) ? j.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, [])); }catch(err){ renderOrder(j.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j.order, [])); } }
+            } else {
+              // fallback: re-fetch server order
+              try{
+                fetch(API_BASE + '/api/orders/' + encodeURIComponent(id || orderId)).then(function(r2){ return r2.json(); }).then(function(j2){
+                  if(j2 && j2.order){
+                    fetch(API_BASE + '/api/orders/' + encodeURIComponent(id || orderId) + '/tracking').then(function(r3){ return r3.json(); }).then(function(tj){
+                      var tracked = (tj && tj.tracking) ? tj.tracking : [];
+                      try{ serverOrderCache = { order: j2.order, items: (j2.items && j2.items.length) ? j2.items : (serverOrderCache && serverOrderCache.items) || [], tracking: tracked }; }catch(e){}
+                      // decide whether to stop or continue simulation based on tracking
+                      try{
+                        var hasOutForDelivery = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
+                        var hasDelivered = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('delivered') !== -1; });
+                        var serverStatus = (j2 && j2.order && j2.order.status) ? String(j2.order.status).toLowerCase() : '';
+                        if(hasDelivered || hasOutForDelivery || serverStatus === 'delivered'){
+                          try{ if(window._orderSimTimers && window._orderSimTimers[id || orderId]){ clearInterval(window._orderSimTimers[id || orderId]); delete window._orderSimTimers[id || orderId]; } }catch(e){}
+                        } else {
+                          try{ startSimulationForOrder(id || orderId); }catch(e){}
+                        }
+                      }catch(e){}
+                        try{
+                          var simKey = id || orderId;
+                          if(window._orderSimState && window._orderSimState[simKey] && !j2.order._display_status){
+                            var simIdx = window._orderSimState[simKey].idx || 0;
+                            var simSteps = ['order placed','preparing','picked up','in transit','out for delivery','delivered'];
+                            j2.order._display_status = simSteps[simIdx] || j2.order.status;
+                            console.debug('reconcile(fallback): injected simulated _display_status=', j2.order._display_status, 'simIdx=', simIdx, 'for', simKey);
+                          }
+                        }catch(e){}
+                        try{ renderOrder(j2.order, (j2.items && j2.items.length) ? j2.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j2.order, tracked)); }catch(e){ renderOrder(j2.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j2.order, tracked)); }
+                        try{ localStorage.setItem('orders_update', JSON.stringify({ id: j2.order.id, status: j2.order.status || '', ts: Date.now() })); }catch(e){}
+                    }).catch(function(){ try{ serverOrderCache = { order: j2.order, items: (j2.items && j2.items.length) ? j2.items : (serverOrderCache && serverOrderCache.items) || [], tracking: [] }; }catch(e){} try{ renderOrder(j2.order, (j2.items && j2.items.length) ? j2.items : (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j2.order, [])); }catch(e){ renderOrder(j2.order, (serverOrderCache && serverOrderCache.items) || [], buildDisplayTracking(j2.order, [])); } });
+                  }
+                }).catch(function(){});
+              }catch(e){}
+            }
+          }).catch(function(err){ console.warn('Failed to update order status', err); });
+        }catch(e){ console.warn('updateOrderStatusFromDetail failed', e); }
+      }
       function toDateValue(value){
-        if(!value) return null;
         try{
           if(typeof value.toDate === 'function') return value.toDate();
           if(typeof value.seconds === 'number') return new Date(value.seconds * 1000);
@@ -158,6 +450,22 @@
         host.innerHTML = '';
         var steps = ['Order placed','Preparing','Picked up','In transit','Out for delivery','Delivered'];
         var statusNorm = String(currentStatus || '').toLowerCase();
+
+        // Map various status values to timeline step keys so the active step follows the admin-set status.
+        function statusToStepKey(s){
+          var k = String(s || '').toLowerCase();
+          if(k === 'processing' || k === 'confirmed' || k === 'preparing') return 'preparing';
+          if(k === 'pending payment' || k === 'order placed' || k === 'placed' || !k) return 'order placed';
+          if(k === 'picked up' || k === 'picked_up') return 'picked up';
+          if(k === 'in transit' || k === 'in_transit') return 'in transit';
+          // Treat 'shipped' as equivalent to 'in transit' for timeline progression
+          if(k === 'shipped') return 'in transit';
+          if(k === 'out for delivery' || k === 'out_for_delivery') return 'out for delivery';
+          if(k === 'delivered') return 'delivered';
+          if(k === 'cancelled' || k === 'canceled') return 'order cancelled';
+          return k;
+        }
+
         var prevStatus = String((order && (order.previousStatus || (order.cancelRequest && order.cancelRequest.previousStatus))) || '').toLowerCase();
         var isCancelled = statusNorm.indexOf('cancel') !== -1 || (order && order.cancelRequest && order.cancelRequest.approvedAt);
         if(isCancelled){
@@ -167,22 +475,147 @@
             steps = ['Order placed','Order cancelled'];
           }
         }
+
+        // Build quick lookup of events by normalized step text
         var map = {};
         (events || []).forEach(function(ev){
           var key = String(ev.status || ev.message || '').trim();
-          if(key) map[key.toLowerCase()] = ev;
+          if(key) map[key.toLowerCase()] = map[key.toLowerCase()] || ev; // keep first/earliest for a step
         });
-        var currentKey = isCancelled ? 'order cancelled' : String(currentStatus || '').toLowerCase();
-        steps.forEach(function(step){
+
+        var impliedStep = isCancelled ? 'Order cancelled' : statusToStepKey(currentStatus);
+        var stepIndexByName = {};
+        steps.forEach(function(s, i){ stepIndexByName[s.toLowerCase()] = i; });
+        var impliedIndex = (stepIndexByName[impliedStep.toLowerCase()] !== undefined) ? stepIndexByName[impliedStep.toLowerCase()] : 0;
+
+        // Find latest event index present (if any)
+        var latestEventIndex = -1;
+        Object.keys(map).forEach(function(k){
+          var idx = stepIndexByName[k];
+          if(idx !== undefined && idx > latestEventIndex) latestEventIndex = idx;
+        });
+
+        // Prefer admin-visible status as authoritative. Do not advance the shown timeline
+        // beyond the admin-set status unless the admin status itself is 'delivered'.
+        var deliveredIdx = stepIndexByName['delivered'] !== undefined ? stepIndexByName['delivered'] : steps.length - 1;
+        var showIndex = impliedIndex;
+        if (statusNorm === 'delivered') {
+          // Admin says delivered: allow events to determine latest progress up to Delivered
+          if (latestEventIndex > impliedIndex) {
+            showIndex = Math.min(latestEventIndex, deliveredIdx);
+          } else {
+            showIndex = impliedIndex;
+          }
+        } else {
+          // For all non-delivered statuses, strictly use admin status (do not let events advance it)
+          showIndex = impliedIndex;
+        }
+
+        steps.forEach(function(step, i){
           var ev = map[step.toLowerCase()] || null;
-          var isActive = currentKey && currentKey === step.toLowerCase();
+          // Mark all steps up to showIndex as active so the timeline reflects progress
+          // For example, when admin status is 'shipped' we want 'Picked up' and 'In transit' to show as progressed.
+          var isActive = (i <= showIndex);
+          var isCurrent = (i === showIndex);
           var item = document.createElement('div');
-          item.className = 'timeline-item' + (isActive ? ' active' : '');
+          item.className = 'timeline-item' + (isActive ? ' active' : '') + (isCurrent ? ' current' : '');
+          // Only reveal timestamp/location/details when this step is reached according to admin/server
+          var timeHtml = '<div class="timeline-time">Pending</div>';
+          var locHtml = '';
+          if(ev && i <= showIndex && ev.timestamp){
+            timeHtml = '<div class="timeline-time">' + formatDateTime(ev.timestamp) + '</div>';
+          }
+          // Do not show locations for the first two online steps (Order placed, Preparing)
+          if(ev && i <= showIndex && ev.location){
+              if(step.toLowerCase() !== 'order placed' && step.toLowerCase() !== 'preparing'){
+                locHtml = '<div class="timeline-location" style="color:#666;font-size:0.95rem;margin-top:4px;">' + ev.location + '</div>';
+              }
+          }
+          var titleText = (ev && (ev.message || ev.status) && i <= showIndex) ? (ev.message || ev.status) : step;
           item.innerHTML = '<div class="timeline-dot"></div>' +
-            '<div class="timeline-title">' + (ev && (ev.message || ev.status) ? (ev.message || ev.status) : step) + '</div>' +
-            '<div class="timeline-time">' + (ev && ev.timestamp ? formatDateTime(ev.timestamp) : 'Pending') + '</div>';
+            '<div class="timeline-title">' + titleText + '</div>' +
+            timeHtml + locHtml;
           host.appendChild(item);
         });
+      }
+
+      // Build a synthetic, AfterShip-like tracking sequence for display when server
+      // tracking is missing or partial. It prefers existing events (by matching
+      // normalized status/message) and fills in missing steps using location hints
+      // derived from the order (pickup location constant and delivery address).
+      function buildDisplayTracking(order, providedTracking){
+        try{
+          var PICKUP_LOCATION = 'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3, Bacoor, Philippines, 4102';
+          // normalize provided tracking into map by status/message -> array of events
+          // We'll keep arrays so we can pick the most recent event per status when needed.
+          var map = {};
+          (providedTracking || []).forEach(function(ev){
+            try{
+              if(!ev || !(ev.status || ev.message)) return;
+              var k = String(ev.status || ev.message).trim().toLowerCase();
+              if(!map[k]) map[k] = [];
+              map[k].push(ev);
+            }catch(e){}
+          });
+
+          // derive delivery address short location
+          var deliveryAddrObj = order && (order.deliveryAddress || (order.addressObject ? normalizeDeliveryAddressFromAddressObject(order.addressObject) : null));
+          var deliveryAddressText = '';
+          try{ deliveryAddressText = formatDeliveryAddressText(deliveryAddrObj) || order.delivery_address || order.shippingAddress || ''; }catch(e){ deliveryAddressText = order.delivery_address || ''; }
+          var cityOrProvince = '';
+          try{ if(deliveryAddrObj){ cityOrProvince = deliveryAddrObj.city || deliveryAddrObj.province || ''; } else { var parts = String(deliveryAddressText||'').split(','); cityOrProvince = parts.length ? parts[parts.length-1].trim() : ''; } }catch(e){ cityOrProvince = ''; }
+
+          // Steps we want to show (AfterShip-like flow)
+          var seq = [
+            { key: 'order placed', label: 'Order placed', location: '' },
+            { key: 'preparing', label: 'Preparing', location: '' },
+            // Always show the canonical pickup location for our simulated flow so admins
+            // and customers see the expected pickup point instead of a generic hub.
+            { key: 'picked up', label: 'Picked up', location: PICKUP_LOCATION },
+            { key: 'in transit', label: 'In transit', location: (cityOrProvince || 'Philippines') },
+            { key: 'out for delivery', label: 'Out for delivery', location: (deliveryAddrObj && deliveryAddrObj.barangay) ? (deliveryAddrObj.barangay + ', ' + (deliveryAddrObj.city || cityOrProvince)) : (cityOrProvince || deliveryAddressText) },
+            { key: 'delivered', label: 'Delivered', location: deliveryAddressText }
+          ];
+
+          // Create sensible timestamps based on order.created_at as a baseline
+          var base = toDateValue(order && (order.created_at || order.date)) || new Date();
+          var times = [];
+          try{ // offsets in milliseconds
+            times = [0, 1000*60*60*4, 1000*60*60*12, 1000*60*60*24, 1000*60*60*24 + 1000*60*60*6, 1000*60*60*24 + 1000*60*60*12];
+          }catch(e){ times = [0,3600000,7200000,14400000,21600000,28800000]; }
+
+          var result = [];
+          for(var i=0;i<seq.length;i++){
+            var s = seq[i];
+            var existingArr = map[String(s.key).toLowerCase()];
+            if(Array.isArray(existingArr) && existingArr.length){
+              // pick the most recent event by timestamp if available
+              var chosen = existingArr[0];
+              try{
+                for(var j=1;j<existingArr.length;j++){
+                  var a = existingArr[j];
+                  var ta = a && (a.timestamp || a.time || a.date) ? new Date(a.timestamp || a.time || a.date) : null;
+                  var tc = chosen && (chosen.timestamp || chosen.time || chosen.date) ? new Date(chosen.timestamp || chosen.time || chosen.date) : null;
+                  if(ta && (!tc || ta.getTime() > tc.getTime())) chosen = a;
+                }
+              }catch(e){}
+              // override the picked-up location with our canonical pickup location so the UI is consistent
+              if(String(s.key).toLowerCase() === 'picked up'){
+                chosen.location = s.location || chosen.location || '';
+              } else if(String(s.key).toLowerCase() === 'in transit'){
+                // Force 'in transit' to show a single region-level location rather than fluctuating coordinates
+                chosen.location = s.location || chosen.location || '';
+              } else {
+                // prefer event-provided location; fall back to our synthesized location
+                if(!chosen.location) chosen.location = s.location || '';
+              }
+              result.push(chosen);
+            } else {
+              result.push({ status: s.label, message: s.label, timestamp: new Date(base.getTime() + (times[i]||0)).toISOString(), location: s.location || '' });
+            }
+          }
+          return result;
+        }catch(e){ return providedTracking || []; }
       }
       function renderItems(items){
         var host = document.getElementById('orderItems');
@@ -192,15 +625,24 @@
           host.innerHTML = '<div class="muted">No items found.</div>';
           return;
         }
-        items.forEach(function(it){
+        // Normalize item shape to handle different sources (server DB, localStorage, Firestore)
+        items.forEach(function(raw){
+          var it = raw || {};
+          var name = it.name || it.title || it.product_name || it.productTitle || '';
+          var image = it.image_url || it.image || it.photo || it.imageUrl || 'IMAGE/NIKE1.png';
+          var qty = Number(it.qty || it.quantity || it.count || it.qty_selected || 1) || 1;
+          var price = Number(it.price || it.unit_price || it.amount || 0) || 0;
+
           var row = document.createElement('div');
           row.className = 'item-row';
-          row.innerHTML = '<img src="' + (it.image_url || it.image || 'IMAGE/NIKE1.png') + '" alt="' + (it.name || '') + '">' +
-            '<div><div style="font-weight:600">' + (it.name || '') + '</div><div class="muted">Qty: ' + (it.qty || it.quantity || 1) + '</div></div>' +
-            '<div class="price" style="font-weight:600">' + formatPHP(it.price) + '</div>';
+          row.innerHTML = '<img src="' + image + '" alt="' + (name || '') + '">' +
+            '<div><div style="font-weight:600">' + (name || '') + '</div><div class="muted">Qty: ' + (qty) + '</div></div>' +
+            '<div class="price" style="font-weight:600">' + formatPHP(price) + '</div>';
           host.appendChild(row);
         });
       }
+  // Routing UI and map rendering removed.
+  // Previously this function rendered route summary and a Leaflet map; routing is disabled now.
       function showError(msg){
         var el = document.getElementById('orderError');
         if(!el) return;
@@ -238,6 +680,9 @@
         return parts.join(', ');
       }
 
+      // Shorten long text for UI pills
+      function short(s, n){ if(!s && s !== 0) return ''; s = String(s); return (s.length > n) ? (s.slice(0, n-1) + '…') : s; }
+
       // Compute estimated delivery based on province/region
       function computeEstimatedDelivery(order){
         try{
@@ -254,12 +699,203 @@
         }catch(e){ return ''; }
       }
 
-      var orderId = getOrderId();
+  var orderId = getOrderId();
+    console.log('order-detail: resolved orderId ->', orderId);
+  // Debug no-op (previously updated an on-screen debug overlay)
+  function setDebug(msg){}
+  // Dev API base (Node backend runs on port 3000). Change to '' or the production API origin as needed.
+  // Use PHP proxy as API base so requests go through Apache/PHP (helps when Node isn't
+  // directly reachable from the browser). Compute project root (first path segment)
+  // and point to server-proxy.php there.
+  var API_BASE = (function(){
+    try{
+      var p = window.location.pathname.replace(/\/+$|^\/+/, '');
+      var seg = p.split('/');
+      var root = seg.length > 0 ? '/' + seg[0] : '';
+      return root + '/server-proxy.php';
+    }catch(e){ return '/server-proxy.php'; }
+  })();
       if(!orderId){
-        showError('Missing order id.');
+        showError('Missing order id. Open this page as /orders/{orderId} (example: /orders/ORD230123) or open from the Orders admin drawer.');
         return;
       }
       document.getElementById('orderBreadcrumb').textContent = orderId;
+      // Server cache used to prefer server-side values over stale Firestore/local data.
+      var serverOrderCache = null;
+      // Local (card) cache from localStorage to ensure order-detail matches the card when
+      // server isn't reachable. We'll render from this immediately if present.
+      var localOrderCache = null;
+      var localItemsCache = null;
+      try{
+        var _orders = JSON.parse(localStorage.getItem('orders') || '[]');
+        if(Array.isArray(_orders) && _orders.length){
+          for(var i=0;i<_orders.length;i++){
+            var o = _orders[i];
+            if(o && String(o.id) === String(orderId)){
+              localOrderCache = o;
+              // try common keys for items
+              if(Array.isArray(o.items) && o.items.length) localItemsCache = o.items;
+              break;
+            }
+          }
+        }
+      }catch(e){ /* ignore malformed localStorage */ }
+
+      // Try to fetch authoritative order and tracking from server first so the page
+      // immediately reflects server-side tracking_number/courier values (useful when
+      // local Firestore or localStorage data is stale).
+      (function tryFetchServerOrder(){
+        try{
+            console.log('order-detail: tryFetchServerOrder; API_BASE=', API_BASE, 'orderId=', orderId);
+            try{ setDebug('tryFetchServerOrder; API_BASE=' + API_BASE + '\norderId=' + orderId); }catch(e){}
+          if(!window.fetch) return;
+          // fetch order details
+            fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId)).then(function(r){ if(!r.ok) throw new Error('no server order'); return r.json(); }).then(function(j){
+              console.log('order-detail: server /api/orders response', j && j.order ? 'has order' : 'no order');
+              try{ setDebug('server /api/orders response -> ' + (j && j.order ? 'has order' : 'no order')); }catch(e){}
+            if(!j || !j.order) return;
+            var srvOrder = j.order || {};
+            var srvItems = (j.items && j.items.length) ? j.items : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []);
+            // fetch server tracking events
+            fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId) + '/tracking').then(function(r2){ return r2.json(); }).then(function(tj){
+                console.log('order-detail: /tracking response, length=', (tj && tj.tracking && tj.tracking.length) || 0);
+                try{ setDebug('/tracking length=' + ((tj && tj.tracking && tj.tracking.length) || 0)); }catch(e){}
+              var tracked = (tj && tj.tracking) ? tj.tracking : [];
+              // cache server results so Firestore rendering can merge them
+              try{ serverOrderCache = { order: srvOrder, items: (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracking: tracked }; }catch(e){}
+              // Persist server authoritative values back to localStorage and Firestore so all sources stay in sync
+              try{
+                // Update localStorage orders array (merge/replace single order)
+                try{
+                  var _orders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
+                  var replaced = false;
+                  for(var i=0;i<_orders.length;i++){
+                    if(String(_orders[i] && _orders[i].id) === String(srvOrder.id || orderId)){
+                      _orders[i] = Object.assign({}, _orders[i], srvOrder);
+                      if(Array.isArray(srvItems) && srvItems.length) _orders[i].items = srvItems;
+                      replaced = true; break;
+                    }
+                  }
+                  if(!replaced){
+                    var newEntry = Object.assign({}, srvOrder);
+                    if(Array.isArray(srvItems) && srvItems.length) newEntry.items = srvItems;
+                    _orders.unshift(newEntry);
+                  }
+                  try{ localStorage.setItem('orders', JSON.stringify(_orders)); }catch(e){}
+                }catch(e){}
+
+                // Update Firestore order doc and items (merge). Use ensureFirebaseReady helper used elsewhere.
+                try{
+                  ensureFirebaseReady(function(err){
+                    if(err) return; // can't sync to Firestore
+                    try{
+                      var db = firebase.firestore();
+                      var orderDoc = db.collection('orders').doc(srvOrder.id || orderId);
+                      orderDoc.set(srvOrder, { merge: true }).catch(function(){});
+                      if(Array.isArray(srvItems)){
+                        srvItems.forEach(function(it, idx){
+                          try{
+                            var docId = it.product_id || it.id || String(idx);
+                            orderDoc.collection('items').doc(String(docId)).set(it).catch(function(){});
+                          }catch(e){}
+                        });
+                      }
+                    }catch(e){}
+                  });
+                }catch(e){}
+              }catch(e){}
+              // Render using server-provided data
+              try{
+                // If server says shipped but tracking doesn't include out for delivery/delivered,
+                // start client-side simulation so the UI progresses smoothly to Out for delivery.
+                try{
+                  var hasOutForDelivery = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
+                  var hasDelivered = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('delivered') !== -1; });
+                  var serverStatus = (srvOrder && srvOrder.status) ? String(srvOrder.status).toLowerCase() : '';
+                  // If server already reports delivered, ensure any running simulation is stopped
+                  if(serverStatus === 'delivered' || hasDelivered){
+                    try{ if(window._orderSimTimers && window._orderSimTimers[orderId]){ clearInterval(window._orderSimTimers[orderId]); delete window._orderSimTimers[orderId]; } }catch(e){}
+                    try{ if(window._orderSimState) window._orderSimState[orderId] = { idx: 5 }; }catch(e){}
+                  }
+                  if(((serverStatus === 'shipped' || serverStatus === 'in transit') || (srvOrder && srvOrder._display_status && String(srvOrder._display_status).toLowerCase() === 'preparing')) && !hasOutForDelivery && !hasDelivered){ try{ startSimulationForOrder(orderId); }catch(e){} }
+                }catch(e){}
+                try{
+                  // If we already have a running simulation state, inject it. Otherwise,
+                  // when the server shows 'shipped' or 'in transit' but tracking is
+                  // incomplete, provide a provisional display status ('preparing') so
+                  // the timeline shows Order placed + Preparing as completed on hard reloads.
+                  if(window._orderSimState && window._orderSimState[orderId] && !srvOrder._display_status){
+                    var simIdx = window._orderSimState[orderId].idx || 0;
+                    var simSteps = ['order placed','preparing','picked up','in transit','out for delivery','delivered'];
+                    srvOrder._display_status = simSteps[simIdx] || srvOrder.status;
+                  } else {
+                    try{
+                      var serverStatus = (srvOrder && srvOrder.status) ? String(srvOrder.status).toLowerCase() : '';
+                      if((serverStatus === 'shipped' || serverStatus === 'in transit') && !srvOrder._display_status){
+                        srvOrder._display_status = 'preparing';
+                      }
+                    }catch(e){}
+                  }
+                }catch(e){}
+                try{ renderOrder(srvOrder, (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracked); }catch(e){ renderOrder(srvOrder, (serverOrderCache && serverOrderCache.items) || [], tracked); }
+              }catch(e){}
+            }).catch(function(){
+                console.warn('order-detail: tracking fetch failed, falling back');
+                try{ setDebug('tracking fetch failed'); }catch(e){}
+              try{ serverOrderCache = { order: srvOrder, items: (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracking: [] }; }catch(e){}
+              try{ renderOrder(srvOrder, (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), []); }catch(e){ renderOrder(srvOrder, (serverOrderCache && serverOrderCache.items) || [], []); }
+            });
+          }).catch(function(){ /* ignore - fallback to firebase */ });
+        }catch(e){ /* ignore */ }
+      })();
+
+      // Poll server periodically for updates so the timeline updates without requiring a hard reload.
+      try{
+        var POLL_MS = 8000; // 8 seconds between polls
+        setInterval(function(){
+          try{
+            if(!window.fetch) return;
+      fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId)).then(function(r){ if(!r.ok) throw new Error('no server order'); return r.json(); }).then(function(j){
+              if(!j || !j.order) return;
+              var srvOrder = j.order || {};
+              var srvItems = (j.items && j.items.length) ? j.items : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []);
+              fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId) + '/tracking').then(function(r2){ return r2.json(); }).then(function(tj){
+                var tracked = (tj && tj.tracking) ? tj.tracking : [];
+                try{ serverOrderCache = { order: srvOrder, items: (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracking: tracked }; }catch(e){}
+                try{
+                  try{
+                    var hasOutForDelivery = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
+                    var hasDelivered = Array.isArray(tracked) && tracked.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('delivered') !== -1; });
+                    var serverStatus = (srvOrder && srvOrder.status) ? String(srvOrder.status).toLowerCase() : '';
+                    if(((serverStatus === 'shipped' || serverStatus === 'in transit') || (srvOrder && srvOrder._display_status && String(srvOrder._display_status).toLowerCase() === 'preparing')) && !hasOutForDelivery && !hasDelivered){ try{ startSimulationForOrder(orderId); }catch(e){} }
+                  }catch(e){}
+                  try{
+                    if(window._orderSimState && window._orderSimState[orderId] && !srvOrder._display_status){
+                      var simIdx = window._orderSimState[orderId].idx || 0;
+                      var simSteps = ['order placed','preparing','picked up','in transit','out for delivery','delivered'];
+                      srvOrder._display_status = simSteps[simIdx] || srvOrder.status;
+                    } else {
+                      try{
+                        var serverStatus2 = (srvOrder && srvOrder.status) ? String(srvOrder.status).toLowerCase() : '';
+                        if((serverStatus2 === 'shipped' || serverStatus2 === 'in transit') && !srvOrder._display_status){
+                          srvOrder._display_status = 'preparing';
+                        }
+                      }catch(e){}
+                    }
+                  }catch(e){}
+                  try{ renderOrder(srvOrder, (srvItems && srvItems.length) ? srvItems : ((serverOrderCache && serverOrderCache.items) ? serverOrderCache.items : []), tracked); }catch(e){ renderOrder(srvOrder, (serverOrderCache && serverOrderCache.items) || [], tracked); }
+                }catch(e){}
+              }).catch(function(){ /* ignore tracking fetch errors */ });
+            }).catch(function(){ /* ignore order fetch errors */ });
+          }catch(e){}
+        }, POLL_MS);
+      }catch(e){}
+      // If server wasn't reachable yet but we have a local cached order (card), render it now
+      try{
+        if(!serverOrderCache && localOrderCache){
+          try{ renderOrder(localOrderCache, localItemsCache || [], []); }catch(e){}
+        }
+      }catch(e){}
       function ensureFirebaseReady(cb){
         try{
           if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('Firebase not configured')); return; }
@@ -276,14 +912,101 @@
         }catch(e){ if(cb) cb(e); }
       }
 
+      function getDisplayStatus(order){
+        return (order && order._display_status) ? order._display_status : (order && order.status) ? order.status : 'Pending';
+      }
+
       function renderOrder(order, items, tracking){
+        try{ console.debug('renderOrder displayStatus=', getDisplayStatus(order), 'server tracking len=', Array.isArray(tracking)?tracking.length:0); }catch(e){}
+        // If the display status indicates preparing/shipped/in transit and there's
+        // no out-for-delivery/delivered event yet, ensure the simulation is running.
+        try{
+          var dispCheck = String(getDisplayStatus(order) || '').toLowerCase();
+          var hasOFD = Array.isArray(tracking) && tracking.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
+          var hasDel = Array.isArray(tracking) && tracking.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('delivered') !== -1; });
+          if((dispCheck === 'preparing' || dispCheck === 'shipped' || dispCheck === 'in transit') && !hasOFD && !hasDel){
+            var simKey2 = (order && order.id) ? order.id : orderId;
+            if(!window._orderSimTimers || !window._orderSimTimers[simKey2]){
+              console.debug('renderOrder: auto-start simulation for', simKey2, 'disp=', dispCheck, 'trackingLen=', Array.isArray(tracking)?tracking.length:0);
+              try{ startSimulationForOrder(simKey2); }catch(e){ console.debug('renderOrder: failed to auto-start simulation', e); }
+            } else {
+              console.debug('renderOrder: simulation already running for', simKey2);
+            }
+          }
+        }catch(e){}
         document.getElementById('orderIdText').textContent = 'Order ' + orderId;
         document.getElementById('orderDateText').textContent = 'Placed on ' + formatDateTime(order.created_at || order.date);
-        setStatusBadge(order.status || 'Pending');
+        var displayStatus = getDisplayStatus(order);
+        setStatusBadge(displayStatus || 'Pending');
 
-        document.getElementById('courierPill').textContent = 'Courier: ' + (order.courier_name || order.courier || '—');
-        document.getElementById('trackingPill').textContent = 'Tracking: ' + (order.tracking_number || order.tracking || '—');
-        document.getElementById('paymentPill').textContent = 'Payment: ' + (order.payment_method || order.paymentLabel || '—');
+        // Derive courier display: prefer stored courier_name, otherwise use delivery method mapping
+        var deliveryLabel = order.deliveryLabel || order.deliveryMethod || order.delivery_method || '';
+        if(!deliveryLabel && order.deliveryCode){
+          if(order.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery';
+          else if(order.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove';
+          else if(order.deliveryCode === 'jnt') deliveryLabel = 'J&T Express';
+          else if(order.deliveryCode === 'jrs') deliveryLabel = 'JRS';
+        }
+        var courierDisplay = order.courier_name || order.courier || deliveryLabel || '';
+        var trackingDisplay = order.tracking_number || order.tracking || '';
+        // If the canonical order object lacks a tracking number, try to recover it
+        // from tracking events (e.g. 'Tracking assigned' messages created by server)
+        try{
+          if(!trackingDisplay && Array.isArray(tracking) && tracking.length){
+            for(var ti=0; ti<tracking.length; ti++){
+              try{
+                var ev = tracking[ti] || {};
+                var msg = String(ev.message || ev.status || '') || '';
+                // common server message: 'Tracking number: TRK...'
+                var m = msg.match(/Tracking number:?\s*([A-Z0-9\-]+)/i);
+                if(m && m[1]){ trackingDisplay = m[1]; order.tracking_number = trackingDisplay; break; }
+                // fallback: sometimes the whole message might be the number
+                if(!trackingDisplay && msg && /^[A-Z0-9\-]{6,}$/.test(msg)){
+                  trackingDisplay = msg; order.tracking_number = trackingDisplay; break;
+                }
+              }catch(e){}
+            }
+          }
+        }catch(e){}
+
+        document.getElementById('courierPill').textContent = 'Courier: ' + (courierDisplay ? short(courierDisplay, 20) : '—');
+        document.getElementById('trackingPill').textContent = 'Tracking: ' + (trackingDisplay ? short(trackingDisplay, 18) : '—');
+
+        // Persist recovered tracking number back to localStorage and Firestore (merge)
+        try{
+          if(order && order.tracking_number){
+            try{
+              var _orders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
+              var replaced = false;
+              for(var oi=0; oi<_orders.length; oi++){
+                if(String(_orders[oi] && _orders[oi].id) === String(order.id || orderId)){
+                  _orders[oi].tracking_number = order.tracking_number;
+                  replaced = true; break;
+                }
+              }
+              if(!replaced){ var newEntry = Object.assign({}, order); _orders.unshift(newEntry); }
+              try{ localStorage.setItem('client_orders', JSON.stringify(_orders)); }catch(e){}
+            }catch(e){}
+            // Try to merge into Firestore document if firebase is ready/configured
+            try{ ensureFirebaseReady(function(err){ if(!err && window.firebase && firebase.firestore){ try{ firebase.firestore().collection('orders').doc(String(order.id || orderId)).set({ tracking_number: order.tracking_number }, { merge: true }); }catch(e){} } }); }catch(e){}
+            // Best-effort: persist back to server Orders table via PUT so DB is canonical (silent on failure)
+            try{
+              if(window.fetch){
+                try{
+                  fetch(API_BASE + '/api/orders/' + encodeURIComponent(order.id || orderId), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tracking_number: order.tracking_number })
+                  }).catch(function(){/* ignore */});
+                }catch(e){}
+              }
+            }catch(e){}
+          }
+        }catch(e){}
+        (function(){
+          function safeSetText(id, val){ try{ var el = document.getElementById(id); if(!el) return; el.textContent = (val === undefined || val === null) ? '—' : String(val); }catch(e){} }
+          safeSetText('paymentPill', 'Payment: ' + (order.payment_method || order.paymentLabel || '—'));
+        })();
 
         var deliveryAddrObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
         var address = formatDeliveryAddressText(deliveryAddrObj) || order.delivery_address || order.shippingAddress || '';
@@ -300,25 +1023,128 @@
             computedSubtotal += Number(it.price || 0) * qty;
           });
         }catch(e){}
-        var subtotalVal = (order.subtotal || order.sub_total || computedSubtotal || 0);
+        // Determine subtotal: prefer explicit order.subtotal, else computed from items.
+        // If both are missing (server may omit items in some responses), fall back
+        // to any previously-cached subtotal saved in serverOrderCache or localStorage.
+        (function(){
+          function lookupPersistedSubtotal(){
+            try{
+              if(serverOrderCache && serverOrderCache.order){ var s = serverOrderCache.order.subtotal || serverOrderCache.order.sub_total; if(s) return s; }
+            }catch(e){}
+            try{
+              var _all = JSON.parse(localStorage.getItem('client_orders')||'[]') || JSON.parse(localStorage.getItem('orders')||'[]') || [];
+              for(var i=0;i<_all.length;i++){ try{ if(_all[i] && String(_all[i].id) === String(order.id || orderId)){ return _all[i].subtotal || _all[i].sub_total || null; } }catch(e){} }
+            }catch(e){}
+            return null;
+          }
+          var persisted = lookupPersistedSubtotal();
+          var subtotalVal = (order.subtotal || order.sub_total || (computedSubtotal > 0 ? computedSubtotal : (persisted !== null ? persisted : 0)));
+          // If there are no passed items and the server/order omitted subtotal, prefer
+          // the last-rendered subtotal when available so polling doesn't transiently
+          // clear the UI. Only use this when items array is empty and no subtotal
+          // was provided by the server.
+          try{
+            var itemsEmpty = !(Array.isArray(items) && items.length);
+            if(itemsEmpty && !(order.subtotal || order.sub_total) && window.__lastRenderedSubtotal && Number(window.__lastRenderedSubtotal) > 0){
+              subtotalVal = Number(window.__lastRenderedSubtotal);
+            }
+          }catch(e){}
+          // persist last rendered subtotal for future polls
+          window.__lastRenderedSubtotal = subtotalVal;
+          // expose subtotalVal for later code in this scope
+          this._subtotalVal = subtotalVal;
+        }).call(this);
         var shippingVal = (order.shipping_fee || order.shipping || 0);
         var discountVal = (order.discount || 0);
+        // retrieve subtotalVal set above
+        var subtotalVal = (typeof this._subtotalVal !== 'undefined') ? this._subtotalVal : (order.subtotal || order.sub_total || computedSubtotal || 0);
         var totalVal = (order.total || (subtotalVal + shippingVal - discountVal) || 0);
-        document.getElementById('summarySubtotal').textContent = formatPHP(subtotalVal);
-        document.getElementById('summaryShipping').textContent = formatPHP(shippingVal);
-        document.getElementById('summaryDiscount').textContent = formatPHP(discountVal);
-        document.getElementById('summaryTotal').textContent = formatPHP(totalVal);
 
-        // Render timeline/items
-        renderTimeline(tracking, order.status, order);
+        // Update summary DOM now that subtotal/shipping/discount/total are known
+        try{
+          var _ss = document.getElementById('summarySubtotal'); if(_ss) _ss.textContent = formatPHP(subtotalVal) || '₱0.00';
+          var _sh = document.getElementById('summaryShipping'); if(_sh) _sh.textContent = formatPHP(shippingVal) || '₱0.00';
+          var _sd = document.getElementById('summaryDiscount'); if(_sd) _sd.textContent = formatPHP(discountVal) || '₱0.00';
+          var _st = document.getElementById('summaryTotal'); if(_st) _st.textContent = formatPHP(totalVal) || '₱0.00';
+        }catch(e){ console.warn('renderOrder: failed to set summary fields', e); }
+
+  // Build a display tracking sequence that prefers server-provided events
+  // but fills in a full AfterShip-like flow (Picked up -> In transit -> Out for delivery -> Delivered)
+  var displayTracking = (Array.isArray(tracking) && tracking.length) ? buildDisplayTracking(order, tracking) : buildDisplayTracking(order, []);
+  // Render timeline/items. Use displayStatus so simulated progress can be shown
+  renderTimeline(displayTracking, displayStatus, order);
         renderItems(items);
 
         // show computed estimated delivery (based on region)
         try{ var est = computeEstimatedDelivery(order); document.getElementById('orderEstText').textContent = est ? ('Estimated delivery: ' + est) : ''; }catch(e){ document.getElementById('orderEstText').textContent = ''; }
+        // Update admin action buttons (if present in DOM)
+        try{
+          var s = (order && order.status) ? String(order.status).toLowerCase() : '';
+          var odMarkShipped = document.getElementById('odMarkShippedBtn');
+          var odMarkDelivered = document.getElementById('odMarkDeliveredBtn');
+          var odCancel = document.getElementById('odCancelBtn');
+          // Show ship button for admin workflows when order is in preparing/confirmed/processing
+          if(odMarkShipped){
+            odMarkShipped.style.display = (s === 'processing' || s === 'confirmed' ? '' : 'none');
+            odMarkShipped.onclick = function(){ updateOrderStatusFromDetail(order.id || orderId, 'shipped'); };
+          }
+          // For clients: show an "Order Received" button when the order reaches Out for Delivery
+          // Use tracking events as a hint when available (best-effort). Clicking this marks the order as delivered.
+          try{
+            var hasOutForDelivery = Array.isArray(tracking) && tracking.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
+            var hasDelivered = Array.isArray(tracking) && tracking.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('delivered') !== -1; });
+          }catch(e){ var hasOutForDelivery = false; var hasDelivered = false; }
+          if(odMarkDelivered){
+            // show when server status explicitly indicates out for delivery OR tracking contains out-for-delivery
+            // but never show when the server/tracking already indicates delivered.
+            var showDeliveredBtn = (s === 'out for delivery' || s === 'out_for_delivery' || hasOutForDelivery) && !hasDelivered && s !== 'delivered';
+            odMarkDelivered.style.display = (showDeliveredBtn ? '' : 'none');
+            // label as Order Received for the client-facing detail page
+            try{ odMarkDelivered.textContent = 'Order Received'; }catch(e){}
+            odMarkDelivered.onclick = function(){ if(!showDeliveredBtn) return; updateOrderStatusFromDetail(order.id || orderId, 'delivered'); };
+          }
+          if(odCancel){
+            odCancel.style.display = (s !== 'cancelled' && s !== 'archived' ? '' : 'none');
+            odCancel.onclick = function(){ if(confirm('Cancel this order?')) updateOrderStatusFromDetail(order.id || orderId, 'cancelled'); };
+          }
+        }catch(e){ /* ignore */ }
+        // If the server reports 'shipped' (or display status is shipped/in transit) but
+        // tracking hasn't yet reached 'out for delivery', ensure a client-side simulation
+        // is started so the UI progresses. This avoids a race where polling/rendering
+        // from the server repeatedly overwrites the optimistic UI without starting
+        // the simulation.
+        try{
+          var disp = String(getDisplayStatus(order) || '').toLowerCase();
+          var hasOutForDelivery = Array.isArray(tracking) && tracking.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('out for delivery') !== -1 || k.indexOf('out_for_delivery') !== -1; });
+          var hasDelivered = Array.isArray(tracking) && tracking.some(function(ev){ var k = String(ev.status || ev.message || '').toLowerCase(); return k.indexOf('delivered') !== -1; });
+          if((disp === 'shipped' || disp === 'in transit') && !hasOutForDelivery && !hasDelivered){
+            // start simulation if not already running
+            var simKey = order.id || orderId;
+            if(!window._orderSimTimers || !window._orderSimTimers[simKey]){
+              // ensure display starts at least at 'preparing' so Order placed + Preparing show as completed
+              try{
+                var curDisplay = (order && order._display_status) ? String(order._display_status).toLowerCase() : '';
+                if(!curDisplay || curDisplay === 'order placed' || curDisplay === 'placed' || curDisplay === 'pending'){
+                  order._display_status = 'preparing';
+                  console.debug('renderOrder: set initial display to preparing for', simKey);
+                }
+              }catch(e){}
+              console.debug('renderOrder: starting simulation for', simKey, 'disp=', disp, 'trackingLen=', Array.isArray(tracking)?tracking.length:0);
+              try{ startSimulationForOrder(simKey); }catch(e){ console.debug('renderOrder: startSimulationForOrder failed', e); }
+            }
+          }
+        }catch(e){}
+        // Routing integration removed: previously fetched server-side directions and rendered summary/map.
       }
 
       ensureFirebaseReady(function(err){
-        if(err){ showError('Firebase not configured.'); return; }
+        if(err){
+          // If Firebase isn't available, render from server/local cache instead of showing an error.
+          if(serverOrderCache && serverOrderCache.order){ try{ var cachedItems = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, cachedItems, serverOrderCache.tracking || []); }catch(e){} return; }
+          if(localOrderCache){ try{ renderOrder(localOrderCache, localItemsCache || [], []); }catch(e){} return; }
+          showError('Firebase not configured.');
+          return;
+        }
         try{
           var db = firebase.firestore();
           var orderDoc = db.collection('orders').doc(orderId);
@@ -328,24 +1154,90 @@
             orderDoc.collection('tracking').orderBy('timestamp','asc').get()
           ]).then(function(results){
             var orderSnap = results[0];
-            if(!orderSnap.exists){ showError('Order not found'); return; }
-            var order = orderSnap.data() || {};
+            // If Firestore doc is missing, don't treat that as fatal when we already
+            // have authoritative server data (serverOrderCache) or a local cache.
+            // Previously this returned early and hid the server-rendered details.
+            if(!orderSnap.exists && !serverOrderCache && !localOrderCache){ showError('Order not found'); return; }
+            var fsOrder = orderSnap.exists ? (orderSnap.data() || {}) : {};
+            var fsItems = (results[1] && results[1].docs) ? results[1].docs.map(function(d){ return d.data(); }) : [];
+            var fsTracking = (results[2] && results[2].docs) ? results[2].docs.map(function(d){ return d.data(); }) : [];
+
+            // Build final view model for the order. Priority (most authoritative first):
+            // 1) serverOrderCache (fresh server API response), 2) localStorage card cache,
+            // 3) Firestore document. This ensures the client card and detail match when
+            // the card has newer locally-created data, but server remains authoritative
+            // when available.
+            var finalOrder = {};
+            var finalItems = [];
+            var finalTracking = [];
+
+            if(serverOrderCache && serverOrderCache.order){
+              finalOrder = Object.assign({}, serverOrderCache.order);
+              if(Array.isArray(serverOrderCache.items) && serverOrderCache.items.length) finalItems = serverOrderCache.items.slice();
+              if(Array.isArray(serverOrderCache.tracking) && serverOrderCache.tracking.length) finalTracking = serverOrderCache.tracking.slice();
+            } else if(localOrderCache){
+              finalOrder = Object.assign({}, localOrderCache);
+              if(Array.isArray(localItemsCache) && localItemsCache.length) finalItems = localItemsCache.slice();
+            } else {
+              finalOrder = Object.assign({}, fsOrder);
+            }
+
+            // Fill any missing fields from Firestore (but don't overwrite existing values)
             try{
-              if(!order.deliveryAddress){
-                var computedAddr = normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
-                if(computedAddr){
-                  order.deliveryAddress = computedAddr;
-                  orderDoc.set({ deliveryAddress: computedAddr }, { merge: true });
-                }
+              Object.keys(fsOrder || {}).forEach(function(k){ if(finalOrder[k] === undefined || finalOrder[k] === null || finalOrder[k] === '') finalOrder[k] = fsOrder[k]; });
+            }catch(e){}
+            // If items weren't provided by server/local, use Firestore items
+            if(!finalItems.length && Array.isArray(fsItems) && fsItems.length) finalItems = fsItems.slice();
+            // If tracking not provided by server/local, use Firestore tracking
+            if(!finalTracking.length && Array.isArray(fsTracking) && fsTracking.length) finalTracking = fsTracking.slice();
+
+            // Ensure deliveryAddress exists (compute and persist back to Firestore if missing)
+            try{
+              if(!finalOrder.deliveryAddress){
+                var computedAddr = normalizeDeliveryAddressFromAddressObject(finalOrder.addressObject) || normalizeDeliveryAddressFromString(finalOrder.delivery_address || finalOrder.shippingAddress || '');
+                if(computedAddr){ finalOrder.deliveryAddress = computedAddr; try{ orderDoc.set({ deliveryAddress: computedAddr }, { merge: true }); }catch(e){} }
               }
-            }catch(e){ /* ignore migration errors */ }
-            var items = results[1].docs.map(function(d){ return d.data(); });
-            var tracking = results[2].docs.map(function(d){ return d.data(); });
-            renderOrder(order, items, tracking);
-          }).catch(function(e){ showError(e && e.message ? e.message : 'Unable to load order.'); });
-        }catch(e){ showError('Unable to load order.'); }
+            }catch(e){}
+
+            // Persist a merged copy to localStorage so the card list and modal remain consistent
+            try{
+              try{
+                var _orders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
+                var replaced = false;
+                for(var i=0;i<_orders.length;i++){
+                  if(String(_orders[i] && _orders[i].id) === String(finalOrder.id || orderId)){
+                    _orders[i] = Object.assign({}, _orders[i], finalOrder);
+                    if(finalItems && finalItems.length) _orders[i].items = finalItems;
+                    replaced = true; break;
+                  }
+                }
+                if(!replaced){ var newEntry = Object.assign({}, finalOrder); if(finalItems && finalItems.length) newEntry.items = finalItems; _orders.unshift(newEntry); }
+                try{ localStorage.setItem('orders', JSON.stringify(_orders)); }catch(e){}
+              }catch(e){}
+            }catch(e){}
+
+            renderOrder(finalOrder, finalItems, finalTracking);
+            // External tracking (AfterShip) integration disabled in order-detail view.
+            // The server still returns canonical tracking and courier fields which are
+            // rendered above; we avoid polling external services from the client page.
+            }).catch(function(e){
+              // If Firestore read fails, fall back to server/local caches before surfacing an error.
+              if(serverOrderCache && serverOrderCache.order){ try{ var cachedItems2 = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, cachedItems2, serverOrderCache.tracking || []); }catch(err){} return; }
+              if(localOrderCache){ try{ renderOrder(localOrderCache, localItemsCache || [], []); }catch(err){} return; }
+              showError(e && e.message ? e.message : 'Unable to load order.');
+            });
+        }catch(e){
+          // If unexpected errors occur while attempting Firestore-based rendering,
+          // prefer server/local cached rendering when available.
+          if(serverOrderCache && serverOrderCache.order){ try{ var cachedItems3 = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : ((typeof localItemsCache !== 'undefined' && localItemsCache && localItemsCache.length) ? localItemsCache : []); renderOrder(serverOrderCache.order, cachedItems3, serverOrderCache.tracking || []); }catch(err){} return; }
+          if(localOrderCache){ try{ renderOrder(localOrderCache, localItemsCache || [], []); }catch(err){} return; }
+          showError('Unable to load order.');
+        }
       });
     })();
-  </script>
-</body>
+
+    // safeRenderFallback removed; relying on canonical render path
+    </script>
+  </body>
 </html>
+            var odMarkShipped = document.getElementById('odMarkShippedBtn');

@@ -402,7 +402,12 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        cart[idx].quantity++;
+                        if(window.tryIncrementCartItem){
+                            var r=window.tryIncrementCartItem(cart, idx);
+                            if(r&&r.success===false&&r.reason==='max_pairs'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert('Maximum of 3 pairs of shoes per order.'); return; }
+                        } else {
+                            cart[idx].quantity++;
+                        }
                         renderCart();
                         saveCartToLocalStorage();
                     }

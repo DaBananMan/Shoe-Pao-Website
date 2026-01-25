@@ -1,0 +1,343 @@
+ShoePao server running on http://localhost:3000
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769246058545927',
+  user_id: 'test-user',
+  status: 'out for delivery',
+  total: '1200',
+  shipping_fee: '50',
+  discount: '0',
+  payment_method: '',
+  created_at: '2026-01-24T09:39:14.392Z',
+  delivery_address: '',
+  recipient_name: '',
+  recipient_phone: '',
+  courier_name: '',
+  tracking_number: 'TRKMKS4B9ZS1D4N'
+}
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769198503414815',
+  user_id: 'test-user',
+  status: 'out for delivery',
+  total: '900',
+  shipping_fee: '50',
+  discount: '0',
+  payment_method: '',
+  created_at: '2026-01-24T10:06:30.705Z',
+  delivery_address: '',
+  recipient_name: '',
+  recipient_phone: '',
+  courier_name: '',
+  tracking_number: 'TRKMKS5ACKXHFM'
+}
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769188574308953',
+  user_id: 'test-user',
+  status: 'out for delivery',
+  total: '1500',
+  shipping_fee: '60',
+  discount: '0',
+  payment_method: '',
+  created_at: '2026-01-24T10:06:30.717Z',
+  delivery_address: '',
+  recipient_name: '',
+  recipient_phone: '',
+  courier_name: '',
+  tracking_number: 'TRKMKS5ACL91LWL'
+}
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769249276583507',
+  user_id: '2t7KoGmsNEPrzqV2jQcld0Ve3nm2',
+  status: 'Pending payment',
+  total: '4024',
+  shipping_fee: '330',
+  discount: '0',
+  payment_method: 'cod',
+  created_at: '2026-01-24T10:07:58.524Z',
+  delivery_address: '78 Silverlane Avenue, SILVERLAND VILLAGE, BRGY Pasong Tamo, Pasong Tamo, Quezon City, National Capital Region (NCR)',
+  recipient_name: 'Uriel De Leon',
+  recipient_phone: '',
+  courier_name: 'J&T Express',
+  tracking_number: 'TRKMKS5WY721DM5'
+}
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769249276583507',
+  user_id: 'test-user',
+  status: 'pending',
+  total: '1000',
+  shipping_fee: '50',
+  discount: '0',
+  payment_method: '',
+  created_at: '2026-01-24T10:25:41.392Z',
+  delivery_address: '',
+  recipient_name: '',
+  recipient_phone: '',
+  courier_name: '',
+  tracking_number: 'TRKMKS5Z0GGO2M'
+}
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769249276583507',
+  user_id: 'test-user',
+  status: 'pending',
+  total: '1000',
+  shipping_fee: '50',
+  discount: '0',
+  payment_method: '',
+  created_at: '2026-01-24T10:25:49.572Z',
+  delivery_address: '',
+  recipient_name: '',
+  recipient_phone: '',
+  courier_name: '',
+  tracking_number: 'TRKMKS5Z6ROLC2'
+}
+Starting simulation for order SP1769249276583507 route: [
+  'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3 , Bacoor, Philippines, 4102',
+  'Caloocan Local Hub - Loaded Truck',
+  'QUEZON CITY Sorting Center',
+  'Arrived at QUEZON CITY',
+  '78 Silverlane Avenue'
+] starting at step index 1
+Starting simulation for order SP1769198503414815 route: [
+  'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3 , Bacoor, Philippines, 4102',
+  'Caloocan Local Hub - Loaded Truck',
+  'Metro Manila Sorting Center',
+  'Arrived at Destination City',
+  'Recipient Address'
+] starting at step index 1
+Starting simulation for order SP1769188574308953 route: [
+  'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3 , Bacoor, Philippines, 4102',
+  'Caloocan Local Hub - Loaded Truck',
+  'Metro Manila Sorting Center',
+  'Arrived at Destination City',
+  'Recipient Address'
+] starting at step index 0
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769251969355991',
+  user_id: '2t7KoGmsNEPrzqV2jQcld0Ve3nm2',
+  status: 'Pending payment',
+  total: '6288',
+  shipping_fee: '495',
+  discount: '0',
+  payment_method: 'cod',
+  created_at: '2026-01-24T10:52:51.123Z',
+  delivery_address: '78 Silverlane Avenue, SILVERLAND VILLAGE, BRGY Pasong Tamo, Pasong Tamo, Quezon City, National Capital Region (NCR)',
+  recipient_name: 'Uriel De Leon',
+  recipient_phone: '',
+  courier_name: 'JRS',
+  tracking_number: 'TRKMKS76KMF1TWY'
+}
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769252424625426',
+  user_id: '2t7KoGmsNEPrzqV2jQcld0Ve3nm2',
+  status: 'Pending payment',
+  total: '1464',
+  shipping_fee: '165',
+  discount: '0',
+  payment_method: 'cod',
+  created_at: '2026-01-24T11:00:32.990Z',
+  delivery_address: '78 Silverlane Avenue, SILVERLAND VILLAGE, BRGY Pasong Tamo, Pasong Tamo, Quezon City, National Capital Region (NCR)',
+  recipient_name: 'Uriel De Leon',
+  recipient_phone: '',
+  courier_name: 'JRS',
+  tracking_number: 'TRKMKS77UCR10E4'
+}
+Starting simulation for order SP1769252424625426 route: [
+  'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3 , Bacoor, Philippines, 4102',
+  'Caloocan Local Hub - Loaded Truck',
+  'QUEZON CITY Sorting Center',
+  'Arrived at QUEZON CITY',
+  '78 Silverlane Avenue'
+] starting at step index 1
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769257057390260',
+  user_id: '2t7KoGmsNEPrzqV2jQcld0Ve3nm2',
+  status: 'Pending payment',
+  total: '1464',
+  shipping_fee: '165',
+  discount: '0',
+  payment_method: 'cod',
+  created_at: '2026-01-24T12:17:42.112Z',
+  delivery_address: '78 Silverlane Avenue, SILVERLAND VILLAGE, BRGY Pasong Tamo, Pasong Tamo, Quezon City, National Capital Region (NCR)',
+  recipient_name: 'Uriel De Leon',
+  recipient_phone: '',
+  courier_name: 'J&T Express',
+  tracking_number: 'TRKMKS9Z27E1HE4'
+}
+Starting simulation for order SP1769257057390260 route: [
+  'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3 , Bacoor, Philippines, 4102',
+  'Caloocan Local Hub - Loaded Truck',
+  'QUEZON CITY Sorting Center',
+  'Arrived at QUEZON CITY',
+  '78 Silverlane Avenue'
+] starting at step index 1
+Inserting Order - param types: {
+  id: 'string',
+  user_id: 'string',
+  status: 'string',
+  total: 'number',
+  shipping_fee: 'number',
+  discount: 'number',
+  payment_method: 'string',
+  created_at: 'string',
+  delivery_address: 'string',
+  recipient_name: 'string',
+  recipient_phone: 'string',
+  courier_name: 'string',
+  tracking_number: 'string'
+}
+Inserting Order - param preview: {
+  id: 'SP1769259821540877',
+  user_id: '2t7KoGmsNEPrzqV2jQcld0Ve3nm2',
+  status: 'Pending payment',
+  total: '2560',
+  shipping_fee: '165',
+  discount: '0',
+  payment_method: 'cod',
+  created_at: '2026-01-24T13:03:46.573Z',
+  delivery_address: '78 Silverlane Avenue, SILVERLAND VILLAGE, BRGY Pasong Tamo, Pasong Tamo, Quezon City, National Capital Region (NCR)',
+  recipient_name: 'Uriel De Leon',
+  recipient_phone: '',
+  courier_name: 'JRS',
+  tracking_number: 'TRKMKSBMBA1N0W'
+}
+Starting simulation for order SP1769259821540877 route: [
+  'Blk 15 Lot 25 Phase 2 MV Villar Avenue Camella Springville Central Molino 3 , Bacoor, Philippines, 4102',
+  'Caloocan Local Hub - Loaded Truck',
+  'QUEZON CITY Sorting Center',
+  'Arrived at QUEZON CITY',
+  '78 Silverlane Avenue'
+] starting at step index 1

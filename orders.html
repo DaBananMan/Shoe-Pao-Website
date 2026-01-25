@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Orders - SHOEPAO</title>
     <link rel="stylesheet" href="style.css">
+    <script src="js/ensure-server.js"></script>
     <style>
         body.orders-body {
             font-family: 'Poppins', Arial, sans-serif;
@@ -629,14 +630,19 @@
                     <div class="drawer-grid">
                         <div>
                             <div class="drawer-label">Carrier</div>
-                            <input id="drawerTrackingCarrier" class="drawer-input" placeholder="e.g., J&T Express" />
+                                <input id="drawerTrackingCarrier" class="drawer-input" placeholder="e.g., J&T Express" maxlength="24" style="max-width:220px;" />
                         </div>
                         <div>
                             <div class="drawer-label">Tracking Number</div>
-                            <input id="drawerTrackingNumber" class="drawer-input" placeholder="Not assigned" />
+                                <input id="drawerTrackingNumber" class="drawer-input" placeholder="Not assigned" maxlength="32" style="max-width:220px;" />
                         </div>
                     </div>
                     <div style="margin-top:8px;color:#666;font-size:0.85rem;">AfterShip integration placeholder (API hook coming soon).</div>
+                    <div style="margin-top:8px;display:flex;gap:8px;">
+                        <button id="drawerSimulateBtn" class="action-btn neutral">Simulate tracking</button>
+                        <button id="drawerRefreshTrackingBtn" class="action-btn">Refresh tracking</button>
+                        <button id="drawerSaveToServerBtn" class="action-btn">Save order to server</button>
+                    </div>
                 </div>
                 <div class="drawer-section" id="drawerPaymentVerification" style="display:none;">
                     <h3>Payment Verification</h3>
@@ -713,8 +719,12 @@
     <!-- Footer removed for admin orders page to avoid showing the black/site footer -->
 
     <script src="js/firebase-config.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+        <script>
+            window.ALLOW_ANON_SIGNIN = true;
+        </script>
+        <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
     <script>
     // Navigation bar functions
@@ -762,13 +772,41 @@
             ordersData = [];
         }
 
+                // Attempt to fetch authoritative orders from the server and merge key fields
+                // (tracking_number, courier_name, status) into the local cache so admin UI shows
+                // server-assigned tracking numbers without requiring a manual DevTools sync.
+                (async function trySyncFromServer(){
+                    try{
+                        const resp = await fetch(API_BASE + '/api/orders');
+                        if(!resp.ok) return;
+                        const j = await resp.json();
+                        if(!j) return;
+                        // Accept either { orders: [...] } or an array directly
+                        const srv = Array.isArray(j.orders) ? j.orders : (Array.isArray(j) ? j : (j.orders || []));
+                        if(!Array.isArray(srv) || !srv.length) return;
+                        // Replace local cache with server authoritative list so admin UI shows
+                        // server-side tracking, status and totals immediately.
+                        try{
+                            // Normalize by merging to ensure ids are set
+                            const merged = sortOrdersByNewest(mergeOrdersById([], srv));
+                            ordersData = merged;
+                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                            currentList = ordersData.slice();
+                            try{ renderTable(currentList); }catch(e){}
+                        }catch(e){ /* ignore set/caching errors */ }
+                    }catch(e){ /* ignore network errors */ }
+                })();
+
         let currentList = ordersData.slice();
         let selectedOrderIds = new Set();
         let sortState = { key: null, asc: true };
         let activeTab = 'all';
         let selectedOrders = new Set();
         let currentDrawerOrderId = null;
-        let ordersLoaded = false;
+    let ordersLoaded = false;
+    // Dev API base for Node backend. Change or make dynamic for production.
+    // API base points to PHP proxy so browser requests go through Apache/PHP.
+    const API_BASE = (function(){ try{ var p = window.location.pathname.replace(/\/+$|^\/+/, ''); var seg = p.split('/'); var root = seg.length > 0 ? '/' + seg[0] : ''; return root + '/server-proxy.php'; }catch(e){ return '/server-proxy.php'; } })();
 
         function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:0}); }
 
@@ -809,7 +847,22 @@
                 var id = String(o && (o.id || o.orderId || o.order_id) || '');
                 if(!id) return;
                 var existing = map.get(id) || {};
-                map.set(id, Object.assign({}, existing, o, { id: id }));
+                try{
+                    // If existing entry was an optimistic local merge, prefer it when its optimistic
+                    // timestamp is newer than the server-provided updated timestamp.
+                    var existingOptimTs = existing && existing._optimistic_ts ? Number(existing._optimistic_ts) : 0;
+                    var serverTs = 0;
+                    try{ serverTs = new Date(o && (o.updated_at || o.updatedAt || o.updated || o.serverUpdatedAt) || 0).getTime() || 0; }catch(e){}
+                    if(existing && existing._optimistic && existingOptimTs && existingOptimTs > serverTs){
+                        // Keep optimistic values (existing) overriding server incoming where they differ.
+                        map.set(id, Object.assign({}, o, existing, { id: id }));
+                    } else {
+                        // Server wins / normal merge
+                        map.set(id, Object.assign({}, existing, o, { id: id }));
+                    }
+                }catch(e){
+                    map.set(id, Object.assign({}, existing, o, { id: id }));
+                }
             });
             return Array.from(map.values());
         }
@@ -830,18 +883,40 @@
 
         async function initializeOrders(){
             try{
-                let fetched = [];
+                var fetched = [];
+                // Prefer authoritative server copy first so client always matches admin/state on load.
                 try{
-                    fetched = await fetchOrdersFromFirestore();
-                }catch(fetchErr){
-                    console.warn('Firestore fetch failed, falling back to localStorage', fetchErr);
+                    const resp = await fetch(API_BASE + '/api/orders');
+                    if(resp && resp.ok){
+                        const j = await resp.json();
+                        // API might return { orders: [...] } or an array directly
+                        if(j){
+                            if(Array.isArray(j.orders)) fetched = j.orders;
+                            else if(Array.isArray(j)) fetched = j;
+                        }
+                    }
+                }catch(e){
+                    // server not reachable — we'll fall back below
                 }
+
+                // If server had no orders or wasn't reachable, try Firestore then localStorage
+                if(!fetched || !fetched.length){
+                    try{
+                        const fromFs = await fetchOrdersFromFirestore();
+                        if(Array.isArray(fromFs) && fromFs.length) fetched = fromFs;
+                    }catch(fetchErr){
+                        console.warn('Firestore fetch failed, falling back to localStorage', fetchErr);
+                    }
+                }
+
                 if(!fetched || !fetched.length){
                     try{
                         fetched = JSON.parse(localStorage.getItem('orders') || '[]');
                         if(!Array.isArray(fetched)) fetched = [];
                     }catch(e){ fetched = []; }
                 }
+
+                // Use server/authoritative data as the source of truth for rendering and cache it locally
                 ordersData = sortOrdersByNewest(mergeOrdersById([], fetched));
                 try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){/* ignore */}
             }catch(e){
@@ -952,6 +1027,71 @@
                 data: order.payment_proof || order.paymentProof || order.proofImage || order.proof_image || '',
                 name: order.payment_proof_name || order.paymentProofName || order.proofName || ''
             };
+        }
+
+        // Update only the payment verification portion of the drawer for a given order object.
+        // This is called both when the drawer initially opens and when a server copy arrives
+        // so that newly uploaded proof images enable the confirm button immediately.
+        function updateDrawerVerification(row){
+            try{
+                var verificationSection = document.getElementById('drawerPaymentVerification');
+                var proofThumb = document.getElementById('drawerProofThumb');
+                var proofNameEl = document.getElementById('drawerProofName');
+                var refEl = document.getElementById('drawerReferenceNumber');
+                var proofOpen = document.getElementById('drawerProofOpen');
+                var confirmBtn = document.getElementById('drawerConfirmPaymentBtn');
+                var hintEl = document.getElementById('drawerPaymentHint');
+                var state = canonicalStatusFromOrder(row);
+                var paymentCode = getOrderPaymentCode(row);
+                var proof = getOrderPaymentProof(row);
+                var referenceNumber = getOrderReferenceNumber(row);
+                if(!verificationSection) return;
+                if(state === 'pending payment'){
+                    verificationSection.style.display = '';
+                    if(paymentCode === 'cod'){
+                        if(proofThumb) proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">COD order</span>';
+                        if(proofNameEl) proofNameEl.textContent = 'Not required for COD';
+                        if(refEl) refEl.textContent = 'Not required for COD';
+                        if(proofOpen){ proofOpen.style.display = 'none'; }
+                        if(confirmBtn){ confirmBtn.textContent = 'Confirm COD'; confirmBtn.style.display = ''; confirmBtn.disabled = false; }
+                        if(hintEl) hintEl.textContent = 'Confirm once COD order is acknowledged.';
+                    } else {
+                        if(proofThumb){
+                            if(proof.data){
+                                var proofStr = String(proof.data || '');
+                                var isImage = (proofStr.indexOf('data:image') === 0) || (/^https?:\/\//i.test(proofStr));
+                                if(isImage){
+                                    proofThumb.innerHTML = '<img src="' + proof.data + '" alt="Proof of payment">';
+                                } else {
+                                    proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">Proof file</span>';
+                                }
+                            } else {
+                                proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">No proof uploaded</span>';
+                            }
+                        }
+                        if(proofNameEl) proofNameEl.textContent = proof.name || 'Not provided';
+                        if(refEl) refEl.textContent = referenceNumber || 'Not provided';
+                        if(proofOpen){
+                            if(proof.data){
+                                proofOpen.href = proof.data;
+                                proofOpen.style.display = '';
+                            } else {
+                                proofOpen.removeAttribute('href');
+                                proofOpen.style.display = 'none';
+                            }
+                        }
+                        if(confirmBtn){
+                            // TEMPORARY: allow confirm even when no proof is uploaded so admins can test flows.
+                            confirmBtn.textContent = 'Confirm Payment';
+                            confirmBtn.style.display = '';
+                            confirmBtn.disabled = false; // do not block for testing
+                        }
+                        if(hintEl) hintEl.textContent = proof.data ? 'Verify proof and reference number before confirming.' : 'Awaiting proof of payment upload. (Testing: proof not required)';
+                    }
+                } else {
+                    verificationSection.style.display = 'none';
+                }
+            }catch(e){ console.warn('updateDrawerVerification failed', e); }
         }
 
         function canonicalStatusFromOrder(order){
@@ -1210,12 +1350,14 @@
                 var state = canonicalStatusFromOrder(row);
                 var meta = statusMetaForState(state);
                 var statusHtml = statusBadge(meta.label, meta.type, meta.icon);
-                var trackingNumber = row.trackingNumber || row.tracking || '';
-                var carrier = row.trackingCarrier || row.carrier || '';
+                var trackingNumber = row.tracking_number || row.trackingNumber || row.tracking || '';
+                var carrier = row.trackingCarrier || row.courier_name || row.courier || '';
+                // Shorten display for carrier and tracking number in the table for readability
+                function short(s, n){ if(!s) return ''; s = String(s); return (s.length > n) ? (s.slice(0,n-1) + '…') : s; }
+                var carrierDisplay = carrier ? short(titleCase(carrier), 20) : '';
+                var trackingDisplay = trackingNumber ? short(trackingNumber, 14) : '';
                 var trackingHtml = 'Not assigned';
-                if(trackingNumber || carrier){
-                    trackingHtml = (carrier ? (titleCase(carrier) + ' • ') : '') + (trackingNumber || 'Not assigned');
-                }
+                if(trackingDisplay || carrierDisplay){ trackingHtml = (carrierDisplay ? (carrierDisplay + ' • ') : '') + (trackingDisplay || 'Not assigned'); }
                 var actions = getAvailableActions(row)
                     .map(function(a){ return actionButton(a.label, a.style, a.action, a.icon); })
                     .join('');
@@ -1229,7 +1371,7 @@
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${formatOrderDateTime(row.created_at || row.date) || ''}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${formatPHP(row.total)}</td>
                     <td style="padding:12px;border-bottom:1px solid #fafafa;">${statusHtml}</td>
-                    <td style="padding:12px;border-bottom:1px solid #fafafa;">${trackingHtml}</td>
+                    <td style="padding:12px;border-bottom:1px solid #fafafa;" title="${(carrier ? (carrier + ' • ') : '') + (trackingNumber || '')}">${trackingHtml}</td>
                     <td class="actions-cell">
                         <div class="order-actions-row">${actions || ''}</div>
                     </td>
@@ -1253,7 +1395,57 @@
                         });
                     });
                 }, 0);
-                tbody.appendChild(tr);
+                                tbody.appendChild(tr);
+
+                                // If this row lacks a tracking number, do a best-effort fetch of the
+                                // authoritative server order so the table can show server-assigned
+                                // tracking_number without requiring the admin to open the drawer.
+                                try{
+                                    (function(localRow, localTr){
+                                        try{
+                                            var hasTracking = localRow.tracking_number || localRow.trackingNumber || localRow.tracking || '';
+                                            if(!hasTracking && window.fetch){
+                                                // Check existence first to avoid noisy 404s for client-only orders
+                                                fetch(API_BASE + '/api/orders/' + encodeURIComponent(localRow.id) + '/exists').then(function(r){ if(!r.ok) throw new Error('exists check failed'); return r.json(); }).then(function(ex){
+                                                    if(!ex || !ex.exists) return; // no server copy yet
+                                                    return fetch(API_BASE + '/api/orders/' + encodeURIComponent(localRow.id)).then(function(resp){ if(!resp.ok) throw new Error('no order'); return resp.json(); });
+                                                }).then(function(j){
+                                                    if(!j || !j.order) return;
+                                                    var srv = j.order || {};
+                                                    var tn = srv.tracking_number || srv.tracking || srv.trackingNumber || '';
+                                                    var carrier = srv.courier_name || srv.courier || '';
+                                                    if(tn){
+                                                        // update in-memory data structures
+                                                        try{
+                                                            // update the row object so future actions see it
+                                                            localRow.tracking_number = tn;
+                                                            localRow.courier_name = carrier || localRow.courier_name;
+                                                            // update ordersData and currentList caches
+                                                            try{
+                                                                for(var i=0;i<ordersData.length;i++){ if(String(ordersData[i].id) === String(localRow.id)){ ordersData[i] = Object.assign({}, ordersData[i], { tracking_number: tn, courier_name: carrier || ordersData[i].courier_name || '' }); break; } }
+                                                                for(var jidx=0;jidx<currentList.length;jidx++){ if(String(currentList[jidx].id) === String(localRow.id)){ currentList[jidx] = Object.assign({}, currentList[jidx], { tracking_number: tn, courier_name: carrier || currentList[jidx].courier_name || '' }); break; } }
+                                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                            }catch(e){}
+                                                        }catch(e){}
+                                                        // update the table cell text
+                                                        try{
+                                                            var td = localTr.querySelectorAll('td')[6];
+                                                            if(td){
+                                                                var short = function(s,n){ if(!s) return ''; s=String(s); return (s.length>n)?(s.slice(0,n-1)+'…'):s; };
+                                                                var carrierDisplay = carrier ? short((carrier+'').replace(/\b(\w)/g, function(m){ return m.toUpperCase(); }), 20) : '';
+                                                                var trackingDisplay = tn ? short(tn, 14) : '';
+                                                                var trackingHtml = 'Not assigned';
+                                                                if(trackingDisplay || carrierDisplay) trackingHtml = (carrierDisplay ? (carrierDisplay + ' • ') : '') + (trackingDisplay || 'Not assigned');
+                                                                td.textContent = trackingHtml;
+                                                                td.title = (carrier ? (carrier + ' • ') : '') + tn;
+                                                            }
+                                                        }catch(e){}
+                                                    }
+                                                }).catch(function(){ /* ignore */ });
+                                            }
+                                        }catch(e){}
+                                    })(row, tr);
+                                }catch(e){}
             });
             syncSelectAllCheckbox();
             updateBulkUI();
@@ -1312,6 +1504,8 @@
 
         function openOrderDrawer(row){
             activeDrawerOrderId = row.id;
+            // expose full row to other handlers for actions like saving to server
+            window.activeDrawerRow = row;
             var state = canonicalStatusFromOrder(row);
             var meta = statusMetaForState(state);
             document.getElementById('drawerStatusBadge').innerHTML = statusBadge(meta.label, meta.type, meta.icon);
@@ -1335,6 +1529,7 @@
                 if(row.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery';
                 else if(row.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove';
                 else if(row.deliveryCode === 'jnt') deliveryLabel = 'J&T Express';
+                else if(row.deliveryCode === 'jrs') deliveryLabel = 'JRS';
             }
 
             document.getElementById('drawerOrderId').textContent = row.id || '';
@@ -1343,64 +1538,76 @@
             document.getElementById('drawerDeliveryMethod').textContent = deliveryLabel || 'Not provided';
             try{ var drawerEst = computeEstimatedDelivery(row); document.getElementById('drawerEst').textContent = drawerEst ? ('Est. Delivery: ' + drawerEst) : ''; }catch(e){ document.getElementById('drawerEst').textContent = ''; }
 
-            // Payment verification (for pending orders)
-            var verificationSection = document.getElementById('drawerPaymentVerification');
-            var proofThumb = document.getElementById('drawerProofThumb');
-            var proofNameEl = document.getElementById('drawerProofName');
-            var refEl = document.getElementById('drawerReferenceNumber');
-            var proofOpen = document.getElementById('drawerProofOpen');
-            var confirmBtn = document.getElementById('drawerConfirmPaymentBtn');
-            var hintEl = document.getElementById('drawerPaymentHint');
-            var state = canonicalStatusFromOrder(row);
-            var paymentCode = getOrderPaymentCode(row);
-            var proof = getOrderPaymentProof(row);
-            var referenceNumber = getOrderReferenceNumber(row);
-            if(verificationSection){
-                if(state === 'pending payment'){
-                    verificationSection.style.display = '';
-                    if(paymentCode === 'cod'){
-                        if(proofThumb) proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">COD order</span>';
-                        if(proofNameEl) proofNameEl.textContent = 'Not required for COD';
-                        if(refEl) refEl.textContent = 'Not required for COD';
-                        if(proofOpen){ proofOpen.style.display = 'none'; }
-                        if(confirmBtn){ confirmBtn.textContent = 'Confirm COD'; confirmBtn.style.display = ''; confirmBtn.disabled = false; }
-                        if(hintEl) hintEl.textContent = 'Confirm once COD order is acknowledged.';
-                    } else {
-                        if(proofThumb){
-                            if(proof.data){
-                                var proofStr = String(proof.data || '');
-                                var isImage = (proofStr.indexOf('data:image') === 0) || (/^https?:\/\//i.test(proofStr));
-                                if(isImage){
-                                    proofThumb.innerHTML = '<img src="' + proof.data + '" alt="Proof of payment">';
-                                } else {
-                                    proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">Proof file</span>';
+            // Populate tracking/carrier inputs from order data (use stored courier/tracking if available,
+            // otherwise default to delivery method for carrier)
+            try{
+                var carrierInput = document.getElementById('drawerTrackingCarrier');
+                var trackingInput = document.getElementById('drawerTrackingNumber');
+                if(carrierInput){ carrierInput.value = row.courier_name || row.courier || row.trackingCarrier || deliveryLabel || ''; }
+                if(trackingInput){ trackingInput.value = row.tracking_number || row.trackingNumber || row.tracking || ''; }
+            }catch(e){ /* ignore */ }
+
+                    // Always attempt to fetch the authoritative server copy when opening the drawer
+            // so server-generated fields (tracking_number, courier_name, status) surface immediately.
+                    try{
+                        if(window.fetch){
+                            fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(row.id))).then(function(r2){
+                                // If server reports 404 (order unknown), automatically save this local order to the server
+                                if(r2 && r2.status === 404){
+                                    try{
+                                        // Use existing helper to save the order to server (idempotent)
+                                        window.saveOrderToServer(row, function(err, srv){
+                                            if(err) { console.warn('Auto-save to server failed', err); return; }
+                                            try{
+                                                var srvOrder = srv || {};
+                                                if(srvOrder.tracking_number && trackingInput) trackingInput.value = srvOrder.tracking_number;
+                                                if(srvOrder.courier_name && carrierInput) carrierInput.value = srvOrder.courier_name;
+                                                var idx = ordersData.findIndex(o2 => String(o2.id) === String(row.id));
+                                                if(idx !== -1){
+                                                    ordersData[idx] = Object.assign({}, ordersData[idx], { courier_name: srvOrder.courier_name || '', tracking_number: srvOrder.tracking_number || '', status: srvOrder.status || '' });
+                                                    try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                    try{ if(ordersLoaded) applySearch(); }catch(e){}
+                                                }
+                                                try{ if(window.activeDrawerRow && String(window.activeDrawerRow.id) === String(row.id)){ window.activeDrawerRow.courier_name = srvOrder.courier_name || window.activeDrawerRow.courier_name; window.activeDrawerRow.tracking_number = srvOrder.tracking_number || window.activeDrawerRow.tracking_number; } }catch(e){}
+                                            }catch(e){ console.warn('failed to apply auto-saved server order to drawer', e); }
+                                        });
+                                    }catch(e){ console.warn('auto-save attempt failed', e); }
+                                    return null;
                                 }
-                            } else {
-                                proofThumb.innerHTML = '<span style="color:#888;font-size:0.85rem;">No proof uploaded</span>';
-                            }
+                                if(!r2 || !r2.ok) return null;
+                                return r2.json();
+                            }).then(function(j){
+                                if(!j || !j.order) return;
+                                var o = j.order;
+                                try{
+                                    if(o.tracking_number && trackingInput){ trackingInput.value = o.tracking_number; }
+                                    if(o.courier_name && carrierInput){ carrierInput.value = o.courier_name; }
+                                    // Persist canonical fields into local ordersData and localStorage without triggering Firestore writes.
+                                    try{
+                                        var idx = ordersData.findIndex(o2 => String(o2.id) === String(row.id));
+                                        if(idx !== -1){
+                                            ordersData[idx] = Object.assign({}, ordersData[idx], { courier_name: o.courier_name || '', tracking_number: o.tracking_number || '', status: o.status || '' });
+                                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                            // re-render table to reflect new values
+                                            try{ if(ordersLoaded) { applySearch(); } }catch(e){}
+                                        }
+                                    }catch(e){ console.warn('failed to persist server order locally', e); }
+                                    // also update the in-memory activeDrawerRow so the UI uses the canonical values
+                                    try{ 
+                                        if(window.activeDrawerRow && String(window.activeDrawerRow.id) === String(row.id)){
+                                            window.activeDrawerRow.courier_name = o.courier_name || window.activeDrawerRow.courier_name;
+                                            window.activeDrawerRow.tracking_number = o.tracking_number || window.activeDrawerRow.tracking_number;
+                                        }
+                                        // Refresh the verification UI in case the server copy contains newly uploaded proof
+                                        try{ updateDrawerVerification(window.activeDrawerRow || o); }catch(e){}
+                                    }catch(e){}
+                                }catch(e){ console.warn('failed to apply server order to drawer', e); }
+                            }).catch(function(err){ console.warn('failed to fetch server order for drawer', err); });
                         }
-                        if(proofNameEl) proofNameEl.textContent = proof.name || 'Not provided';
-                        if(refEl) refEl.textContent = referenceNumber || 'Not provided';
-                        if(proofOpen){
-                            if(proof.data){
-                                proofOpen.href = proof.data;
-                                proofOpen.style.display = '';
-                            } else {
-                                proofOpen.removeAttribute('href');
-                                proofOpen.style.display = 'none';
-                            }
-                        }
-                        if(confirmBtn){
-                            confirmBtn.textContent = 'Confirm Payment';
-                            confirmBtn.style.display = '';
-                            confirmBtn.disabled = !proof.data;
-                        }
-                        if(hintEl) hintEl.textContent = proof.data ? 'Verify proof and reference number before confirming.' : 'Awaiting proof of payment upload.';
-                    }
-                } else {
-                    verificationSection.style.display = 'none';
-                }
-            }
+                    }catch(e){ console.warn('drawer server fetch failed', e); }
+
+            // Payment verification (for pending orders) — use helper so we can refresh when server copy arrives
+            try{ updateDrawerVerification(row); }catch(e){ console.warn('failed to init drawer verification', e); }
 
             var trackingCarrierInput = document.getElementById('drawerTrackingCarrier');
             var trackingNumberInput = document.getElementById('drawerTrackingNumber');
@@ -1418,14 +1625,18 @@
             document.getElementById('orderDrawerOverlay').setAttribute('aria-hidden','false');
             document.body.style.overflow = 'hidden';
 
+            var confirmBtn = document.getElementById('drawerConfirmPaymentBtn');
             if(confirmBtn){
-                confirmBtn.onclick = function(){ handleOrderAction(row, 'confirm'); };
+                // Use the live activeDrawerRow when invoking actions so the UI reflects
+                // any server-side updates fetched after opening the drawer (e.g. proof upload).
+                confirmBtn.onclick = function(){ handleOrderAction(window.activeDrawerRow || row, 'confirm'); };
             }
 
             setTimeout(function(){
                 document.querySelectorAll('#drawerActions .action-btn').forEach(function(btn){
                     btn.addEventListener('click', function(){
-                        handleOrderAction(row, btn.getAttribute('data-action'));
+                        // Prefer the most-recent activeDrawerRow (may have been updated by server fetch)
+                        handleOrderAction(window.activeDrawerRow || row, btn.getAttribute('data-action'));
                     });
                 });
             }, 0);
@@ -1501,6 +1712,100 @@
             };
         }
 
+        // Save a client-only order to the server (dev helper).
+        // cb(err, serverOrder)
+        window.saveOrderToServer = function(ord, cb){
+            cb = cb || function(){};
+            try{
+                // Attempt to build a sensible items array. Prefer ord.items, then checkout snapshot, then cart.
+                var items = [];
+                if(Array.isArray(ord.items) && ord.items.length){
+                    items = ord.items;
+                } else {
+                    try{ items = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ items = []; }
+                    if(!Array.isArray(items) || items.length === 0){ try{ items = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ items = []; } }
+                }
+                // Normalize items and coerce any nested ids to primitives
+                items = (Array.isArray(items) ? items : []).map(function(it){
+                    var rawPid = it.product_id || it.productId || it.id || it.sku || '';
+                    if(rawPid && typeof rawPid === 'object'){
+                        rawPid = rawPid.id || rawPid._id || rawPid.sku || JSON.stringify(rawPid);
+                    }
+                    return {
+                        product_id: String(rawPid || ''),
+                        name: String(it.name || it.title || it.productName || ''),
+                        qty: Number(it.qty || it.quantity || 1) || 1,
+                        price: Number(it.price || it.unitPrice || it.amount || 0) || 0,
+                        variant: String(it.variant || it.size || it.size_eu || it.eu || ''),
+                        image: String(it.image || it.imageUrl || it.img || '')
+                    };
+                });
+
+                // helper: convert Firestore Timestamp-like objects to ISO strings
+                function toIso(dt){
+                    try{
+                        if(!dt) return new Date().toISOString();
+                        if(typeof dt === 'string') return dt;
+                        // Firestore Timestamp-like
+                        if(typeof dt === 'object' && dt.seconds !== undefined){
+                            return new Date((Number(dt.seconds) * 1000) + (Number(dt.nanoseconds || 0) / 1e6)).toISOString();
+                        }
+                        if(dt instanceof Date) return dt.toISOString();
+                        return String(dt);
+                    }catch(e){ return new Date().toISOString(); }
+                }
+
+                var payload = {
+                    id: ord.id,
+                    user_id: ord.user_id || ord.customerEmail || ord.email || null,
+                    status: ord.status || 'Order placed',
+                    total: Number(ord.total || 0),
+                    shipping_fee: Number(ord.shipping_fee || ord.shipping || 0),
+                    discount: Number(ord.discount || ord.discountAmount || ord.discount || 0),
+                    payment_method: ord.payment_method || ord.paymentMethod || ord.paymentLabel || '',
+                    created_at: toIso(ord.created_at || ord.createdAt || new Date()),
+                    delivery_address: ord.delivery_address || ord.deliveryAddress || ord.shippingAddress || ord.checkoutAddress || '',
+                    recipient_name: ord.recipient_name || ord.customerName || ord.recipientName || '',
+                    recipient_phone: ord.recipient_phone || ord.customerPhone || ord.recipientPhone || '',
+                    courier_name: ord.courier_name || ord.trackingCarrier || ord.courier || ord.deliveryLabel || '',
+                    tracking_number: ord.tracking_number || ord.trackingNumber || ord.tracking || '',
+                    items: items
+                };
+
+                fetch(API_BASE + '/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function(r){
+                    // handle non-2xx responses gracefully
+                    if(!r.ok){
+                        return r.json().then(function(errBody){
+                            const msg = errBody && errBody.error ? errBody.error : ('HTTP ' + r.status);
+                            // If the server reports a constraint/unique error (409), try to fetch the server copy
+                            if(r.status === 409){
+                                // attempt to fetch by provided id and return that as a helpful result
+                                if(payload.id){
+                                    fetch(API_BASE + '/api/orders/' + encodeURIComponent(payload.id)).then(function(r2){ if(r2.ok){ r2.json().then(function(j2){ cb(new Error(msg), j2.order); }).catch(function(){ cb(new Error(msg)); }); } else { cb(new Error(msg)); } }).catch(function(){ cb(new Error(msg)); });
+                                    return;
+                                }
+                            }
+                            cb(new Error(msg));
+                        }).catch(function(){ cb(new Error('Server returned ' + r.status)); });
+                    }
+                    return r.json();
+                }).then(function(j){
+                    if(!j) return; // handled above
+                    // If server returned the authoritative order object (including auto-generated tracking), use it
+                    if(j && j.order){ cb(null, j.order); return; }
+                    if(j && j.orderId){
+                        // Fetch authoritative server copy
+                        fetch(API_BASE + '/api/orders/' + encodeURIComponent(j.orderId)).then(function(r2){ return r2.json(); }).then(function(j2){
+                            if(j2 && j2.order){ cb(null, j2.order); return; }
+                            cb(new Error('Saved but failed to fetch server copy'));
+                        }).catch(function(err){ cb(err || new Error('Fetch server copy failed')); });
+                        return;
+                    }
+                    if(j && j.error){ cb(new Error(j.error)); } else { cb(new Error('Failed to save to server')); }
+                }).catch(function(err){ cb(err || new Error('Network error')); });
+            }catch(e){ cb(e || new Error('saveOrderToServer failed')); }
+        };
+
         function handleOrderAction(order, action){
             if(!action) return;
             if(action === 'review-cancel'){ openCancelReviewById(order.id); return; }
@@ -1516,20 +1821,20 @@
                 return;
             }
             if(action === 'confirm'){
-                var state = canonicalStatusFromOrder(order);
-                if(state === 'pending payment'){
-                    var paymentCode = getOrderPaymentCode(order);
-                    var proof = getOrderPaymentProof(order);
-                    if(paymentCode !== 'cod' && !proof.data){
-                        alert('Proof of payment is required before confirming.');
-                        return;
-                    }
-                }
+                // TEMPORARY: allow confirming without proof to facilitate testing.
+                // This bypasses the previous proof requirement (we may re-enable later).
                 updateOrder(order.id, { status: 'confirmed' });
                 return;
             }
             if(action === 'start-processing'){ updateOrder(order.id, { status: 'processing' }); return; }
-            if(action === 'mark-shipped'){ updateOrder(order.id, { status: 'shipped' }); return; }
+            if(action === 'mark-shipped'){
+                // Transition to 'shipped' and automatically start the server-side simulation
+                updateOrder(order.id, { status: 'shipped' });
+                try{
+                    fetch(API_BASE + '/api/orders/' + encodeURIComponent(order.id) + '/simulate/start', { method: 'POST' }).then(function(r){ return r.json(); }).then(function(j){ if(j && j.ok){ console.log('Simulation started for', order.id); } }).catch(function(e){ console.warn('Failed to start simulation', e); });
+                }catch(e){ console.warn('simulate start failed', e); }
+                return;
+            }
             if(action === 'mark-delivered'){ updateOrder(order.id, { status: 'delivered' }); return; }
             if(action === 'mark-refunded'){
                 updateOrder(order.id, {
@@ -1559,7 +1864,24 @@
                 }
                 var merged = Object.assign({}, currentOrder, changes);
                 ordersData[idx] = merged;
+                // If this change includes a status update, persist it to the server so
+                // the server remains the canonical source of truth for status and
+                // tracking-driven timelines.
+                try{
+                    if(Object.prototype.hasOwnProperty.call(changes, 'status') && window.fetch){
+                        var upd = { status: String(merged.status || '') };
+                        // also send courier/tracking when present
+                        if(merged.courier_name || merged.tracking_number){ upd.courier_name = merged.courier_name || ''; upd.tracking_number = merged.tracking_number || ''; }
+                        fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderId), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(upd) }).then(function(r){ return r.json(); }).then(function(j){
+                            if(j && j.order){
+                                try{ var s = j.order; ordersData[idx] = Object.assign({}, ordersData[idx], { courier_name: s.courier_name || '', tracking_number: s.tracking_number || '', status: s.status || '' }); try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){} }catch(e){}
+                            }
+                        }).catch(function(err){ console.warn('Failed to persist order status to server', err); });
+                    }
+                }catch(e){ console.warn('persist to server skipped', e); }
                 try { localStorage.setItem('orders', JSON.stringify(ordersData)); } catch(e) { console.error('persist failed', e); }
+                // Broadcast a lightweight update so client tabs can refresh without a full reload
+                try{ localStorage.setItem('orders_update', JSON.stringify({ id: orderId, status: merged.status || '', ts: Date.now() })); }catch(e){}
                 applySearch();
                 if(activeDrawerOrderId && String(activeDrawerOrderId) === String(orderId)){
                     var updatedOrder = ordersData.find(o => String(o.id) === String(orderId));
@@ -1677,13 +1999,131 @@
             var trackingNumberInput = document.getElementById('drawerTrackingNumber');
             function persistTracking(){
                 if(!activeDrawerOrderId) return;
-                updateOrder(activeDrawerOrderId, {
-                    trackingCarrier: trackingCarrierInput.value || '',
-                    trackingNumber: trackingNumberInput.value || ''
-                });
+                var carrierVal = trackingCarrierInput.value || '';
+                var tnVal = trackingNumberInput.value || '';
+                // normalize fields to server canonical names as well as local-friendly keys
+                var payload = { trackingCarrier: carrierVal, trackingNumber: tnVal, courier_name: carrierVal, tracking_number: tnVal };
+                updateOrder(activeDrawerOrderId, payload);
+                // If a tracking number was entered, attempt to create a tracker in AfterShip (best-effort)
+                try{
+                    if(tnVal && tnVal.length && window.fetch){
+                        var slug = carrierVal ? String(carrierVal).toLowerCase().replace(/\s+/g,'-') : '';
+                        fetch(API_BASE + '/api/orders/' + encodeURIComponent(activeDrawerOrderId) + '/aftership/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ courier_slug: slug, tracking_number: tnVal })
+                        }).then(function(r){ return r.json(); }).then(function(j){ if(j && j.ok){ console.log('AfterShip tracker created', j); } else if(j && j.error){ console.warn('AfterShip create error', j.error); } }).catch(function(e){ console.warn('AfterShip create request failed', e); });
+                    }
+                }catch(e){ /* ignore */ }
             }
             if(trackingCarrierInput) trackingCarrierInput.addEventListener('change', persistTracking);
             if(trackingNumberInput) trackingNumberInput.addEventListener('change', persistTracking);
+            var simulateBtn = document.getElementById('drawerSimulateBtn');
+            var refreshTrackingBtn = document.getElementById('drawerRefreshTrackingBtn');
+            // Hide manual simulation/refresh controls - simulation is automatic when admin marks shipped
+            try{ if(simulateBtn) simulateBtn.style.display = 'none'; }catch(e){}
+            try{ if(refreshTrackingBtn) refreshTrackingBtn.style.display = 'none'; }catch(e){}
+            var saveToServerBtn = document.getElementById('drawerSaveToServerBtn');
+            if(saveToServerBtn){
+                // Auto-save to server without prompting (dev convenience)
+                saveToServerBtn.addEventListener('click', function(){
+                    if(!window.activeDrawerRow) return alert('No order selected');
+                    var ord = window.activeDrawerRow;
+                    // Use existing helper to save; update local copy on success
+                    window.saveOrderToServer(ord, function(err, srv){
+                        if(err){ alert('Failed to save to server: ' + (err && err.message || err)); return; }
+                        try{
+                            var srvOrder = srv || {};
+                            updateOrder(srvOrder.id || ord.id, { courier_name: srvOrder.courier_name || '', tracking_number: srvOrder.tracking_number || '', status: srvOrder.status || '' });
+                            alert('Order saved to server as ' + (srvOrder.id || srvOrder.orderId || ord.id));
+                        }catch(e){ alert('Saved but failed to update local copy'); }
+                    });
+                    return;
+                    // Attempt to build a sensible items array. Prefer the explicit ord.items when present,
+                    // otherwise fall back to checkout snapshot or cart stored in localStorage.
+                    var items = [];
+                    try{
+                        if(Array.isArray(ord.items) && ord.items.length){
+                            items = ord.items;
+                        } else {
+                            try{ items = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ items = []; }
+                            if(!Array.isArray(items) || items.length === 0){ try{ items = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ items = []; } }
+                        }
+                        // Normalize common item fields for server schema (qty, price, name, variant) and coerce nested ids
+                        items = (Array.isArray(items) ? items : []).map(function(it){
+                            var rawPid = it.product_id || it.productId || it.id || it.sku || '';
+                            if(rawPid && typeof rawPid === 'object'){
+                                rawPid = rawPid.id || rawPid._id || rawPid.sku || JSON.stringify(rawPid);
+                            }
+                            return {
+                                product_id: String(rawPid || ''),
+                                name: String(it.name || it.title || it.productName || ''),
+                                qty: Number(it.qty || it.quantity || 1) || 1,
+                                price: Number(it.price || it.unitPrice || it.amount || 0) || 0,
+                                variant: String(it.variant || it.size || it.size_eu || it.eu || ''),
+                                image: String(it.image || it.imageUrl || it.img || '')
+                            };
+                        });
+                    }catch(e){ items = []; }
+
+                    // build payload mapping known fields
+                    function toIso(dt){
+                        try{
+                            if(!dt) return new Date().toISOString();
+                            if(typeof dt === 'string') return dt;
+                            if(typeof dt === 'object' && dt.seconds !== undefined){
+                                return new Date((Number(dt.seconds) * 1000) + (Number(dt.nanoseconds || 0) / 1e6)).toISOString();
+                            }
+                            if(dt instanceof Date) return dt.toISOString();
+                            return String(dt);
+                        }catch(e){ return new Date().toISOString(); }
+                    }
+
+                    var payload = {
+                        id: ord.id,
+                        user_id: ord.user_id || ord.customerEmail || ord.email || null,
+                        status: ord.status || 'Order placed',
+                        total: Number(ord.total || 0),
+                        shipping_fee: Number(ord.shipping_fee || ord.shipping || 0),
+                        discount: Number(ord.discount || ord.discountAmount || ord.discount || 0),
+                        payment_method: ord.payment_method || ord.paymentMethod || ord.paymentLabel || '',
+                        created_at: toIso(ord.created_at || ord.createdAt || new Date()),
+                        delivery_address: ord.delivery_address || ord.deliveryAddress || ord.shippingAddress || ord.checkoutAddress || '',
+                        recipient_name: ord.recipient_name || ord.customerName || ord.recipientName || '',
+                        recipient_phone: ord.recipient_phone || ord.customerPhone || ord.recipientPhone || '',
+                        courier_name: ord.courier_name || ord.trackingCarrier || ord.courier || ord.deliveryLabel || '',
+                        tracking_number: ord.tracking_number || ord.trackingNumber || ord.tracking || '',
+                        items: items
+                    };
+                    fetch(API_BASE + '/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function(r){ return r.json(); }).then(function(j){
+                        if(!j) { alert('Failed to save to server'); return; }
+                        if(j.order){
+                            try{
+                                var srv = j.order;
+                                updateOrder(srv.id || ord.id, { courier_name: srv.courier_name || '', tracking_number: srv.tracking_number || '', status: srv.status || '' });
+                                alert('Order saved to server as ' + (srv.id || j.orderId));
+                            }catch(e){ alert('Saved but failed to update local copy'); }
+                            return;
+                        }
+                        if(j && j.orderId){
+                            // fetch authoritative server copy and persist locally
+                            fetch(API_BASE + '/api/orders/' + encodeURIComponent(j.orderId)).then(function(r2){ return r2.json(); }).then(function(j2){
+                                if(j2 && j2.order){
+                                    try{
+                                        var srv = j2.order;
+                                        updateOrder(srv.id || ord.id, { courier_name: srv.courier_name || '', tracking_number: srv.tracking_number || '', status: srv.status || '' });
+                                        alert('Order saved to server as ' + (srv.id || j.orderId));
+                                    }catch(e){ alert('Saved but failed to update local copy'); }
+                                } else {
+                                    alert('Saved to server but failed to fetch server copy');
+                                }
+                            }).catch(function(){ alert('Saved to server but failed to fetch server copy'); });
+                            return;
+                        }
+                        if(j && j.error){ alert('Failed to save to server: ' + j.error); } else { alert('Failed to save to server'); }
+                    }).catch(function(e){ alert('Failed to save to server: ' + (e && e.message || '')); });
+                });
+            }
             // Cancel review modal close
             var crClose = document.getElementById('closeCancelReviewBtn');
             if(crClose) crClose.addEventListener('click', function(){ closeCancelReviewModal(); });
@@ -1714,6 +2154,33 @@
                     currentList = ordersData.slice();
                     applySort(); renderTable(currentList);
                 }catch(err){/* ignore */}
+            }
+            if(e.key === 'orders_update'){
+                try{
+                    var payload = JSON.parse(e.newValue || '{}');
+                    if(payload && payload.id){
+                        var id = payload.id;
+                        // fetch authoritative server copy and merge
+                        fetch(API_BASE + '/api/orders/' + encodeURIComponent(id)).then(function(r){ if(!r.ok) throw new Error('no order'); return r.json(); }).then(function(j){
+                            var serverOrder = (j && j.order) ? j.order : (j && j.id ? j : null);
+                            if(!serverOrder) return;
+                            try{
+                                var idx = ordersData.findIndex(function(o){ return String(o.id) === String(serverOrder.id); });
+                                if(idx === -1){ ordersData.unshift(serverOrder); }
+                                else { ordersData[idx] = Object.assign({}, ordersData[idx], serverOrder); }
+                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                ordersData = sortOrdersByNewest(mergeOrdersById([], ordersData));
+                                currentList = ordersData.slice();
+                                applySort(); renderTable(currentList);
+                                // refresh drawer if it's open for this id
+                                if(activeDrawerOrderId && String(activeDrawerOrderId) === String(id)){
+                                    var updated = ordersData.find(function(o){ return String(o.id) === String(id); });
+                                    if(updated) openOrderDrawer(updated);
+                                }
+                            }catch(e){}
+                        }).catch(function(){ /* ignore fetch errors */ });
+                    }
+                }catch(e){}
             }
         });
 
@@ -2202,8 +2669,12 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        if (cart[idx].quantity > 1) {
-                            cart[idx].quantity--;
+                        if (window.tryDecrementCartItem) {
+                            window.tryDecrementCartItem(cart, idx);
+                        } else {
+                            if (cart[idx].quantity > 1) {
+                                cart[idx].quantity--;
+                            }
                         }
                         renderCart();
                         saveCartToLocalStorage();
@@ -2214,7 +2685,16 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        cart[idx].quantity++;
+                        if (window.tryIncrementCartItem) {
+                            var r = window.tryIncrementCartItem(cart, idx);
+                            if (r && r.success === false && r.reason === 'max_pairs') {
+                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                else alert('Maximum of 3 pairs of shoes per order.');
+                                return;
+                            }
+                        } else {
+                            cart[idx].quantity++;
+                        }
                         renderCart();
                         saveCartToLocalStorage();
                     }

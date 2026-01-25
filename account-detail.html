@@ -169,7 +169,7 @@
             return params.get(name);
         }
         function getUsers(){ try{ return JSON.parse(localStorage.getItem('users') || '[]') }catch(e){ return [] } }
-        function getOrders(){ try{ return JSON.parse(localStorage.getItem('orders') || '[]') }catch(e){ return [] } }
+    function getOrders(){ try{ return JSON.parse(localStorage.getItem('client_orders') || '[]') }catch(e){ return [] } }
         function formatPHP(n){ return 'PHP ' + Number(n||0).toLocaleString(); }
 
         const email = qs('email');
@@ -300,7 +300,7 @@
         }
 
         window.openOrderModal = function(idx){
-            var orders = JSON.parse(localStorage.getItem('orders')||'[]');
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
             var order = orders[idx];
             if(!order) return;
             document.getElementById('orderModalId').textContent = 'Order ID: ' + order.id;
@@ -318,7 +318,7 @@
             if(order.tracking){ addrTxt += (addrTxt ? '\n' : '') + 'Tracking #: ' + order.tracking; }
             document.getElementById('orderModalAddress').textContent = addrTxt;
             var deliveryLabel = order.deliveryLabel || order.deliveryMethod || localStorage.getItem('checkoutDelivery') || '';
-            if(!deliveryLabel && order.deliveryCode){ if(order.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery'; else if(order.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove'; else if(order.deliveryCode === 'jnt') deliveryLabel = 'J&T Express'; }
+            if(!deliveryLabel && order.deliveryCode){ if(order.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery'; else if(order.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove'; else if(order.deliveryCode === 'jnt') deliveryLabel = 'J&T Express'; else if(order.deliveryCode === 'jrs') deliveryLabel = 'JRS'; }
             document.getElementById('orderModalDelivery').textContent = deliveryLabel ? ('Delivery: ' + deliveryLabel) : '';
             document.getElementById('orderModalImg').src = (order.items[0] && order.items[0].image) || 'IMAGE/NIKE1.png';
             var itemsHtml = '';
