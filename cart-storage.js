@@ -15,6 +15,70 @@ function getCart() {
 
 var MAX_PAIRS_PER_ORDER = 3;
 
+// In-memory inventory rows cache (from Firestore products/variants)
+var __inventoryRowsCache = [];
+var __inventoryRowsLoaded = false;
+var __inventoryRowsLoading = false;
+
+function refreshInventoryRowsCache(){
+    try{
+        if(__inventoryRowsLoading) return;
+        if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return;
+        if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+        __inventoryRowsLoading = true;
+        var db = firebase.firestore();
+        Promise.all([db.collection('products').get(), db.collection('variants').get()])
+            .then(function(res){
+                var products = [];
+                res[0].forEach(function(doc){ products.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                var variants = [];
+                res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                var map = {};
+                variants.forEach(function(v){
+                    var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || null;
+                    if(!pid) return;
+                    map[pid] = map[pid] || [];
+                    map[pid].push({
+                        id: v.id || ('color-' + Math.random().toString(36).slice(2,9)),
+                        name: v.colorName || v.name || v.color || 'Color',
+                        code: v.colorCode || v.code || '#ffffff',
+                        sizes: Array.isArray(v.sizes) ? v.sizes : []
+                    });
+                });
+                __inventoryRowsCache = [];
+                products.forEach(function(p){
+                    var pid = p.id || p.productId || p.sku || '';
+                    var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors : (map[pid] || []);
+                    var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : (p.image || '');
+                    (colorsArr || []).forEach(function(c){
+                        var sizesMap = {};
+                        (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
+                        __inventoryRowsCache.push({
+                            id: (p.sku || p.id || '') + ':' + (c.id || c.name || ''),
+                            productId: p.id || '',
+                            name: (p.model || p.name || '') + (c.name ? (' ' + c.name) : ''),
+                            brand: p.brand || '',
+                            color: c.name || '',
+                            image: baseImg || '',
+                            sizes: sizesMap,
+                            price: Number((p.pricing && (p.pricing.sale || p.pricing.original)) || p.price || 0),
+                            originalPrice: Number((p.pricing && p.pricing.original) || p.originalPrice || 0),
+                            gender: p.gender || ''
+                        });
+                    });
+                });
+                __inventoryRowsLoaded = true;
+                __inventoryRowsLoading = false;
+            })
+            .catch(function(){ __inventoryRowsLoading = false; });
+    }catch(e){ __inventoryRowsLoading = false; }
+}
+
+function getInventoryRowsCache(){
+    if(!__inventoryRowsLoaded && !__inventoryRowsLoading){ refreshInventoryRowsCache(); }
+    return Array.isArray(__inventoryRowsCache) ? __inventoryRowsCache : [];
+}
+
 function getCartTotalPairs(cart){
     try{
         cart = Array.isArray(cart) ? cart : getCart();
@@ -200,7 +264,7 @@ function addToCart(product) {
 // Find inventory item matching a product (by id, name exact, contains title, or brand)
 function findInventoryItemForProduct(product) {
     try {
-        var inv = (window.getStorefrontInventory && window.getStorefrontInventory()) || [];
+        var inv = getInventoryRowsCache();
         if (!Array.isArray(inv) || inv.length === 0) return null;
         // prefer id match
         if (product.id) {
@@ -703,7 +767,7 @@ function openCartItemEditor(index){
                 var invItem = null;
                 try{
                     // Prefer direct inventoryId on the cart item (added at add-time) for exact lookup.
-                    var invAllProbe = (window.getStorefrontInventory && window.getStorefrontInventory()) || [];
+                    var invAllProbe = getInventoryRowsCache();
                     if(item && item.inventoryId){
                         try{ invItem = invAllProbe.find(function(x){ return x && x.id && String(x.id) === String(item.inventoryId); }); }catch(e){}
                     }
@@ -728,7 +792,7 @@ function openCartItemEditor(index){
                 // shows every color/row that exists in the inventory for this model. This covers
                 // two common patterns: (A) variants array inside a single inventory row, and
                 // (B) multiple inventory rows (one per color) that share the same name/model.
-                var invAll = (window.getStorefrontInventory && window.getStorefrontInventory()) || [];
+                var invAll = getInventoryRowsCache();
                 var matchedRows = [];
                 try{
                     var norm = function(s){ return (String(s||'').trim().toLowerCase()); };
@@ -791,7 +855,7 @@ function openCartItemEditor(index){
             } else {
                 try{ modal._colorsSource = 'fallback'; }catch(e){}
                 // Fallback: scan inventory but be conservative: prefer exact name or id matches only
-                var inv = (window.getStorefrontInventory && window.getStorefrontInventory()) || [];
+                var inv = getInventoryRowsCache();
                 inv.forEach(function(r){
                     if(!r) return;
                     var added = false;
@@ -1061,3 +1125,6 @@ window.getMaxAllowedForProduct = getMaxAllowedForProduct;
 window.findInventoryItemForProduct = findInventoryItemForProduct;
 window.renderCartSidebarItems = renderCartSidebarItems;
 window.openCartItemEditor = openCartItemEditor;
+
+// Prime inventory cache when possible
+try{ refreshInventoryRowsCache(); }catch(e){}

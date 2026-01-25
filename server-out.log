@@ -1,0 +1,5 @@
+
+> shoepao-ar-build@0.1.0 start
+> node server.js
+
+ShoePao server running on http://localhost:3000

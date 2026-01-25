@@ -25,6 +25,23 @@ app.use(function(req, res, next){
 
 app.use(express.static(path.join(__dirname)));
 
+// Short link redirect route: /r/:id -> redirects to stored target link (Firebase verification link)
+app.get('/r/:id', async (req, res) => {
+  try{
+    const id = (req.params && req.params.id) ? String(req.params.id) : null;
+    if(!id) return res.status(400).send('Missing id');
+    try{
+      const row = db.prepare('SELECT target FROM ShortLinks WHERE id = ?').get(id);
+      if(row && row.target){
+        // redirect to the original verification link
+        return res.redirect(302, row.target);
+      } else {
+        return res.status(404).send('Not found');
+      }
+    }catch(e){ console.warn('ShortLinks lookup failed', e); return res.status(500).send('Server error'); }
+  }catch(e){ console.error('Redirect error', e); return res.status(500).send('Server error'); }
+});
+
 // Load AfterShip API key from trackingapi_key.json if present
 let AFTERSHIP_KEY = null;
 let AFTERSHIP_SECRET = null;
@@ -38,6 +55,29 @@ try{
     console.log('AfterShip API key loaded:', AFTERSHIP_KEY ? 'yes' : 'no', ' secret:', AFTERSHIP_SECRET ? 'yes' : 'no');
   }
 }catch(e){ console.warn('Failed to read trackingapi_key.json', e); }
+
+// Initialize firebase-admin if a service account JSON is present in the project root
+let admin = null;
+try{
+  const saPath = path.join(__dirname, 'service-account.json');
+  if (fs.existsSync(saPath)){
+    try{
+      admin = require('firebase-admin');
+      const sa = require(saPath);
+      admin.initializeApp({ credential: admin.credential.cert(sa) });
+      console.log('firebase-admin initialized from service-account.json');
+    }catch(e){
+      console.warn('Failed to initialize firebase-admin from service-account.json', e);
+      admin = null;
+    }
+  } else {
+    // Attempt ADC (GOOGLE_APPLICATION_CREDENTIALS) if set in environment
+    try{
+      admin = require('firebase-admin');
+      try{ admin.initializeApp(); console.log('firebase-admin initialized using ADC'); }catch(e){}
+    }catch(e){ admin = null; }
+  }
+}catch(e){ console.warn('firebase-admin init check failed', e); admin = null; }
 
 
 // Helper to call AfterShip API (simple wrapper using native https)
@@ -72,6 +112,276 @@ function aftershipRequest(method, pathUrl, body) {
     req.end();
   });
 }
+
+// Server route: generate Firebase email verification link via Admin SDK and send custom HTML email via SMTP
+app.post('/api/send-verification-email', async (req, res) => {
+  const body = req.body || {};
+  const email = (body.email || '').toString().trim();
+  const displayName = body.displayName || '';
+  const returnUrl = body.returnUrl || process.env.BASE_URL || ('http://localhost' + (process.env.PORT ? (':' + process.env.PORT) : ''));
+  if(!email) return res.status(400).json({ error: 'email required' });
+  try{
+    // Initialize firebase-admin if not already
+    const admin = require('firebase-admin');
+    try{ if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ console.warn('firebase-admin initializeApp() warning', e); }
+
+    const actionCodeSettings = { url: (returnUrl || '') + '/login.html', handleCodeInApp: false };
+    const link = await admin.auth().generateEmailVerificationLink(email, actionCodeSettings);
+
+    // Create a short redirect id and store mapping in DB so emails show a short link
+    try{
+      const shortId = crypto.randomBytes(4).toString('hex'); // 8 hex chars
+      const createdAt = new Date().toISOString();
+      // Insert into ShortLinks table (created in server/db.js)
+      try{
+        db.prepare('INSERT INTO ShortLinks (id, target, created_at) VALUES (?,?,?)').run(shortId, link, createdAt);
+      }catch(e){
+        // if insert fails (rare), log but continue using full link
+        console.warn('ShortLinks insert failed', e);
+      }
+      // Build short redirect URL using returnUrl or BASE_URL
+      const base = (process.env.BASE_URL || returnUrl || ('http://localhost' + (process.env.PORT ? (':' + process.env.PORT) : '')) ).replace(/\/$/, '');
+      var shortRedirect = base + '/r/' + shortId;
+    }catch(e){ console.warn('Failed to create short redirect', e); }
+
+    // Prepare mailer (requires SMTP env vars). If SMTP isn't configured, return the
+    // generated verification link (and the short redirect when available) so the
+    // client can display it — this allows operation without SMTP.
+    let nodemailer = null;
+    try{ nodemailer = require('nodemailer'); }catch(e){ nodemailer = null; }
+
+    const smtpConfigured = nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS;
+    const resultPayload = { ok: true, verificationLink: link, shortRedirect: (typeof shortRedirect !== 'undefined') ? shortRedirect : null };
+
+    if(!smtpConfigured){
+      // No SMTP available — return the link to the client for manual display/open.
+      return res.json(resultPayload);
+    }
+
+    try{
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: (process.env.SMTP_SECURE === 'true') || false,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      });
+
+      const from = process.env.EMAIL_FROM || '"Shoe Pao" <noreply@shoe-pao-special.firebaseapp.com>';
+      // Prefer using the short redirect URL in the email when available
+      const displayLink = (typeof shortRedirect !== 'undefined') ? shortRedirect : link;
+      // Shorten the visible link text for the template so the email isn't cluttered
+      let displayText = displayLink;
+      if (typeof shortRedirect === 'undefined') {
+        displayText = displayText.replace(/^https?:\/\//, '');
+        if (displayText.length > 72) displayText = displayText.slice(0,72) + '...';
+      }
+      const html = `
+        <div style="font-family: Arial, sans-serif; color: #222;">
+          <h2>Shoe Pao Special</h2>
+          <p>Hello ${String(displayName || '')},</p>
+          <p>Please verify your email address by clicking the button below:</p>
+          <p style="text-align:center"><a href="${displayLink}" style="display:inline-block;padding:12px 20px;background:#b71c1c;color:#fff;border-radius:6px;text-decoration:none;">Verify</a></p>
+          <p>If the button doesn't work, paste this link into your browser:</p>
+          <p><a href="${displayLink}">${displayText}</a></p>
+          <p>Thanks,<br>Your Shoe Pao team</p>
+        </div>`;
+
+      await transporter.sendMail({ from: from, to: email, subject: 'Verify your email for Shoe Pao', html: html });
+      return res.json({ ok: true });
+    }catch(e){
+      console.warn('send verification email failed, returning link to client', e);
+      // If sending failed for any reason, return the link so the UI can show it.
+      return res.json(resultPayload);
+    }
+  }catch(err){
+    console.error('send-verification-email failed', err);
+    return res.status(500).json({ error: String(err && err.message ? err.message : err) });
+  }
+});
+
+// Server route: generate Firebase password reset link via Admin SDK and send custom email via SMTP
+app.post('/api/send-password-reset', async (req, res) => {
+  const body = req.body || {};
+  const email = (body.email || '').toString().trim();
+  const returnUrl = body.returnUrl || process.env.BASE_URL || ('http://localhost' + (process.env.PORT ? (':' + process.env.PORT) : ''));
+  if(!email) return res.status(400).json({ error: 'email required' });
+  try{
+    // Initialize firebase-admin if not already
+    const admin = require('firebase-admin');
+    try{ if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ console.warn('firebase-admin initializeApp() warning', e); }
+
+  // Force in-app reset flow so the link opens our `reset-password.html` page which
+  // runs the client-side confirmPasswordReset code and notifies the server.
+  const actionCodeSettings = { url: (returnUrl || '') + '/reset-password.html?next=login', handleCodeInApp: true };
+    const link = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
+
+    // Create a short redirect id and store mapping in DB so emails show a short link
+    let shortRedirect;
+    try{
+      const shortId = crypto.randomBytes(4).toString('hex');
+      const createdAt = new Date().toISOString();
+      try{ db.prepare('INSERT INTO ShortLinks (id, target, created_at) VALUES (?,?,?)').run(shortId, link, createdAt); }catch(e){ console.warn('ShortLinks insert failed', e); }
+      const base = (process.env.BASE_URL || returnUrl || ('http://localhost' + (process.env.PORT ? (':' + process.env.PORT) : '')) ).replace(/\/$/, '');
+      shortRedirect = base + '/r/' + shortId;
+    }catch(e){ console.warn('Failed to create short redirect', e); }
+
+    // Prepare mailer (requires SMTP env vars)
+    let nodemailer;
+    try{ nodemailer = require('nodemailer'); }catch(e){ console.error('nodemailer not installed', e); return res.status(500).json({ error: 'nodemailer not available on server' }); }
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.example.com',
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: (process.env.SMTP_SECURE === 'true') || false,
+      auth: (process.env.SMTP_USER && process.env.SMTP_PASS) ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined
+    });
+
+    const from = process.env.EMAIL_FROM || '"Shoe Pao" <noreply@shoe-pao-special.firebaseapp.com>';
+    const displayLink = (typeof shortRedirect !== 'undefined') ? shortRedirect : link;
+    let displayText = displayLink;
+    if (typeof shortRedirect === 'undefined') {
+      displayText = displayText.replace(/^https?:\/\//, '');
+      if (displayText.length > 72) displayText = displayText.slice(0,72) + '...';
+    }
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #222;">
+        <h2>Shoe Pao Password Reset</h2>
+        <p>Hello,</p>
+        <p>We received a request to change the password for this account. Click the button below to continue:</p>
+        <p style="text-align:center"><a href="${displayLink}" style="display:inline-block;padding:12px 20px;background:#b71c1c;color:#fff;border-radius:6px;text-decoration:none;">Change password</a></p>
+        <p>If the button doesn't work, paste this link into your browser:</p>
+        <p><a href="${displayLink}">${displayText}</a></p>
+        <p>If you didn't request a password change, you can ignore this email.</p>
+        <p>Thanks,<br>Your Shoe Pao team</p>
+      </div>`;
+
+    await transporter.sendMail({ from: from, to: email, subject: 'Reset your Shoe Pao password', html: html });
+    return res.json({ ok: true });
+  }catch(err){
+    console.error('send-password-reset failed', err);
+    return res.status(500).json({ error: String(err && err.message ? err.message : err) });
+  }
+});
+
+// Dev helper: generate a password reset link via Admin SDK and return a short redirect for testing
+app.post('/api/generate-password-reset', async (req, res) => {
+  const body = req.body || {};
+  const email = (body.email || '').toString().trim();
+  const returnUrl = body.returnUrl || process.env.BASE_URL || ('http://localhost' + (process.env.PORT ? (':' + process.env.PORT) : ''));
+  if (!email) return res.status(400).json({ error: 'email required' });
+  try{
+    if (!admin) {
+      try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ console.warn('firebase-admin not available', e); }
+    }
+    if (!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
+
+  // Force in-app reset flow so server-generated links open our reset page which
+  // runs the confirmPasswordReset client flow and notifies the server when done.
+  const actionCodeSettings = { url: (returnUrl || '') + '/reset-password.html?next=login', handleCodeInApp: true };
+  const link = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
+
+    // create short mapping
+    let shortRedirect;
+    try{
+      const shortId = crypto.randomBytes(4).toString('hex');
+      const createdAt = new Date().toISOString();
+      try{ db.prepare('INSERT INTO ShortLinks (id, target, created_at) VALUES (?,?,?)').run(shortId, link, createdAt); }catch(e){ console.warn('ShortLinks insert failed', e); }
+      const base = (process.env.BASE_URL || returnUrl || ('http://localhost' + (process.env.PORT ? (':' + process.env.PORT) : '')) ).replace(/\/$/, '');
+      shortRedirect = base + '/r/' + shortId;
+    }catch(e){ console.warn('Failed to create short redirect', e); }
+
+    return res.json({ ok: true, link: link, shortRedirect: shortRedirect });
+  }catch(err){ console.error('generate-password-reset failed', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Create a short, server-issued password reset token (not Firebase) and optionally email it.
+// This token is stored server-side and can be used to directly update the user's password via Admin SDK.
+app.post('/api/create-reset-token', async (req, res) => {
+  const body = req.body || {};
+  const email = (body.email || '').toString().trim().toLowerCase();
+  const returnUrl = body.returnUrl || process.env.BASE_URL || ('http://localhost' + (process.env.PORT ? (':' + process.env.PORT) : ''));
+  if(!email) return res.status(400).json({ error: 'email required' });
+  try{
+    const token = crypto.randomBytes(16).toString('hex');
+    const createdAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + (1000 * 60 * 60)).toISOString(); // 1 hour
+    try{ db.prepare('INSERT INTO PasswordResetTokens (token,email,used,created_at,expires_at) VALUES (?,?,?,?,?)').run(token, email, 0, createdAt, expiresAt); }catch(e){ console.warn('PasswordResetTokens insert failed', e); }
+
+    // Build a direct reset URL to the app reset page with our token
+    const base = (process.env.BASE_URL || returnUrl || ('http://localhost' + (process.env.PORT ? (':' + process.env.PORT) : '')) ).replace(/\/$/, '');
+    const resetUrl = base + '/reset-password.html?token=' + encodeURIComponent(token);
+
+    // Try to send email if SMTP is configured; otherwise, return the resetUrl so the client can display it
+    let nodemailer;
+    try{ nodemailer = require('nodemailer'); }catch(e){ nodemailer = null; }
+    if(nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS){
+      try{
+        const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), secure: (process.env.SMTP_SECURE === 'true') || false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
+        const from = process.env.EMAIL_FROM || '"Shoe Pao" <noreply@shoe-pao-special.firebaseapp.com>';
+        const html = `<div style="font-family: Arial, sans-serif; color:#222"><p>Hello,</p><p>Click the button below to reset your password:</p><p style="text-align:center"><a href="${resetUrl}" style="display:inline-block;padding:12px 18px;background:#b71c1c;color:#fff;border-radius:6px;text-decoration:none;">Reset password</a></p><p>If you did not request this, ignore this email.</p></div>`;
+        await transporter.sendMail({ from: from, to: email, subject: 'Reset your Shoe Pao password', html: html });
+        return res.json({ ok: true });
+      }catch(e){ console.warn('send email failed for reset token', e); return res.json({ ok: true, resetUrl: resetUrl }); }
+    }
+
+    return res.json({ ok: true, resetUrl: resetUrl });
+  }catch(err){ console.error('create-reset-token failed', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Confirm a server-issued reset token and set a new password using firebase-admin
+app.post('/api/confirm-reset', async (req, res) => {
+  const body = req.body || {};
+  const token = (body.token || '').toString().trim();
+  const newPassword = (body.password || '').toString();
+  if(!token || !newPassword) return res.status(400).json({ error: 'token and password required' });
+  try{
+    const row = db.prepare('SELECT email, used, expires_at FROM PasswordResetTokens WHERE token = ?').get(token);
+    if(!row) return res.status(400).json({ error: 'invalid token' });
+    if(row.used) return res.status(400).json({ error: 'token already used' });
+    if(new Date(row.expires_at) < new Date()) return res.status(400).json({ error: 'token expired' });
+
+    if(!admin) {
+      try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ console.warn('firebase-admin not initialized', e); }
+    }
+    if(!admin) return res.status(500).json({ error: 'firebase-admin not available' });
+
+    const user = await admin.auth().getUserByEmail(row.email);
+    await admin.auth().updateUser(user.uid, { password: newPassword });
+    // mark token used
+    try{ db.prepare('UPDATE PasswordResetTokens SET used = 1 WHERE token = ?').run(token); }catch(e){ console.warn('mark token used failed', e); }
+    return res.json({ ok: true });
+  }catch(err){ console.error('confirm-reset failed', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Record that a password reset was completed for an email (client informs server).
+// This is intentionally lightweight: it simply stores an event the client page can poll
+// to detect cross-device password resets. No auth required, but entries should be
+// short-lived and are meant for UX only.
+app.post('/api/password-reset-event', async (req, res) => {
+  try{
+    const body = req.body || {};
+    const email = (body.email || '').toString().trim().toLowerCase();
+    if(!email) return res.status(400).json({ error: 'email required' });
+    const createdAt = new Date().toISOString();
+    try{ db.prepare('INSERT INTO PasswordResetEvents (email, created_at) VALUES (?,?)').run(email, createdAt); }catch(e){ console.warn('insert PasswordResetEvents failed', e); }
+    return res.json({ ok: true });
+  }catch(err){ console.error('password-reset-event failed', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Query whether a password reset event exists for an email within a recent timeframe.
+app.get('/api/password-reset-status', async (req, res) => {
+  try{
+    const email = (req.query.email || '').toString().trim().toLowerCase();
+    if(!email) return res.status(400).json({ error: 'email required' });
+    // Return the most recent event for this email, if any
+    try{
+      const row = db.prepare('SELECT created_at FROM PasswordResetEvents WHERE email = ? ORDER BY created_at DESC LIMIT 1').get(email);
+      if(!row) return res.json({ changed: false });
+      return res.json({ changed: true, at: row.created_at });
+    }catch(e){ console.warn('PasswordResetEvents lookup failed', e); return res.status(500).json({ error: 'db error' }); }
+  }catch(err){ console.error('password-reset-status failed', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
 
 // Create a tracker
 async function aftershipCreateTracker(slug, trackingNumber, title){
@@ -841,6 +1151,20 @@ app.post('/api/orders/migrate-assign-tracking', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`ShoePao server running on http://localhost:${PORT}`);
+});
+
+// Global handlers to surface and log otherwise-unhandled errors so the server doesn't
+// silently exit in development. In production, prefer a process manager (pm2/nssm)
+// to restart on crashes and collect logs.
+process.on('uncaughtException', (err) => {
+  try { console.error('UNCAUGHT_EXCEPTION:', err && (err.stack || err.message || err)); } catch (e) { /* ignore */ }
+  // Don't call process.exit here in dev; let the process stay alive so the proxy
+  // and local tooling can continue to interrogate and debug. Use an external
+  // process manager to restart on failure in production.
+});
+
+process.on('unhandledRejection', (reason, p) => {
+  try { console.error('UNHANDLED_REJECTION:', reason); } catch (e) { /* ignore */ }
 });
 
 // Periodic poller to refresh tracking statuses for orders with tracking numbers
