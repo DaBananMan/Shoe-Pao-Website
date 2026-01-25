@@ -32,6 +32,30 @@
     return Number.isFinite(n) ? n : fallback;
   };
 
+  function normalizeVariantImages(images, fallback) {
+    let list = Array.isArray(images) ? images.slice() : [];
+    if ((!list.length || !list.some(x => x && String(x).trim())) && fallback) {
+      list = [fallback];
+    }
+    list = list.map(x => String(x || '').trim()).filter(Boolean);
+    if (list.length > 4) list = list.slice(0, 4);
+    while (list.length < 4) list.push('');
+    return list;
+  }
+
+  function applyColorImages(color) {
+    if (!color) return [];
+    const normalized = normalizeVariantImages(color.images, color.image);
+    color.images = normalized;
+    color.image = normalized.find(x => x && String(x).trim()) || '';
+    return normalized;
+  }
+
+  function countColorImages(color) {
+    const imgs = Array.isArray(color && color.images) ? color.images : [];
+    return imgs.filter(x => x && String(x).trim()).length;
+  }
+
   // Effective threshold for 'low stock' per product: per-product `criticalLevel` overrides
   // global settings.lowStockThreshold when present and valid.
   function effectiveThresholdForProduct(p) {
@@ -290,10 +314,13 @@
           if (!pid) return;
           map[pid] = map[pid] || [];
           // normalize a variant doc into a color object the UI expects
+          const normalizedImages = normalizeVariantImages(v.images || [], v.image || '');
           const color = {
             id: v.id || uid('color'),
             name: v.colorName || v.name || v.color || 'Color',
             code: v.colorCode || v.code || '#ffffff',
+            images: normalizedImages,
+            image: normalizedImages.find(x => x && String(x).trim()) || '',
             sizes: []
           };
           // variant may store sizes as array of { eu, stock } or as an object map
@@ -337,13 +364,25 @@
     state.products = state.products.map(p => {
       const pid = p.id || p.productId || p.sku || null;
       const hasColors = Array.isArray(p.colors) && p.colors.length;
-      if (hasColors) {
-        return p;
-      }
       if (pid && map[pid]) {
+        if (hasColors) {
+          const np = Object.assign({}, p);
+          np.colors = (p.colors || []).map(c => {
+            const match = map[pid].find(v => v.id === c.id || (v.name && c.name && String(v.name).toLowerCase() === String(c.name).toLowerCase()));
+            if (!match) return c;
+            const merged = Object.assign({}, c);
+            if (!Array.isArray(merged.images) || merged.images.length === 0) merged.images = match.images || [];
+            if (!merged.image) merged.image = (match.images && match.images.find(x => x && String(x).trim())) || match.image || '';
+            if (!merged.code) merged.code = match.code || merged.code;
+            if (!merged.name) merged.name = match.name || merged.name;
+            if (!Array.isArray(merged.sizes) || merged.sizes.length === 0) merged.sizes = match.sizes || [];
+            return merged;
+          });
+          return np;
+        }
         // clone product and attach colors from variants
         const np = Object.assign({}, p);
-        np.colors = map[pid].map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes }));
+        np.colors = map[pid].map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes, images: c.images || [], image: c.image || '' }));
         return np;
       }
       return p;
@@ -390,11 +429,14 @@
   function upsertVariantToFirestore(productId, color) {
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
     const id = color.id || firebaseState.db.collection('variants').doc().id;
+    const normalizedImages = normalizeVariantImages(color.images || [], color.image || '');
     const payload = {
       id: id,
       productId: productId,
       colorName: color.name || '',
       colorCode: color.code || '',
+      image: normalizedImages.find(x => x && String(x).trim()) || '',
+      images: normalizedImages,
       // store sizes as an array of { eu, stock, sku }
       sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), sku: s.sku || '' })) : []
     };
@@ -477,11 +519,14 @@
         const pid = String(p.id);
         (Array.isArray(p.colors) ? p.colors : []).forEach(c => {
           const vid = c.id || `${pid}-${c.name || c.code || uid('color')}`;
+          const normalizedImages = normalizeVariantImages(c.images || [], c.image || '');
           const payload = {
             id: vid,
             productId: pid,
             colorName: c.name || '',
             colorCode: c.code || '',
+            image: normalizedImages.find(x => x && String(x).trim()) || '',
+            images: normalizedImages,
             sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock,0), sku: s.sku || '' })) : []
           };
           localVariantsMap.set(String(vid), payload);
@@ -600,7 +645,7 @@
   }
 
   function newColor(name, code) {
-    return { id: uid('color'), name, code: code || '#ffffff', sizes: ensureSizes() };
+    return { id: uid('color'), name, code: code || '#ffffff', sizes: ensureSizes(), images: normalizeVariantImages([], '') };
   }
 
   function newProduct({ brand, model, category, status = 'active', images = [], pricing = {}, description = '', sku = '', gender = 'Unisex' }) {
@@ -1137,7 +1182,17 @@
         }
       } catch(e) {}
       // Copy colors and sizes
-      newP.colors = colors.map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), sku: s.sku || '' })) }));
+      newP.colors = colors.map(c => {
+        const normalizedImages = normalizeVariantImages(c.images || [], c.image || '');
+        return {
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          image: normalizedImages.find(x => x && String(x).trim()) || '',
+          images: normalizedImages,
+          sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), sku: s.sku || '' }))
+        };
+      });
       // Ensure size-level SKUs exist
       ensureSizeSkusForProduct(newP);
       state.products.push(newP);
@@ -1211,20 +1266,22 @@
     const p = state.products.find(x => x.id === productId);
     const list = qs('#variantColorsList');
     // Render color list (actions moved into each color's size card for proximity)
+    p.colors.forEach(c => applyColorImages(c));
     list.innerHTML = p.colors.map(c => {
       const stock = totalStockForColor(c);
       const sizeCount = Array.isArray(c.sizes) ? c.sizes.length : 0;
+      const imageCount = countColorImages(c);
       return `<div class="color-item" data-id="${c.id}">
         <div class="color-item-info">
           <span class="color-dot" style="background:${c.code}"></span>
           <div class="color-item-text">
             <strong>${c.name}</strong>
-            <span class="muted">${stock} in stock • ${sizeCount} sizes</span>
+            <span class="muted">${stock} in stock • ${sizeCount} sizes • ${imageCount}/4 images</span>
           </div>
         </div>
         <div class="color-actions">
-          <button class="ghost" data-action="edit-color">Edit</button>
-          <button class="ghost danger-text" data-action="delete-color">Delete</button>
+          <button class="secondary" data-action="edit-color">Edit</button>
+          <button class="danger" data-action="delete-color">Delete</button>
         </div>
       </div>`;
     }).join('');
@@ -1275,7 +1332,7 @@
     const editor = qs('#sizesEditor');
     editor.innerHTML = '';
     if (!p.colors.length) {
-      editor.innerHTML = '<div class="variants-empty-state"><h3>No colors yet</h3><p>Add a color on the left to start assigning inventory.</p></div>';
+      editor.innerHTML = '<p class="muted">No colors yet. Add one above.</p>';
       return;
     }
     const selId = state.ui.editingVariantColorId || null;
@@ -1295,125 +1352,172 @@
         </div>`;
       card.appendChild(fill);
 
-    const listEl = qs('#variantColorsList');
-    let selId = state.ui.editingVariantColorId;
-    if (!selId || !p.colors.some(c => c.id === selId)) {
-      selId = p.colors[0] ? p.colors[0].id : null;
-      state.ui.editingVariantColorId = selId;
-    }
-    if (listEl) listEl.querySelectorAll('.color-item').forEach(it => it.classList.toggle('active', it.dataset.id === selId));
-
-    const color = p.colors.find(c => c.id === selId);
-    if (!color) {
-      editor.innerHTML = '<div class="variants-empty-state"><h3>Select a color</h3><p>Choose a color card to edit its sizes.</p></div>';
-      return;
-    }
-
-    const sizeList = Array.isArray(color.sizes) ? color.sizes : [];
-    const total = totalStockForColor(color);
-    const activeSizes = sizeList.filter(s => parseNum(s.stock, 0) > 0).length;
-
-    const summary = document.createElement('div'); summary.className = 'variant-selection-summary';
-    summary.innerHTML = `
-      <div class="variant-selection-color">
-        <span class="color-dot large" style="background:${color.code}"></span>
-        <div>
-          <p class="eyebrow">Selected color</p>
-          <h3>${color.name}</h3>
+      applyColorImages(color);
+      const imageCount = countColorImages(color);
+      const imageSection = document.createElement('div');
+      imageSection.className = 'variant-images-section';
+      imageSection.innerHTML = `
+        <div class="variant-images-header">
+          <div>
+            <strong>Variant Images</strong>
+            <div class="muted">Upload 4 images for this color (front, side, back, detail).</div>
+          </div>
+          <div class="variant-images-meta">
+            <span class="variant-images-count">${imageCount}/4 uploaded</span>
+            <button type="button" class="ghost" data-action="variant-images-clear" data-color="${color.id}">Clear images</button>
+          </div>
         </div>
-      </div>
-      <div class="variant-selection-meta">
-        <div><span>Total stock</span><strong>${total}</strong></div>
-        <div><span>Sizes tracked</span><strong>${sizeList.length}</strong></div>
-        <div><span>Active sizes</span><strong>${activeSizes}</strong></div>
-      </div>
-      <div class="variant-selection-actions">
-        <button type="button" class="secondary" data-action="add-size" data-id="${color.id}">Add Size</button>
-        <button type="button" class="ghost" data-action="clear-all" data-id="${color.id}">Clear Sizes</button>
-      </div>`;
-    editor.appendChild(summary);
+        <div class="variant-images-grid">
+          ${color.images.map((img, idx) => {
+            const label = `Image ${idx + 1}`;
+            const preview = img
+              ? `<img src="${img}" alt="${color.name} ${label}">`
+              : `<div class="variant-image-placeholder">${label}</div>`;
+            return `
+              <div class="variant-image-slot" data-index="${idx}">
+                <div class="variant-image-preview">${preview}</div>
+                <div class="variant-image-actions">
+                  <label class="secondary small-btn">
+                    <input type="file" accept="image/*" data-action="variant-image-upload" data-color="${color.id}" data-index="${idx}">
+                    Upload
+                  </label>
+                  <button type="button" class="ghost danger-text small-btn" data-action="variant-image-remove" data-color="${color.id}" data-index="${idx}">Remove</button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+        ${imageCount < 4 ? '<div class="variant-images-warning">Upload all 4 images before saving.</div>' : ''}
+      `;
+      card.appendChild(imageSection);
 
-    if (!sizeList.length) {
-      const empty = document.createElement('div');
-      empty.className = 'variants-empty-state small';
-      empty.innerHTML = `<h4>No sizes yet</h4><p>Use "Add Size" to start tracking ${color.name}.</p>`;
-      editor.appendChild(empty);
-    } else {
       const grid = document.createElement('div'); grid.className = 'size-grid';
-      const sortedSizes = sizeList.slice().sort((a, b) => parseNum(a.eu, 0) - parseNum(b.eu, 0));
-      sortedSizes.forEach(s => {
-        const row = document.createElement('div'); row.className = 'size-row';
-        row.innerHTML = `
-          <span class="size-chip">${s.eu} EU</span>
-          <div class="size-stock-input">
-            <label>Stock</label>
+      if (!color.sizes.length) {
+        const emptyRow = document.createElement('div');
+        emptyRow.className = 'size-row';
+        emptyRow.innerHTML = '<span class="muted">No sizes added for this color.</span>';
+        grid.appendChild(emptyRow);
+      } else {
+        color.sizes.forEach(s => {
+          const row = document.createElement('div'); row.className = 'size-row';
+          row.innerHTML = `
+            <label>${s.eu}EU</label>
             <input type="number" min="0" step="1" value="${s.stock}" data-color="${color.id}" data-size="${s.eu}" />
-          </div>
-          <div class="qty-controls">
-            <button type="button" class="qty-btn" data-action="decr" data-color="${color.id}" data-size="${s.eu}">−</button>
-            <button type="button" class="qty-btn" data-action="incr" data-color="${color.id}" data-size="${s.eu}">+</button>
-          </div>
-          <button type="button" class="ghost danger-text" data-action="remove-size" data-color="${color.id}" data-size="${s.eu}">Remove</button>`;
-        grid.appendChild(row);
-      });
-      editor.appendChild(grid);
-    }
+            <div class="qty-controls">
+              <button type="button" class="qty-btn" data-action="decr" data-color="${color.id}" data-size="${s.eu}">−</button>
+              <button type="button" class="qty-btn" data-action="incr" data-color="${color.id}" data-size="${s.eu}">+</button>
+            </div>
+            <button type="button" class="danger" data-action="remove-size" data-color="${color.id}" data-size="${s.eu}">Remove</button>
+          `;
+          grid.appendChild(row);
+        });
+      }
+      card.appendChild(grid);
+      editor.appendChild(card);
+    });
 
+    // Bind add size
     editor.querySelectorAll('[data-action="add-size"]').forEach(btn => btn.addEventListener('click', () => {
       const id = btn.dataset.id;
-      const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = prod.colors.find(y => y.id === id);
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === id);
       let eu = prompt('Enter EU size to add (e.g. 36):');
       if (!eu) return;
       eu = parseNum(eu, null);
       if (!eu || c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
       c.sizes.push({ eu, stock: 0, sku: '' });
-      saveAll(); openVariantModal(prod.id);
+      saveAll(); openVariantModal(p.id);
     }));
 
-    editor.querySelectorAll('[data-action="clear-all"]').forEach(btn => btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = prod.colors.find(y => y.id === id);
-      if (!c || !c.sizes.length) return;
-      const ok = confirm(`Clear all sizes for ${c.name}?`);
-      if (!ok) return;
-      c.sizes = [];
-      saveAll(); openVariantModal(prod.id);
-    }));
-
+    // Bind remove size
     editor.querySelectorAll('[data-action="remove-size"]').forEach(btn => btn.addEventListener('click', () => {
       const colorId = btn.dataset.color;
       const eu = parseNum(btn.dataset.size);
-      const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = prod.colors.find(y => y.id === colorId);
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
       c.sizes = c.sizes.filter(z => z.eu !== eu);
-      saveAll(); openVariantModal(prod.id);
+      saveAll(); openVariantModal(p.id);
     }));
 
+    // Bind clear all sizes for color
+    editor.querySelectorAll('[data-action="clear-all"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.id;
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
+      if (!c) return;
+      c.sizes.forEach(s => { s.stock = 0; });
+      saveAll(); openVariantModal(p.id);
+    }));
+
+    // Bind image uploads
+    editor.querySelectorAll('[data-action="variant-image-upload"]').forEach(inp => inp.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const colorId = e.target.dataset.color;
+      const idx = parseNum(e.target.dataset.index, 0);
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
+      if (!c) return;
+      const fr = new FileReader();
+      fr.onload = () => {
+        applyColorImages(c);
+        c.images[idx] = fr.result;
+        applyColorImages(c);
+        saveAll();
+        openVariantModal(p.id);
+      };
+      fr.onerror = () => alert('Failed to read image file.');
+      fr.readAsDataURL(file);
+    }));
+
+    // Bind image remove
+    editor.querySelectorAll('[data-action="variant-image-remove"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const idx = parseNum(btn.dataset.index, 0);
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
+      if (!c) return;
+      applyColorImages(c);
+      c.images[idx] = '';
+      applyColorImages(c);
+      saveAll(); openVariantModal(p.id);
+    }));
+
+    // Bind clear all images
+    editor.querySelectorAll('[data-action="variant-images-clear"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
+      if (!c) return;
+      c.images = normalizeVariantImages([], '');
+      c.image = '';
+      saveAll(); openVariantModal(p.id);
+    }));
+
+    // Bind number inputs change
     editor.querySelectorAll('input[type="number"]').forEach(inp => {
       inp.addEventListener('change', (e) => {
         const colorId = e.target.dataset.color;
         const eu = parseNum(e.target.dataset.size);
         const qty = clampNum(parseNum(e.target.value), 0, 9999);
-        const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
-        const c = prod.colors.find(y => y.id === colorId);
+        const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+        const c = p.colors.find(y => y.id === colorId);
         const s = c.sizes.find(z => z.eu === eu);
         if (s) s.stock = qty; saveAll();
       });
     });
 
-    editor.querySelectorAll('.qty-btn').forEach(btn => btn.addEventListener('click', () => {
+    // Bind qty +/- buttons
+    editor.querySelectorAll('.qty-btn').forEach(btn => btn.addEventListener('click', (e) => {
       const action = btn.dataset.action;
       const colorId = btn.dataset.color;
       const eu = parseNum(btn.dataset.size);
-      const prod = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = prod.colors.find(y => y.id === colorId);
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
       const s = c.sizes.find(z => z.eu === eu);
       if (!s) return;
       const delta = action === 'incr' ? 1 : -1;
       s.stock = clampNum((Number(s.stock||0) || 0) + delta, 0, 9999);
-      saveAll(); openVariantModal(prod.id);
+      saveAll(); openVariantModal(p.id);
     }));
   }
 
@@ -1525,6 +1629,15 @@
       renderInitialVariants();
     }));
 
+    // Bind clear all stocks in initial variant editor
+    editor.querySelectorAll('[data-action="clear-all-init"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.id;
+      const c = state.ui.productModalColors.find(y => y.id === colorId);
+      if (!c) return;
+      c.sizes.forEach(s => { s.stock = 0; });
+      renderInitialVariants();
+    }));
+
     // Bind number inputs change
     editor.querySelectorAll('input[type="number"]').forEach(inp => inp.addEventListener('change', (e) => {
       const colorId = e.target.dataset.initColor;
@@ -1540,6 +1653,16 @@
     // Persist variants to Firestore for the editing product (if enabled)
     const pid = state.ui.editingVariantProductId;
     const p = state.products.find(x => x.id === pid);
+    if (p && Array.isArray(p.colors)) {
+      const missing = p.colors.filter(c => {
+        applyColorImages(c);
+        return countColorImages(c) < 4;
+      });
+      if (missing.length) {
+        alert('Please upload 4 images for each color variant before saving. Missing: ' + missing.map(c => c.name || 'Unnamed').join(', '));
+        return;
+      }
+    }
     if (p) {
       // attempt to sync variants; errors are logged inside syncVariantsForProduct
       syncVariantsForProduct(p).finally(() => {

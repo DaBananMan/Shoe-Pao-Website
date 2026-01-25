@@ -262,6 +262,14 @@
             max-height: 340px;
             padding-right: 8px;
         }
+        /* Loading overlay while checkout data is fetched */
+        body.payment-loading { overflow: hidden; }
+        .payment-loader { position: fixed; inset: 0; background: #fff; display: flex; align-items: center; justify-content: center; z-index: 400000; transition: opacity 0.25s ease, visibility 0.25s ease; }
+        .payment-loader.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+        .payment-loader-box { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 22px 24px; border-radius: 14px; background: #fff; box-shadow: 0 14px 48px rgba(0,0,0,0.12); border: 1px solid #eee; }
+        .payment-spinner { width: 40px; height: 40px; border-radius: 50%; border: 4px solid #e4e4e4; border-top-color: #b71c1c; animation: paymentSpin 0.9s linear infinite; }
+        .payment-loader-text { font-size: 1rem; color: #222; font-family: 'Poppins', Arial, sans-serif; }
+        @keyframes paymentSpin { to { transform: rotate(360deg); } }
         @media (max-width: 900px) {
             .payment-main {
                 flex-direction: column;
@@ -278,7 +286,7 @@
         }
     </style>
 </head>
-<body class="productlist-body payment-page">
+<body class="productlist-body payment-page payment-loading">
     <!-- Navigation Bar (copied from product-list.html) -->
     <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:72px;">
         <div style="display:flex;align-items:center;gap:24px;">
@@ -300,6 +308,12 @@
             <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)" style="font-family:'Poppins',Arial,sans-serif;font-size:1rem;border:none;outline:none;width:220px;padding:6px 0;">
         </div>
     </nav>
+    <div id="paymentLoader" class="payment-loader">
+        <div class="payment-loader-box">
+            <div class="payment-spinner"></div>
+            <div class="payment-loader-text">Loading payment details...</div>
+        </div>
+    </div>
     <div class="payment-main">
         <div class="payment-left">
             <div class="payment-header">Payment</div>
@@ -483,6 +497,19 @@
     let currentCheckout = null;
     let currentItems = [];
     let usingLocalCheckoutFallback = false;
+    let paymentDataReady = false;
+
+    // Hide the page until we have either checkout data or a clear error state
+    function markPaymentDataReady(reason){
+        if(paymentDataReady) return;
+        paymentDataReady = true;
+        try{ document.body.classList.add('payment-ready'); document.body.classList.remove('payment-loading'); }catch(e){}
+        var loader = document.getElementById('paymentLoader');
+        if(loader){
+            loader.classList.add('hidden');
+            setTimeout(function(){ try{ loader.remove(); }catch(e){} }, 320);
+        }
+    }
 
     function normalizeDeliveryAddressFromAddressObject(addressObject){
         if(!addressObject) return null;
@@ -541,10 +568,11 @@
                 subtotal += priceNum * qty;
             });
 
+            var isCOD = (paymentCode && String(paymentCode).toLowerCase() === 'cod') || (/cash on delivery/i.test(paymentLabel || ''));
             return {
                 items: items,
                 checkout: {
-                    status: 'Pending payment',
+                    status: isCOD ? 'Pending' : 'Pending payment',
                     payment_method: paymentCode || paymentLabel || '',
                     paymentMethod: paymentLabel || paymentCode || '',
                     deliveryMethod: deliveryCode || deliveryLabel || '',
@@ -634,6 +662,7 @@
             document.getElementById('paymentSubtotal').textContent = formatPHP(0);
             document.getElementById('paymentTotal').textContent = formatPHP(0);
             var btn0 = document.getElementById('placeOrderBtn'); if(btn0) btn0.disabled = true;
+            markPaymentDataReady('no-checkout');
             return;
         }
 
@@ -716,6 +745,7 @@
             }
         }catch(e){}
         try{ updatePaymentMethodUI(); }catch(e){}
+        markPaymentDataReady('render');
     }
 
     function subscribeToCheckout(uid){
@@ -949,44 +979,65 @@
         }catch(e){ return -1; }
     }
 
-    function adjustAdminInventoryStock(items, direction){
-        var updated = false;
+    function _getProductIdFromItem(it){
         try{
-            var adminProducts = JSON.parse(localStorage.getItem('shoeInventoryData')||'null');
-            if(!Array.isArray(adminProducts) || !adminProducts.length) return false;
-            items.forEach(function(it){
-                var qty = Number(it.qty || it.quantity || 1) || 0;
-                if(!qty) return;
-                var size = (it.size || it.eu || it.size_eu || '').toString().trim();
-                if(!size) return;
-                var title = (it.name || it.title || it.productName || '').toString().trim();
-                var itemId = (it.product_id || it.productId || it.id || '').toString().trim();
-                adminProducts.forEach(function(p){
-                    var pId = (p && (p.id || p.sku)) ? String(p.id || p.sku) : '';
-                    var matchesProduct = itemId && pId && itemId === pId;
-                    var colors = Array.isArray(p.colors) ? p.colors : [];
-                    colors.forEach(function(c){
-                        var name = ((p.model||'') + (c && c.name ? (' ' + c.name) : '')).trim();
-                        if(!matchesProduct && title){
-                            if(String(name).toLowerCase() !== String(title).toLowerCase()) return;
-                        }
-                        if(!Array.isArray(c.sizes)) return;
-                        c.sizes.forEach(function(s){
-                            if(String(s.eu) === String(size)){
-                                var cur = Number(s.stock || 0) || 0;
-                                var next = cur + (direction * qty);
-                                s.stock = Math.max(0, next);
-                                updated = true;
-                            }
-                        });
-                    });
-                });
-            });
-            if(updated){
-                localStorage.setItem('shoeInventoryData', JSON.stringify(adminProducts));
+            var pid = it && (it.productId || it.product_id || it.id || it.sku || it.inventoryId || it.inventory_id);
+            if(pid && String(pid).indexOf(':') !== -1) pid = String(pid).split(':')[0];
+            return pid ? String(pid) : '';
+        }catch(e){ return ''; }
+    }
+
+    function _variantMatchesItem(data, item, sizeVal){
+        try{
+            var color = (item.color || item.colorName || item.variantColor || '').toString().trim().toLowerCase();
+            if(color){
+                var vColor = (data.colorName || data.color || data.name || '').toString().trim().toLowerCase();
+                if(vColor && vColor !== color) return false;
             }
-        }catch(e){ /* ignore */ }
-        return updated;
+            if(!sizeVal) return true;
+            if(Array.isArray(data.sizes)){
+                return data.sizes.some(function(s){ return String(s && s.eu) === String(sizeVal); });
+            }
+            if(data.sizeMap && typeof data.sizeMap === 'object') return data.sizeMap.hasOwnProperty(String(sizeVal));
+            if(data.sizesMap && typeof data.sizesMap === 'object') return data.sizesMap.hasOwnProperty(String(sizeVal));
+            if(data.size || data.eu) return String(data.size || data.eu) === String(sizeVal);
+            return true;
+        }catch(e){ return false; }
+    }
+
+    function _computeVariantStockUpdate(data, sizeVal, direction, qty){
+        if(!sizeVal) return { error: 'missing_size' };
+        var key = String(sizeVal);
+        if(Array.isArray(data.sizes)){
+            var sizes = data.sizes.map(function(s){ return Object.assign({}, s); });
+            var idx = sizes.findIndex(function(s){ return String(s && s.eu) === key; });
+            if(idx === -1) return { error: 'size_not_found' };
+            var cur = Number(sizes[idx].stock || 0) || 0;
+            var next = cur + (direction * qty);
+            sizes[idx].stock = next;
+            return { update: { sizes: sizes }, current: cur, next: next };
+        }
+        if(data.sizeMap && typeof data.sizeMap === 'object'){
+            var sizeMap = Object.assign({}, data.sizeMap);
+            var cur2 = Number(sizeMap[key] || 0) || 0;
+            var next2 = cur2 + (direction * qty);
+            sizeMap[key] = next2;
+            return { update: { sizeMap: sizeMap }, current: cur2, next: next2 };
+        }
+        if(data.sizesMap && typeof data.sizesMap === 'object'){
+            var sizesMap = Object.assign({}, data.sizesMap);
+            var cur3 = Number(sizesMap[key] || 0) || 0;
+            var next3 = cur3 + (direction * qty);
+            sizesMap[key] = next3;
+            return { update: { sizesMap: sizesMap }, current: cur3, next: next3 };
+        }
+        if(data.size || data.eu){
+            if(String(data.size || data.eu) !== key) return { error: 'size_not_found' };
+            var cur4 = Number(data.stock || 0) || 0;
+            var next4 = cur4 + (direction * qty);
+            return { update: { stock: next4 }, current: cur4, next: next4 };
+        }
+        return { error: 'unsupported_variant_shape' };
     }
 
     async function adjustInventoryStock(items, direction){
@@ -997,24 +1048,41 @@
             for(const it of (items || [])){
                 var qty = Number(it.qty || it.quantity || 1) || 0;
                 if(!qty) continue;
-                var invId = it.inventoryId || it.inventory_id || it.product_id || it.id;
+                var sizeVal = (it.size || it.eu || it.size_eu || '').toString().trim();
+                if(!sizeVal) continue;
+
                 var variantId = it.variantId || it.variant_id;
-                var sizeVal = (it.size || it.eu || it.size_eu || '').toString();
-                if(!invId || (!variantId && !sizeVal)) continue;
-                var ref = variantId ? db.collection('inventory').doc(String(invId)).collection('variants').doc(String(variantId))
-                                    : db.collection('inventory').doc(String(invId)).collection('variants').doc(String(sizeVal));
+                var variantRef = null;
+                if(variantId){
+                    variantRef = db.collection('variants').doc(String(variantId));
+                } else {
+                    var pid = _getProductIdFromItem(it);
+                    if(!pid) continue;
+                    var q = await db.collection('variants').where('productId','==',String(pid)).get();
+                    if(!q.empty){
+                        var chosen = null;
+                        q.forEach(function(doc){
+                            if(chosen) return;
+                            var data = doc.data() || {};
+                            if(_variantMatchesItem(data, it, sizeVal)) chosen = doc;
+                        });
+                        if(!chosen) chosen = q.docs[0];
+                        variantRef = chosen.ref;
+                    }
+                }
+
+                if(!variantRef) continue;
+
                 await db.runTransaction(async function(tx){
-                    var snap = await tx.get(ref);
-                    if(!snap.exists) throw new Error('Variant not found for inventory ' + invId);
+                    var snap = await tx.get(variantRef);
+                    if(!snap.exists) throw new Error('Variant not found');
                     var data = snap.data() || {};
-                    var currentStock = Number(data.stock || 0) || 0;
-                    var next = currentStock + (direction * qty);
-                    if(direction === -1 && next < 0) throw new Error('Insufficient stock for ' + (data.color || '') + ' size ' + (data.size || sizeVal));
-                    tx.update(ref, { stock: next });
+                    var computed = _computeVariantStockUpdate(data, sizeVal, direction, qty);
+                    if(computed.error) throw new Error('Variant size not found');
+                    if(direction === -1 && computed.next < 0) throw new Error('Insufficient stock for size ' + sizeVal);
+                    tx.set(variantRef, computed.update, { merge: true });
                 });
             }
-            // still update local admin snapshot for legacy views
-            try{ adjustAdminInventoryStock(items, direction); }catch(e){}
             return true;
         }catch(e){ console.error('adjustInventoryStock', e); return false; }
     }
@@ -1031,6 +1099,19 @@
             window._placingOrder = false;
             return;
         }
+        try{
+            var totalQty = 0;
+            (currentItems || []).forEach(function(it){
+                var q = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
+                totalQty += Number(q) || 0;
+            });
+            if(totalQty > 3){
+                alert('Maximum of 3 items per order allowed.');
+                if(btn) btn.disabled = false;
+                window._placingOrder = false;
+                return;
+            }
+        }catch(e){}
         ensureFirebaseReady(function(err){
             if(err){ alert('Firebase not configured. Please set Firebase config.'); if(btn) btn.disabled = false; return; }
             firebase.auth().onAuthStateChanged(function(user){
@@ -1160,7 +1241,7 @@
                                         // Remove the transient checkoutOrderId so subsequent checkouts create a new order id
                                         try{ localStorage.removeItem('checkoutOrderId'); }catch(e){}
                                         // Optionally clear checkout snapshot keys that should not be reused
-                                        try{ localStorage.removeItem('checkoutCartSnapshot'); }catch(e){}
+                                        try{ localStorage.setItem('checkoutCartSnapshot', JSON.stringify([])); }catch(e){}
                                         try{ localStorage.removeItem('checkoutPaymentProof'); }catch(e){}
                                         // prevent further attempts
                                         window._placingOrder = false;
@@ -1197,6 +1278,7 @@
             if(err){
                 var cartList = document.getElementById('paymentCartList');
                 if(cartList) cartList.innerHTML = '<div style="color:#b71c1c;padding:12px 4px;">Firebase not configured.</div>';
+                markPaymentDataReady('firebase-error');
                 return;
             }
             firebase.auth().onAuthStateChanged(function(user){
@@ -1204,6 +1286,7 @@
                     var cartList2 = document.getElementById('paymentCartList');
                     if(cartList2) cartList2.innerHTML = '<div style="color:#b71c1c;padding:12px 4px;">Please sign in to continue.</div>';
                     var btn2 = document.getElementById('placeOrderBtn'); if(btn2) btn2.disabled = true;
+                    markPaymentDataReady('no-user');
                     return;
                 }
                 ensureCheckoutFromLocalStorage(user).finally(function(){
