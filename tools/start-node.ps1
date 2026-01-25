@@ -31,14 +31,61 @@ try{
     exit 1
 }
 
-# Start the server via cmd.exe so npm start behaves as expected on Windows
-$startCmd = "npm start"
-$proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c $startCmd" -WorkingDirectory $projRoot -RedirectStandardOutput $logOut -RedirectStandardError $logErr -WindowStyle Hidden -PassThru
-
-# Record PID
+# Try to locate node.exe
 try{
-    $proc.Id | Out-File -FilePath $pidFile -Encoding ascii -Force
-    Write-Output "Started Node (via 'npm start') with PID $($proc.Id). Logs: $logOut and $logErr"
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($nodeCmd -and $nodeCmd.Path) { $nodePath = $nodeCmd.Path }
+    else {
+        # fallback to where.exe
+        try{ $where = & where.exe node 2>$null } catch { $where = $null }
+        if ($where) { $nodePath = $where.Split("`n")[0].Trim() }
+    }
+} catch { $nodePath = $null }
+
+if (-not $nodePath) {
+    # Log a helpful error and exit
+    $msg = "node executable not found in PATH. Please ensure Node.js is installed and available in PATH."
+    try{ Add-Content -Path $logErr -Value ("[" + (Get-Date).ToString() + "] " + $msg) } catch {}
+    Write-Error $msg
+    exit 1
+}
+
+# Prefer running node directly with server.js so we capture the real node PID
+$serverJs = Join-Path $projRoot 'server.js'
+if (-not (Test-Path $serverJs)) {
+    $msg = "server.js not found at $serverJs"
+    try{ Add-Content -Path $logErr -Value ("[" + (Get-Date).ToString() + "] " + $msg) } catch {}
+    Write-Error $msg
+    exit 1
+}
+
+# Start the node process directly and capture its PID
+try{
+    $proc = Start-Process -FilePath $nodePath -ArgumentList $serverJs -WorkingDirectory $projRoot -RedirectStandardOutput $logOut -RedirectStandardError $logErr -WindowStyle Hidden -PassThru
+    # Wait briefly for process to spawn
+    Start-Sleep -Milliseconds 300
+    $nodePid = $proc.Id
+    # If the started process is a wrapper (like npm spawning node), attempt to find the child node process
+    try{
+        $childNode = Get-Process -Id $nodePid -ErrorAction SilentlyContinue
+        if ($childNode -and $childNode.ProcessName -ne 'node') {
+            # try to find node processes started after this time
+            $since = (Get-Date).AddSeconds(-5)
+            $nodes = Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.StartTime -ge $since }
+            if ($nodes.Count -gt 0) { $nodePid = $nodes[0].Id }
+        }
+    } catch {}
+
+    # Record PID
+    try{
+        $nodePid | Out-File -FilePath $pidFile -Encoding ascii -Force
+        Write-Output "Started Node ($nodePath $serverJs) with PID $nodePid. Logs: $logOut and $logErr"
+    } catch {
+        Write-Error "Started process but failed to write PID file: $_"
+    }
 } catch {
-    Write-Error "Started process but failed to write PID file: $_"
+    $msg = "Failed to start node: $_"
+    try{ Add-Content -Path $logErr -Value ("[" + (Get-Date).ToString() + "] " + $msg) } catch {}
+    Write-Error $msg
+    exit 1
 }
