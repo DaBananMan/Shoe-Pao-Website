@@ -16,7 +16,7 @@ app.use(express.json({ limit: '1mb', verify: function(req, res, buf){ try{ req.r
 // NOTE: This is intentionally permissive for dev only. Remove or restrict in production.
 app.use(function(req, res, next){
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Aftership-Signature');
   // quick response to preflight
   if (req.method === 'OPTIONS') return res.sendStatus(200);
@@ -78,6 +78,24 @@ try{
     }catch(e){ admin = null; }
   }
 }catch(e){ console.warn('firebase-admin init check failed', e); admin = null; }
+
+// Auto-register Windows Scheduled Task to start Node at logon when opt-in is enabled.
+// This is intentionally opt-in: set AUTO_REGISTER_STARTUP=true in your environment to allow
+// the server process to attempt to register the Scheduled Task for the current user.
+// The registration script is `tools/register-startup.ps1` which uses Register-ScheduledTask -Force.
+try{
+  if (process.platform === 'win32' && (process.env.AUTO_REGISTER_STARTUP === 'true')){
+    const { spawn } = require('child_process');
+    const regScript = path.join(__dirname, 'tools', 'register-startup.ps1');
+    console.log('AUTO_REGISTER_STARTUP enabled — attempting to register scheduled task via', regScript);
+    try{
+      const ps = spawn('powershell.exe', ['-NoProfile','-ExecutionPolicy','Bypass','-File', regScript], { windowsHide: true });
+      ps.stdout.on('data', (d) => { try{ console.log('[register-startup.out]', d.toString().trim()); }catch(e){} });
+      ps.stderr.on('data', (d) => { try{ console.warn('[register-startup.err]', d.toString().trim()); }catch(e){} });
+      ps.on('close', (code) => { console.log('register-startup.ps1 exited with code', code); });
+    }catch(err){ console.warn('Failed to spawn PowerShell to register startup task', err); }
+  }
+}catch(e){ console.warn('Auto-register startup check failed', e); }
 
 
 // Helper to call AfterShip API (simple wrapper using native https)
