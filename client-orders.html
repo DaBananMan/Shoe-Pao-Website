@@ -392,9 +392,47 @@
 
         function _normalizeText(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
 
+        var __productsCache = [];
+        var __productsCacheLoaded = false;
+        var __productsCacheLoading = false;
+
+        function _primeProductsCache(){
+            try{
+                if(__productsCacheLoaded || __productsCacheLoading) return;
+                if(typeof ensureFirebaseReady !== 'function') return;
+                __productsCacheLoading = true;
+                ensureFirebaseReady(function(err){
+                    if(err){ __productsCacheLoading = false; return; }
+                    try{
+                        var db = firebase.firestore();
+                        db.collection('products').get().then(function(snap){
+                            __productsCache = [];
+                            snap.forEach(function(doc){ __productsCache.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                            __productsCacheLoaded = true;
+                            __productsCacheLoading = false;
+                        }).catch(function(){ __productsCacheLoading = false; });
+                    }catch(e){ __productsCacheLoading = false; }
+                });
+            }catch(e){ __productsCacheLoading = false; }
+        }
+
         function _resolveProductIdByName(brand, title){
             try{
                 if(!title) return '';
+                var products = Array.isArray(__productsCache) ? __productsCache : [];
+                if(products.length){
+                    var t = _normalizeText(title);
+                    var b = _normalizeText(brand);
+                    var match = products.find(function(p){
+                        if(!p) return false;
+                        var pn = _normalizeText(p.model || p.name || p.title);
+                        if(!pn || pn !== t) return false;
+                        if(!b) return true;
+                        return _normalizeText(p.brand) === b;
+                    });
+                    if(match && match.id) return String(match.id);
+                }
+            }catch(e){}
                 var t = _normalizeText(title);
                 var b = _normalizeText(brand);
                 // Prefer in-memory firebase-primed cache when available

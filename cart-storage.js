@@ -192,6 +192,13 @@ function addToCart(product) {
         // Attempt to attach a deterministic inventory identifier to the cart item so
         // later editors can match exactly instead of relying on fuzzy name matching.
         try{ var invMatchForIncoming = findInventoryItemForProduct(product); if(invMatchForIncoming && invMatchForIncoming.id) product.inventoryId = invMatchForIncoming.id; 
+            // Derive variantId using size mapping from storefront inventory
+            try{
+                if(!product.variantId){
+                    var vId = getVariantIdForProduct(product, invMatchForIncoming);
+                    if(vId) product.variantId = vId;
+                }
+            }catch(_){ }
             // Also copy over a canonical color/image from inventory when available so
             // cart items carry the visual identity they had when added. This helps the
             // cart editor prefer the correct color via image-filename matching.
@@ -229,12 +236,13 @@ function addToCart(product) {
                 if (product.preOrder || found.preOrder) found.preOrder = true;
                 // copy over inventoryId if incoming has it but existing doesn't
                 try{ if(!found.inventoryId && product.inventoryId) found.inventoryId = product.inventoryId; }catch(e){}
+                try{ if(!found.variantId && product.variantId) found.variantId = product.variantId; }catch(e){}
             }
         } else {
             var incoming = incomingQty;
             if (incoming > maxAllowed) product.qty = maxAllowed;
             // Ensure new cart item carries the inventoryId when available
-            try{ if(!product.inventoryId){ var _m = findInventoryItemForProduct(product); if(_m && _m.id) product.inventoryId = _m.id; } }catch(e){}
+            try{ if(!product.inventoryId){ var _m = findInventoryItemForProduct(product); if(_m && _m.id) product.inventoryId = _m.id; if(!product.variantId){ var _v = getVariantIdForProduct(product, _m); if(_v) product.variantId = _v; } } }catch(e){}
             cart.unshift(product); // Add new/different shoes to the top (stack vertically)
         }
         saveCart(cart);
@@ -275,6 +283,19 @@ function findInventoryItemForProduct(product) {
         }
         return null;
     } catch (e) { return null; }
+}
+
+// Derive a variant id for the given product+inventory using size mapping when available
+function getVariantIdForProduct(product, inventoryItem){
+    try{
+        if(!product || !inventoryItem) return '';
+        var size = (product.size === undefined || product.size === null) ? '' : String(product.size).trim();
+        if(!size) return '';
+        if(inventoryItem.variantIdsBySize && inventoryItem.variantIdsBySize.hasOwnProperty(size)){
+            return inventoryItem.variantIdsBySize[size];
+        }
+        return '';
+    }catch(e){ return ''; }
 }
 
 // Returns the maximum allowed quantity a customer can have for the given product based on inventory rules
@@ -495,7 +516,6 @@ function clearAccountLocalDataByEmail(email){
             var orders = JSON.parse(localStorage.getItem('orders')||'[]') || [];
             var filtered = orders.filter(function(o){ var candidates = [o.email, o.customerEmail, (o.profile && o.profile.email), (o.customer && o.customer.email)]; return !candidates.some(function(c){ return (c||'').toLowerCase() === (email||'').toLowerCase(); }); });
             localStorage.setItem('orders', JSON.stringify(filtered));
-            try{ localStorage.setItem('client_orders', JSON.stringify((JSON.parse(localStorage.getItem('client_orders')||'[]')||[]).filter(function(o){ var candidates = [o.email, o.customerEmail, (o.profile && o.profile.email), (o.customer && o.customer.email)]; return !candidates.some(function(c){ return (c||'').toLowerCase() === (email||'').toLowerCase(); }); }))); }catch(e){}
         }catch(e){}
         // Remove cart if it appears to belong to the deleted user (best-effort: compare profile email to cart owner if stored)
         try{

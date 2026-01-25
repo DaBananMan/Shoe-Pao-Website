@@ -182,44 +182,57 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
 .products-table thead th.actions-col { z-index: 10011; }
 
 /* Variants */
-.variant-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-.colors-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.color-item { display: flex; align-items: center; gap: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
-.color-dot { width: 18px; height: 18px; border-radius: 999px; border: 1px solid #333; }
-.color-actions { margin-left: auto; display: flex; gap: 6px; }
-.color-header {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr); /* color name | select-all | clear */
-  gap: 8px;
-  align-items: center;
-  width: 100%;
-  justify-items: center; /* center items in their columns for equidistance */
-}
-.color-header .color-name { justify-self: start; font-weight: 600; }
-.select-all-label { justify-self: center; display: inline-flex; align-items: center; gap: 6px; }
-.clear-btn { justify-self: center; }
-.select-all-label { display: inline-flex; align-items: center; gap: 6px; }
-.apply-label { display: inline-flex; align-items: center; gap: 6px; }
-.apply-qty { width: 72px; padding: 6px 8px; }
-.sizes-editor { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.size-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
- .size-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
- /* Tighter size-row spacing: smaller gaps and fixed columns so label, input and +/- sit closer */
- .size-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr); /* 4 equal columns: checkbox | caption | input | +/- */
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-/* center each item inside its column so spacing between elements is equal */
-.size-row { justify-items: center; }
-.size-row label { color: var(--muted); font-size: 12px; margin: 0; padding: 0; }
-.size-checkbox { width: 16px; height: 16px; justify-self: center; }
-.size-row input[type="number"] { width: 48px; padding: 6px 8px; justify-self: center; }
-.qty-controls { display: inline-flex; gap: 4px; align-items: center; justify-self: center; }
- .qty-btn { background: #f2f2f2; border: 1px solid #d9d9d9; padding: 2px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; width:20px; height:20px; font-size: 13px; line-height:1; }
-.qty-btn img { width: 14px; height: 14px; display: block; }
+.variant-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.variant-controls--stacked { flex-direction: column; align-items: stretch; }
+.variant-controls--stacked button { width: 100%; }
+.colors-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.variant-color-list { flex: 1; overflow-y: auto; padding-right: 4px; }
+.variant-color-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-weight: 600; }
+.color-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; cursor: pointer; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+.color-item:hover { border-color: var(--primary); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+.color-item.active { border-color: var(--primary); box-shadow: 0 8px 22px rgba(0,0,0,0.12); }
+.color-item-info { display: flex; align-items: center; gap: 10px; }
+.color-item-text strong { display: block; }
+.color-item-text .muted { font-size: 12px; }
+.color-dot { width: 20px; height: 20px; border-radius: 999px; border: 1px solid #333; display: inline-block; }
+.color-dot.large { width: 32px; height: 32px; border: 2px solid rgba(0,0,0,0.1); }
+.color-actions { display: flex; gap: 6px; opacity: 0.8; }
+.color-item:hover .color-actions { opacity: 1; }
+.color-actions button { padding: 6px 10px; }
+.variants-shell { display: grid; grid-template-columns: minmax(260px, 320px) minmax(360px, 1fr); gap: 16px; min-height: 420px; }
+.variants-sidebar { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.variants-detail-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 16px; position: relative; }
+.variants-sidebar-header h2 { margin: 0; }
+.variants-sidebar-header p { margin: 4px 0 0; }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; color: var(--muted); margin: 0 0 4px; }
+#variantModal form { width: min(960px, 94vw); }
+#variantModal .sizes-editor { border-radius: 12px; min-height: 380px; display: flex; flex-direction: column; gap: 16px; }
+#variantModal .size-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+#variantModal .size-row { display: flex; flex-direction: row; align-items: center; gap: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); flex-wrap: wrap; }
+#variantModal .size-stock-input { flex: 1; min-width: 120px; }
+#variantModal .size-stock-input label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.size-chip { background: rgba(0,0,0,0.05); padding: 6px 12px; border-radius: 999px; font-weight: 600; }
+#variantModal .qty-controls { gap: 6px; }
+#variantModal .qty-btn { width: 28px; height: 28px; border-radius: 8px; font-size: 16px; }
+.variant-selection-summary { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: linear-gradient(135deg, rgba(183,28,28,0.05), rgba(0,0,0,0)); }
+.variant-selection-color { display: flex; align-items: center; gap: 12px; }
+.variant-selection-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+.variant-selection-meta span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.variant-selection-meta strong { font-size: 20px; }
+.variant-selection-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+button.ghost { background: transparent; border: 1px dashed var(--border); color: var(--muted); padding: 8px 14px; border-radius: 8px; }
+.danger-text { color: var(--danger); }
+.variants-empty-state { text-align: center; border: 1px dashed var(--border); border-radius: 12px; padding: 40px 24px; color: var(--muted); }
+.variants-empty-state h3, .variants-empty-state h4 { margin-top: 0; margin-bottom: 6px; color: var(--text); }
+.variants-empty-state.small { padding: 24px; }
+.hint { font-size: 12px; }
+.variant-color-list::-webkit-scrollbar { width: 6px; }
+.variant-color-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 999px; }
+.fill-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+.size-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+.size-row { display: grid; grid-template-columns: repeat(3, minmax(60px, 1fr)); gap: 6px; align-items: center; margin-bottom: 6px; }
+.size-row label { color: var(--muted); font-size: 12px; margin: 0; }
+.size-row input[type="number"] { width: 100%; padding: 6px 8px; }
 
 /* Remove native number input spinners */
 input[type=number]::-webkit-outer-spin-button,
@@ -231,7 +244,6 @@ input[type=number] {
   appearance: textfield;
   -moz-appearance: textfield;
 }
-.fill-actions { display: flex; gap: 8px; margin-bottom: 8px; }
 
 /* Images list */
 #imagesSection h3 { margin: 12px 0 6px; }
@@ -251,6 +263,9 @@ input[type=number] {
   .sales-entry .form-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
   .reports-grid { grid-template-columns: 1fr; }
   .modal form { min-width: unset; width: 96vw; }
+  .variants-shell { grid-template-columns: 1fr; }
+  .variant-selection-summary { flex-direction: column; align-items: flex-start; }
+  .variant-selection-meta { width: 100%; justify-content: space-between; }
 }
 
 /* Cart edit modal: force white background with black text so the edit
