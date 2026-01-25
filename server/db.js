@@ -49,6 +49,23 @@ CREATE TABLE IF NOT EXISTS OrderTracking (
 CREATE INDEX IF NOT EXISTS idx_orders_user ON Orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_items_order ON OrderItems(order_id);
 CREATE INDEX IF NOT EXISTS idx_tracking_order ON OrderTracking(order_id);
+CREATE TABLE IF NOT EXISTS ShortLinks (
+  id TEXT PRIMARY KEY,
+  target TEXT,
+  created_at TEXT
+);
+CREATE TABLE IF NOT EXISTS PasswordResetTokens (
+  token TEXT PRIMARY KEY,
+  email TEXT,
+  used INTEGER DEFAULT 0,
+  created_at TEXT,
+  expires_at TEXT
+);
+CREATE TABLE IF NOT EXISTS PasswordResetEvents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT,
+  created_at TEXT
+);
 `;
 
 db.exec(schema);

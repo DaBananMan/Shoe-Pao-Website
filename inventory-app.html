@@ -212,16 +212,161 @@
 
   <!-- Variant Modal -->
   <dialog id="variantModal" class="modal">
+    <style>
+      .variant-modal-grid {
+        display: flex;
+        min-width: 600px;
+        min-height: 340px;
+        gap: 0;
+      }
+      .variant-sidebar {
+        width: 180px;
+        background: #faf9f9;
+        border-right: 1px solid #eee;
+        padding: 23px 13px 13px 13px;
+        display: flex;
+        flex-direction: column;
+        gap: 22.5px;
+      }
+      .variant-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .variant-controls input[type="color"] {
+        width: 32px; height: 32px; border: none; background: none; padding: 0;
+      }
+      #variantColorsList {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      #variantColorsList .color-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border-radius: 7px;
+        cursor: pointer;
+        transition: background 0.13s;
+      }
+      #variantColorsList .color-item.active {
+        background: #ffeaea;
+        font-weight: 600;
+        border-left: 4px solid var(--primary, #b71c1c);
+      }
+      #variantColorsList .color-dot {
+        width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #ddd; display: inline-block;
+      }
+      #variantColorsList .color-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 2px;
+      }
+      .variant-editor {
+        flex: 1;
+        padding: 30px 30px 15px 30px;
+        background: #fff;
+        min-width: 320px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+      }
+      .sizes-editor {
+        width: 100%;
+        max-width: 420px;
+        margin: 0 auto;
+      }
+      .size-card {
+        background: #f8f8f8;
+        border-radius: 10px;
+        box-shadow: 0 1px 2px #0001;
+        padding: 22.5px 22.5px 15px 22.5px;
+        margin-bottom: 0;
+      }
+      .fill-actions {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 12.5px;
+      }
+      .fill-actions strong {
+        font-size: 1.1em;
+        margin-right: 8px;
+      }
+      .size-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 8.75px;
+      }
+      .size-row {
+        display: flex;
+        align-items: center;
+        gap: 12.5px;
+        padding: 5px 0;
+      }
+      .size-row label {
+        min-width: 48px;
+        font-weight: 500;
+      }
+      .size-row input[type="number"] {
+        width: 60px;
+        padding: 3px 6px;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+        font-size: 1em;
+      }
+      .qty-controls {
+        display: flex;
+        gap: 2px;
+      }
+      .qty-btn {
+        background: #eee;
+        border: none;
+        border-radius: 4px;
+        width: 26px; height: 26px;
+        font-size: 1.1em;
+        cursor: pointer;
+        transition: background 0.13s;
+      }
+      .qty-btn:hover { background: #e0e0e0; }
+      .danger[data-action], .danger[data-action]:hover {
+        background: var(--danger, #e14d4d);
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 0 10px;
+        font-size: 0.98em;
+        cursor: pointer;
+      }
+      .sizes-editor .muted {
+        color: #888;
+        font-size: 1em;
+        margin: 12px 0 0 0;
+      }
+      @media (max-width: 700px) {
+        .variant-modal-grid { flex-direction: column; min-width: 0; }
+        .variant-sidebar { width: 100%; border-right: none; border-bottom: 1px solid #eee; }
+        .variant-editor { padding: 16px 8px; }
+      }
+    </style>
     <form method="dialog" id="variantForm">
-      <h2>Manage Variants</h2>
-      <div class="variant-controls">
-        <input id="variantColorName" placeholder="Color name" />
-        <input id="variantColorCode" type="color" />
-        <button id="addColorBtn" class="secondary" type="button">Add Color</button>
+      <h2 style="margin-bottom:10px;">Manage Variants</h2>
+      <div class="variant-modal-grid">
+        <aside class="variant-sidebar">
+          <div class="variant-controls">
+            <input id="variantColorName" placeholder="Color name" />
+            <input id="variantColorCode" type="color" />
+            <button id="addColorBtn" class="secondary" type="button">Add Color</button>
+          </div>
+          <div id="variantColorsList" class="colors-list"></div>
+        </aside>
+        <section class="variant-editor">
+          <div id="sizesEditor" class="sizes-editor"></div>
+        </section>
       </div>
-      <div id="variantColorsList" class="colors-list"></div>
-      <div id="sizesEditor" class="sizes-editor"></div>
-      <div class="modal-actions">
+      <div class="modal-actions" style="margin-top:10px;">
         <button value="cancel" class="secondary">Close</button>
         <button id="saveVariantsBtn" value="default" class="primary">Save</button>
       </div>
@@ -284,6 +429,13 @@
     </form>
   </dialog>
 
+  <script src="js/firebase-config.js"></script>
+  <script>
+    window.ALLOW_ANON_SIGNIN = true;
+  </script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="inventory-app.js"></script>
 </body>
 </html>

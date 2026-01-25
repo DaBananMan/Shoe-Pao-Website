@@ -2,12 +2,6 @@
 // Data model and client-side storage
 (function() {
   const EU_SIZES = Array.from({ length: 11 }, (_, i) => 35 + i); // 35..45
-  const STORAGE_KEYS = {
-    inventory: 'shoeInventoryData',
-    sales: 'shoeSalesLog',
-    settings: 'shoeInventorySettings'
-  };
-
   const defaultSettings = { lowStockThreshold: 3 };
 
   const state = {
@@ -20,6 +14,7 @@
       selectedProductIds: new Set(),
       editingProductId: null,
       editingVariantProductId: null,
+      editingVariantColorId: null,
       productModalColors: [],
       productModalImages: [],
       reports: { timeframe: 'all', open: { low: false, sizes: false, brands: false, dead: false } }
@@ -71,6 +66,41 @@
     return base;
   }
 
+  // Size-level SKU generation: <productSku>-CCCC-S##
+  function generateSizeSKU(product, color, eu) {
+    const clean = (str, len) => {
+      let s = String(str || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!s) s = 'X'.repeat(len);
+      return s.slice(0, len);
+    };
+    const base = (product && product.sku) ? String(product.sku).trim() : generateProductSKU(product && product.brand, product && product.model, product && product.category);
+    const colorToken = clean((color && (color.code || color.name || color.id)) || '', 4);
+    const sizeToken = String(eu || '').replace(/[^0-9]/g, '');
+    const sizePart = sizeToken ? `S${sizeToken}` : 'SXX';
+    return `${base}-${colorToken}-${sizePart}`;
+  }
+
+  function ensureSizeSkusForProduct(p) {
+    let changed = false;
+    if (!p) return false;
+    if (!p.sku || !String(p.sku).trim()) {
+      p.sku = generateProductSKU(p.brand, p.model, p.category);
+      changed = true;
+    }
+    if (!Array.isArray(p.colors)) return changed;
+    p.colors.forEach(c => {
+      if (!Array.isArray(c.sizes)) return;
+      c.sizes.forEach(s => {
+        if (!s) return;
+        if (!s.sku || !String(s.sku).trim()) {
+          s.sku = generateSizeSKU(p, c, s.eu);
+          changed = true;
+        }
+      });
+    });
+    return changed;
+  }
+
   function displayNameFromUrl(url) {
     try {
       if (!url) return 'image';
@@ -95,13 +125,6 @@
       return 'https://api.qrserver.com/v1/create-qr-code/?size=' + encodeURIComponent(s + 'x' + s) + '&data=' + encodeURIComponent(String(data));
     } catch (e) { return ''; }
   }
-
-  const ls = {
-    get(key, fallback) {
-      try { const txt = localStorage.getItem(key); return txt ? JSON.parse(txt) : fallback; } catch { return fallback; }
-    },
-    set(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
-  };
 
   // --- Firebase / Firestore helpers (optional): if window.FIREBASE_CONFIG is provided,
   // initialize Firebase and subscribe to live updates. All calls are guarded so the
@@ -228,6 +251,7 @@
           state.products = docs;
   // Merge any known variants into products shape and render (do not persist to localStorage)
   mergeVariantsIntoProducts();
+          backfillSizeSkus();
   renderAll();
   // (debug panel removed) 
       } catch (e) { console.error('Error applying products snapshot', e); }
@@ -292,6 +316,7 @@
     firebaseState.variantsByProductId = map;
     // merge into products and re-render (do not persist to localStorage)
     mergeVariantsIntoProducts();
+  backfillSizeSkus();
   renderAll();
       } catch (e) { console.error('Error applying variants snapshot', e); }
     }, err => {
@@ -300,6 +325,7 @@
         console.error('Firestore permission-denied when listening to variants. Check your Firestore security rules and ensure the client is authenticated or rules allow read access for this path.');
       }
     });
+
   }
 
   // Merge variants (from firebaseState.variantsByProductId) into state.products.
@@ -312,8 +338,6 @@
       const pid = p.id || p.productId || p.sku || null;
       const hasColors = Array.isArray(p.colors) && p.colors.length;
       if (hasColors) {
-        // still, if there are variants for this product and product.colors is empty or missing sizes,
-        // we might merge. For now, prefer product.colors when present.
         return p;
       }
       if (pid && map[pid]) {
@@ -325,17 +349,6 @@
       return p;
     });
   }
-
-  // Clear localStorage inventory/sales/settings data and do not rehydrate from local on next snapshot.
-  function clearLocalInventoryData() {
-    try {
-      localStorage.removeItem(STORAGE_KEYS.inventory);
-      localStorage.removeItem(STORAGE_KEYS.sales);
-      localStorage.removeItem(STORAGE_KEYS.settings);
-      console.info('Local inventory, sales and settings removed from localStorage. Reload the page to see remote-only data.');
-    } catch (e) { console.warn('clearLocalInventoryData failed', e); }
-  }
-  try { window.clearLocalInventoryData = clearLocalInventoryData; } catch (e) { /* ignore */ }
 
   function upsertProductToFirestore(product) {
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
@@ -624,15 +637,12 @@
 
   // Persistence
   function loadAll() {
-    state.products = ls.get(STORAGE_KEYS.inventory, []);
-    state.sales = ls.get(STORAGE_KEYS.sales, []);
-    state.settings = { ...defaultSettings, ...(ls.get(STORAGE_KEYS.settings, {})) };
+    state.products = [];
+    state.sales = [];
+    state.settings = { ...defaultSettings };
   }
 
   function saveAll() {
-    ls.set(STORAGE_KEYS.inventory, state.products);
-    ls.set(STORAGE_KEYS.sales, state.sales);
-    ls.set(STORAGE_KEYS.settings, state.settings);
     // Schedule a one-way sync to Firestore so remote mirrors current UI state
     try { if (firebaseState && firebaseState.enabled) scheduleFullSync(); } catch (e) { /* ignore */ }
   }
@@ -647,6 +657,14 @@
         changed = true;
       }
     });
+    if (changed) saveAll();
+  }
+
+  // Ensure every size has a SKU; generate if missing/blank
+  function backfillSizeSkus() {
+    if (!Array.isArray(state.products) || !state.products.length) return;
+    let changed = false;
+    state.products.forEach(p => { if (ensureSizeSkusForProduct(p)) changed = true; });
     if (changed) saveAll();
   }
 
@@ -1093,6 +1111,8 @@
       p.tagsManual = manual;
   // AR link handling
   try { const arVal = (qs('#prodARLink') && qs('#prodARLink').value) ? String(qs('#prodARLink').value).trim() : ''; if (arVal) { p.arLink = arVal; p.arQr = qrImageUrlFor(arVal, 300); } else { delete p.arLink; delete p.arQr; } } catch(e){}
+      // Ensure size-level SKUs exist
+      ensureSizeSkusForProduct(p);
       // Sync to Firestore when available
       if (firebaseState.enabled) {
         upsertProductToFirestore(p).then(() => syncVariantsForProduct(p));
@@ -1118,6 +1138,8 @@
       } catch(e) {}
       // Copy colors and sizes
       newP.colors = colors.map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), sku: s.sku || '' })) }));
+      // Ensure size-level SKUs exist
+      ensureSizeSkusForProduct(newP);
       state.products.push(newP);
       // Sync created product and its variants to Firestore when available
       if (firebaseState.enabled) {
@@ -1200,6 +1222,22 @@
     </div>`).join('');
 
     bindColorActions(list);
+
+    // Ensure a selected color is set; default to first
+    const firstColor = p.colors && p.colors[0];
+    if (!state.ui.editingVariantColorId || !p.colors.find(c => c.id === state.ui.editingVariantColorId)) {
+      state.ui.editingVariantColorId = firstColor ? firstColor.id : null;
+    }
+
+    // Clicking a color selects it and re-renders the editor
+    list.querySelectorAll('.color-item').forEach(item => item.addEventListener('click', (ev) => {
+      // ignore clicks on the action buttons inside the color item
+      if (ev.target.closest('.color-actions')) return;
+      const id = item.dataset.id;
+      state.ui.editingVariantColorId = id;
+      renderSizesEditor(p);
+    }));
+
     renderSizesEditor(p);
 
     dlg.showModal();
@@ -1232,86 +1270,73 @@
       editor.innerHTML = '<p class="muted">No colors yet. Add one above.</p>';
       return;
     }
-    p.colors.forEach(color => {
+    const selId = state.ui.editingVariantColorId || null;
+    const listEl = qs('#variantColorsList');
+    if (listEl) listEl.querySelectorAll('.color-item').forEach(it => it.classList.toggle('active', it.dataset.id === selId));
+
+    const colorsToRender = selId ? p.colors.filter(c => c.id === selId) : p.colors;
+    colorsToRender.forEach(color => {
       const card = document.createElement('div'); card.className = 'size-card';
-      // Header: color name + select-all + apply-to-selected control + clear
+      // Header: color name + add size + clear
       const fill = document.createElement('div'); fill.className = 'fill-actions';
       fill.innerHTML = `
         <div class="color-header">
           <strong class="color-name">${color.name}</strong>
-          <label class="select-all-label"><input type="checkbox" class="select-all-sizes" data-id="${color.id}" /> Select all</label>
+          <button class="secondary" data-action="add-size" data-id="${color.id}">Add Size</button>
           <button class="secondary clear-btn" data-action="clear-all" data-id="${color.id}">Clear</button>
         </div>`;
       card.appendChild(fill);
 
       const grid = document.createElement('div'); grid.className = 'size-grid';
-      EU_SIZES.forEach(eu => {
-        const s = color.sizes.find(x => x.eu === eu) || { eu: eu, stock: 0 };
-        const row = document.createElement('div'); row.className = 'size-row';
-        // checkbox | label | number input | qty-controls (+/-)
-        row.innerHTML = `
-          <input type="checkbox" class="size-checkbox" data-color="${color.id}" data-size="${eu}" />
-          <label>${eu}EU</label>
-          <input type="number" min="0" step="1" value="${s.stock}" data-color="${color.id}" data-size="${eu}" />
-          <div class="qty-controls">
-            <button type="button" class="qty-btn" data-action="decr" data-color="${color.id}" data-size="${eu}">−</button>
-            <button type="button" class="qty-btn" data-action="incr" data-color="${color.id}" data-size="${eu}">+</button>
-          </div>`;
-        grid.appendChild(row);
-      });
+      if (!color.sizes.length) {
+        const emptyRow = document.createElement('div');
+        emptyRow.className = 'size-row';
+        emptyRow.innerHTML = '<span class="muted">No sizes added for this color.</span>';
+        grid.appendChild(emptyRow);
+      } else {
+        color.sizes.forEach(s => {
+          const row = document.createElement('div'); row.className = 'size-row';
+          row.innerHTML = `
+            <label>${s.eu}EU</label>
+            <input type="number" min="0" step="1" value="${s.stock}" data-color="${color.id}" data-size="${s.eu}" />
+            <div class="qty-controls">
+              <button type="button" class="qty-btn" data-action="decr" data-color="${color.id}" data-size="${s.eu}">−</button>
+              <button type="button" class="qty-btn" data-action="incr" data-color="${color.id}" data-size="${s.eu}">+</button>
+            </div>
+            <button type="button" class="danger" data-action="remove-size" data-color="${color.id}" data-size="${s.eu}">Remove</button>
+          `;
+          grid.appendChild(row);
+        });
+      }
       card.appendChild(grid);
-
-      // Footer: apply-to-selected moved to bottom of the color card for easier reach
-      const footer = document.createElement('div'); footer.className = 'card-footer';
-      footer.innerHTML = `
-        <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;">
-          <label style="display:inline-flex;align-items:center;gap:6px">Apply to selected: <input type="number" class="apply-qty" min="0" step="1" /></label>
-          <button class="secondary" data-action="apply-selected" data-id="${color.id}">Apply</button>
-        </div>`;
-      card.appendChild(footer);
       editor.appendChild(card);
     });
 
-    // Bind select-all checkboxes
-    editor.querySelectorAll('.select-all-sizes').forEach(cb => cb.addEventListener('change', (e) => {
-      const colorId = e.target.dataset.id;
-      const checked = e.target.checked;
-      editor.querySelectorAll(`.size-row input.size-checkbox[data-color="${colorId}"]`).forEach(c=> c.checked = checked);
-    }));
-
-    // Bind apply to selected
-    editor.querySelectorAll('[data-action="apply-selected"]').forEach(btn => btn.addEventListener('click', () => {
+    // Bind add size
+    editor.querySelectorAll('[data-action="add-size"]').forEach(btn => btn.addEventListener('click', () => {
       const id = btn.dataset.id;
-      const card = btn.closest('.size-card');
-      const inp = card.querySelector('.apply-qty');
-      const qty = parseNum(inp.value, null);
-      if (qty === null) return alert('Enter a quantity to apply');
       const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
       const c = p.colors.find(y => y.id === id);
-      if (!c) return;
-      // find selected checkboxes and set their sizes
-      card.querySelectorAll('.size-row input.size-checkbox:checked').forEach(cb => {
-        const eu = parseNum(cb.dataset.size);
-        const s = c.sizes.find(z => z.eu === eu);
-        if (s) s.stock = clampNum(qty, 0, 9999);
-      });
+      let eu = prompt('Enter EU size to add (e.g. 36):');
+      if (!eu) return;
+      eu = parseNum(eu, null);
+      if (!eu || c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
+      c.sizes.push({ eu, stock: 0, sku: '' });
       saveAll(); openVariantModal(p.id);
     }));
 
-    // Bind clear-all
-    editor.querySelectorAll('[data-action="clear-all"]').forEach(btn => btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
+    // Bind remove size
+    editor.querySelectorAll('[data-action="remove-size"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const eu = parseNum(btn.dataset.size);
       const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
-      const c = p.colors.find(y => y.id === id);
-      if (!confirm('Clear all stock for this color? This cannot be undone.')) return;
-      c.sizes.forEach(s => s.stock = 0);
+      const c = p.colors.find(y => y.id === colorId);
+      c.sizes = c.sizes.filter(z => z.eu !== eu);
       saveAll(); openVariantModal(p.id);
     }));
 
     // Bind number inputs change
     editor.querySelectorAll('input[type="number"]').forEach(inp => {
-      // skip apply-qty inputs (they are not per-size)
-      if (inp.classList.contains('apply-qty')) return;
       inp.addEventListener('change', (e) => {
         const colorId = e.target.dataset.color;
         const eu = parseNum(e.target.dataset.size);
@@ -1319,7 +1344,7 @@
         const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
         const c = p.colors.find(y => y.id === colorId);
         const s = c.sizes.find(z => z.eu === eu);
-        s.stock = qty; saveAll();
+        if (s) s.stock = qty; saveAll();
       });
     });
 
@@ -1401,43 +1426,59 @@
       const card = document.createElement('div'); card.className = 'size-card';
       const fill = document.createElement('div'); fill.className = 'fill-actions';
       fill.innerHTML = `<strong>${color.name}</strong>
-        <button class="secondary" data-action="fill-all-init" data-id="${color.id}">Fill all sizes</button>
+        <button class="secondary" data-action="add-size-init" data-id="${color.id}">Add Size</button>
         <button class="secondary" data-action="clear-all-init" data-id="${color.id}">Clear</button>`;
       card.appendChild(fill);
       const grid = document.createElement('div'); grid.className = 'size-grid';
-      EU_SIZES.forEach(eu => {
-        const s = color.sizes.find(x => x.eu === eu) || { eu, stock: 0 };
-        const row = document.createElement('div'); row.className = 'size-row';
-        row.innerHTML = `<label>${eu}EU</label><input type="number" min="0" step="1" value="${s.stock}" data-init-color="${color.id}" data-size="${eu}" />`;
-        grid.appendChild(row);
-      });
+      if (!color.sizes.length) {
+        const emptyRow = document.createElement('div');
+        emptyRow.className = 'size-row';
+        emptyRow.innerHTML = '<span class="muted">No sizes added for this color.</span>';
+        grid.appendChild(emptyRow);
+      } else {
+        color.sizes.forEach(s => {
+          const row = document.createElement('div'); row.className = 'size-row';
+          row.innerHTML = `
+            <label>${s.eu}EU</label>
+            <input type="number" min="0" step="1" value="${s.stock}" data-init-color="${color.id}" data-size="${s.eu}" />
+            <button type="button" class="danger" data-action="remove-size-init" data-color="${color.id}" data-size="${s.eu}">Remove</button>
+          `;
+          grid.appendChild(row);
+        });
+      }
       card.appendChild(grid);
       editor.appendChild(card);
     });
 
-    // Bind fill and inputs
-    editor.querySelectorAll('[data-action="fill-all-init"]').forEach(btn => btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      const qty = parseNum(prompt('Set stock for all sizes to:'), null);
-      if (qty === null) return;
-      const c = state.ui.productModalColors.find(y => y.id === id);
-      c.sizes.forEach(s => s.stock = clampNum(qty, 0, 9999));
-      renderInitialVariants();
-    }));
-    editor.querySelectorAll('[data-action="clear-all-init"]').forEach(btn => btn.addEventListener('click', () => {
+    // Bind add size
+    editor.querySelectorAll('[data-action="add-size-init"]').forEach(btn => btn.addEventListener('click', () => {
       const id = btn.dataset.id;
       const c = state.ui.productModalColors.find(y => y.id === id);
-      if (!confirm('Clear all stock for this color? This cannot be undone.')) return;
-      c.sizes.forEach(s => s.stock = 0);
+      let eu = prompt('Enter EU size to add (e.g. 36):');
+      if (!eu) return;
+      eu = parseNum(eu, null);
+      if (!eu || c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
+      c.sizes.push({ eu, stock: 0, sku: '' });
       renderInitialVariants();
     }));
+
+    // Bind remove size
+    editor.querySelectorAll('[data-action="remove-size-init"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const eu = parseNum(btn.dataset.size);
+      const c = state.ui.productModalColors.find(y => y.id === colorId);
+      c.sizes = c.sizes.filter(z => z.eu !== eu);
+      renderInitialVariants();
+    }));
+
+    // Bind number inputs change
     editor.querySelectorAll('input[type="number"]').forEach(inp => inp.addEventListener('change', (e) => {
       const colorId = e.target.dataset.initColor;
       const eu = parseNum(e.target.dataset.size);
       const qty = clampNum(parseNum(e.target.value), 0, 9999);
       const c = state.ui.productModalColors.find(y => y.id === colorId);
       const s = c.sizes.find(z => z.eu === eu);
-      if (s) s.stock = qty; else c.sizes.push({ eu, stock: qty, sku: '' });
+      if (s) s.stock = qty;
     }));
   }
 
@@ -1706,49 +1747,7 @@
   function renderSettings() { qs('#lowStockThreshold').value = state.settings.lowStockThreshold; }
   function saveSettings() { state.settings.lowStockThreshold = clampNum(parseNum(qs('#lowStockThreshold').value, 3), 1, 999); saveAll(); renderAll(); }
 
-  // Publish to storefront: build simplified inventory rows from admin products
-  function publishInventoryToStorefront() {
-    try {
-      const out = [];
-      state.products.forEach(p => {
-        const baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : '';
-        // Resolve colors from product.colors or, if empty, from firebase variants map
-        let colorsArr = Array.isArray(p.colors) ? p.colors.slice() : [];
-        if ((!colorsArr || !colorsArr.length) && firebaseState.variantsByProductId) {
-          const map = firebaseState.variantsByProductId;
-          const candidates = [p.id, p.productId, p.sku, String(p.id || '')];
-          for (const cKey of candidates) {
-            if (!cKey) continue;
-            if (Array.isArray(map[cKey]) && map[cKey].length) { colorsArr = map[cKey]; break; }
-          }
-        }
-        (Array.isArray(colorsArr) ? colorsArr : []).forEach(c => {
-          const sizesMap = {};
-          (Array.isArray(c.sizes) ? c.sizes : []).forEach(s => { sizesMap[String(s.eu)] = Number(s.stock || 0); });
-          out.push({
-            id: p.sku || p.id || uid('row'),
-            name: `${p.model || ''}${c.name ? ' ' + c.name : ''}`.trim(),
-            brand: p.brand || '',
-            color: c.name || '',
-            image: baseImg || 'IMAGE/NIKE1.png',
-            sizes: sizesMap,
-            price: parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0),
-            originalPrice: parseNum(p.pricing?.original, 0),
-            productId: p.id || '',
-            colorId: c.id || '',
-            createdAt: p.createdAt || null,
-            gender: p.gender || '',
-            // include per-product critical level override if defined so storefront can honor it
-            criticalLevel: (p.criticalLevel !== undefined && p.criticalLevel !== null) ? Number(p.criticalLevel) : null
-          });
-        });
-      });
-      localStorage.setItem('inventory', JSON.stringify(out));
-      alert(`Published ${out.length} variant rows to storefront inventory.`);
-    } catch (e) {
-      alert('Failed to publish inventory.');
-    }
-  }
+  // (Publish-to-storefront removed: storefront now reads directly from Firestore `products`.)
 
   // Render all
   function renderAll() {
@@ -1838,7 +1837,6 @@
 
   const bulkRestockBtn = qs('#bulkRestock'); if (bulkRestockBtn) bulkRestockBtn.addEventListener('click', openBulkRestock);
   const applyBulkRestockBtn = qs('#applyBulkRestockBtn'); if (applyBulkRestockBtn) applyBulkRestockBtn.addEventListener('click', (e) => { e.preventDefault(); applyBulkRestock(); });
-  const publishBtn = qs('#publishInventoryBtn'); if (publishBtn) publishBtn.addEventListener('click', (e) => { e.preventDefault(); publishInventoryToStorefront(); });
   const exportBtn = qs('#exportInventoryBtn'); if (exportBtn) exportBtn.addEventListener('click', (e) => { e.preventDefault(); exportInventoryAsWord(); });
     const bulkPriceMethodSel = qs('#bulkPriceMethod');
     const bulkPriceValueInp = qs('#bulkPriceValue');
@@ -1900,6 +1898,7 @@
     loadAll();
   // Sample seeding removed to avoid demo rows appearing on load.
     backfillSkus();
+    backfillSizeSkus();
     backfillCreatedAt();
     backfillCategoryAndStatus();
     wireEvents();

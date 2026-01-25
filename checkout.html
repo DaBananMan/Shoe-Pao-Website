@@ -566,7 +566,7 @@
                     </label>
                     <label class="address-field">
                         <span class="address-label">Postal code</span>
-                        <input id="checkoutPostal" type="text" placeholder="e.g. 1118" />
+                        <input id="checkoutPostal" type="text" placeholder="e.g. 1118" maxlength="4" inputmode="numeric" pattern="\d{4}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)" />
                     </label>
                     <label class="address-field address-field-full">
                         <span class="address-label">Additional notes (optional)</span>

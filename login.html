@@ -43,7 +43,7 @@
                 <input type="password" id="password" name="password" class="input-box" required>
             </div>
             <div class="forgot-row">
-                <a href="#" class="forgot-link">Forget your password</a>
+                <a href="forgot-password.html" class="forgot-link">Forgot Password?</a>
             </div>
             <div id="loginError" style="color:#b71c1c;margin:8px 0;display:none"></div>
             <button type="submit" class="login-btn">Log in</button>
@@ -381,10 +381,28 @@
                         console.warn('applyActionCode failed', err);
                         var errEl = document.getElementById('loginError'); if (errEl) { errEl.style.display='block'; errEl.style.color='#b71c1c'; errEl.textContent = 'Could not verify email: ' + (err && err.message ? err.message : String(err)); }
                     });
+                } else if (mode === 'resetPassword' && oobCode && window.firebase && firebase.auth) {
+                    // If the action is a password reset, Firebase may have handled the reset on its hosted page.
+                    // Prefill email if available; do not show a success banner here (handled silently).
+                    try{
+                        if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG || {});
+                        // If email parameter present, prefill
+                        try{ var emailField = document.getElementById('email'); if (emailParam && emailField) { emailField.value = emailParam; } }catch(e){}
+                        try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e){}
+                    }catch(e){ console.warn('resetPassword handling failed', e); }
                 }
+                // Also handle explicit reset=1 query param (redirect target after hosted reset flow)
+                try{ var resetFlag = getQueryParam('reset'); if (resetFlag) { try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e){} } }catch(e){}
             } catch(e) { console.warn('email action handling failed', e); }
         });
     </script>
+    <style>
+    /* Debug overlay (visible when ?showDebug=1) */
+    #actionDebugOverlay { position:fixed; right:12px; bottom:12px; z-index:99999; background:rgba(0,0,0,0.85); color:#fff; padding:8px 10px; border-radius:6px; font-family:monospace; font-size:12px; max-width:380px; max-height:240px; overflow:auto; display:none }
+    #actionDebugOverlay h4{ margin:0 0 6px 0; font-size:12px }
+    #actionDebugOverlay pre{ white-space:pre-wrap; color:#d1f0d1; margin:0 }
+    </style>
+    <div id="actionDebugOverlay" aria-hidden="true"><h4>Action Params</h4><pre id="actionDebugPre"></pre></div>
     <!-- Footer removed on login page per UX request -->
 </body>
 </html>
