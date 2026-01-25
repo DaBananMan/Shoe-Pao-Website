@@ -210,7 +210,9 @@ app.post('/api/send-password-reset', async (req, res) => {
     const admin = require('firebase-admin');
     try{ if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ console.warn('firebase-admin initializeApp() warning', e); }
 
-    const actionCodeSettings = { url: (returnUrl || '') + '/login.html?reset=1', handleCodeInApp: false };
+  // Force in-app reset flow so the link opens our `reset-password.html` page which
+  // runs the client-side confirmPasswordReset code and notifies the server.
+  const actionCodeSettings = { url: (returnUrl || '') + '/reset-password.html?next=login', handleCodeInApp: true };
     const link = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
 
     // Create a short redirect id and store mapping in DB so emails show a short link
@@ -274,11 +276,9 @@ app.post('/api/generate-password-reset', async (req, res) => {
     }
     if (!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
 
-  // Use hosted reset flow so Firebase's hosted UI will redirect back to our login page
-  // after the user finishes changing their password. This avoids leaving users on a
-  // path that Apache doesn't serve (root vs. app folder). The returnUrl should include
-  // the app base (e.g., http://localhost/SHOEPAO) when calling this endpoint.
-  const actionCodeSettings = { url: (returnUrl || '') + '/login.html?reset=1', handleCodeInApp: false };
+  // Force in-app reset flow so server-generated links open our reset page which
+  // runs the confirmPasswordReset client flow and notifies the server when done.
+  const actionCodeSettings = { url: (returnUrl || '') + '/reset-password.html?next=login', handleCodeInApp: true };
   const link = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
 
     // create short mapping
