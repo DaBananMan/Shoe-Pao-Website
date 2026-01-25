@@ -495,7 +495,7 @@
             </div>
         </div>
         <div class="nav-right">
-            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
+            <button class="profile-btn profile-disabled" onclick="goToProfile()" aria-label="Profile" title="Profile navigation disabled on admin pages" tabindex="-1">
                 <img src="IMAGE/USERICON.png" alt="User">
             </button>
         </div>
@@ -730,8 +730,8 @@
     // Navigation bar functions
     function goToHome() { window.location.href = 'home.html'; }
     function goToProfile() {
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
+        // Profile navigation is disabled on admin pages to avoid switching context.
+        try{ console.warn('Profile navigation disabled on admin pages'); }catch(e){}
     }
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToOrders() { window.location.href = 'orders.html'; }
@@ -739,8 +739,8 @@
     function goToFAQ() { window.location.href = 'privacy.html'; }
     function goToContact() { window.location.href = 'contact.html'; }
     function goToUserPage() {
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
+        // Prevent navigating to the public profile from admin pages.
+        try{ console.warn('goToUserPage: blocked on admin pages'); }catch(e){}
     }
     function goToCartPage() { window.location.href = 'cart.html'; }
     function toggleSearchBox() {
