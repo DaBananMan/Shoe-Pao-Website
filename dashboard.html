@@ -49,10 +49,6 @@
     </style>
 </head>
 <body>
-    <script>
-        // Admin pages: disable navigation to the public profile page to avoid accidental context switch.
-        function goToProfile(){ console.warn('Profile navigation disabled on admin pages'); }
-    </script>
     <header class="topbar">
         <div class="nav-left">
             <div class="nav-left-inner">
@@ -67,7 +63,7 @@
             </div>
         </div>
         <div class="nav-right">
-            <button class="profile-btn profile-disabled" onclick="goToProfile()" aria-label="Profile" title="Profile navigation disabled on admin pages" tabindex="-1">
+            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
                 <img src="IMAGE/USERICON.png" alt="User">
             </button>
         </div>
