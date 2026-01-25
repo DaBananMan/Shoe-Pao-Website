@@ -85,7 +85,6 @@
           <!-- 'Mark Shipped' removed per request; admins can still mark shipped from the admin orders list. -->
           <button id="odMarkDeliveredBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #0e7a3c;background:#0e7a3c;color:#fff;cursor:pointer;display:none">Mark Delivered</button>
           <button id="odCancelBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #eee;background:#fff;color:#b71c1c;cursor:pointer;display:none">Cancel</button>
-          <button id="odRateBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #eee;background:#fff;color:#0e7a3c;cursor:pointer;display:none">Rate Order</button>
         </div>
       </div>
     </div>
@@ -125,7 +124,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <!-- Leaflet removed: routing integration disabled -->
   <script src="js/ensure-server.js"></script>
-  <script src="js/ratings-storage.js"></script>
   <script>
     (function(){
       function formatPHP(n){
@@ -898,30 +896,6 @@
           try{ renderOrder(localOrderCache, localItemsCache || [], []); }catch(e){}
         }
       }catch(e){}
-      function rateOrder(){
-        try{
-          var items = (serverOrderCache && serverOrderCache.items && serverOrderCache.items.length) ? serverOrderCache.items : (typeof localItemsCache !== 'undefined' ? localItemsCache : []);
-          if(!items || !items.length){ try{ alert('No items to rate.'); }catch(e){} return; }
-          function ensureRatingsLoaded(cb){ if(window.ShoePaoRatings){ cb(); return; } var s = document.createElement('script'); s.src = 'js/ratings-storage.js'; s.onload = cb; s.onerror = cb; document.head.appendChild(s); }
-          ensureRatingsLoaded(function(){
-            try{
-              items.forEach(function(it){
-                try{
-                  var title = it.name || it.title || it.product_name || 'Product';
-                  var stars = prompt('Rate "' + title + '" (1-5 stars). Leave blank to skip.', '5');
-                  if(stars === null) return; // user cancelled
-                  stars = Number(stars);
-                  if(!isFinite(stars) || stars < 1 || stars > 5) return;
-                  var comment = prompt('Optional comment for "' + title + '"','');
-                  try{ window.ShoePaoRatings.addOrUpdateRating({ productId: it.product_id || it.id, title: title, brand: it.brand || '', stars: stars, comment: comment || '', orderId: orderId }); }catch(e){}
-                }catch(e){}
-              });
-              try{ alert('Thank you for your ratings.'); }catch(e){}
-            }catch(e){ console.warn('rateOrder failed', e); }
-          });
-        }catch(e){ console.warn('rateOrder failed', e); }
-      }
-
       function ensureFirebaseReady(cb){
         try{
           if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('Firebase not configured')); return; }
@@ -1109,7 +1083,6 @@
           var odMarkShipped = document.getElementById('odMarkShippedBtn');
           var odMarkDelivered = document.getElementById('odMarkDeliveredBtn');
           var odCancel = document.getElementById('odCancelBtn');
-          var odRate = document.getElementById('odRateBtn');
           // Show ship button for admin workflows when order is in preparing/confirmed/processing
           if(odMarkShipped){
             odMarkShipped.style.display = (s === 'processing' || s === 'confirmed' ? '' : 'none');
@@ -1129,13 +1102,6 @@
             // label as Order Received for the client-facing detail page
             try{ odMarkDelivered.textContent = 'Order Received'; }catch(e){}
             odMarkDelivered.onclick = function(){ if(!showDeliveredBtn) return; updateOrderStatusFromDetail(order.id || orderId, 'delivered'); };
-          }
-          if(odRate){
-            try{
-              var showRateBtn = (s === 'delivered' || String(displayStatus||'').toLowerCase() === 'delivered');
-              odRate.style.display = (showRateBtn ? '' : 'none');
-              odRate.onclick = function(){ try{ rateOrder(); }catch(e){ console.warn('rateOrder click failed', e); } };
-            }catch(e){ odRate.style.display = 'none'; }
           }
           if(odCancel){
             odCancel.style.display = (s !== 'cancelled' && s !== 'archived' ? '' : 'none');

@@ -594,13 +594,20 @@
                             <div class="checkout-delivery-desc">Hand delivered by our team. Est. Delivery Time: 1-2 days. Only available in Bacoor, Cavite.</div>
                         </div>
                     </div>
-                        <div class="checkout-delivery-option" data-code="jnt" onclick="selectDeliveryMethod(this, 1)">
-                            <input type="radio" name="delivery" class="checkout-delivery-radio" value="jnt">
-                            <div>
-                                <div class="checkout-delivery-label">J&amp;T Express / JRS</div>
-                                <div class="checkout-delivery-desc">Delivered via J&amp;T Express or JRS. Delivery fee may vary by distance. Est. Delivery Time: 2-7 business days.</div>
-                            </div>
+                    <div class="checkout-delivery-option" data-code="jnt" onclick="selectDeliveryMethod(this, 1)">
+                        <input type="radio" name="delivery" class="checkout-delivery-radio" value="jnt">
+                        <div>
+                            <div class="checkout-delivery-label">J&amp;T Express</div>
+                            <div class="checkout-delivery-desc">Delivered via J&amp;T Express. Delivery fee may vary by distance. Est. Delivery Time: 2-7 business days.</div>
                         </div>
+                    </div>
+                    <div class="checkout-delivery-option" data-code="jrs" onclick="selectDeliveryMethod(this, 2)">
+                        <input type="radio" name="delivery" class="checkout-delivery-radio" value="jrs">
+                        <div>
+                            <div class="checkout-delivery-label">JRS</div>
+                            <div class="checkout-delivery-desc">Delivered via JRS. Delivery fee may vary by distance. Est. Delivery Time: 2-7 business days.</div>
+                        </div>
+                    </div>
                 </div>
             <div class="checkout-divider"></div>
             <div class="checkout-payment-title">Payment Method</div>
@@ -660,6 +667,7 @@
                 <span>Total</span>
                 <span id="checkoutTotal">₱0.00</span>
             </div>
+            <div id="orderLimitMsg" style="display:none;color:#b71c1c;font-size:0.95rem;margin-top:8px;">Maximum of 3 pairs of shoes per order.</div>
         </div>
     </div>
     <!-- Address book modal -->
@@ -729,6 +737,7 @@
             localStorage.removeItem('checkoutAddressMain');
             localStorage.removeItem('checkoutAddressDetails');
             localStorage.removeItem('checkoutAddress');
+            localStorage.removeItem('checkoutAddressSource');
             initCheckoutProfileDisplay();
             try{ updateCheckoutShippingDisplay(); }catch(e){}
         }catch(e){ /* ignore */ }
@@ -927,108 +936,121 @@
         closeQRModal();
     }
     
-    // Shipping helpers (J&T calculation shared so UI updates immediately)
-    function determineRegion(addrMain, addrDetails){
-        var s = (addrMain || '') + ' ' + (addrDetails || '');
-        s = s.toLowerCase();
-        var manilaKeys = ['manila','quezon city','makati','pasig','taguig','muntinlupa','paranaque','las piñas','caloocan','malabon','navotas','valenzuela','san juan','pasay','marikina'];
-        for(var i=0;i<manilaKeys.length;i++) if(s.indexOf(manilaKeys[i]) !== -1) return 'Manila';
-        var visayasKeys = ['cebu','iloilo','bacolod','leyte','tacloban','dumaguete','capiz','sugbo'];
-        for(var i=0;i<visayasKeys.length;i++) if(s.indexOf(visayasKeys[i]) !== -1) return 'Visayas';
-        var mindKeys = ['davao','cagayan de oro','zamboanga','general santos','butuan','iligan','cotabato'];
-        for(var i=0;i<mindKeys.length;i++) if(s.indexOf(mindKeys[i]) !== -1) return 'Mindanao';
-        var islandKeys = ['palawan','siargao','camiguin','batanes','siquijor','biliran'];
-        for(var i=0;i<islandKeys.length;i++) if(s.indexOf(islandKeys[i]) !== -1) return 'Island';
-        var luzonKeys = ['laguna','batangas','bulacan','pampanga','pangasinan','nueva ecija','tarlac','rizal','camarines','albay','la union','benguet','ilocos'];
-        for(var i=0;i<luzonKeys.length;i++) if(s.indexOf(luzonKeys[i]) !== -1) return 'Luzon';
-        return 'Luzon';
-    }
+    // Shipping helpers (origin: Bacoor, Cavite - Luzon)
+    // J&T 500g–1kg bracket per pair
+    var SHIPPING_BASE_RATES = { Luzon:155, 'Metro Manila':165, Visayas:180, Mindanao:195, Island:205 };
+    // JRS 1kg per item (separate table so rates can diverge from J&T)
+    var JRS_BASE_RATES = { Luzon:155, 'Metro Manila':165, Visayas:180, Mindanao:195, Island:205 };
 
-    function psgcRegionToShippingRegion(regionName){
-        var n = (regionName || '').toLowerCase();
+    function normalizeRegionGroup(regionName, isIsland){
+        if(isIsland) return 'Island';
+        var n = (regionName || '').toLowerCase().replace(/\s+/g,' ').trim();
         if(!n) return '';
-        if(n.indexOf('ncr') !== -1 || n.indexOf('national capital') !== -1 || n.indexOf('metro manila') !== -1) return 'Manila';
-        if(n.indexOf('mimaropa') !== -1 || n.indexOf('palawan') !== -1) return 'Island';
-        if(n.indexOf('visayas') !== -1) return 'Visayas';
-        if(n.indexOf('mindanao') !== -1 || n.indexOf('barmm') !== -1 || n.indexOf('bangsamoro') !== -1) return 'Mindanao';
+        // Numeric PSGC codes (01–13)
+        if(/^(0[1-9]|1[0-3])$/.test(n)){
+            var num = parseInt(n, 10);
+            if(num >= 1 && num <= 5) return 'Luzon';
+            if(num === 6 || num === 7 || num === 8) return 'Visayas';
+            if(num >= 9 && num <= 13) return 'Mindanao';
+        }
+        // Metro Manila
+        if(n.indexOf('ncr') !== -1 || n.indexOf('national capital') !== -1 || n.indexOf('metro manila') !== -1) return 'Metro Manila';
+        // Visayas
+        if(n.indexOf('region vi') !== -1 || n.indexOf('region vii') !== -1 || n.indexOf('region viii') !== -1 || n.indexOf('region 6') !== -1 || n.indexOf('region 7') !== -1 || n.indexOf('region 8') !== -1 || n.indexOf('western visayas') !== -1 || n.indexOf('central visayas') !== -1 || n.indexOf('eastern visayas') !== -1) return 'Visayas';
+        // Mindanao
+        if(n.indexOf('region ix') !== -1 || n.indexOf('region x') !== -1 || n.indexOf('region xi') !== -1 || n.indexOf('region xii') !== -1 || n.indexOf('region xiii') !== -1 || n.indexOf('region 9') !== -1 || n.indexOf('region 10') !== -1 || n.indexOf('region 11') !== -1 || n.indexOf('region 12') !== -1 || n.indexOf('region 13') !== -1 || n.indexOf('barmm') !== -1 || n.indexOf('bangsamoro') !== -1 || n.indexOf('caraga') !== -1 || n.indexOf('davao region') !== -1 || n.indexOf('soccsk') !== -1 || n.indexOf('zamboanga') !== -1 || n.indexOf('northern mindanao') !== -1) return 'Mindanao';
+        // Luzon (outside NCR)
+        if(n.indexOf('region i') !== -1 || n.indexOf('region ii') !== -1 || n.indexOf('region iii') !== -1 || n.indexOf('region iv-a') !== -1 || n.indexOf('region iv a') !== -1 || n.indexOf('region iv-b') !== -1 || n.indexOf('region iv b') !== -1 || n.indexOf('region v') !== -1 || n.indexOf('region 1') !== -1 || n.indexOf('region 2') !== -1 || n.indexOf('region 3') !== -1 || n.indexOf('region 4a') !== -1 || n.indexOf('region 4b') !== -1 || n.indexOf('region 5') !== -1 || n.indexOf('calabarzon') !== -1 || n.indexOf('mimaropa') !== -1 || n.indexOf('bicol') !== -1 || n.indexOf('ilocos') !== -1 || n.indexOf('cagayan valley') !== -1 || n.indexOf('central luzon') !== -1 || n.indexOf('car') !== -1 || n.indexOf('cordillera') !== -1) return 'Luzon';
         return 'Luzon';
     }
 
-    var JNTRates = {
-        'Luzon': [
-            // Rates are "from Luzon" to destination regions
-            { max:0.5, Luzon:85, Manila:95, Visayas:100, Mindanao:105, Island:115 },
-            { max:1,   Luzon:155, Manila:165, Visayas:180, Mindanao:195, Island:205 },
-            { max:3,   Luzon:180, Manila:190, Visayas:200, Mindanao:220, Island:230 },
-            { max:4,   Luzon:270, Manila:280, Visayas:300, Mindanao:330, Island:340 },
-            { max:5,   Luzon:360, Manila:370, Visayas:400, Mindanao:440, Island:450 },
-            { max:6,   Luzon:455, Manila:465, Visayas:500, Mindanao:550, Island:560 }
-        ],
-        'Manila': [
-            { max:0.5, Manila:85, Luzon:95, Visayas:100, Mindanao:105, Island:115 },
-            { max:1, Manila:115, Luzon:165, Visayas:180, Mindanao:195, Island:205 },
-            { max:3, Manila:155, Luzon:190, Visayas:200, Mindanao:220, Island:230 },
-            { max:4, Manila:225, Luzon:280, Visayas:300, Mindanao:330, Island:340 },
-            { max:5, Manila:305, Luzon:370, Visayas:400, Mindanao:440, Island:450 },
-            { max:6, Manila:455, Luzon:465, Visayas:500, Mindanao:550, Island:560 }
-        ],
-        'Visayas': [
-            { max:0.5, Manila:85, Luzon:100, Visayas:85, Mindanao:105, Island:115 },
-            { max:1, Manila:155, Luzon:180, Visayas:155, Mindanao:175, Island:185 },
-            { max:3, Manila:180, Luzon:200, Visayas:180, Mindanao:200, Island:210 },
-            { max:4, Manila:270, Luzon:300, Visayas:270, Mindanao:290, Island:300 },
-            { max:5, Manila:360, Luzon:400, Visayas:360, Mindanao:380, Island:390 },
-            { max:6, Manila:455, Luzon:500, Visayas:455, Mindanao:475, Island:485 }
-        ],
-        'Mindanao': [
-            { max:0.5, Mindanao:85, Manila:105, Luzon:105, Visayas:105, Island:115 },
-            { max:1,   Mindanao:155, Manila:195, Luzon:195, Visayas:175, Island:205 },
-            { max:3,   Mindanao:180, Manila:215, Luzon:215, Visayas:195, Island:230 },
-            { max:4,   Mindanao:270, Manila:325, Luzon:325, Visayas:285, Island:340 },
-            { max:5,   Mindanao:360, Manila:435, Luzon:435, Visayas:375, Island:450 },
-            { max:6,   Mindanao:455, Manila:545, Luzon:545, Visayas:470, Island:560 }
-        ],
-        'Island': [
-            { max:0.5, Manila:115, Luzon:115, Visayas:115, Mindanao:115, Island:115 },
-            { max:1, Manila:205, Luzon:205, Visayas:205, Mindanao:185, Island:205 },
-            { max:3, Manila:230, Luzon:230, Visayas:230, Mindanao:210, Island:230 },
-            { max:4, Manila:340, Luzon:340, Visayas:340, Mindanao:300, Island:340 },
-            { max:5, Manila:450, Luzon:450, Visayas:450, Mindanao:390, Island:450 },
-            { max:6, Manila:560, Luzon:560, Visayas:560, Mindanao:485, Island:560 }
-        ]
-    };
+    function getShippingRegionFromAddress(){
+        try{
+            var addr = getBestCheckoutAddressObject();
+            var regionName = '';
+            if(addr && addr.region){ regionName = addr.region.name || addr.region; }
+            if(!regionName && addr && addr.regionName) regionName = addr.regionName;
+            if(!regionName && addr && addr.line2) regionName = addr.line2;
+            if(!regionName){ try{ regionName = localStorage.getItem('checkoutAddressDetails') || ''; }catch(e){} }
+            // Extract explicit region token from address details
+            try{
+                var match = String(regionName||'').match(/region\s*([ivx]+|\d+|\d+[ab]?)/i);
+                if(match && match[0]) regionName = match[0];
+            }catch(e){}
+            var isIsland = false;
+            if(addr && (addr.isIsland || addr.isRemote)) isIsland = true;
+            if(!isIsland){ try{ isIsland = localStorage.getItem('checkoutIsland') === '1'; }catch(e){} }
+            return { group: normalizeRegionGroup(regionName, isIsland), regionName: regionName, isIsland: isIsland };
+        }catch(e){ return { group:'', regionName:'', isIsland:false }; }
+    }
 
-    
+    function computeJNTShipping(){
+        try{
+            var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+            var pairs = (window.getCartTotalPairs ? window.getCartTotalPairs(cart) : (function(){ var t=0; cart.forEach(function(it){ var q=(typeof it.qty==='number')?it.qty:((typeof it.quantity==='number')?it.quantity:1); t+=Number(q)||0; }); return t; })());
+            var regionInfo = getShippingRegionFromAddress();
+            if(!regionInfo.group){
+                return { amount: 0, available: false, label: 'Delivery not available.' };
+            }
+            var base = Number(SHIPPING_BASE_RATES[regionInfo.group] || 0);
+            if(!base || pairs <= 0){
+                return { amount: 0, available: false, label: 'Delivery not available.' };
+            }
+            return { amount: base * pairs, available: true, label: 'J&T Express', base: base, pairs: pairs, regionGroup: regionInfo.group };
+        }catch(e){ return { amount:0, available:false, label:'Delivery not available.' }; }
+    }
+
+    function computeJRSShipping(){
+        try{
+            var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+            var items = (window.getCartTotalPairs ? window.getCartTotalPairs(cart) : (function(){ var t=0; cart.forEach(function(it){ var q=(typeof it.qty==='number')?it.qty:((typeof it.quantity==='number')?it.quantity:1); t+=Number(q)||0; }); return t; })());
+            var regionInfo = getShippingRegionFromAddress();
+            if(!regionInfo.group){
+                return { amount: 0, available: false, label: 'Delivery not available.' };
+            }
+            var base = Number(JRS_BASE_RATES[regionInfo.group] || 0);
+            if(!base || items <= 0){
+                return { amount: 0, available: false, label: 'Delivery not available.' };
+            }
+            return { amount: base * items, available: true, label: 'JRS', base: base, items: items, regionGroup: regionInfo.group };
+        }catch(e){ return { amount:0, available:false, label:'Delivery not available.' }; }
+    }
 
     function updateCheckoutShippingDisplay(){
         try{
             var code = localStorage.getItem('checkoutDeliveryCode') || '';
-            if(code === 'jnt'){
-                var price = computeJNTShipping() || 0;
-                localStorage.setItem('checkoutShipping', String(price));
-                localStorage.setItem('checkoutShippingLabel', 'J&T Express');
+            if(code === 'jnt' || code === 'jrs'){
+                var res = (code === 'jrs') ? computeJRSShipping() : computeJNTShipping();
+                if(res && res.available){
+                    localStorage.setItem('checkoutShipping', String(res.amount || 0));
+                    localStorage.setItem('checkoutShippingLabel', res.label || (code === 'jrs' ? 'JRS' : 'J&T Express'));
+                    localStorage.setItem('checkoutShippingAvailable', '1');
+                } else {
+                    localStorage.setItem('checkoutShipping', '0');
+                    localStorage.setItem('checkoutShippingLabel', 'Delivery not available.');
+                    localStorage.setItem('checkoutShippingAvailable', '0');
+                }
             } else {
                 localStorage.removeItem('checkoutShipping');
                 localStorage.removeItem('checkoutShippingLabel');
-                // remove any packaging details when J&T is not selected
-                localStorage.removeItem('checkoutPackaging');
-                localStorage.removeItem('checkoutPackagingDetails');
+                localStorage.removeItem('checkoutShippingAvailable');
             }
         }catch(e){ console.error('updateCheckoutShippingDisplay error', e); }
         // Update DOM (if present)
         try{
             var sh = Number(localStorage.getItem('checkoutShipping') || 0);
             var lbl = localStorage.getItem('checkoutShippingLabel') || 'Shipping';
+            var available = localStorage.getItem('checkoutShippingAvailable') !== '0';
             var elVal = document.getElementById('checkoutShippingValue');
             var elLbl = document.getElementById('checkoutShippingLabel');
-            if(elVal) elVal.textContent = '₱' + sh.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
             if(elLbl) elLbl.textContent = lbl;
+            if(elVal) elVal.textContent = available ? ('₱' + sh.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})) : '—';
             // also update total display
             var subtotalText = document.getElementById('checkoutSubtotal') ? document.getElementById('checkoutSubtotal').textContent : null;
-            if(subtotalText && elVal){
+            if(subtotalText){
                 var v = Number((subtotalText || '').replace(/[^0-9.]/g, '')) || 0;
                 var totalEl = document.getElementById('checkoutTotal');
-                if(totalEl) totalEl.textContent = '₱' + (v + sh).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+                if(totalEl) totalEl.textContent = '₱' + (v + (available ? sh : 0)).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
             }
         }catch(e){ /* ignore */ }
     }
@@ -1229,6 +1251,7 @@
                 var code = (this.value || '').trim();
                 resetChildren();
                 loadProvincesOrCities(code);
+                try{ localStorage.setItem('checkoutAddressSource', 'editor'); }catch(e){}
                 updateCheckoutShippingDisplay();
             });
             provinceSel && provinceSel.addEventListener('change', function(){
@@ -1238,6 +1261,7 @@
                 setSelectDisabled(citySel, true);
                 setSelectDisabled(brgySel, true);
                 loadCitiesByProvince(code);
+                try{ localStorage.setItem('checkoutAddressSource', 'editor'); }catch(e){}
                 updateCheckoutShippingDisplay();
             });
             citySel && citySel.addEventListener('change', function(){
@@ -1245,9 +1269,10 @@
                 fillSelect(brgySel, [], 'Select barangay');
                 setSelectDisabled(brgySel, true);
                 loadBarangays(code);
+                try{ localStorage.setItem('checkoutAddressSource', 'editor'); }catch(e){}
                 updateCheckoutShippingDisplay();
             });
-            brgySel && brgySel.addEventListener('change', function(){ updateCheckoutShippingDisplay(); });
+            brgySel && brgySel.addEventListener('change', function(){ try{ localStorage.setItem('checkoutAddressSource', 'editor'); }catch(e){} updateCheckoutShippingDisplay(); });
 
             window.checkoutAddressEditorApi = {
                 loadAddress: function(obj){
@@ -1337,83 +1362,15 @@
         try{ current = getCheckoutAddressObject(); }catch(e){ current = null; }
         var stored = null;
         try{ stored = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null'); }catch(e){ stored = null; }
+        var source = '';
+        try{ source = localStorage.getItem('checkoutAddressSource') || ''; }catch(e){ source = ''; }
+        if(source === 'book' && isDeliveryAddressComplete(stored)) return stored;
         if(isDeliveryAddressComplete(current)) return current;
         if(isDeliveryAddressComplete(stored)) return stored;
         return current || stored;
     }
 
-    // enhance computeJNTShipping to prefer explicit checkout overrides
-    function computeJNTShipping(){
-        try{
-            var cart = JSON.parse(localStorage.getItem('cart') || '[]');
-            var totalQty = 0;
-            cart.forEach(function(it){ totalQty += (it.qty || it.quantity || 1); });
-            // Helper: estimate box dimensions (cm) per shoe size
-            function estimateBoxForSize(size){
-                // attempt to extract numeric portion
-                var s = (''+ (size || '')).toString();
-                var num = parseFloat((s.match(/\d+(?:\.\d+)?/)||['0'])[0]);
-                if(isNaN(num)) num = 40;
-                // mapping (approximate, one box per shoe/pair)
-                if(num <= 37) return {l:30, w:24, h:15};
-                if(num <= 40) return {l:36, w:27, h:18};
-                if(num <= 43) return {l:46, w:30, h:23};
-                return {l:60, w:36, h:32};
-            }
-            // physical weight estimate per pair (kg)
-            var PHYSICAL_WEIGHT_PER_PAIR_KG = 1;
-            var totalPhysicalWeightKg = 0;
-            var totalDimWeightKg = 0;
-            var totalBoxes = 0;
-            var boxCounts = {}; // key: dimension key, value: count
-            cart.forEach(function(it){
-                var qty = Number(it.qty || it.quantity || 1) || 0;
-                totalBoxes += qty;
-                totalPhysicalWeightKg += qty * PHYSICAL_WEIGHT_PER_PAIR_KG;
-                var dims = estimateBoxForSize(it.size);
-                var vol = (dims.l || 0) * (dims.w || 0) * (dims.h || 0); // cubic cm
-                var dimW = (vol / 5000); // dimensional weight kg using divisor 5000
-                totalDimWeightKg += dimW * qty;
-                var key = dims.l + 'x' + dims.w + 'x' + dims.h;
-                boxCounts[key] = (boxCounts[key] || 0) + qty;
-            });
-            var weightKg = Math.max(totalPhysicalWeightKg, totalDimWeightKg);
-            var profile = JSON.parse(localStorage.getItem('profile') || '{}');
-            var overrideAddr = localStorage.getItem('checkoutAddressMain');
-            var destRegion = '';
-            try{
-                var addrObj = JSON.parse(localStorage.getItem('checkoutAddressObject') || 'null');
-                if(addrObj && addrObj.region){
-                    if(addrObj.region.name) destRegion = psgcRegionToShippingRegion(addrObj.region.name);
-                    else destRegion = psgcRegionToShippingRegion(addrObj.region);
-                }
-            }catch(e){}
-            if(!destRegion){ destRegion = (overrideAddr ? determineRegion(overrideAddr, '') : determineRegion(profile.addressMain, profile.addressDetails)); }
-            // shipping should be calculated from Luzon origin (change requested)
-            var originRegion = 'Luzon';
-            function computeRate(originRegion, destRegion, weightKg){
-                var table = JNTRates[originRegion] || JNTRates['Luzon'];
-                var w = Number(weightKg) || 0;
-                for(var i=0;i<table.length;i++){
-                    if(w <= table[i].max) return Number(table[i][destRegion] || table[i]['Luzon'] || 0);
-                }
-                var last = table[table.length-1];
-                return Number(last[destRegion] || last['Luzon'] || 0);
-            }
-            // compute packaging fee: ₱50 per 2 boxes (every two boxes)
-            var packagingFee = Math.floor((totalBoxes || 0) / 2) * 50;
-
-            // persist packaging details so payment page & orders can show it
-            try{
-                var packagingDetails = { boxes: totalBoxes, packagingFee: packagingFee, boxCounts: boxCounts };
-                localStorage.setItem('checkoutPackaging', String(packagingFee));
-                localStorage.setItem('checkoutPackagingDetails', JSON.stringify(packagingDetails));
-            }catch(e){ }
-
-            var base = computeRate(originRegion, destRegion, weightKg);
-            return Number(base || 0) + Number(packagingFee || 0);
-        }catch(e){ console.error('computeJNTShipping error', e); return 0; }
-    }
+    // Note: computeJNTShipping is defined above with the region-based J&T 500g–1kg bracket.
     
     // Helper: get active profile
     function getActiveProfile(){
@@ -1534,6 +1491,7 @@
         try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(entry)); }catch(e){}
         localStorage.setItem('checkoutAddressMain', entry.line1 || entry.street || '');
         localStorage.setItem('checkoutAddressDetails', entry.line2 || '');
+        try{ localStorage.setItem('checkoutAddressSource', 'book'); }catch(e){}
         addressBookSelectedId = entry.id || null;
         initCheckoutProfileDisplay();
         try{ updateCheckoutShippingDisplay(); }catch(e){}
@@ -1670,6 +1628,7 @@
         try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(obj)); }catch(e){}
         localStorage.setItem('checkoutAddressMain', obj.line1 || '');
         localStorage.setItem('checkoutAddressDetails', obj.line2 || '');
+        try{ localStorage.setItem('checkoutAddressSource', 'editor'); }catch(e){}
 
         var data = ensureProfileAddresses();
         var profile = data.profile || {};
@@ -1865,6 +1824,7 @@
         }
         var cartList = document.getElementById('checkoutCartList');
         var subtotal = 0;
+        var totalPairs = 0;
         cartList.innerHTML = '';
         if(!Array.isArray(cart) || cart.length === 0){
             cartList.innerHTML = '<div style="color:#666;padding:12px 4px;">Your cart is empty.</div>';
@@ -1874,6 +1834,7 @@
             var priceNum = (typeof item.price === 'number') ? item.price : Number(String(item.price || '').replace(/[^0-9.]/g,'')) || 0;
             var itemTotal = (priceNum * qty);
             subtotal += itemTotal;
+            totalPairs += Number(qty) || 0;
             var div = document.createElement('div');
             div.className = 'checkout-cart-item';
             div.innerHTML = `
@@ -1892,13 +1853,19 @@
         document.getElementById('checkoutSubtotal').textContent = '₱' + subtotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
         // ensure shipping reflects current delivery selection
         try{ updateCheckoutShippingDisplay(); }catch(e){}
+        try{
+            var limitEl = document.getElementById('orderLimitMsg');
+            var maxPairs = (window.MAX_PAIRS_PER_ORDER || 3);
+            if(limitEl) limitEl.style.display = (totalPairs > maxPairs) ? 'block' : 'none';
+        }catch(e){}
     var stored = localStorage.getItem('checkoutShipping');
     // default to 0 when no shipping has been selected; only J&T selection will set a non-zero value
     var shipping = (stored !== null) ? Number(stored) : 0;
         var label = localStorage.getItem('checkoutShippingLabel') || 'Shipping';
         var shipValEl = document.getElementById('checkoutShippingValue');
         var shipLblEl = document.getElementById('checkoutShippingLabel');
-        if(shipValEl) shipValEl.textContent = '₱' + shipping.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        var available = localStorage.getItem('checkoutShippingAvailable') !== '0';
+        if(shipValEl) shipValEl.textContent = available ? ('₱' + shipping.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})) : '—';
         if(shipLblEl) shipLblEl.textContent = label;
         // Packaging fee is already included in the J&T shipping value — do not show/add it separately in cart
         try{
@@ -1909,7 +1876,7 @@
                 if(row) row.style.display = 'none';
             }
         }catch(e){}
-        document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + (available ? shipping : 0)).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
     window.addEventListener('DOMContentLoaded', function(){
         // Guard: prevent entering checkout with an empty cart (e.g., via back button)
@@ -1949,6 +1916,9 @@
                 localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartSnap));
             }
         }catch(e){}
+        try{
+            window.addEventListener('cart:updated', function(){ try{ renderCheckoutCart(); }catch(e){} try{ updateCheckoutShippingDisplay(); }catch(e){} });
+        }catch(e){}
     });
 
     // Proceed from checkout to payment: persist the chosen delivery/payment and the customer name shown on the page
@@ -1959,6 +1929,14 @@
                 alert('Your cart is empty.');
                 var shopUrl0 = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e){ return 'product-list.html'; } })();
                 window.location.replace(shopUrl0);
+                return;
+            }
+            var totalPairs = (window.getCartTotalPairs ? window.getCartTotalPairs(cartNow) : (function(){ var t=0; cartNow.forEach(function(it){ var q=(typeof it.qty==='number')?it.qty:((typeof it.quantity==='number')?it.quantity:1); t+=Number(q)||0; }); return t; })());
+            var maxPairs = (window.MAX_PAIRS_PER_ORDER || 3);
+            if(totalPairs > maxPairs){
+                var limitEl = document.getElementById('orderLimitMsg');
+                if(limitEl) limitEl.style.display = 'block';
+                alert('Maximum of 3 pairs of shoes per order.');
                 return;
             }
             localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartNow));
@@ -2000,6 +1978,12 @@
 
         // ensure shipping is calculated and stored (shared helper)
         try{ updateCheckoutShippingDisplay(); }catch(e){ console.error('Shipping calc error', e); }
+        try{
+            if(localStorage.getItem('checkoutShippingAvailable') === '0'){
+                alert('Delivery not available.');
+                return;
+            }
+        }catch(e){}
         try{
             // payment label
             var paymentEl = document.querySelector('.checkout-payment-option.selected .checkout-payment-label') || document.querySelector('.checkout-payment-label');
@@ -2195,9 +2179,7 @@
                                     price: Number(it.price || 0),
                                     qty: Number(it.qty || it.quantity || 1),
                                     image_url: it.image_url || it.image || '',
-                                    size: it.size || '',
-                                    inventoryId: it.inventoryId || it.inventory_id || '',
-                                    variantId: it.variantId || it.variant_id || ''
+                                    size: it.size || ''
                                 };
                             });
 
@@ -2214,9 +2196,7 @@
                                         price: Number(it.price || 0),
                                         qty: Number(it.qty || it.quantity || 1),
                                         image_url: it.image_url || it.image || '',
-                                        size: it.size || '',
-                                        inventoryId: it.inventoryId || it.inventory_id || '',
-                                        variantId: it.variantId || it.variant_id || ''
+                                        size: it.size || ''
                                     });
                                 });
                                 return batch.commit();
@@ -2241,9 +2221,7 @@
                                                 price: Number(it.price || 0),
                                                 qty: Number(it.qty || it.quantity || 1),
                                                 image_url: it.image_url || it.image || '',
-                                                size: it.size || '',
-                                                inventoryId: it.inventoryId || it.inventory_id || '',
-                                                variantId: it.variantId || it.variant_id || ''
+                                                size: it.size || ''
                                             });
                                         });
                                         return batch.commit();
@@ -2298,6 +2276,7 @@
         }
         function saveCartToLocalStorage() {
             localStorage.setItem('cart', JSON.stringify(cart));
+            try{ window.dispatchEvent(new CustomEvent('cart:updated', { detail: { cart: Array.isArray(cart) ? cart : [] } })); }catch(e){}
         }
         const cartOverlay = document.getElementById('cartOverlay');
         const cartSidebar = document.getElementById('cartSidebar');
@@ -2416,8 +2395,12 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        if (cart[idx].quantity > 1) {
-                            cart[idx].quantity--;
+                        if (window.tryDecrementCartItem) {
+                            window.tryDecrementCartItem(cart, idx);
+                        } else {
+                            if (cart[idx].quantity > 1) {
+                                cart[idx].quantity--;
+                            }
                         }
                         renderCart();
                         saveCartToLocalStorage();
@@ -2428,7 +2411,16 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        cart[idx].quantity++;
+                        if (window.tryIncrementCartItem) {
+                            var incRes = window.tryIncrementCartItem(cart, idx);
+                            if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                else alert('Maximum of 3 pairs of shoes per order.');
+                                return;
+                            }
+                        } else {
+                            cart[idx].quantity++;
+                        }
                         renderCart();
                         saveCartToLocalStorage();
                     }

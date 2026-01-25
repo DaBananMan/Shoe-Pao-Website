@@ -62,7 +62,11 @@
                 <a class="nav-item" href="accounts.html">Accounts</a>
             </div>
         </div>
-        <!-- profile removed for admin UI -->
+        <div class="nav-right">
+            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
+                <img src="IMAGE/USERICON.png" alt="User">
+            </button>
+        </div>
     </header>
 
     <main class="dashboard-container">
@@ -78,95 +82,22 @@
         <section class="cards-row" role="list">
             <div class="card" role="listitem">
                 <div class="label">Total Revenue</div>
-                <div id="totalRevenueValue" class="value">PHP 0.00</div>
+                <div class="value">PHP 64,000.00</div>
             </div>
             <div class="card" role="listitem">
-                <div class="label">Items Sold</div>
-                <div id="salesValue" class="value">0</div>
+                <div class="label">Sales</div>
+                <div class="value">100</div>
             </div>
             <div class="card" role="listitem">
                 <div class="label">Products in Stock</div>
-                <div id="productsInStockValue" class="value">0</div>
+                <div class="value">25</div>
             </div>
             <div class="card" role="listitem">
                 <div class="label">Pending Orders</div>
-                <div id="pendingOrdersValue" class="value">0</div>
+                <div class="value">23</div>
             </div>
         </section>
     </main>
 
 </body>
-    <script>
-    (function(){
-        // Candidate paths for data files
-        var base = (window.location.pathname || '/').replace(/\/[^/]*$/, '/');
-        var origin = window.location.origin || '';
-        var candidates = [
-            'data/orders.json', './data/orders.json', base + 'data/orders.json', origin + base + 'data/orders.json', '/data/orders.json'
-        ];
-        var invCandidates = [
-            'data/inventory.json','./data/inventory.json', base + 'data/inventory.json', origin + base + 'data/inventory.json','/data/inventory.json'
-        ];
-
-        function fetchWithTimeout(url, timeout){
-            var ctrl = new AbortController();
-            var id = setTimeout(function(){ ctrl.abort(); }, timeout||3000);
-            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; });
-        }
-
-        async function probe(cands){
-            for(var i=0;i<cands.length;i++){
-                try{
-                    var r = await fetchWithTimeout(cands[i], 2500);
-                    if(r && r.ok){ try{ var j = await r.json(); return { url:cands[i], json:j }; }catch(e){ continue; } }
-                }catch(e){}
-            }
-            return null;
-        }
-
-        function formatPHP(n){ try{ return new Intl.NumberFormat('en-PH',{ style:'currency', currency:'PHP' }).format(Number(n)||0); }catch(e){ return 'PHP ' + (Number(n)||0).toFixed(2); } }
-
-        async function updateKpis(){
-            try{
-                var ordersRes = await probe(candidates);
-                var invRes = await probe(invCandidates);
-
-                var orders = ordersRes && Array.isArray(ordersRes.json) ? ordersRes.json : [];
-                var inv = invRes && Array.isArray(invRes.json) ? invRes.json : [];
-
-                // Total revenue: sum order.total (fallback to subtotal+shipping or items)
-                var revenue = 0;
-                var itemsSold = 0;
-                orders.forEach(function(o){
-                    var t = Number(o.total || o.subtotal || 0) || 0;
-                    if(!t){ // fallback compute from items
-                        var items = Array.isArray(o.items)?o.items:[];
-                        items.forEach(function(it){ var qty = Number(it.qty||it.quantity||1)||1; var price = Number(it.price||0)||0; t += qty*price; });
-                    }
-                    revenue += t;
-                    (Array.isArray(o.items)?o.items:[]).forEach(function(it){ itemsSold += Number(it.qty||it.quantity||1)||1; });
-                });
-
-                // Products in stock: sum all sizes quantities in inventory.json
-                var totalStock = 0;
-                inv.forEach(function(p){
-                    var sizes = p.sizes || {};
-                    Object.keys(sizes).forEach(function(k){ totalStock += Number(sizes[k]||0)||0; });
-                });
-
-                // Pending orders
-                var pending = orders.filter(function(o){ var s = (o.status||'').toString().toLowerCase(); return s === 'pending' || s === 'awaiting' || s === 'processing'; }).length;
-
-                // Write to DOM if elements present
-                var revEl = document.getElementById('totalRevenueValue'); if(revEl) revEl.textContent = formatPHP(revenue);
-                var soldEl = document.getElementById('salesValue'); if(soldEl) soldEl.textContent = String(itemsSold);
-                var stockEl = document.getElementById('productsInStockValue'); if(stockEl) stockEl.textContent = String(totalStock);
-                var pendEl = document.getElementById('pendingOrdersValue'); if(pendEl) pendEl.textContent = String(pending);
-            }catch(e){ console.error('updateKpis failed', e); }
-        }
-
-        document.addEventListener('DOMContentLoaded', function(){ updateKpis(); setInterval(updateKpis, 5000); });
-        window.updateDashboardKpis = updateKpis;
-    })();
-    </script>
 </html>

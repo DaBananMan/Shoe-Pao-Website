@@ -592,130 +592,6 @@
         </div>
     </nav>
     <script>
-    function formatHomePrice(amount) {
-        var num = Number(amount || 0);
-        if (!isFinite(num)) num = 0;
-        try {
-            return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(num);
-        } catch (e) {
-            return '₱' + num.toFixed(2);
-        }
-    }
-    function hasTag(item, tag) {
-        var list = Array.isArray(item && item.tags) ? item.tags : [];
-        var target = String(tag || '').toLowerCase();
-        return list.some(function(t){ return String(t || '').toLowerCase() === target; });
-    }
-    function renderSaleItems(rows) {
-        var container = document.getElementById('saleRow');
-        if (!container) return;
-        container.innerHTML = '';
-        var saleItems = (rows || []).filter(function(r){ return hasTag(r, 'Sale'); });
-        if (!saleItems.length) return;
-        saleItems.slice(0, 6).forEach(function(item){
-            var card = document.createElement('div');
-            card.className = 'shoe-card';
-            card.style.cursor = 'pointer';
-            card.onclick = function(){
-                viewProduct(item.brand || '', item.name || '', formatHomePrice(item.price || 0), item.image || 'IMAGE/NIKE1.png', 'Sale');
-            };
-            var imgBox = document.createElement('div');
-            imgBox.className = 'shoe-img-box';
-            var img = document.createElement('img');
-            img.className = 'shoe-img';
-            img.src = item.image || 'IMAGE/NIKE1.png';
-            img.alt = item.name || 'Sale Item';
-            var badge = document.createElement('span');
-            badge.className = 'badge-sale';
-            badge.textContent = 'Sale';
-            imgBox.appendChild(img);
-            imgBox.appendChild(badge);
-            var infoBox = document.createElement('div');
-            infoBox.className = 'shoe-info-box';
-            var infoTop = document.createElement('div');
-            infoTop.className = 'shoe-info-top';
-            var brand = document.createElement('span');
-            brand.className = 'shoe-brand';
-            brand.textContent = item.brand || '';
-            var priceWrap = document.createElement('span');
-            var priceOld = document.createElement('span');
-            priceOld.className = 'shoe-price-old';
-            priceOld.textContent = formatHomePrice(item.originalPrice || item.price || 0);
-            var price = document.createElement('span');
-            price.className = 'shoe-price';
-            price.textContent = formatHomePrice(item.price || 0);
-            if (item.originalPrice && Number(item.originalPrice) > Number(item.price || 0)) {
-                priceWrap.appendChild(priceOld);
-            }
-            priceWrap.appendChild(price);
-            infoTop.appendChild(brand);
-            infoTop.appendChild(priceWrap);
-            var infoBottom = document.createElement('div');
-            infoBottom.className = 'shoe-info-bottom';
-            infoBottom.textContent = item.name || '';
-            infoBox.appendChild(infoTop);
-            infoBox.appendChild(infoBottom);
-            card.appendChild(imgBox);
-            card.appendChild(infoBox);
-            container.appendChild(card);
-        });
-    }
-    function renderNewArrivals(rows) {
-        var container = document.getElementById('arrivalRow');
-        if (!container) return;
-        container.innerHTML = '';
-        var newItems = (rows || []).filter(function(r){ return hasTag(r, 'New'); });
-        if (!newItems.length) return;
-        newItems.slice(0, 9).forEach(function(item){
-            var card = document.createElement('div');
-            card.className = 'shoe-card';
-            card.setAttribute('data-brand', item.brand || '');
-            card.style.cursor = 'pointer';
-            card.onclick = function(){
-                viewProduct(item.brand || '', item.name || '', formatHomePrice(item.price || 0), item.image || 'IMAGE/NIKE1.png', 'New');
-            };
-            var imgBox = document.createElement('div');
-            imgBox.className = 'shoe-img-box';
-            var img = document.createElement('img');
-            img.className = 'shoe-img';
-            img.src = item.image || 'IMAGE/NIKE1.png';
-            img.alt = item.name || 'New Item';
-            var badge = document.createElement('span');
-            badge.className = 'badge-new';
-            badge.textContent = 'New';
-            imgBox.appendChild(img);
-            imgBox.appendChild(badge);
-            var infoBox = document.createElement('div');
-            infoBox.className = 'shoe-info-box';
-            var infoTop = document.createElement('div');
-            infoTop.className = 'shoe-info-top';
-            var brand = document.createElement('span');
-            brand.className = 'shoe-brand';
-            brand.textContent = item.brand || '';
-            var price = document.createElement('span');
-            price.className = 'shoe-price';
-            price.textContent = formatHomePrice(item.price || 0);
-            infoTop.appendChild(brand);
-            infoTop.appendChild(price);
-            var infoBottom = document.createElement('div');
-            infoBottom.className = 'shoe-info-bottom';
-            infoBottom.textContent = item.name || '';
-            infoBox.appendChild(infoTop);
-            infoBox.appendChild(infoBottom);
-            card.appendChild(imgBox);
-            card.appendChild(infoBox);
-            container.appendChild(card);
-        });
-    }
-    function renderHomeTaggedSections(){
-        if (!window.getInventoryRows) return;
-        window.getInventoryRows(function(err, rows){
-            if (err) return;
-            renderSaleItems(rows || []);
-            renderNewArrivals(rows || []);
-            initBrandFilters();
-        });
-    }
     // Keep stored profile so auth persists across pages.
 
     // Header nav helpers (home)
@@ -801,120 +677,130 @@
     </script>
     <script src="js/firebase-config.js"></script>
     <script>
-        // ===== Load inventory rows from Firestore products/variants (same as product-list.html) =====
-        var inventoryRows = [];
-        var inventoryLoaded = false;
-        var inventoryLoading = false;
+    (function(){
+        var rowsCache = [];
+        var loaded = false;
+        var loading = false;
+        window.__inventoryRowsCache = rowsCache;
 
         function ensureFirebaseReady(cb){
             try{
-                var loadFirebaseConfig = function(next){
-                    if(window.FIREBASE_CONFIG){ next(); return; }
-                    var cfg = document.createElement('script');
-                    cfg.src = 'js/firebase-config.js';
-                    cfg.onload = next;
-                    cfg.onerror = function(){ if(cb) cb(new Error('firebase config load failed')); };
-                    document.head.appendChild(cfg);
-                };
-                loadFirebaseConfig(function(){
-                    if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('no firebase config')); return; }
-                    var ready = function(){ try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }catch(e){ if(cb) cb(e); } };
-                    if(window.firebase && firebase.firestore){ ready(); return; }
-                    var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
-                    var scripts = [base + 'firebase-app-compat.js', base + 'firebase-firestore-compat.js'];
-                    var i = 0;
-                    function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
-                    loadNext();
-                });
+                if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('no firebase config')); return; }
+                var ready = function(){ try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }catch(e){ if(cb) cb(e); } };
+                if(window.firebase && firebase.firestore){ ready(); return; }
+                var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+                var scripts = [base + 'firebase-app-compat.js', base + 'firebase-firestore-compat.js'];
+                var i = 0;
+                function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+                loadNext();
             }catch(e){ if(cb) cb(e); }
         }
 
-        function buildInventoryRows(products, variants){
+        function normalizeProduct(p){
+            var out = Object.assign({}, p || {});
+            out.category = out.category || out.categoryName || out.cat || '';
+            out.status = out.status || out.state || out.availability || '';
+            var tags = Array.isArray(out.tagsManual) ? out.tagsManual : (Array.isArray(out.tags) ? out.tags : (out.tagsList || out.tags_list || []));
+            out.tagsManual = Array.isArray(tags) ? tags : [];
+            var pricing = out.pricing || {};
+            var pickNum = function(arr){ for(var i=0;i<arr.length;i++){ var v = arr[i]; if(v === undefined || v === null) continue; var n = Number(v); if(isFinite(n)) return n; } return 0; };
+            out.pricing = {
+                original: pickNum([pricing.original, pricing.orig, out.originalPrice, out.original_price, out.priceOriginal, out.price_original, out.price]),
+                sale: pickNum([pricing.sale, pricing.salePrice, pricing.sale_price, out.salePrice, out.sale_price, out.price_sale, out.price]) || pickNum([pricing.original, out.originalPrice, out.priceOriginal, out.price_original, out.price]),
+                cost: pickNum([pricing.cost, out.cost, out.priceCost, out.price_cost])
+            };
+            out.images = Array.isArray(out.images) ? out.images : (out.image ? [out.image] : []);
+            out.model = out.model || out.name || out.title || '';
+            return out;
+        }
+
+        function buildVariantsMap(variantDocs){
             var map = {};
-            (variants || []).forEach(function(v){
-                var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || null;
+            (variantDocs || []).forEach(function(v){
+                var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || (v.product && typeof v.product === 'string' ? (v.product.split('/').pop()) : null) || (v.productPath && typeof v.productPath === 'string' ? v.productPath.split('/').pop() : null) || null;
                 if(!pid) return;
                 map[pid] = map[pid] || [];
-                var images = Array.isArray(v.images) ? v.images : (v.image ? [v.image] : []);
-                map[pid].push({
+                var color = {
                     id: v.id || ('color-' + Math.random().toString(36).slice(2,9)),
                     name: v.colorName || v.name || v.color || 'Color',
-                    images: images,
-                    image: (images && images.length) ? images[0] : (v.image || ''),
-                    sizes: Array.isArray(v.sizes) ? v.sizes : []
-                });
+                    code: v.colorCode || v.code || '#ffffff',
+                    sizes: []
+                };
+                if(Array.isArray(v.sizes)){
+                    color.sizes = v.sizes.map(function(s){ return { eu: s.eu, stock: Number(s.stock||0)||0, sku: s.sku||'' }; });
+                } else if (v.sizeMap && typeof v.sizeMap === 'object') {
+                    color.sizes = Object.keys(v.sizeMap).map(function(k){ return { eu: k, stock: Number(v.sizeMap[k]||0)||0, sku: '' }; });
+                } else if (v.sizesMap && typeof v.sizesMap === 'object') {
+                    color.sizes = Object.keys(v.sizesMap).map(function(k){ return { eu: k, stock: Number(v.sizesMap[k]||0)||0, sku: '' }; });
+                }
+                map[pid].push(color);
             });
+            return map;
+        }
+
+        function buildInventoryRows(products, variantsMap){
             var out = [];
             (products || []).forEach(function(p){
                 var pid = p.id || p.productId || p.sku || '';
-                var variantColors = map[pid] || [];
-                var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors.map(function(c){
-                    var match = variantColors.find(function(v){
-                        return (v.id && c.id && String(v.id) === String(c.id)) || (v.name && c.name && String(v.name).toLowerCase() === String(c.name).toLowerCase());
-                    });
-                    if(match){
-                        if(!Array.isArray(c.images) || !c.images.length) c.images = match.images || [];
-                        if(!c.image) c.image = match.image || '';
-                    }
-                    return c;
-                }) : variantColors;
-                var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : (p.image || '');
-                (colorsArr || []).forEach(function(c){
-                    var colorImages = Array.isArray(c.images) ? c.images.filter(Boolean) : [];
-                    var colorImg = colorImages.length ? colorImages[0] : (c.image || baseImg);
+                var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors : (variantsMap && pid && variantsMap[pid] ? variantsMap[pid] : []);
+                if(!Array.isArray(colorsArr)) colorsArr = [];
+                var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : '';
+                colorsArr.forEach(function(c){
                     var sizesMap = {};
                     (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
                     out.push({
                         id: (p.sku || p.id || '') + ':' + (c.id || c.name || ''),
-                        name: (p.model || p.name || '') + (c.name ? (' ' + c.name) : ''),
+                        name: (p.model || '') + (c.name ? (' ' + c.name) : ''),
                         brand: p.brand || '',
                         color: c.name || '',
-                        image: colorImg || baseImg || 'IMAGE/NIKE1.png',
-                        images: colorImages,
+                        image: baseImg || 'IMAGE/NIKE1.png',
                         sizes: sizesMap,
-                        price: Number((p.pricing && (p.pricing.sale||p.pricing.original)) || p.price || 0),
-                        originalPrice: Number((p.pricing && p.pricing.original) || p.originalPrice || 0),
+                        price: Number((p.pricing && (p.pricing.sale || p.pricing.original)) || 0),
+                        originalPrice: Number((p.pricing && p.pricing.original) || 0),
                         productId: p.id || '',
                         colorId: c.id || '',
                         createdAt: p.createdAt || null,
                         gender: p.gender || '',
                         tags: Array.isArray(p.tagsManual) ? p.tagsManual : [],
-                        status: p.status || 'active'
+                        criticalLevel: (p.criticalLevel !== undefined && p.criticalLevel !== null) ? Number(p.criticalLevel) : null
                     });
                 });
             });
             return out;
         }
 
-        function loadInventoryRows(cb){
-            if(inventoryLoaded || inventoryLoading){ if(cb) cb(null, inventoryRows); return; }
-            inventoryLoading = true;
+        function loadInventoryRowsFromFirestore(cb){
+            if(loaded || loading){ if(cb) cb(null, rowsCache); return; }
+            loading = true;
             ensureFirebaseReady(function(err){
-                if(err){ inventoryLoading = false; if(cb) cb(err); return; }
+                if(err){ loading = false; if(cb) cb(err); return; }
                 try{
                     var db = firebase.firestore();
-                    Promise.all([db.collection('products').get(), db.collection('variants').get()]).then(function(res){
-                        var products = [];
-                        res[0].forEach(function(doc){ products.push(Object.assign({ id: doc.id }, doc.data() || {})); });
-                        var variants = [];
-                        res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
-                        inventoryRows = buildInventoryRows(products, variants);
-                        inventoryLoaded = true;
-                        inventoryLoading = false;
-                        window.__inventoryRowsCache = inventoryRows;
-                        if(cb) cb(null, inventoryRows);
-                    }).catch(function(e){ inventoryLoading = false; if(cb) cb(e); });
-                }catch(e){ inventoryLoading = false; if(cb) cb(e); }
+                    Promise.all([db.collection('products').get(), db.collection('variants').get()])
+                        .then(function(res){
+                            var products = [];
+                            res[0].forEach(function(doc){ products.push(normalizeProduct(Object.assign({ id: doc.id }, doc.data() || {}))); });
+                            var variants = [];
+                            res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                            var variantsMap = buildVariantsMap(variants);
+                            rowsCache.length = 0;
+                            buildInventoryRows(products, variantsMap).forEach(function(r){ rowsCache.push(r); });
+                            loaded = true;
+                            if(cb) cb(null, rowsCache);
+                        })
+                        .catch(function(e){ loading = false; if(cb) cb(e); });
+                }catch(e){ loading = false; if(cb) cb(e); }
             });
         }
 
         window.getInventoryRows = function(cb){
-            loadInventoryRows(function(err, rows){ if(cb) cb(err, rows || []); });
+            loadInventoryRowsFromFirestore(function(err, rows){ if(cb) cb(err, rows || []); });
         };
 
         document.addEventListener('DOMContentLoaded', function(){
-            loadInventoryRows(function(){});
+            loadInventoryRowsFromFirestore(function(){});
         });
+    })();
 
     // Helper: base model name (strip trailing color from title)
     function baseModelFromTitle(title){
@@ -989,7 +875,34 @@
     <!-- Sale Section -->
     <section id="sale">
         <div class="section-header">Sale</div>
-        <div class="sale-row" id="saleRow"></div>
+        <div class="sale-row">
+            <div class="shoe-card" style="cursor:pointer;" onclick="viewProduct('Cloudtilt','Cloudtilt Iron Dew Womens','P1,299.00','IMAGE/SALESSHOE1.png','Sale','#P006')">
+                <div class="shoe-img-box">
+                    <img src="IMAGE/SALESSHOE1.png" class="shoe-img" alt="Cloudtilt Iron Dew Womens">
+                    <span class="badge-sale">Sale</span>
+                </div>
+                <div class="shoe-info-box">
+                    <div class="shoe-info-top">
+                        <span class="shoe-brand">Cloudtilt</span>
+                        <span><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span>
+                    </div>
+                    <div class="shoe-info-bottom">Cloudtilt Iron Dew Womens</div>
+                </div>
+            </div>
+            <div class="shoe-card" style="cursor:pointer;" onclick="viewProduct('New Balance','New Balance 530','P1,299.00','IMAGE/SALESSHOE2.png','Sale','#P007')">
+                <div class="shoe-img-box">
+                    <img src="IMAGE/SALESSHOE2.png" class="shoe-img" alt="New Balance 530">
+                    <span class="badge-sale">Sale</span>
+                </div>
+                <div class="shoe-info-box">
+                    <div class="shoe-info-top">
+                        <span class="shoe-brand">New Balance</span>
+                        <span><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span>
+                    </div>
+                    <div class="shoe-info-bottom">New Balance 530</div>
+                </div>
+            </div>
+        </div>
     </section>
 
     <!-- New Arrival Section -->
@@ -1002,7 +915,47 @@
             <button class="brand-filter-btn" data-brand="Onitsuka Tiger" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">Onitsuka Tiger</button>
             <button class="brand-filter-btn" data-brand="Adidas" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">Adidas</button>
         </div>
-        <div class="arrival-row" id="arrivalRow"></div>
+        <div class="arrival-row" id="arrivalRow">
+            <div class="shoe-card" data-brand="Nike" style="cursor:pointer;" onclick="viewProduct('Nike','Nike Airmax TN Aqua Blue','P1,299.00','IMAGE/NARRIVAL1.png','New')">
+                <div class="shoe-img-box">
+                    <img src="IMAGE/NARRIVAL1.png" class="shoe-img" alt="Nike Airmax TN Aqua Blue">
+                    <span class="badge-new">New</span>
+                </div>
+                <div class="shoe-info-box">
+                    <div class="shoe-info-top">
+                        <span class="shoe-brand">Nike</span>
+                        <span class="shoe-price">P1,299.00</span>
+                    </div>
+                    <div class="shoe-info-bottom">Nike Airmax TN Aqua Blue</div>
+                </div>
+            </div>
+            <div class="shoe-card" data-brand="Nike" style="cursor:pointer;" onclick="viewProduct('Nike','Nike Airmax Black','P2,395.00','IMAGE/NARRIVAL2.png','New')">
+                <div class="shoe-img-box">
+                    <img src="IMAGE/NARRIVAL2.png" class="shoe-img" alt="Nike Airmax Black">
+                    <span class="badge-new">New</span>
+                </div>
+                <div class="shoe-info-box">
+                    <div class="shoe-info-top">
+                        <span class="shoe-brand">Nike</span>
+                        <span class="shoe-price">P2,395.00</span>
+                    </div>
+                    <div class="shoe-info-bottom">Nike Airmax Black</div>
+                </div>
+            </div>
+            <div class="shoe-card" data-brand="Nike" style="cursor:pointer;" onclick="viewProduct('Nike','Nike GT CUT 2 LEAP HIGH','P2,395.00','IMAGE/NARRIVAL3.png','New')">
+                <div class="shoe-img-box">
+                    <img src="IMAGE/NARRIVAL3.png" class="shoe-img" alt="Nike GT CUT 2 LEAP HIGH">
+                    <span class="badge-new">New</span>
+                </div>
+                <div class="shoe-info-box">
+                    <div class="shoe-info-top">
+                        <span class="shoe-brand">Nike</span>
+                        <span class="shoe-price">P2,395.00</span>
+                    </div>
+                    <div class="shoe-info-bottom">Nike GT CUT 2 LEAP HIGH</div>
+                </div>
+            </div>
+        </div>
     </section>
 
     <!-- Brands Section -->
@@ -1177,21 +1130,15 @@
             }
         });
     }
-    function initBrandFilters(){
+    // Initial filter: show only Nike
+    window.addEventListener('DOMContentLoaded', function() {
         var btns = document.querySelectorAll('.brand-filter-btn');
-        if (!btns.length) return;
-        btns.forEach(function(btn){
+        btns.forEach(btn => {
             if (btn.getAttribute('data-brand') !== 'Nike') {
                 btn.classList.remove('active');
-            } else {
-                btn.classList.add('active');
             }
         });
-        var activeBtn = document.querySelector('.brand-filter-btn.active');
-        if (activeBtn) toggleBrandFilter(activeBtn);
-    }
-    window.addEventListener('DOMContentLoaded', function() {
-        renderHomeTaggedSections();
+        toggleBrandFilter(document.querySelector('.brand-filter-btn.active'));
     });
     </script>
     <script src="cart-storage.js"></script>
@@ -1375,7 +1322,7 @@
                             var incRes = window.tryIncrementCartItem(cart, idx);
                             if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 items per order allowed.');
+                                else alert('Maximum of 3 pairs of shoes per order.');
                                 return;
                             }
                         } else {
