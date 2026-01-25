@@ -695,18 +695,33 @@
                 var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || null;
                 if(!pid) return;
                 map[pid] = map[pid] || [];
+                var images = Array.isArray(v.images) ? v.images : (v.image ? [v.image] : []);
                 map[pid].push({
                     id: v.id || ('color-' + Math.random().toString(36).slice(2,9)),
                     name: v.colorName || v.name || v.color || 'Color',
+                    images: images,
+                    image: (images && images.length) ? images[0] : (v.image || ''),
                     sizes: Array.isArray(v.sizes) ? v.sizes : []
                 });
             });
             var out = [];
             (products || []).forEach(function(p){
                 var pid = p.id || p.productId || p.sku || '';
-                var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors : (map[pid] || []);
+                var variantColors = map[pid] || [];
+                var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors.map(function(c){
+                    var match = variantColors.find(function(v){
+                        return (v.id && c.id && String(v.id) === String(c.id)) || (v.name && c.name && String(v.name).toLowerCase() === String(c.name).toLowerCase());
+                    });
+                    if(match){
+                        if(!Array.isArray(c.images) || !c.images.length) c.images = match.images || [];
+                        if(!c.image) c.image = match.image || '';
+                    }
+                    return c;
+                }) : variantColors;
                 var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : (p.image || '');
                 (colorsArr || []).forEach(function(c){
+                    var colorImages = Array.isArray(c.images) ? c.images.filter(Boolean) : [];
+                    var colorImg = colorImages.length ? colorImages[0] : (c.image || baseImg);
                     var sizesMap = {};
                     (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
                     out.push({
@@ -714,7 +729,8 @@
                         name: (p.model || p.name || '') + (c.name ? (' ' + c.name) : ''),
                         brand: p.brand || '',
                         color: c.name || '',
-                        image: baseImg || 'IMAGE/NIKE1.png',
+                        image: colorImg || baseImg || 'IMAGE/NIKE1.png',
+                        images: colorImages,
                         sizes: sizesMap,
                         price: Number((p.pricing && (p.pricing.sale||p.pricing.original)) || p.price || 0),
                         originalPrice: Number((p.pricing && p.pricing.original) || p.originalPrice || 0),
@@ -907,12 +923,14 @@
                                 brand: g.brand || '',
                                 baseName: g.baseName || '',
                                 variants: g.variants.map(function(v){
+                                    var imgs = Array.isArray(v.images) ? v.images : (v.image ? [v.image] : []);
                                     return {
                                         id: v.id || '',
                                         productId: v.productId || v.product_id || '',
                                         name: v.name || '',
                                         color: v.color || '',
-                                        image: v.image || '',
+                                        image: (imgs && imgs.length) ? imgs[0] : (v.image || ''),
+                                        images: imgs,
                                         price: Number(v.price||0),
                                         sizes: v.sizes || {},
                                         gender: v.gender || ''
@@ -1476,7 +1494,7 @@
                             var incRes = window.tryIncrementCartItem(cart, idx);
                             if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 pairs of shoes per order.');
+                                else alert('Maximum of 3 items per order allowed.');
                                 return;
                             }
                         } else {

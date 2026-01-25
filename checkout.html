@@ -478,6 +478,12 @@
         .bank-modal .btn{ padding:10px 14px; border-radius:8px; border:none; cursor:pointer; }
         .bank-modal .btn.primary{ background:#222; color:#fff; }
         .bank-modal .btn.ghost{ background:#fff; border:1px solid #ddd; }
+        /* initial loading overlay to prevent ghost render */
+        .checkout-loading-overlay{ position:fixed; inset:0; background:#fff; display:flex; align-items:center; justify-content:center; z-index:300000; }
+        .checkout-loading-box{ display:flex; flex-direction:column; align-items:center; gap:12px; color:#222; }
+        .checkout-loading-spinner{ width:44px; height:44px; border:4px solid #ddd; border-top-color:#b71c1c; border-radius:50%; animation: checkout-spin 0.9s linear infinite; }
+        .checkout-loading-text{ font-size:1rem; font-weight:500; }
+        @keyframes checkout-spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -502,7 +508,13 @@
             <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)" style="font-family:'Poppins',Arial,sans-serif;font-size:1rem;border:none;outline:none;width:220px;padding:6px 0;">
         </div>
     </nav>
-    <div class="checkout-main">
+    <div id="checkoutLoadingOverlay" class="checkout-loading-overlay" role="status" aria-live="polite" aria-busy="true">
+        <div class="checkout-loading-box">
+            <div class="checkout-loading-spinner"></div>
+            <div class="checkout-loading-text">Loading your checkout...</div>
+        </div>
+    </div>
+    <div id="checkoutMain" class="checkout-main" style="display:none;">
         <div class="checkout-left">
             <div class="checkout-header">Checkout</div>
             <div class="checkout-caption-row">
@@ -721,6 +733,19 @@
         } else {
             email.style.display = 'none';
         }
+    }
+    // Loading gate to avoid ghost render
+    function showCheckoutLoading(){
+        var overlay = document.getElementById('checkoutLoadingOverlay');
+        var main = document.getElementById('checkoutMain');
+        if(overlay){ overlay.style.display = 'flex'; overlay.setAttribute('aria-hidden','false'); }
+        if(main){ main.style.display = 'none'; }
+    }
+    function hideCheckoutLoading(){
+        var overlay = document.getElementById('checkoutLoadingOverlay');
+        var main = document.getElementById('checkoutMain');
+        if(overlay){ overlay.style.display = 'none'; overlay.setAttribute('aria-hidden','true'); }
+        if(main){ main.style.display = ''; }
     }
     // Address menu
     function deleteAddress() {
@@ -1742,63 +1767,70 @@
     }
 
     function syncProfileFromFirestoreForCheckout(){
-        try{
-            ensureFirebaseReady(function(err){
-                if(err) return;
-                firebase.auth().onAuthStateChanged(function(user){
-                    if(!user || !user.uid) return;
+        return new Promise(function(resolve){
+            var finished = false;
+            function done(val){ if(finished) return; finished = true; resolve(val); }
+            try{
+                ensureFirebaseReady(function(err){
+                    if(err) return done(false);
                     try{
-                        var db = firebase.firestore();
-                        db.doc('users/' + user.uid).get().then(function(doc){
-                            if(!doc || !doc.exists) return;
-                            var data = doc.data() || {};
-                            var local = {};
-                            try{ local = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ local = {}; }
-                            var merged = {
-                                uid: user.uid,
-                                email: data.email || local.email || user.email || '',
-                                name: data.name || data.displayName || local.name || '',
-                                phone: data.phone || local.phone || '',
-                                addressMain: data.addressMain || local.addressMain || '',
-                                addressDetails: data.addressDetails || local.addressDetails || '',
-                                deliveryAddress: data.deliveryAddress || local.deliveryAddress || null,
-                                addresses: Array.isArray(data.addresses) ? data.addresses : (local.addresses || []),
-                                defaultAddressId: data.defaultAddressId || local.defaultAddressId || ''
-                            };
-                            localStorage.setItem('profile', JSON.stringify(merged));
-                            localStorage.setItem('profile_updated_at', String(Date.now()));
+                        firebase.auth().onAuthStateChanged(function(user){
+                            if(!user || !user.uid) return done(false);
+                            try{
+                                var db = firebase.firestore();
+                                db.doc('users/' + user.uid).get().then(function(doc){
+                                    if(!doc || !doc.exists) return done(false);
+                                    var data = doc.data() || {};
+                                    var local = {};
+                                    try{ local = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ local = {}; }
+                                    var merged = {
+                                        uid: user.uid,
+                                        email: data.email || local.email || user.email || '',
+                                        name: data.name || data.displayName || local.name || '',
+                                        phone: data.phone || local.phone || '',
+                                        addressMain: data.addressMain || local.addressMain || '',
+                                        addressDetails: data.addressDetails || local.addressDetails || '',
+                                        deliveryAddress: data.deliveryAddress || local.deliveryAddress || null,
+                                        addresses: Array.isArray(data.addresses) ? data.addresses : (local.addresses || []),
+                                        defaultAddressId: data.defaultAddressId || local.defaultAddressId || ''
+                                    };
+                                    localStorage.setItem('profile', JSON.stringify(merged));
+                                    localStorage.setItem('profile_updated_at', String(Date.now()));
 
-                            var hasCheckoutOverride = !!localStorage.getItem('checkoutAddressObject');
-                            if(!hasCheckoutOverride){
-                                var defEntry = null;
-                                if(Array.isArray(merged.addresses) && merged.addresses.length){
-                                    if(merged.defaultAddressId){
-                                        defEntry = merged.addresses.find(function(a){ return a.id === merged.defaultAddressId; }) || null;
+                                    var hasCheckoutOverride = !!localStorage.getItem('checkoutAddressObject');
+                                    if(!hasCheckoutOverride){
+                                        var defEntry = null;
+                                        if(Array.isArray(merged.addresses) && merged.addresses.length){
+                                            if(merged.defaultAddressId){
+                                                defEntry = merged.addresses.find(function(a){ return a.id === merged.defaultAddressId; }) || null;
+                                            }
+                                            if(!defEntry){
+                                                defEntry = merged.addresses.find(function(a){ return a.isDefault; }) || merged.addresses[0];
+                                            }
+                                        }
+                                        if(defEntry){
+                                            normalizeAddressEntry(defEntry);
+                                            localStorage.setItem('checkoutAddressObject', JSON.stringify(defEntry));
+                                            localStorage.setItem('checkoutAddressMain', defEntry.line1 || defEntry.street || '');
+                                            localStorage.setItem('checkoutAddressDetails', defEntry.line2 || '');
+                                        } else if(merged.deliveryAddress){
+                                            var derived = deriveCheckoutAddressObjectFromProfile(merged);
+                                            localStorage.setItem('checkoutAddressObject', JSON.stringify(derived));
+                                            localStorage.setItem('checkoutAddressMain', derived.line1 || derived.street || '');
+                                            localStorage.setItem('checkoutAddressDetails', derived.line2 || '');
+                                        }
                                     }
-                                    if(!defEntry){
-                                        defEntry = merged.addresses.find(function(a){ return a.isDefault; }) || merged.addresses[0];
-                                    }
-                                }
-                                if(defEntry){
-                                    normalizeAddressEntry(defEntry);
-                                    localStorage.setItem('checkoutAddressObject', JSON.stringify(defEntry));
-                                    localStorage.setItem('checkoutAddressMain', defEntry.line1 || defEntry.street || '');
-                                    localStorage.setItem('checkoutAddressDetails', defEntry.line2 || '');
-                                } else if(merged.deliveryAddress){
-                                    var derived = deriveCheckoutAddressObjectFromProfile(merged);
-                                    localStorage.setItem('checkoutAddressObject', JSON.stringify(derived));
-                                    localStorage.setItem('checkoutAddressMain', derived.line1 || derived.street || '');
-                                    localStorage.setItem('checkoutAddressDetails', derived.line2 || '');
-                                }
-                            }
-                            initCheckoutProfileDisplay();
-                            try{ updateCheckoutShippingDisplay(); }catch(e){}
-                            try{ renderCheckoutCart(); }catch(e){}
-                        }).catch(function(){});
-                    }catch(e){ /* ignore */ }
+                                    initCheckoutProfileDisplay();
+                                    try{ updateCheckoutShippingDisplay(); }catch(e){}
+                                    try{ renderCheckoutCart(); }catch(e){}
+                                    done(true);
+                                }).catch(function(){ done(false); });
+                            }catch(e){ done(false); }
+                        });
+                    }catch(e){ done(false); }
                 });
-            });
-        }catch(e){ /* ignore */ }
+            }catch(e){ done(false); }
+        });
     }
 
     // Initialize checkout UI from active profile (name, email, address). Falls back to any checkoutAddressMain override.
@@ -1912,43 +1944,49 @@
         document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + shipping).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
     window.addEventListener('DOMContentLoaded', function(){
-        // Guard: prevent entering checkout with an empty cart (e.g., via back button)
-        try{
-            var cartGuard = JSON.parse(localStorage.getItem('cart') || '[]');
-            if(!Array.isArray(cartGuard) || cartGuard.length === 0){
-                var shopUrl = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e){ return 'product-list.html'; } })();
-                window.location.replace(shopUrl);
+        showCheckoutLoading();
+        (async function(){
+            // Guard: prevent entering checkout with an empty cart (e.g., via back button)
+            try{
+                var cartGuard = JSON.parse(localStorage.getItem('cart') || '[]');
+                if(!Array.isArray(cartGuard) || cartGuard.length === 0){
+                    var shopUrl = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e){ return 'product-list.html'; } })();
+                    window.location.replace(shopUrl);
+                    return;
+                }
+            }catch(e){
+                var shopUrl2 = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e2){ return 'product-list.html'; } })();
+                window.location.replace(shopUrl2);
                 return;
             }
-        }catch(e){
-            var shopUrl2 = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e2){ return 'product-list.html'; } })();
-            window.location.replace(shopUrl2);
-            return;
-        }
-        try{ renderCheckoutCart(); }catch(e){}
-        try{ initAddressEditor(); }catch(e){}
-        try{ initCheckoutProfileDisplay(); }catch(e){}
-        try{ syncProfileFromFirestoreForCheckout(); }catch(e){}
-        try{
-            var host = document.getElementById('addressEditorHost');
-            var editor = document.getElementById('checkoutAddressEditor');
-            if(host && editor && !host.contains(editor)) host.appendChild(editor);
-            if(editor) editor.style.display = 'none';
-        }catch(e){}
-        try{
-            var row = document.getElementById('addressEditorRow');
-            if(row){
-                row.addEventListener('keydown', function(ev){
-                    if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openAddressBookModal(); }
-                });
-            }
-        }catch(e){}
-        try{
-            var cartSnap = JSON.parse(localStorage.getItem('cart') || '[]');
-            if(Array.isArray(cartSnap) && cartSnap.length){
-                localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartSnap));
-            }
-        }catch(e){}
+            try{ renderCheckoutCart(); }catch(e){}
+            try{ initAddressEditor(); }catch(e){}
+            try{ initCheckoutProfileDisplay(); }catch(e){}
+            try{ await syncProfileFromFirestoreForCheckout(); }catch(e){}
+            try{ initCheckoutProfileDisplay(); }catch(e){}
+            try{ renderCheckoutCart(); }catch(e){}
+            try{
+                var host = document.getElementById('addressEditorHost');
+                var editor = document.getElementById('checkoutAddressEditor');
+                if(host && editor && !host.contains(editor)) host.appendChild(editor);
+                if(editor) editor.style.display = 'none';
+            }catch(e){}
+            try{
+                var row = document.getElementById('addressEditorRow');
+                if(row){
+                    row.addEventListener('keydown', function(ev){
+                        if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openAddressBookModal(); }
+                    });
+                }
+            }catch(e){}
+            try{
+                var cartSnap = JSON.parse(localStorage.getItem('cart') || '[]');
+                if(Array.isArray(cartSnap) && cartSnap.length){
+                    localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartSnap));
+                }
+            }catch(e){}
+            hideCheckoutLoading();
+        })();
     });
 
     // Proceed from checkout to payment: persist the chosen delivery/payment and the customer name shown on the page
@@ -1961,6 +1999,13 @@
                 window.location.replace(shopUrl0);
                 return;
             }
+            try{
+                var totalQty = (window.getCartTotalPairs && typeof window.getCartTotalPairs === 'function') ? window.getCartTotalPairs(cartNow) : (function(){ var t=0; cartNow.forEach(function(it){ var q = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1); t += Number(q)||0; }); return t; })();
+                if(totalQty > 3){
+                    alert('Maximum of 3 items per order allowed.');
+                    return;
+                }
+            }catch(e){}
             localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartNow));
         }catch(e){}
 
@@ -2146,9 +2191,10 @@
         });
         var total = subtotal + shipping;
 
+        var isCOD = (paymentCode && String(paymentCode).toLowerCase() === 'cod') || (/cash on delivery/i.test(paymentLabel || ''));
         return {
             order_id: orderId,
-            status: 'Pending payment',
+            status: isCOD ? 'Pending' : 'Pending payment',
             payment_method: paymentCode || paymentLabel || '',
             paymentMethod: paymentLabel || paymentCode || '',
             deliveryMethod: deliveryLabel || deliveryCode || '',
@@ -2221,34 +2267,6 @@
                                 });
                                 return batch.commit();
                             }).then(function(){
-                                // also upsert to orders collection so orders exist immediately
-                                var orderId = payload.order_id || payload.id || localStorage.getItem('checkoutOrderId') || '';
-                                if(!orderId){ orderId = generateOrderId(); try{ localStorage.setItem('checkoutOrderId', orderId); }catch(e){} }
-                                var orderRef = db.collection('orders').doc(String(orderId));
-                                var orderPayload = Object.assign({}, payload, {
-                                    id: orderId,
-                                    created_at: firebase.firestore.FieldValue.serverTimestamp()
-                                });
-                                return orderRef.set(orderPayload, { merge: true }).then(function(){
-                                    return orderRef.collection('items').get().then(function(itemsSnap){
-                                        var batch = db.batch();
-                                        itemsSnap.forEach(function(doc){ batch.delete(doc.ref); });
-                                        cartNow.forEach(function(it, idx){
-                                            var itemRef = orderRef.collection('items').doc('item-' + idx);
-                                            batch.set(itemRef, {
-                                                product_id: it.product_id || it.id || '',
-                                                name: it.name || it.title || '',
-                                                price: Number(it.price || 0),
-                                                qty: Number(it.qty || it.quantity || 1),
-                                                image_url: it.image_url || it.image || '',
-                                                size: it.size || '',
-                                                inventoryId: it.inventoryId || it.inventory_id || '',
-                                                variantId: it.variantId || it.variant_id || ''
-                                            });
-                                        });
-                                        return batch.commit();
-                                    });
-                                });
                             }).then(function(){ resolve(true); }).catch(function(){ resolve(false); });
                         }catch(e){ resolve(false); }
                     });
@@ -2428,7 +2446,16 @@
                 btn.onclick = function(e) {
                     const idx = parseInt(btn.getAttribute('data-index'), 10);
                     if (!isNaN(idx) && cart[idx]) {
-                        cart[idx].quantity++;
+                        if (window.tryIncrementCartItem) {
+                            var incRes = window.tryIncrementCartItem(cart, idx);
+                            if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                else alert('Maximum of 3 items per order allowed.');
+                                return;
+                            }
+                        } else {
+                            cart[idx].quantity++;
+                        }
                         renderCart();
                         saveCartToLocalStorage();
                     }
