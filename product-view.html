@@ -192,7 +192,10 @@
     /* right-side sizing guide panel (moved left and enlarged on wide screens) */
     /* Shifted left (from the right edge) and increased width/font so it appears larger
        while still remaining part of the page flow. Kept no shadow and slightly larger padding. */
-    #rightSizingGuide { position: absolute; right: 220px; top: calc(360px - 10vh); width: 420px; background: #fff; border: 1px solid #d0d0d0; border-radius: 14px; box-shadow: none; padding: 16px; z-index: 1000; font-family: 'Poppins', Arial, sans-serif; max-height: calc(100vh - 160px); overflow: auto }
+     /* Prevent the sizing guide from intercepting pointer events so the product right-column (size buttons)
+         remains interactive. If later we need interactive elements inside the guide, we can re-enable
+         pointer-events selectively on those child elements. */
+     #rightSizingGuide { position: absolute; right: 220px; top: calc(360px - 10vh); width: 420px; background: #fff; border: 1px solid #d0d0d0; border-radius: 14px; box-shadow: none; padding: 16px; z-index: 1000; font-family: 'Poppins', Arial, sans-serif; max-height: calc(100vh - 160px); overflow: auto; pointer-events: none; }
     /* header fills the container edges and has no bottom radius so no corners show */
     #rightSizingGuide .sg-title { display: block; margin: -16px -16px 12px -16px; padding: 18px 20px; background: #222; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 14px; border-radius: 14px 14px 0 0; box-sizing: border-box }
     #rightSizingGuide table { width: 100%; border-collapse: collapse; font-size: 14px }
@@ -211,7 +214,11 @@
             padding: 8px 6px;
             height: 42px;
         }
-        .productview-size-btn {
+        /* Size button styling: apply to both new (.productview-size-btn) and legacy classes
+           (.product-size-btn, .size-btn) so visual selection works regardless of markup variant. */
+        .productview-size-btn,
+        .product-size-btn,
+        .size-btn {
             background: #eee;
             color: #222;
             border: none;
@@ -222,7 +229,12 @@
             cursor: pointer;
             transition: background 0.2s, color 0.2s;
         }
-        .productview-size-btn.selected {
+        .productview-size-btn.selected,
+        .product-size-btn.selected,
+        .size-btn.selected,
+        .productview-size-btn.primary,
+        .product-size-btn.primary,
+        .size-btn.primary {
             background: #222;
             color: #fff;
         }
@@ -2318,12 +2330,12 @@ On page.</div>
                 }catch(e){}
                 // Reset size selection and refresh availability for this variant
                 try{
-                    document.querySelectorAll('#sizeButtons .product-size-btn').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); });
+                    document.querySelectorAll('#sizeButtons .product-size-btn, #sizeButtons .productview-size-btn, .productview-size-btn, .product-size-btn, .product-size, .size-btn').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); });
                 }catch(_){ }
                 // Update non-selectable gender fit display for this variant (inventory first)
                 try{ renderInventoryGenderFit(resolveGenderFit(variant, modelData)); }catch(e){}
                 updateSizeButtons();
-                var sel = document.querySelector('#sizeButtons .product-size-btn.primary');
+                var sel = document.querySelector('#sizeButtons .product-size-btn.primary, #sizeButtons .productview-size-btn.primary, .productview-size-btn.primary, .product-size-btn.primary, .size-btn.primary, .productview-size-btn.selected');
                 if(sel) selectSize(sel); else { var stockEl = document.getElementById('sizeStock'); if(stockEl) stockEl.textContent=''; var convEl=document.getElementById('sizeConversion'); if(convEl) convEl.textContent='Select a size to see the US equivalent.'; }
                 try{ renderRatingsUI(); }catch(e){}
             }
@@ -2402,23 +2414,82 @@ On page.</div>
         })();
         // wire up size buttons to behave like the edit modal size buttons
             try{
-            var sizeButtons = document.querySelectorAll('#sizeButtons .product-size-btn');
+            // Support multiple markup variants: buttons may use classes like
+            // 'product-size-btn' (legacy), 'productview-size-btn' (CSS),
+            // 'product-size' or generic 'size-btn'. Collect all candidates.
+            var candidateSelector = '#sizeButtons .product-size-btn, #sizeButtons .productview-size-btn, .productview-size-btn, .product-size-btn, .product-size, .size-btn';
+            var sizeButtons = Array.from(document.querySelectorAll(candidateSelector));
+            // If still empty, try looking for buttons inside a common wrapper (fallback)
+            if(sizeButtons.length === 0){
+                var alt = document.querySelector('[data-size-list], .size-list, #sizes');
+                if(alt) sizeButtons = Array.from(alt.querySelectorAll('button, .btn'));
+            }
+
+            // normalize button list to only elements
+            sizeButtons = sizeButtons.filter(function(el){ return el && el.nodeType === 1; });
+
             sizeButtons.forEach(function(b){
+                // ensure pointer cursor
+                try{ b.style.cursor = 'pointer'; }catch(e){}
                 b.addEventListener('click', function(){
                     if(b.disabled) return; // respect disabled state
-                    // remove primary from all buttons but preserve other state classes (low-stock/oos)
-                    sizeButtons.forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); });
-                    // mark this as primary and remove ghost
+                    // remove selected markers from all known buttons
+                    sizeButtons.forEach(function(x){ x.classList.remove('primary'); x.classList.remove('selected'); x.classList.add('ghost'); });
+                    // mark this as selected (support both .primary and .selected)
                     b.classList.remove('ghost');
                     b.classList.add('primary');
-                    // run existing select logic
-                    selectSize(b);
+                    b.classList.add('selected');
+
+                    // try existing selectSize if available, otherwise perform minimal selection handling
+                    if (typeof selectSize === 'function') {
+                        try{ selectSize(b); }catch(e){}
+                    } else {
+                        // store chosen EU size on the button dataset if possible
+                        var eu = b.getAttribute('data-eu') || b.getAttribute('data-size') || (b.textContent||'').trim();
+                        // reflect selection in a hidden input or stock element if present
+                        var hidden = document.getElementById('selectedSizeInput');
+                        if(hidden) hidden.value = eu;
+                        var elStock = document.getElementById('sizeStock');
+                        if(elStock) { elStock.style.color = ''; elStock.textContent = ''; }
+                    }
                 });
             });
-            // initialize availability and pre-selection
-            updateSizeButtons();
-            var sel = document.querySelector('#sizeButtons .product-size-btn.primary');
-            if(!sel){ /* no-op */ } else { selectSize(sel); }
+
+            // initialize availability and pre-selection if helper exists
+            if (typeof updateSizeButtons === 'function') {
+                try{ updateSizeButtons(); }catch(e){}
+            }
+            var sel = document.querySelector('#sizeButtons .product-size-btn.primary, #sizeButtons .productview-size-btn.primary, .productview-size-btn.primary, .product-size-btn.primary, .size-btn.primary, .productview-size-btn.selected');
+            if(sel){
+                if (typeof selectSize === 'function') try{ selectSize(sel); }catch(e){}
+                else { sel.classList.add('selected'); }
+            }
+            // Add delegated click handler on the size buttons container as a robust fallback.
+            // This handles dynamically replaced buttons and ensures clicks always register.
+            try{
+                var sizeButtonsContainer = document.getElementById('sizeButtons');
+                if(sizeButtonsContainer && !sizeButtonsContainer.__delegation_wired){
+                    sizeButtonsContainer.addEventListener('click', function(evt){
+                        try{
+                            var btn = evt.target.closest('button');
+                            if(!btn) return;
+                            if(btn.disabled) return;
+                            // remove selected markers from current visible buttons
+                            Array.from(sizeButtonsContainer.querySelectorAll('button')).forEach(function(x){ x.classList.remove('primary'); x.classList.remove('selected'); x.classList.add('ghost'); });
+                            btn.classList.remove('ghost'); btn.classList.add('primary'); btn.classList.add('selected');
+                            if (typeof selectSize === 'function') {
+                                try{ selectSize(btn); }catch(e){}
+                            } else {
+                                // fallback minimal selection reflection
+                                var eu = btn.getAttribute('data-eu') || btn.getAttribute('data-size') || (btn.textContent||'').trim();
+                                var hidden = document.getElementById('selectedSizeInput'); if(hidden) hidden.value = eu;
+                                var elStock = document.getElementById('sizeStock'); if(elStock) { elStock.style.color = ''; elStock.textContent = ''; }
+                            }
+                        }catch(e){}
+                    }, false);
+                    sizeButtonsContainer.__delegation_wired = true;
+                }
+            }catch(e){}
         }catch(e){}
         // If no grouped model (fallback), keep existing Nike flip behavior
         if(!modelData){
@@ -2488,7 +2559,7 @@ On page.</div>
             if (e.key === 'inventory') {
                 // refresh size buttons availability and re-run select logic for current selection
                 updateSizeButtons();
-                var btn = document.querySelector('#sizeButtons .product-size-btn.primary');
+                var btn = document.querySelector('#sizeButtons .product-size-btn.primary, #sizeButtons .productview-size-btn.primary, .productview-size-btn.primary, .product-size-btn.primary, .size-btn.primary, .productview-size-btn.selected');
                 if (btn) selectSize(btn);
             }
         } catch (ex) { }
@@ -2756,7 +2827,7 @@ On page.</div>
                 loadProductStockFromFirestore(function(){
                     try{ updateSizeButtons(); }catch(e){}
                     try{
-                        var selected = document.querySelector('#sizeButtons .product-size-btn.selected') || document.querySelector('#sizeButtons .product-size-btn.primary');
+                        var selected = document.querySelector('#sizeButtons .product-size-btn.selected, #sizeButtons .productview-size-btn.selected, .productview-size-btn.selected, .product-size-btn.selected, .size-btn.selected') || document.querySelector('#sizeButtons .product-size-btn.primary, #sizeButtons .productview-size-btn.primary, .productview-size-btn.primary, .product-size-btn.primary, .size-btn.primary');
                         if(selected) selectSize(selected);
                     }catch(e){}
                     try{
@@ -2792,9 +2863,9 @@ On page.</div>
             if (addToCartBtn) {
                 addToCartBtn.addEventListener('click', function(e){
                     // Read selected EU size from the size buttons (if present)
-                    var selectedBtn = document.querySelector('#sizeButtons .product-size-btn.primary');
+                    var selectedBtn = document.querySelector('#sizeButtons .product-size-btn.primary, #sizeButtons .productview-size-btn.primary, .productview-size-btn.primary, .product-size-btn.primary, .size-btn.primary, .productview-size-btn.selected');
                     var selectedEU = '';
-                    if (selectedBtn) selectedEU = (selectedBtn.getAttribute('data-eu') || '').toString().trim();
+                    if (selectedBtn) selectedEU = (selectedBtn.getAttribute('data-eu') || selectedBtn.getAttribute('data-size') || selectedBtn.getAttribute('data-eu-size') || selectedBtn.textContent || '').toString().trim();
 
                     // If no size selected, prevent adding and show an inline hint
                     var elStock = document.getElementById('sizeStock');

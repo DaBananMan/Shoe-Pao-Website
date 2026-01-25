@@ -570,7 +570,7 @@
                             var incRes = window.tryIncrementCartItem(cart, idx);
                             if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 pairs of shoes per order.');
+                                else alert('Maximum of 3 items per order allowed.');
                                 return;
                             }
                         } else {

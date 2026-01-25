@@ -98,6 +98,51 @@
             width: 22px;
             height: 22px;
         }
+        .profile-addresses-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 16px;
+        }
+        .profile-address-add-btn {
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            background: #fff;
+            cursor: pointer;
+            font-family: 'Poppins', Arial, sans-serif;
+            font-size: 0.95rem;
+        }
+        .profile-address-add-btn:hover { border-color: #b71c1c; color: #b71c1c; }
+        .profile-address-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .profile-address-card {
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 12px 14px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: flex-start;
+            background: #fff;
+        }
+        .profile-address-card.default { border-color: #b71c1c; box-shadow: 0 0 0 1px #b71c1c inset; }
+        .profile-address-card-title { font-weight: 600; font-size: 1rem; color: #222; }
+        .profile-address-card-sub { font-size: 0.94rem; color: #555; margin-top: 2px; }
+        .profile-address-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .profile-address-action-btn {
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+        .profile-address-action-btn.primary { background: #111; color: #fff; border-color: #111; }
+        .profile-address-badge { display: inline-flex; padding: 2px 8px; border-radius: 999px; background: #f5f5f5; font-size: 0.8rem; color: #666; margin-top: 4px; }
+        .profile-address-empty { color: #666; font-size: 0.95rem; }
+        .profile-default-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+        .profile-default-row input { width: 16px; height: 16px; }
         .profile-address-editor { background:#f7f7f7; border-radius:12px; padding:14px; }
         .address-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
         .address-field { display:flex; flex-direction:column; gap:6px; }
@@ -316,11 +361,22 @@
                     <input id="profilePostalInput" type="text" placeholder="e.g. 1118" maxlength="4" inputmode="numeric" pattern="\d{4}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)" />
                 </label>
             </div>
+            <label class="profile-default-row">
+                <input id="profileAddressDefaultToggle" type="checkbox" />
+                <span class="address-label" style="margin:0;">Set as default address</span>
+            </label>
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
                 <button id="profileAddressCancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer">Cancel</button>
                 <button id="profileAddressSave" style="padding:8px 12px;border-radius:8px;border:0;background:#000;color:#fff;cursor:pointer">Save</button>
             </div>
             <div id="profileAddressHint" class="address-hint">Select region to load PSGC provinces and cities.</div>
+        </div>
+        <div class="profile-addresses-header">
+            <div class="profile-label" style="margin:0;">Saved addresses</div>
+            <button class="profile-address-add-btn" onclick="openProfileAddressEditor()">Add address</button>
+        </div>
+        <div id="profileAddressList" class="profile-address-list">
+            <div class="profile-address-empty">No saved addresses yet.</div>
         </div>
         <div class="profile-section-divider"></div>
         <div class="profile-label">Contact Number</div>
@@ -499,6 +555,247 @@
         detEl.textContent = derived.details;
     }
 
+    function normalizeDeliveryAddressFromAddressObject(addressObject){
+        if(!addressObject) return null;
+        return {
+            fullName: addressObject.fullName || '',
+            phone: addressObject.phone || '',
+            postalCode: addressObject.postalCode || '',
+            region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+            province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+            city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+            barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+            street: addressObject.street || addressObject.line1 || ''
+        };
+    }
+
+    var profileAddressEditingId = null;
+
+    function generateAddressId(){ return 'addr_' + Date.now() + '_' + Math.floor(Math.random()*100000); }
+
+    function normalizeAddressEntry(entry){
+        if(!entry) return entry;
+        var line2Parts = [];
+        var brgyName = entry.barangay && entry.barangay.name ? entry.barangay.name : entry.barangay;
+        var cityName = entry.city && entry.city.name ? entry.city.name : entry.city;
+        var provName = entry.province && entry.province.name ? entry.province.name : entry.province;
+        var regName = entry.region && entry.region.name ? entry.region.name : entry.region;
+        if(brgyName) line2Parts.push(brgyName);
+        if(cityName) line2Parts.push(cityName);
+        if(provName) line2Parts.push(provName);
+        if(regName) line2Parts.push(regName);
+        if(entry.postalCode) line2Parts.push(entry.postalCode);
+        entry.line1 = entry.line1 || ((entry.fullName ? entry.fullName + ', ' : '') + (entry.street || ''));
+        entry.line2 = entry.line2 || line2Parts.join(', ');
+        return entry;
+    }
+
+    function deriveProfileFieldsFromEntry(entry){
+        var brgyName = entry.barangay && entry.barangay.name ? entry.barangay.name : entry.barangay;
+        var cityName = entry.city && entry.city.name ? entry.city.name : entry.city;
+        var provName = entry.province && entry.province.name ? entry.province.name : entry.province;
+        var regName = entry.region && entry.region.name ? entry.region.name : entry.region;
+        var details = [brgyName, cityName, provName, regName, entry.postalCode].filter(Boolean).join(', ');
+        return {
+            addressMain: entry.street || entry.line1 || '',
+            addressDetails: details
+        };
+    }
+
+    function ensureProfileAddresses(opts){
+        opts = opts || {};
+        var profile = {};
+        try{ profile = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ profile = {}; }
+        var addresses = Array.isArray(profile.addresses) ? profile.addresses.slice() : [];
+        var defaultId = profile.defaultAddressId || '';
+
+        if(!addresses.length && (profile.deliveryAddress || profile.addressMain)){
+            var legacyAddr = profile.deliveryAddress || normalizeDeliveryAddressFromString(profile.addressMain || '');
+            var entry = {
+                id: generateAddressId(),
+                fullName: legacyAddr.fullName || profile.name || '',
+                phone: profile.phone || '',
+                street: legacyAddr.street || profile.addressMain || '',
+                postalCode: legacyAddr.postalCode || '',
+                notes: legacyAddr.notes || '',
+                region: legacyAddr.region || '',
+                province: legacyAddr.province || '',
+                city: legacyAddr.city || '',
+                barangay: legacyAddr.barangay || ''
+            };
+            normalizeAddressEntry(entry);
+            addresses.push(entry);
+            defaultId = entry.id;
+        }
+
+        if(addresses.length && !defaultId){ defaultId = addresses[0].id; }
+        addresses = addresses.map(function(a){ normalizeAddressEntry(a); a.isDefault = (a.id === defaultId); return a; });
+
+        if(defaultId){
+            var defEntry = addresses.find(function(a){ return a.id === defaultId; });
+            if(defEntry){
+                var fields = deriveProfileFieldsFromEntry(defEntry);
+                profile.addressMain = fields.addressMain;
+                profile.addressDetails = fields.addressDetails;
+                profile.deliveryAddress = normalizeDeliveryAddressFromAddressObject(defEntry);
+                try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(defEntry)); }catch(e){}
+                localStorage.setItem('checkoutAddressMain', defEntry.line1 || defEntry.street || '');
+                localStorage.setItem('checkoutAddressDetails', defEntry.line2 || '');
+                try{ renderProfileAddressFromObject(profile.deliveryAddress); }catch(e){}
+            }
+        }
+
+        profile.addresses = addresses;
+        profile.defaultAddressId = defaultId;
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        if(!opts.skipFirestore){ try{ upsertProfileToFirestore(profile); }catch(e){} }
+        return { profile: profile, addresses: addresses, defaultId: defaultId };
+    }
+
+    function renderProfileAddressList(){
+        var data = ensureProfileAddresses({ skipFirestore: true });
+        var list = document.getElementById('profileAddressList');
+        if(!list) return;
+        list.innerHTML = '';
+        if(!data.addresses.length){
+            list.innerHTML = '<div class="profile-address-empty">No saved addresses yet.</div>';
+            return;
+        }
+        data.addresses.forEach(function(entry){
+            normalizeAddressEntry(entry);
+            var card = document.createElement('div');
+            card.className = 'profile-address-card' + (entry.id === data.defaultId ? ' default' : '');
+            var meta = document.createElement('div');
+            var title = document.createElement('div');
+            title.className = 'profile-address-card-title';
+            title.textContent = entry.line1 || 'Unnamed address';
+            var sub = document.createElement('div');
+            sub.className = 'profile-address-card-sub';
+            sub.textContent = entry.line2 || '';
+            meta.appendChild(title);
+            meta.appendChild(sub);
+            if(entry.id === data.defaultId){
+                var badge = document.createElement('span');
+                badge.className = 'profile-address-badge';
+                badge.textContent = 'Default';
+                meta.appendChild(badge);
+            }
+            var actions = document.createElement('div');
+            actions.className = 'profile-address-actions';
+            var useBtn = document.createElement('button');
+            useBtn.className = 'profile-address-action-btn primary';
+            useBtn.textContent = entry.id === data.defaultId ? 'Selected' : 'Use';
+            useBtn.disabled = (entry.id === data.defaultId);
+            useBtn.onclick = function(){ setDefaultProfileAddress(entry.id); };
+            var editBtn = document.createElement('button');
+            editBtn.className = 'profile-address-action-btn';
+            editBtn.textContent = 'Edit';
+            editBtn.onclick = function(){ openProfileAddressEditor(entry.id); };
+            var delBtn = document.createElement('button');
+            delBtn.className = 'profile-address-action-btn';
+            delBtn.textContent = 'Delete';
+            delBtn.onclick = function(){ deleteProfileAddress(entry.id); };
+            actions.appendChild(useBtn);
+            actions.appendChild(editBtn);
+            actions.appendChild(delBtn);
+            card.appendChild(meta);
+            card.appendChild(actions);
+            list.appendChild(card);
+        });
+    }
+
+    function setDefaultProfileAddress(addressId){
+        if(!addressId) return;
+        var data = ensureProfileAddresses();
+        var profile = data.profile || {};
+        var addresses = data.addresses || [];
+        var entry = addresses.find(function(a){ return a.id === addressId; });
+        if(!entry) return;
+        profile.defaultAddressId = addressId;
+        addresses.forEach(function(a){ a.isDefault = (a.id === addressId); });
+        normalizeAddressEntry(entry);
+        var fields = deriveProfileFieldsFromEntry(entry);
+        profile.addressMain = fields.addressMain;
+        profile.addressDetails = fields.addressDetails;
+        profile.deliveryAddress = normalizeDeliveryAddressFromAddressObject(entry);
+        profile.addresses = addresses;
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        try{ upsertProfileToFirestore(profile); }catch(e){}
+        try{ renderProfileAddressFromObject(profile.deliveryAddress); }catch(e){}
+        try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(entry)); }catch(e){}
+        localStorage.setItem('checkoutAddressMain', entry.line1 || entry.street || '');
+        localStorage.setItem('checkoutAddressDetails', entry.line2 || '');
+        renderProfileAddressList();
+    }
+
+    function deleteProfileAddress(addressId){
+        if(!addressId) return;
+        if(!confirm('Delete this address?')) return;
+        var data = ensureProfileAddresses();
+        var profile = data.profile || {};
+        var addresses = (data.addresses || []).filter(function(a){ return a.id !== addressId; });
+        var defaultId = profile.defaultAddressId;
+        if(defaultId === addressId){
+            defaultId = addresses[0] ? addresses[0].id : '';
+        }
+        addresses.forEach(function(a){ a.isDefault = (a.id === defaultId); });
+        profile.addresses = addresses;
+        profile.defaultAddressId = defaultId;
+        if(defaultId){
+            var def = addresses.find(function(a){ return a.id === defaultId; });
+            if(def){
+                var fields = deriveProfileFieldsFromEntry(def);
+                profile.addressMain = fields.addressMain;
+                profile.addressDetails = fields.addressDetails;
+                profile.deliveryAddress = normalizeDeliveryAddressFromAddressObject(def);
+                try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(def)); }catch(e){}
+                localStorage.setItem('checkoutAddressMain', def.line1 || def.street || '');
+                localStorage.setItem('checkoutAddressDetails', def.line2 || '');
+            }
+        } else {
+            profile.addressMain = '';
+            profile.addressDetails = '';
+            profile.deliveryAddress = null;
+            localStorage.removeItem('checkoutAddressObject');
+            localStorage.removeItem('checkoutAddressMain');
+            localStorage.removeItem('checkoutAddressDetails');
+        }
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        try{ upsertProfileToFirestore(profile); }catch(e){}
+        try{ renderProfileAddressFromObject(profile.deliveryAddress); }catch(e){}
+        renderProfileAddressList();
+    }
+
+    function openProfileAddressEditor(addressId){
+        profileAddressEditingId = addressId || null;
+        var data = ensureProfileAddresses({ skipFirestore: true });
+        var entry = null;
+        if(profileAddressEditingId){
+            entry = (data.addresses || []).find(function(a){ return a.id === profileAddressEditingId; }) || null;
+        }
+        try{ initProfileAddressEditor(entry); }catch(e){}
+        var editor = document.getElementById('profileAddressEditor');
+        if(editor) editor.style.display = 'block';
+        var saveBtn = document.getElementById('profileAddressSave');
+        var cancelBtn = document.getElementById('profileAddressCancel');
+        if(saveBtn){ saveBtn.onclick = function(){ saveProfileAddress(); }; }
+        if(cancelBtn){ cancelBtn.onclick = function(){ closeProfileAddressEditor(); }; }
+        var toggle = document.getElementById('profileAddressDefaultToggle');
+        if(toggle){
+            if(entry){ toggle.checked = !!(entry.id === data.defaultId); }
+            else { toggle.checked = !data.defaultId; }
+        }
+    }
+
+    function closeProfileAddressEditor(){
+        var editor = document.getElementById('profileAddressEditor');
+        if(editor) editor.style.display = 'none';
+        profileAddressEditingId = null;
+    }
+
     var PSGC_BASE = 'https://psgc.cloud/api';
     function fetchPSGC(url){
         return new Promise(function(resolve, reject){
@@ -561,7 +858,7 @@
         return { fullName: fullName, region: region, province: province, city: city, barangay: barangay, street: street, postalCode: postalCode };
     }
 
-    function initProfileAddressEditor(){
+    function initProfileAddressEditor(prefillAddress){
         var regionSel = document.getElementById('profileRegionSelect');
         var provinceSel = document.getElementById('profileProvinceSelect');
         var citySel = document.getElementById('profileCitySelect');
@@ -571,7 +868,15 @@
 
         var storedProfile = null;
         try{ storedProfile = JSON.parse(localStorage.getItem('profile') || 'null'); }catch(e){ storedProfile = null; }
-        var storedAddr = storedProfile && storedProfile.deliveryAddress ? storedProfile.deliveryAddress : null;
+        var storedAddr = null;
+        if(prefillAddress){
+            storedAddr = normalizeDeliveryAddressFromAddressObject(prefillAddress);
+        } else if(storedProfile && storedProfile.deliveryAddress){
+            storedAddr = storedProfile.deliveryAddress;
+        } else if(storedProfile && storedProfile.addresses && storedProfile.defaultAddressId){
+            var def = (storedProfile.addresses || []).find(function(a){ return a.id === storedProfile.defaultAddressId; });
+            if(def){ storedAddr = normalizeDeliveryAddressFromAddressObject(def); }
+        }
         if(storedAddr){
             var fullNameEl = document.getElementById('profileFullNameInput');
             if(fullNameEl) fullNameEl.value = storedAddr.fullName || storedProfile.name || '';
@@ -755,6 +1060,8 @@
                             addressMain: profile.addressMain || '',
                             addressDetails: profile.addressDetails || '',
                             deliveryAddress: profile.deliveryAddress || null,
+                            addresses: Array.isArray(profile.addresses) ? profile.addresses : [],
+                            defaultAddressId: profile.defaultAddressId || '',
                             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                         };
                         userDoc.set(payload, { merge: true }).catch(function(){});
@@ -784,20 +1091,32 @@
                                 phone: data.phone || local.phone || '',
                                 addressMain: data.addressMain || local.addressMain || '',
                                 addressDetails: data.addressDetails || local.addressDetails || '',
-                                deliveryAddress: data.deliveryAddress || local.deliveryAddress || null
+                                    deliveryAddress: data.deliveryAddress || local.deliveryAddress || null,
+                                    addresses: Array.isArray(data.addresses) ? data.addresses : (local.addresses || []),
+                                    defaultAddressId: data.defaultAddressId || local.defaultAddressId || ''
                             };
                             localStorage.setItem('profile', JSON.stringify(merged));
                             localStorage.setItem('profile_updated_at', String(Date.now()));
                             if(document.getElementById('profileName')) document.getElementById('profileName').value = merged.name || '';
                             if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = merged.email || '';
-                            if(merged.deliveryAddress){
-                                renderProfileAddressFromObject(merged.deliveryAddress);
-                            } else {
-                                if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = merged.addressMain || '';
-                                if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = merged.addressDetails || '';
-                            }
+                                if(merged.addresses && merged.addresses.length){
+                                    var def = null;
+                                    if(merged.defaultAddressId){ def = merged.addresses.find(function(a){ return a.id === merged.defaultAddressId; }); }
+                                    if(!def){ def = merged.addresses.find(function(a){ return a.isDefault; }) || merged.addresses[0]; }
+                                    if(def){
+                                        normalizeAddressEntry(def);
+                                        merged.deliveryAddress = normalizeDeliveryAddressFromAddressObject(def);
+                                        renderProfileAddressFromObject(merged.deliveryAddress);
+                                    }
+                                } else if(merged.deliveryAddress){
+                                    renderProfileAddressFromObject(merged.deliveryAddress);
+                                } else {
+                                    if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = merged.addressMain || '';
+                                    if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = merged.addressDetails || '';
+                                }
                             if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = merged.phone || '';
-                            try{ initProfileAddressEditor(); }catch(e){}
+                                try{ renderProfileAddressList(); }catch(e){}
+                                try{ initProfileAddressEditor(); }catch(e){}
                         }).catch(function(){});
                     }catch(e){ /* ignore */ }
                 });
@@ -827,13 +1146,17 @@
             addressMain = derived.main;
             addressDetails = derived.details;
         }
+        var existingProfile = {};
+        try{ existingProfile = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ existingProfile = {}; }
         var profile = {
             name: name,
             email: email,
             addressMain: addressMain,
             addressDetails: addressDetails,
             phone: phone,
-            deliveryAddress: deliveryAddress
+            deliveryAddress: deliveryAddress,
+            addresses: Array.isArray(existingProfile.addresses) ? existingProfile.addresses : [],
+            defaultAddressId: existingProfile.defaultAddressId || ''
         };
         try {
             localStorage.setItem('profile', JSON.stringify(profile));
@@ -868,7 +1191,7 @@
             }catch(err){ /* ignore users update errors */ }
             // Backfill existing orders that don't have a customerName
             try{
-                var orders = JSON.parse(localStorage.getItem('client_orders') || '[]');
+                var orders = JSON.parse(localStorage.getItem('orders') || '[]');
                 var updated = 0;
                 if(Array.isArray(orders) && orders.length){
                     for(var i=0;i<orders.length;i++){
@@ -877,9 +1200,10 @@
                             updated++;
                         }
                     }
-                    if(updated>0) localStorage.setItem('client_orders', JSON.stringify(orders));
+                    if(updated>0) localStorage.setItem('orders', JSON.stringify(orders));
                 }
             }catch(err){/* ignore orders parse errors */}
+            try{ ensureProfileAddresses(); renderProfileAddressList(); }catch(e){}
             alert('Profile saved!' + (typeof updated !== 'undefined' && updated>0 ? ('\nBackfilled ' + updated + ' existing order(s)') : ''));
         } catch (e) {
             console.error('Could not save profile to localStorage', e);
@@ -917,6 +1241,14 @@
                 if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = p.phone || '';
             }
         }catch(err){/* ignore parse errors */}
+
+        try{
+            var ensured = ensureProfileAddresses();
+            if(ensured && ensured.profile && ensured.profile.deliveryAddress){
+                renderProfileAddressFromObject(ensured.profile.deliveryAddress);
+            }
+            renderProfileAddressList();
+        }catch(e){}
 
         try{ syncProfileFromFirestore(); }catch(e){}
 
@@ -970,6 +1302,7 @@
                             if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = np.addressDetails || '';
                         }
                         if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = np.phone || '';
+                        try{ renderProfileAddressList(); }catch(e){}
                     }
                 }
             }catch(ex){/* ignore */}
@@ -977,56 +1310,77 @@
     });
     // Add address (stub)
     function addAddress() {
-        var editor = document.getElementById('profileAddressEditor');
-        var main = document.getElementById('profileAddressMain');
-        var details = document.getElementById('profileAddressDetails');
-        if(!editor) return;
-        if(editor.style.display === 'none' || editor.style.display === ''){
-            // open and preload from current address
-            try{ initProfileAddressEditor(); }catch(e){}
-            editor.style.display = 'block';
-            // wire buttons
-            var saveBtn = document.getElementById('profileAddressSave');
-            var cancelBtn = document.getElementById('profileAddressCancel');
-            if(saveBtn){ saveBtn.onclick = function(){ saveProfileAddress(); }; }
-            if(cancelBtn){ cancelBtn.onclick = function(){ editor.style.display = 'none'; }; }
-        } else {
-            editor.style.display = 'none';
-        }
+        openProfileAddressEditor(null);
     }
 
     function saveProfileAddress(){
-        var main = document.getElementById('profileAddressMain');
-        var details = document.getElementById('profileAddressDetails');
         var editor = document.getElementById('profileAddressEditor');
         var addrObj = getProfileAddressObjectFromEditor();
+        if(!addrObj || !addrObj.region || !addrObj.city || !addrObj.barangay || !addrObj.street){
+            alert('Please complete the address fields (region, city, barangay, street).');
+            return;
+        }
         if(addrObj && !addrObj.fullName){
             var nameEl = document.getElementById('profileName');
             addrObj.fullName = nameEl ? nameEl.value.trim() : '';
         }
         var derived = deriveAddressLinesFromDeliveryAddress(addrObj);
-        var addrMain = derived.main || '';
-        var addrDetails = derived.details || '';
-        if(main) main.textContent = addrMain;
-        if(details) details.textContent = addrDetails;
-        // persist to profile and users list
-        try{
-            var p = JSON.parse(localStorage.getItem('profile') || '{}') || {};
-            p.addressMain = addrMain; p.addressDetails = addrDetails;
-            p.deliveryAddress = addrObj;
-            localStorage.setItem('profile', JSON.stringify(p));
-            try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
-            try{ upsertProfileToFirestore(p); }catch(e){}
-        }catch(e){}
+        var entry = normalizeAddressEntry({
+            id: profileAddressEditingId || generateAddressId(),
+            fullName: addrObj.fullName || '',
+            phone: (document.getElementById('profilePhone') ? document.getElementById('profilePhone').value.trim() : ''),
+            street: addrObj.street || '',
+            postalCode: addrObj.postalCode || '',
+            notes: addrObj.notes || '',
+            region: addrObj.region,
+            province: addrObj.province,
+            city: addrObj.city,
+            barangay: addrObj.barangay,
+            line1: derived.main,
+            line2: derived.details
+        });
+
+        var data = ensureProfileAddresses();
+        var profile = data.profile || {};
+        var addresses = data.addresses || [];
+        var idx = addresses.findIndex(function(a){ return a.id === entry.id; });
+        if(idx >= 0){ addresses[idx] = entry; }
+        else { addresses.push(entry); }
+
+        var toggle = document.getElementById('profileAddressDefaultToggle');
+        var makeDefault = toggle ? !!toggle.checked : false;
+        if(makeDefault || !profile.defaultAddressId){ profile.defaultAddressId = entry.id; }
+        addresses.forEach(function(a){ a.isDefault = (a.id === profile.defaultAddressId); });
+        profile.addresses = addresses;
+
+        if(profile.defaultAddressId){
+            var def = addresses.find(function(a){ return a.id === profile.defaultAddressId; });
+            if(def){
+                var fields = deriveProfileFieldsFromEntry(def);
+                profile.addressMain = fields.addressMain;
+                profile.addressDetails = fields.addressDetails;
+                profile.deliveryAddress = normalizeDeliveryAddressFromAddressObject(def);
+                renderProfileAddressFromObject(profile.deliveryAddress);
+                try{ localStorage.setItem('checkoutAddressObject', JSON.stringify(def)); }catch(e){}
+                localStorage.setItem('checkoutAddressMain', def.line1 || def.street || '');
+                localStorage.setItem('checkoutAddressDetails', def.line2 || '');
+            }
+        }
+
+        localStorage.setItem('profile', JSON.stringify(profile));
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        try{ upsertProfileToFirestore(profile); }catch(e){}
         try{
             var users = JSON.parse(localStorage.getItem('users') || '[]') || [];
             var email = (document.getElementById('profileEmail') && document.getElementById('profileEmail').value) ? document.getElementById('profileEmail').value.trim().toLowerCase() : '';
             if(email){
                 for(var i=0;i<users.length;i++){
                     if((users[i].email||'').toLowerCase() === email){
-                        users[i].addressMain = addrMain || users[i].addressMain;
-                        users[i].addressDetails = addrDetails || users[i].addressDetails;
-                        users[i].deliveryAddress = addrObj || users[i].deliveryAddress;
+                        users[i].addressMain = profile.addressMain || users[i].addressMain;
+                        users[i].addressDetails = profile.addressDetails || users[i].addressDetails;
+                        users[i].deliveryAddress = profile.deliveryAddress || users[i].deliveryAddress;
+                        users[i].addresses = profile.addresses || users[i].addresses;
+                        users[i].defaultAddressId = profile.defaultAddressId || users[i].defaultAddressId;
                         break;
                     }
                 }
@@ -1034,6 +1388,8 @@
             }
         }catch(e){}
         if(editor) editor.style.display = 'none';
+        profileAddressEditingId = null;
+        renderProfileAddressList();
         alert('Address saved');
     }
     // Sticky footer fallback for short content
@@ -1234,7 +1590,7 @@
                             var incRes = window.tryIncrementCartItem(cart, idx);
                             if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 pairs of shoes per order.');
+                                else alert('Maximum of 3 items per order allowed.');
                                 return;
                             }
                         } else {
@@ -1276,4 +1632,5 @@
         });
     })();
     </script>
+    <script src="cart-storage.js"></script>
 </html>

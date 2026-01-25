@@ -24,6 +24,15 @@
             --warning: #f5a623;
             --border: #e6e6e6;
         }
+            /* Report header layout: stack title and descriptor, left-aligned */
+            .tab-reports .reports-grid .card .header-line { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+            .tab-reports .reports-grid .card .card-desc { color: var(--muted); font-size:0.95rem; margin:0; }
+            /* Make report lists vertical and left-aligned under the descriptor */
+            .tab-reports .reports-grid .card .collapsible { margin:6px 0 0 0; padding-left:18px; list-style: disc inside; }
+            .tab-reports .reports-grid .card .summary { margin:6px 0 0 0; }
+            .tab-reports .reports-grid .card .card-values { margin:4px 0 0 0; padding-left:18px; list-style: disc inside; font-size:0.95rem; }
+            .tab-reports .reports-grid .card .card-values li { margin:2px 0; }
+            .tab-reports .reports-grid .card .collapsible .placeholder { color: var(--muted); font-style: italic; }
     </style>
 </head>
 <body>
@@ -41,11 +50,7 @@
                 <a class="nav-item" href="accounts.html">Accounts</a>
             </div>
         </div>
-        <div class="nav-right">
-            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
-                <img src="IMAGE/USERICON.png" alt="User">
-            </button>
-        </div>
+        <!-- profile removed for admin UI -->
     </header>
 
     <!-- New Inventory App -->
@@ -145,6 +150,7 @@
         <section id="tab-sales" class="tab">
             <div class="sales-log">
                 <h2>Sales Log</h2>
+                <div id="salesDebug" style="font-size:0.95rem;color:#666;margin-bottom:8px;">Loading sales...</div>
                 <table>
                     <thead>
                         <tr>
@@ -176,33 +182,33 @@
                 <div class="card">
                     <div class="header-line">
                         <h3>Low Stock</h3>
-                        <button class="link" data-report-toggle="low">Show details</button>
-                    </div>
-                    <p id="lowStockSummary" class="summary"></p>
+                        <span class="card-desc" aria-hidden="true"></span>
+                        </div>
+                    <ul class="card-values" id="lowStockValues" aria-hidden="true"></ul>
                     <ul id="lowStockList" class="collapsible"></ul>
                 </div>
                 <div class="card">
                     <div class="header-line">
                         <h3>Best-Selling Sizes</h3>
-                        <button class="link" data-report-toggle="sizes">Show details</button>
+                        <span class="card-desc" aria-hidden="true"></span>
                     </div>
-                    <p id="bestSizesSummary" class="summary"></p>
+                    <ul class="card-values" id="bestSizesValues" aria-hidden="true"></ul>
                     <ul id="bestSizesList" class="collapsible"></ul>
                 </div>
                 <div class="card">
                     <div class="header-line">
                         <h3>Best-Selling Brands</h3>
-                        <button class="link" data-report-toggle="brands">Show details</button>
+                        <span class="card-desc" aria-hidden="true"></span>
                     </div>
-                    <p id="bestBrandsSummary" class="summary"></p>
+                    <ul class="card-values" id="bestBrandsValues" aria-hidden="true"></ul>
                     <ul id="bestBrandsList" class="collapsible"></ul>
                 </div>
                 <div class="card">
                     <div class="header-line">
                         <h3>Dead Stock</h3>
-                        <button class="link" data-report-toggle="dead">Show details</button>
+                        <span class="card-desc" aria-hidden="true"></span>
                     </div>
-                    <p id="deadStockSummary" class="summary"></p>
+                    <ul class="card-values" id="deadStockValues" aria-hidden="true"></ul>
                     <ul id="deadStockList" class="collapsible"></ul>
                 </div>
             </div>
@@ -551,6 +557,372 @@
             </div>
         </form>
     </dialog>
+
+    <!-- Sales log renderer: populate #salesTbody from data/orders.json and update reports -->
+    <script>
+    (function(){
+        // Try multiple candidate paths so the app works when hosted under a subdirectory.
+        var candidates = (function(){
+            var path = window.location.pathname || '/';
+            // base path (folder) where this page lives
+            var base = path.replace(/\/[^/]*$/, '/');
+            var origin = window.location.origin || '';
+            return [
+                'data/orders.json',
+                './data/orders.json',
+                base + 'data/orders.json',
+                origin + base + 'data/orders.json',
+                '/data/orders.json'
+            ];
+        })();
+
+        function fetchWithTimeout(url, timeout){
+            var ctrl = new AbortController();
+            var id = setTimeout(function(){ ctrl.abort(); }, timeout||3000);
+            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; });
+        }
+
+        function getSalesDebugEl(){ try{ return document.getElementById('salesDebug'); }catch(e){ return null; } }
+
+        async function findOrdersJson(){
+            // Silent probe for candidate files. Only log to console; don't update UI text.
+            for(var i=0;i<candidates.length;i++){
+                var u = candidates[i];
+                try{
+                    console.debug('Trying orders.json at', u);
+                    var r = await fetchWithTimeout(u, 2500);
+                    if(r && r.ok){
+                        try{ var j = await r.json(); return { url: u, json: j }; }catch(e){ console.warn('Invalid JSON at', u); continue; }
+                    } else {
+                        // no-op, try next
+                    }
+                }catch(e){
+                    console.debug('fetch error for', u, e && e.message);
+                    /* try next */ }
+            }
+            return null;
+        }
+
+        function fmtDate(dstr){ try{ var d = new Date(dstr); if(isNaN(d)) return dstr; return d.toLocaleString(); }catch(e){ return dstr; } }
+        function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+        function formatPHP(n){ try{ return new Intl.NumberFormat('en-PH',{ style:'currency', currency:'PHP' }).format(Number(n)||0); }catch(e){ return '₱'+(Number(n)||0).toFixed(2); } }
+
+        // Compute reports (overview, best sizes & brands) from orders array and inventory table if present
+        function updateReportsFromOrders(orders){
+            try{
+                orders = Array.isArray(orders) ? orders : [];
+                var totalOrders = orders.length;
+                var itemsSold = 0;
+                var revenue = 0;
+                var sizeCounts = Object.create(null);
+                var brandCounts = Object.create(null);
+
+                orders.forEach(function(order){
+                    var items = Array.isArray(order.items) ? order.items : [];
+                    items.forEach(function(it){
+                        var qty = (typeof it.qty !== 'undefined') ? Number(it.qty) : ((typeof it.quantity !== 'undefined') ? Number(it.quantity) : 1);
+                        if(!isFinite(qty)) qty = 1;
+                        itemsSold += qty;
+                        var unit = Number(it.price || 0);
+                        revenue += unit * qty;
+                        var size = (it.size || it.eu || it.sizeLabel || '') + '';
+                        var brand = (it.brand || it.vendor || it.manufacturer || '') + '';
+                        if(size){ sizeCounts[size] = (sizeCounts[size] || 0) + qty; }
+                        if(brand){ brandCounts[brand] = (brandCounts[brand] || 0) + qty; }
+                    });
+                });
+
+                // Produce top lists
+                function topN(countMap, n){
+                    return Object.keys(countMap).map(function(k){ return { key:k, v: countMap[k] }; }).sort(function(a,b){ return b.v - a.v; }).slice(0,n);
+                }
+
+                var topSizes = topN(sizeCounts, 10);
+                var topBrands = topN(brandCounts, 10);
+
+                // Update overview
+                var overviewList = document.getElementById('overviewList');
+                if(overviewList){
+                    overviewList.innerHTML = '';
+                    var li1 = document.createElement('li'); li1.textContent = 'Total Orders: ' + totalOrders; overviewList.appendChild(li1);
+                    var li2 = document.createElement('li'); li2.textContent = 'Items Sold: ' + itemsSold; overviewList.appendChild(li2);
+                    var li3 = document.createElement('li'); li3.textContent = 'Revenue: ' + formatPHP(revenue); overviewList.appendChild(li3);
+                }
+
+                // Update best sizes
+                var bestSizesList = document.getElementById('bestSizesList');
+                if(bestSizesList){
+                    bestSizesList.innerHTML = '';
+                    if(topSizes.length === 0){
+                        var ph = document.createElement('li'); ph.textContent = 'No sales yet'; ph.className = 'placeholder'; bestSizesList.appendChild(ph);
+                    } else {
+                        topSizes.slice(0,5).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' — ' + it.v + ' sold'; bestSizesList.appendChild(li); });
+                    }
+                }
+                // populate the compact values list under the header (left-aligned)
+                try{
+                    var bestSizesValuesEl = bestSizesList && bestSizesList.closest('.card') && bestSizesList.closest('.card').querySelector('.card-values');
+                    if(bestSizesValuesEl){
+                        bestSizesValuesEl.innerHTML = '';
+                        if(topSizes.length === 0){ var phv = document.createElement('li'); phv.textContent = '—'; phv.className = 'placeholder'; bestSizesValuesEl.appendChild(phv); }
+                        else topSizes.slice(0,5).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' (' + it.v + ')'; bestSizesValuesEl.appendChild(li); });
+                    }
+                }catch(e){}
+
+                // Update best brands
+                var bestBrandsList = document.getElementById('bestBrandsList');
+                if(bestBrandsList){
+                    bestBrandsList.innerHTML = '';
+                    if(topBrands.length === 0){
+                        var phb = document.createElement('li'); phb.textContent = 'No sales yet'; phb.className = 'placeholder'; bestBrandsList.appendChild(phb);
+                    } else {
+                        topBrands.slice(0,3).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' — ' + it.v + ' sold'; bestBrandsList.appendChild(li); });
+                    }
+                }
+                // populate compact header values for brands
+                try{
+                    var bestBrandsValuesEl = bestBrandsList && bestBrandsList.closest('.card') && bestBrandsList.closest('.card').querySelector('.card-values');
+                    if(bestBrandsValuesEl){
+                        bestBrandsValuesEl.innerHTML = '';
+                        if(topBrands.length === 0){ var phbv = document.createElement('li'); phbv.textContent = '—'; phbv.className = 'placeholder'; bestBrandsValuesEl.appendChild(phbv); }
+                        else topBrands.slice(0,3).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' (' + it.v + ')'; bestBrandsValuesEl.appendChild(li); });
+                    }
+                }catch(e){}
+
+                // Low stock: attempt to read from inventory table if present
+                try{
+                    var thresholdInput = document.getElementById('lowStockThreshold');
+                    var threshold = thresholdInput ? (Number(thresholdInput.value) || 3) : 3;
+                    var lowStockSummary = document.getElementById('lowStockSummary');
+                    var lowStockList = document.getElementById('lowStockList');
+                    if(lowStockList){
+                        lowStockList.innerHTML = '';
+                        var tbody = document.getElementById('productsTbody');
+                        if(tbody){
+                            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+                            var lowCount = 0;
+                            rows.forEach(function(r){
+                                try{
+                                    var cells = r.children;
+                                    if(!cells || cells.length < 11) return;
+                                    var brand = cells[1] ? cells[1].textContent.trim() : '';
+                                    var model = cells[3] ? cells[3].textContent.trim() : '';
+                                    var stockText = cells[9] ? cells[9].textContent.trim() : '';
+                                    var stock = Number(stockText.replace(/[^0-9\-\.]/g,''));
+                                    if(!isFinite(stock)) return;
+                                    if(stock <= threshold){
+                                        lowCount++;
+                                        var sizesDesc = '';
+                                        try{
+                                            // Try common sources for variant/size info inside the product row
+                                            var dv = r.getAttribute('data-variants') || r.getAttribute('data-sizes') || r.dataset && (r.dataset.variants || r.dataset.sizes);
+                                            if(dv){
+                                                // if it's JSON, parse and format
+                                                try{
+                                                    var parsed = (typeof dv === 'string') ? JSON.parse(dv) : dv;
+                                                    if(Array.isArray(parsed)){
+                                                        sizesDesc = parsed.map(function(p){
+                                                            if(typeof p === 'object') return (p.size||p.s||p.label||'') + '(' + (p.qty||p.q||p.count||0) + ')';
+                                                            return String(p);
+                                                        }).filter(Boolean).join(', ');
+                                                    } else if(typeof parsed === 'object'){
+                                                        sizesDesc = Object.keys(parsed).map(function(k){ return k + '(' + parsed[k] + ')'; }).join(', ');
+                                                    }
+                                                }catch(e){ /* not JSON, fallback to text */ sizesDesc = String(dv); }
+                                            } else {
+                                                var sizesEl = r.querySelector('.sizes-list, .variants, .variant-sizes, .size-list, [data-sizes]');
+                                                if(sizesEl) sizesDesc = sizesEl.textContent.trim();
+                                            }
+                                        }catch(e){ sizesDesc = ''; }
+                                        var li = document.createElement('li');
+                                        li.textContent = brand + ' ' + model + ' — ' + stock + ' left' + (sizesDesc ? (' (' + sizesDesc + ')') : '');
+                                        lowStockList.appendChild(li);
+                                    }
+                                }catch(e){}
+                            });
+                            // populate compact header values for low stock (first 5 entries)
+                            try{
+                                var lowStockValuesEl = lowStockList && lowStockList.closest('.card') && lowStockList.closest('.card').querySelector('.card-values');
+                                if(lowStockValuesEl){
+                                    lowStockValuesEl.innerHTML = '';
+                                    if(lowStockList.children.length === 0){ var phls = document.createElement('li'); phls.textContent = '—'; phls.className = 'placeholder'; lowStockValuesEl.appendChild(phls); }
+                                    else {
+                                        Array.prototype.slice.call(lowStockList.children,0,5).forEach(function(li){
+                                            var copy = document.createElement('li'); copy.textContent = li.textContent; lowStockValuesEl.appendChild(copy);
+                                        });
+                                    }
+                                }
+                            }catch(e){}
+                        } else {
+                            if(lowStockSummary) lowStockSummary.textContent = 'Inventory not loaded';
+                            // don't overwrite header descriptor for inventory-not-loaded state; keep static descriptor
+                        }
+                    }
+                }catch(e){ /* ignore inventory read errors */ }
+
+                // Dead stock: compute products with no sales by comparing inventory vs orders
+                // Build a set of sold product signatures (brand|model) from orders
+                var soldSet = new Set();
+                try{
+                    orders.forEach(function(order){
+                        var items = Array.isArray(order.items) ? order.items : [];
+                        items.forEach(function(it){
+                            var b = (it.brand || it.vendor || it.manufacturer || '').toString().trim();
+                            var m = (it.title || it.model || it.name || '').toString().trim();
+                            if(b || m){ soldSet.add((b + '|' + m).toLowerCase()); }
+                        });
+                    });
+                }catch(e){}
+
+                // Dead stock: simple heuristic (products present in inventory with no sales)
+                try{
+                    var deadStockList = document.getElementById('deadStockList');
+                    var deadStockValuesEl = deadStockList && deadStockList.closest('.card') && deadStockList.closest('.card').querySelector('.card-values');
+                    if(deadStockList){
+                        deadStockList.innerHTML = '';
+                        // Heuristic: scan products table and show rows that have no matching sales
+                        var tbody = document.getElementById('productsTbody');
+                        if(tbody){
+                            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+                            var dead = [];
+                            rows.forEach(function(r){ try{
+                                var cells = r.children; if(!cells || cells.length < 4) return;
+                                var brand = cells[1] ? cells[1].textContent.trim() : '';
+                                var model = cells[3] ? cells[3].textContent.trim() : '';
+                                var sig = (brand + '|' + model).toLowerCase();
+                                // if signature not present in sold set, consider it dead (no recorded sales)
+                                if(!soldSet.has(sig)){
+                                    dead.push(brand + ' ' + model);
+                                }
+                            }catch(e){} });
+                            if(dead.length === 0){ var phd = document.createElement('li'); phd.textContent = 'None'; phd.className = 'placeholder'; deadStockList.appendChild(phd); }
+                            else dead.forEach(function(d){ var li = document.createElement('li'); li.textContent = d; deadStockList.appendChild(li); });
+                            // mirror into compact header values
+                            if(deadStockValuesEl){ deadStockValuesEl.innerHTML = ''; if(dead.length===0){ var phd2 = document.createElement('li'); phd2.textContent = '—'; phd2.className='placeholder'; deadStockValuesEl.appendChild(phd2);} else dead.slice(0,5).forEach(function(d){ var li=document.createElement('li'); li.textContent = d; deadStockValuesEl.appendChild(li); }); }
+                        } else {
+                            var phd = document.createElement('li'); phd.textContent = 'Inventory not loaded'; phd.className='placeholder'; deadStockList.appendChild(phd);
+                            if(deadStockValuesEl){ deadStockValuesEl.innerHTML = ''; var phd2 = document.createElement('li'); phd2.textContent='—'; phd2.className='placeholder'; deadStockValuesEl.appendChild(phd2); }
+                        }
+                    }
+                }catch(e){}
+
+            }catch(e){ console.error('updateReportsFromOrders failed', e); }
+        }
+
+        async function loadSalesLog(){
+            var dbg = getSalesDebugEl();
+            var found = await findOrdersJson();
+            var tbody = document.getElementById('salesTbody');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+            if(!found){
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="7" style="color:#888;padding:12px;">Could not find <code>data/orders.json</code>. Try loading the page through http://localhost/SHOEPAO/ or run <code>window.reloadSalesLog()</code> from console after ensuring the file exists.</td>';
+                tbody.appendChild(tr);
+                console.warn('orders.json not found at candidates', candidates);
+                if(dbg) dbg.textContent = 'Could not find orders.json — checked: ' + candidates.join(', ');
+                // also clear reports to indicate no data
+                updateReportsFromOrders([]);
+                return;
+            }
+
+            var orders = Array.isArray(found.json) ? found.json.slice() : [];
+            orders.sort(function(a,b){ return new Date(b.date || b.timestamp || 0) - new Date(a.date || a.timestamp || 0); });
+
+            if(orders.length === 0){
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="7" style="color:#888;padding:12px;">No orders found in data/orders.json</td>';
+                tbody.appendChild(tr);
+                if(dbg) dbg.textContent = 'orders.json loaded from ' + found.url + ' but contains 0 orders';
+                updateReportsFromOrders([]);
+                return;
+            }
+
+            // clear any previous debug message to avoid showing counts in the UI
+            if(getSalesDebugEl()) try{ getSalesDebugEl().textContent = ''; }catch(e){}
+
+            orders.forEach(function(order){
+                var date = fmtDate(order.date || order.timestamp || order.createdAt || '');
+                var items = Array.isArray(order.items) ? order.items : [];
+                items.forEach(function(item){
+                    var brand = item.brand || '';
+                    var model = item.title || '';
+                    var color = item.color || '';
+                    if(!color){
+                        var parts = (model||'').split(/\s+/);
+                        var candidatesColors = ['Red','Black','Blue','Aqua','White','Iron','Grey','Green','Camo','Brown','Pink','Silver','Gold','Navy','Orange','Beige','Maroon'];
+                        for(var k=0;k<candidatesColors.length;k++){ if(model.toLowerCase().indexOf(candidatesColors[k].toLowerCase()) !== -1){ color = candidatesColors[k]; break; } }
+                        if(!color && parts.length){ var token = parts[parts.length-1]; if(!/^\d+$/.test(token) && token.length<=16) color = token; }
+                    }
+                    var size = item.size || item.eu || '';
+                    var qty = (typeof item.qty !== 'undefined') ? item.qty : ((typeof item.quantity !== 'undefined') ? item.quantity : 1);
+                    var unitPrice = Number(item.price || 0);
+                    var lineTotal = unitPrice * Number(qty || 0);
+
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td>' + esc(date) + '</td>'
+                                 + '<td>' + esc(brand) + '</td>'
+                                 + '<td>' + esc(model) + '</td>'
+                                 + '<td>' + esc(color) + '</td>'
+                                 + '<td>' + esc(size) + '</td>'
+                                 + '<td>' + esc(String(qty)) + '</td>'
+                                 + '<td>' + formatPHP(lineTotal) + '</td>';
+                    tbody.appendChild(tr);
+                });
+            });
+
+            // Update the reports panel using parsed orders
+            try{ updateReportsFromOrders(orders); }catch(e){ console.error('reports update failed', e); }
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            // Reports are always visible; set static header descriptors so users
+            // see descriptive labels immediately (avoid temporary "No sales" text).
+            try{
+                var descMap = {
+                    'Best-Selling Sizes': 'Top 5 sizes',
+                    'Best-Selling Brands': 'Top 3 brands',
+                    'Low Stock': 'Model variants & sizes at or below threshold',
+                    'Dead Stock': 'Products with no sales',
+                    'Overview': 'Orders metrics'
+                };
+                document.querySelectorAll('.reports-grid .card').forEach(function(card){
+                    try{
+                        var title = (card.querySelector('.header-line h3')||{}).textContent || '';
+                        var desc = descMap[title] || '';
+                        var el = card.querySelector('.card-desc');
+                        if(el && desc) el.textContent = desc;
+                    }catch(e){}
+                });
+            }catch(e){}
+
+            // Initial load + polling so Sales updates continuously. The polling keeps
+            // the underlying report data fresh even when users toggle visibility.
+            loadSalesLog().catch(function(e){ console.error(e); });
+            try{ setInterval(function(){ loadSalesLog().catch(function(e){ console.error('reload sales', e); }); }, 5000); }catch(e){}
+        });
+        window.reloadSalesLog = loadSalesLog;
+        // Ensure the sales tab stays updated even if other scripts (inventory-app) later overwrite
+        // the table. Use a MutationObserver to detect changes and reapply our renderer.
+        (function(){
+            try{
+                var tbody = document.getElementById('salesTbody');
+                if(!tbody) return;
+                var __sales_log_writing = false;
+                var originalLoad = loadSalesLog;
+                // wrap original to set the writing flag so the observer ignores our writes
+                loadSalesLog = async function(){ __sales_log_writing = true; try{ await originalLoad(); }catch(e){} finally{ __sales_log_writing = false; } };
+
+                var mo = new MutationObserver(function(mutations){
+                    if(__sales_log_writing) return;
+                    // If something else changed the tbody, refresh after a short delay
+                    setTimeout(function(){ try{ loadSalesLog(); }catch(e){} }, 80);
+                });
+                mo.observe(tbody, { childList: true, subtree: true });
+            }catch(e){ /* no-op */ }
+        })();
+    })();
+    </script>
 
 </body>
 </html>
