@@ -83,8 +83,36 @@
               }
             }catch(e){ console.warn('Failed to upsert user after email-link sign-in', e); }
             try{ localStorage.removeItem('emailLink_pending'); localStorage.removeItem('pending_signup'); }catch(e){}
-            // redirect after sign-in
-            window.location.href = 'home.html';
+            // redirect after sign-in — allow caller to request a different target via ?next=login
+            try{
+              const params = new URLSearchParams(window.location.search);
+              const next = params.get('next') || '';
+              let dest = 'home.html';
+              if(next === 'login') dest = 'login.html';
+              else if(next === 'signup') dest = 'signup.html';
+
+              // If next is present, go there. Otherwise, if we have a pending email in localStorage
+              // (same device), assume original flow and redirect to home. If neither is present
+              // (user clicked from a different device), show a small confirmation UI so the user
+              // can continue to sign-in (login) or go home — this avoids silently landing in the wrong place.
+              if(next){ window.location.href = dest; return; }
+              const pendingEmail = localStorage.getItem('emailLink_pending');
+              if(pendingEmail){ window.location.href = dest; return; }
+
+              // Cross-device case: show a confirmation overlay with explicit buttons.
+              const overlay = document.createElement('div'); overlay.className = 'overlay';
+              const modal = document.createElement('div'); modal.className = 'modal';
+              modal.innerHTML = '<h3>Sign-in complete</h3>' +
+                '<p>Your email has been verified and you are now signed in.</p>' +
+                '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
+                '<button id="goLogin" class="btn btn-primary">Go to sign in</button>' +
+                '<button id="goHome" class="btn btn-outline">Go to home</button>' +
+                '</div>';
+              overlay.appendChild(modal); document.body.appendChild(overlay);
+              document.getElementById('goLogin').addEventListener('click', function(){ window.location.href = 'login.html'; });
+              document.getElementById('goHome').addEventListener('click', function(){ window.location.href = 'home.html'; });
+              return;
+            }catch(e){ window.location.href = 'home.html'; }
             return;
           }
         }catch(e){ console.error('Email-link sign-in failed', e); document.getElementById('summary').textContent = 'Email sign-in failed: ' + (e && e.message ? e.message : e); }

@@ -1278,6 +1278,22 @@
       editor.innerHTML = '<div class="variants-empty-state"><h3>No colors yet</h3><p>Add a color on the left to start assigning inventory.</p></div>';
       return;
     }
+    const selId = state.ui.editingVariantColorId || null;
+    const listEl = qs('#variantColorsList');
+    if (listEl) listEl.querySelectorAll('.color-item').forEach(it => it.classList.toggle('active', it.dataset.id === selId));
+
+    const colorsToRender = selId ? p.colors.filter(c => c.id === selId) : p.colors;
+    colorsToRender.forEach(color => {
+      const card = document.createElement('div'); card.className = 'size-card';
+      // Header: color name + add size + clear
+      const fill = document.createElement('div'); fill.className = 'fill-actions';
+      fill.innerHTML = `
+        <div class="color-header">
+          <strong class="color-name">${color.name}</strong>
+          <button class="secondary" data-action="add-size" data-id="${color.id}">Add Size</button>
+          <button class="secondary clear-btn" data-action="clear-all" data-id="${color.id}">Clear</button>
+        </div>`;
+      card.appendChild(fill);
 
     const listEl = qs('#variantColorsList');
     let selId = state.ui.editingVariantColorId;
