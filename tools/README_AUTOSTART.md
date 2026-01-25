@@ -47,3 +47,7 @@ Notes and alternatives:
 - If you need the Node server to run as a system service or under a dedicated account, use NSSM or create a Task Scheduler task configured to run with highest privileges and a service account. Those options may require administrator privileges.
 
 If you'd like, I can register the scheduled task for you now (I can create it in this environment), or add a pm2-based alternative script — tell me which you prefer.
+
+Auto-register from the Node server (optional)
+------------------------------------------
+If you prefer the Node server to attempt registration automatically when it starts, set the environment variable `AUTO_REGISTER_STARTUP=true` before launching the server on Windows. The server will run `tools/register-startup.ps1` (with `-Force`) and log the result. This is opt-in to avoid unexpected changes on other hosts.
