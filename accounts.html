@@ -3,7 +3,6 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="shoepao-dev-admin" content="true">
     <title>Shoe Pao — Accounts</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -256,7 +255,7 @@
                 const tr = document.createElement('tr');
                 const name = formatName(u);
                 const email = u.email || 'EMPTY';
-                const phone = (u.phone || (u.deliveryAddress && u.deliveryAddress.phone) || 'EMPTY');
+                const phone = u.phone || 'EMPTY';
                 const type = (u.role && u.role.toLowerCase() === 'admin') ? 'Admin' : 'Client';
                 tr.innerHTML = '<td>' + name + '</td><td>' + email + '</td><td>' + phone + '</td><td>' + type + '</td><td>' +
                     '<a class="action-link" href="account-detail.html?email=' + encodeURIComponent(email) + '">View</a>' +
@@ -284,56 +283,55 @@
     document.addEventListener('DOMContentLoaded', render);
     // expose render to other scripts so delete/edit can trigger an immediate refresh
     try{ window.renderAccountsTable = render; }catch(e){}
-    try{ window.removeLocalDataForEmail = removeLocalDataForEmail; }catch(e){}
     })();
     </script>
 
     <script>
-    // Server-backed accounts sync: client cannot read Firestore directly due to rules.
+    // Firestore users synchronization: ensure new signups appear in the accounts table
     (function(){
-        async function fetchAccountsFromServer(){
-            try{
-                if(!window.firebase || !firebase.auth) { console.warn('Firebase auth not available for accounts sync'); return; }
-                const user = firebase.auth().currentUser;
-                if(!user) { console.warn('No signed-in user for accounts sync'); return; }
-                let idToken = null;
-                try{ idToken = await user.getIdToken(true); }catch(e){ console.warn('getIdToken failed', e); }
-                if(!idToken) return;
-
-                let resp = null;
+        if(!window.firebase || !firebase.firestore) return;
+        try{
+            const db = firebase.firestore();
+            db.collection('users').limit(500).get().then(snap => {
                 try{
-                    resp = await fetch('http://127.0.0.1:3000/api/accounts', { headers: { 'Authorization': 'Bearer ' + idToken } });
-                    if(!resp.ok){
-                        // fall back to PHP proxy
-                        resp = await fetch('server-proxy.php/api/accounts', { headers: { 'Authorization': 'Bearer ' + idToken } });
-                    }
-                }catch(e){ console.warn('accounts fetch failed', e); return; }
+                    var local = JSON.parse(localStorage.getItem('users')||'[]') || [];
+                    var map = {};
+                    local.forEach(u=>{ if(u && u.email) map[(u.email||'').toLowerCase()] = u; });
+                    snap.forEach(doc => {
+                        const d = doc.data() || {};
+                        const email = (d.email || d.emailAddress || '').toLowerCase();
+                        if(!email) return;
+                        const merged = Object.assign({}, map[email] || {}, d);
+                        merged.email = email;
+                        map[email] = merged;
+                    });
+                    const mergedList = Object.keys(map).map(k => map[k]);
+                    localStorage.setItem('users', JSON.stringify(mergedList));
+                    try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
+                }catch(e){ console.warn('Failed to merge initial users snapshot', e); }
+            }).catch(e=>{ console.warn('Initial users query failed', e); });
 
-                if(!resp || !resp.ok) { console.warn('accounts endpoint returned non-ok', resp && resp.status); return; }
-                const j = await resp.json();
-                if(!j || !Array.isArray(j.accounts)) return;
-                const map = {};
-                j.accounts.forEach(function(d){
-                    try{
-                        const key = (d && d.uid) ? String(d.uid) : ((d && d.email) ? (d.email||'').toLowerCase() : null);
-                        if(!key) return;
-                        if(d.email) d.email = (d.email||'').toLowerCase();
-                        map[key] = Object.assign({}, map[key] || {}, d);
-                    }catch(e){}
-                });
-                const mergedList = Object.keys(map).map(k => map[k]);
-                localStorage.setItem('users', JSON.stringify(mergedList));
-                try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
-            }catch(e){ console.warn('fetchAccountsFromServer failed', e); }
-        }
-
-        // initial fetch and periodic refresh
-        (async function(){
-            try{ if(window.PageDataGate && PageDataGate.block) PageDataGate.block('Loading accounts...'); }catch(e){}
-            try{ await fetchAccountsFromServer(); }catch(e){ console.warn('accounts initial fetch failed', e); }
-            try{ if(window.PageDataGate && PageDataGate.ready) PageDataGate.ready(); }catch(e){}
-            try{ setInterval(fetchAccountsFromServer, 10000); }catch(e){ console.warn('accounts sync init failed', e); }
-        })();
+            db.collection('users').onSnapshot(function(snap){
+                try{
+                    var local = JSON.parse(localStorage.getItem('users')||'[]') || [];
+                    var map = {};
+                    local.forEach(u=>{ if(u && u.email) map[(u.email||'').toLowerCase()] = u; });
+                    snap.docChanges().forEach(change => {
+                        const d = change.doc.data() || {};
+                        const email = (d.email || d.emailAddress || '').toLowerCase();
+                        if(!email) return;
+                        if(change.type === 'removed'){
+                            delete map[email];
+                        } else {
+                            map[email] = Object.assign({}, map[email] || {}, d, { email: email });
+                        }
+                    });
+                    const mergedList = Object.keys(map).map(k => map[k]);
+                    localStorage.setItem('users', JSON.stringify(mergedList));
+                    try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
+                }catch(e){ console.warn('Failed to process users snapshot', e); }
+            }, function(err){ console.warn('users onSnapshot failed', err); });
+        }catch(e){ console.warn('Could not setup Firestore users sync', e); }
     })();
     </script>
 
@@ -362,9 +360,9 @@
             '<input id="firstName_m" placeholder="First name" required style="flex:1;padding:10px;border:1px solid #ddd;border-radius:6px">' +
             '<input id="lastName_m" placeholder="Last name" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:6px">' +
             '</div>' +
-            '<div style="margin-bottom:8px"><input id="email_m" type="email" autocomplete="username" placeholder="Email" required style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px"></div>' +
+            '<div style="margin-bottom:8px"><input id="email_m" type="email" placeholder="Email" required style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px"></div>' +
             '<div style="margin-bottom:8px"><input id="phone_m" placeholder="Phone (xxx xxx xxxx)" maxlength="12" oninput="formatPhone(this)" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px"></div>' +
-            '<div style="margin-bottom:8px"><input id="password_m" type="password" autocomplete="new-password" placeholder="Password (leave blank to keep existing)" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px"></div>' +
+            '<div style="margin-bottom:8px"><input id="password_m" type="password" placeholder="Password (leave blank to keep existing)" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px"></div>' +
             '<div style="margin-bottom:12px"><label for="role_m">Role</label> <select id="role_m" style="margin-left:8px;padding:8px;border-radius:6px;border:1px solid #ddd"><option value="client">Client</option><option value="admin">Admin</option></select></div>' +
             '<div style="display:flex;gap:8px;justify-content:flex-end">' +
             '<button type="button" id="cancelModal" style="padding:8px 12px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer">Cancel</button>' +
@@ -413,7 +411,7 @@
         cancelBtn.addEventListener('click', closeAccountModal);
         if(createBtn) createBtn.addEventListener('click', function(){ openAccountModal('create'); });
 
-    form.addEventListener('submit', async function(e){
+        form.addEventListener('submit', function(e){
             e.preventDefault();
             var firstName = (document.getElementById('firstName_m').value||'').trim();
             var lastName = (document.getElementById('lastName_m').value||'').trim();
@@ -427,34 +425,8 @@
                 var existing = users.find(function(u){ return (u.email||'').toLowerCase() === email; });
                     if(currentMode === 'create'){
                         if(existing){ alert('A user with this email already exists'); return; }
-                        // Prefer creating an Auth user first via the server so we get a canonical uid.
-                        var fullName = (firstName || '') + (lastName ? (' ' + lastName) : '');
-                        var profile = { name: fullName.trim(), displayName: fullName.trim(), phone: phone || '' };
-                        try{
-                            var resp = null;
-                            try{
-                                resp = await fetch('http://127.0.0.1:3000/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: password || 'changeme', profile: profile }) });
-                                if(!resp.ok){
-                                    console.warn('Direct admin create-user returned non-ok', resp.status);
-                                    resp = await fetch('server-proxy.php/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: password || 'changeme', profile: profile }) });
-                                }
-                            }catch(fetchErr){
-                                console.warn('Direct admin create-user failed, falling back to proxy', fetchErr);
-                                try{ resp = await fetch('server-proxy.php/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: password || 'changeme', profile: profile }) }); }catch(proxyErr){ console.warn('Proxy admin create-user failed', proxyErr); resp = null; }
-                            }
-
-                            if(resp && resp.ok){
-                                var jr = null;
-                                try{ jr = await resp.json(); }catch(parseErr){ console.warn('admin create-user parse failed', parseErr); alert('Created user but could not parse server response. Check server logs.'); return; }
-                                var newUser = { email: email, password: password || '', firstName: firstName, lastName: lastName, phone: phone, role: (role === 'admin' ? 'admin' : 'user'), registeredAt: Date.now(), uid: jr.uid };
-                                users.push(newUser);
-                            } else {
-                                // If server creation not available, fall back to local creation and client-side Firestore writes (legacy)
-                                var newUser = { email: email, password: password || '', firstName: firstName, lastName: lastName, phone: phone, role: (role === 'admin' ? 'admin' : 'user'), registeredAt: Date.now() };
-                                users.push(newUser);
-                                alert('Created local user entry; server-side Auth creation unavailable.');
-                            }
-                        }catch(e){ console.warn('Admin create-user flow failed', e); alert('Failed to create user via server: ' + (e && e.message ? e.message : e)); return; }
+                        var newUser = { email: email, password: password || '', firstName: firstName, lastName: lastName, phone: phone, role: (role === 'admin' ? 'admin' : 'user'), registeredAt: Date.now() };
+                        users.push(newUser);
                     } else {
                         // When editing, locate the original record by the editingEmail (the original email before edits)
                         var originalEmail = (editingEmail ? decodeURIComponent(editingEmail) : null);
@@ -479,23 +451,6 @@
                 closeAccountModal();
                 // refresh table
                 try{ render(); }catch(e){}
-                // Persist to server-side canonical accounts when we have a uid for this record.
-                try{
-                    var localUsers2 = JSON.parse(localStorage.getItem('users')||'[]') || [];
-                    var createdLocal = localUsers2.find(function(u){ return (u.email||'').toLowerCase() === (email||'').toLowerCase(); });
-                    if(createdLocal && createdLocal.uid){
-                        // Call server endpoint to merge profile into canonical accounts/{uid}
-                        try{
-                            var payload = { uid: createdLocal.uid, profile: { name: (createdLocal.firstName||'') + (createdLocal.lastName ? (' ' + createdLocal.lastName) : ''), phone: createdLocal.phone || '' } };
-                            try{ var r2 = await fetch('http://127.0.0.1:3000/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if(!r2.ok) r2 = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); }catch(e){ console.warn('Failed to notify server to create-account-doc after admin create', e); }
-                        }catch(e){ console.warn('Failed to call server create-account-doc', e); }
-                    } else {
-                        // No uid known: do NOT create encoded-email alias docs from the admin UI.
-                        // This is intentional to keep `accounts/{uid}` canonical. Admin should
-                        // retry creation when the server endpoint is available.
-                        console.warn('No uid available for created account; skipping client-side encoded-email write to Firestore.');
-                    }
-                }catch(e){ console.warn('Post-create persistence handling failed', e); }
             }catch(err){ console.warn('Could not save user', err); alert('Could not save user'); }
         });
 
@@ -508,73 +463,20 @@
                 var em2 = decodeURIComponent(delBtn.getAttribute('data-email')||'');
                 if(confirm('Delete account ' + em2 + '? This cannot be undone.')){
                     try{
-                        // Attempt server-side deletion first (preferred). Use admin-authenticated endpoint.
-                        (async function(){
-                            var users = JSON.parse(localStorage.getItem('users')||'[]')||[];
-                            var target = users.find(function(u){ return (u.email||'').toLowerCase() === (em2||'').toLowerCase(); });
-                            var uid = (target && target.uid) ? String(target.uid) : null;
-                            var email = em2 || null;
-                            var triedServer = false;
-                            var serverResp = null;
-                            try{
-                                if(window.firebase && firebase.auth && firebase.auth().currentUser){
-                                    try{
-                                        var idToken = await firebase.auth().currentUser.getIdToken(true);
-                                        var resp = await fetch('http://127.0.0.1:3000/api/admin/delete-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ uid: uid, email: email }) });
-                                        if(!resp.ok){
-                                            // try proxy fallback
-                                            try{ resp = await fetch('server-proxy.php/api/admin/delete-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ uid: uid, email: email }) }); }catch(e){}
-                                        }
-                                        serverResp = resp || null;
-                                        triedServer = true;
-                                    }catch(e){ console.warn('Server delete attempt failed (direct)', e); }
-                                }
-                            }catch(e){ console.warn('Server delete flow failed', e); }
-
-                            // If we attempted server deletion, require a successful server response
-                            if(triedServer){
-                                try{
-                                    if(!serverResp || !serverResp.ok){
-                                        // try to show server error message
-                                        try{
-                                            var body = await (serverResp && serverResp.json ? serverResp.json() : Promise.resolve(null));
-                                            var msg = (body && body.error) ? (body.error + (body.detail ? (': ' + body.detail) : '')) : ('Server returned ' + (serverResp && serverResp.status));
-                                            alert('Server refused to delete the user: ' + msg + '\n\nEnsure you are signed in as an administrator with proper privileges and that your ID token is fresh.');
-                                        }catch(e){ alert('Server refused to delete the user. Ensure you are signed in as an administrator.'); }
-                                        return;
-                                    }
-                                }catch(e){ console.warn('Post-server-response handling failed', e); alert('Server deletion failed. Aborting local cleanup.'); return; }
-                            } else {
-                                // Server not reachable / not attempted: ask the admin if they want a local-only delete
-                                var proceedLocal = confirm('Server delete could not be attempted (server unreachable). Do you want to remove this user locally only?\n\nNote: This will NOT remove the user from the server.');
-                                if(!proceedLocal) return;
+                        var users = JSON.parse(localStorage.getItem('users')||'[]')||[];
+                        users = users.filter(function(u){ return (u.email||'').toLowerCase() !== (em2||'').toLowerCase(); });
+                        localStorage.setItem('users', JSON.stringify(users));
+                        // Remove related localStorage entries for this email so old data doesn't reappear
+                        try{ removeLocalDataForEmail(em2); }catch(e){ console.warn('removeLocalDataForEmail failed', e); }
+                        // Add email to pending deletion queue for server-side Firebase sync tooling
+                        try{
+                            var pending = JSON.parse(localStorage.getItem('pendingFirebaseUserDeletions')||'[]') || [];
+                            if(!pending.some(function(x){ return (x||'').toLowerCase() === (em2||'').toLowerCase(); })){
+                                pending.push(em2);
+                                localStorage.setItem('pendingFirebaseUserDeletions', JSON.stringify(pending));
                             }
-
-                            // Proceed with local cleanup and UI update
-                            try{
-                                var users2 = JSON.parse(localStorage.getItem('users')||'[]')||[];
-                                users2 = users2.filter(function(u){ return (u.email||'').toLowerCase() !== (em2||'').toLowerCase(); });
-                                localStorage.setItem('users', JSON.stringify(users2));
-                                // Remove related localStorage entries for this email so old data doesn't reappear
-                                try{ if(typeof removeLocalDataForEmail === 'function') removeLocalDataForEmail(em2); else console.warn('removeLocalDataForEmail not available'); }catch(e){ console.warn('removeLocalDataForEmail failed', e); }
-                                try{ if(typeof window.renderAccountsTable === 'function'){ window.renderAccountsTable(); } else if(typeof render === 'function'){ render(); } }catch(e){}
-                            }catch(e){ console.warn('Local cleanup failed', e); }
-
-                            // Best-effort: also attempt client-side Firestore deletes (in case server wasn't reachable)
-                            try{
-                                if(window.firebase && firebase.firestore){
-                                    try{
-                                        var db = firebase.firestore();
-                                        var docId = (uid) ? uid : encodeURIComponent(em2);
-                                        db.collection('accounts').doc(docId).delete().catch(function(){});
-                                        // attempt to delete orders referencing this email (best-effort, may require server privileges)
-                                        try{ db.collection('orders').where('customerEmail','==',em2).get().then(s=>{ s.forEach(d=>d.ref.delete().catch(()=>{})); }).catch(()=>{}); }catch(e){}
-                                        try{ if(uid) db.collection('orders').where('user_id','==',uid).get().then(s=>{ s.forEach(d=>d.ref.delete().catch(()=>{})); }).catch(()=>{}); }catch(e){}
-                                    }catch(e){ console.warn('Failed to perform client-side Firestore cleanup', e); }
-                                }
-                            }catch(e){}
-
-                        })();
+                        }catch(e){}
+                        try{ if(typeof window.renderAccountsTable === 'function'){ window.renderAccountsTable(); } else if(typeof render === 'function'){ render(); } }catch(e){}
                     }catch(err){ console.warn('Delete failed', err); alert('Delete failed'); }
                 }
             }

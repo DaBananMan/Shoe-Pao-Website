@@ -3,7 +3,6 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="shoepao-dev-admin" content="true">
     <title>Shoe Pao — Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -34,15 +33,10 @@
         .dashboard-title{font-size:1.18rem;font-weight:700;margin:22px 0}
 
         /* Cards */
-    .cards-row{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
-    .card{background:var(--card-bg);border:1px solid #eee;border-radius:10px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,0.02);flex:1 1 220px;min-width:220px;max-width:320px;align-self:flex-start}
+        .cards-row{display:flex;flex-wrap:wrap;gap:20px}
+        .card{background:var(--card-bg);border:1px solid #eee;border-radius:10px;padding:18px 20px;box-shadow:0 1px 2px rgba(0,0,0,0.02);flex:1 1 220px;min-width:220px;max-width:320px}
         .card .label{font-weight:600;color:#222;margin-bottom:8px}
         .card .value{font-size:1.28rem;font-weight:600;color:#111}
-        .kpi-filter{background:#fff;border:1px solid #e6e6e6;padding:6px 10px;border-radius:6px;cursor:pointer;font-weight:600}
-    .kpi-filter.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-    .chart-area{background:var(--card-bg);padding:12px;border:1px solid #eee;border-radius:8px;height:260px;overflow:hidden}
-    .chart-area.small{height:200px}
-    .chart-canvas{width:100%;height:100% !important;display:block}
 
         /* small screens */
         @media (max-width:720px){
@@ -68,7 +62,11 @@
                 <a class="nav-item" href="accounts.html">Accounts</a>
             </div>
         </div>
-        <!-- profile removed for admin UI -->
+        <div class="nav-right">
+            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
+                <img src="IMAGE/USERICON.png" alt="User">
+            </button>
+        </div>
     </header>
 
     <main class="dashboard-container">
@@ -80,350 +78,26 @@
         <div class="divider" aria-hidden="true"></div>
 
         <h2 class="dashboard-title">Dashboard</h2>
-            <!-- Split dashboard into Sales and Inventory segments -->
-            <h3 style="margin-top:14px;margin-bottom:8px;color:var(--muted);font-weight:600">Sales</h3>
-            <section class="cards-row" role="list" id="sales-cards">
-                <div class="card" role="listitem">
-                    <div class="label">Total Revenue</div>
-                    <div id="totalRevenueValue" class="value">PHP 0.00</div>
-                </div>
-                <div class="card" role="listitem">
-                    <div class="label">Items Sold</div>
-                    <div id="salesValue" class="value">0</div>
-                </div>
-                <div class="card" role="listitem">
-                    <div class="label">Most Popular Brand</div>
-                    <div id="topBrandValue" class="value">—</div>
-                </div>
-                <div class="card" role="listitem">
-                    <div class="label">Most Popular Size</div>
-                    <div id="topSizeValue" class="value">—</div>
-                </div>
-            </section>
 
-            <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-                    <div style="font-weight:600">Revenue over time</div>
-                    <div style="display:flex;gap:8px">
-                        <button class="kpi-filter" data-range="day">Day</button>
-                        <button class="kpi-filter" data-range="week">Week</button>
-                        <button class="kpi-filter" data-range="month">Month</button>
-                        <button class="kpi-filter" data-range="year">Year</button>
-                    </div>
-                </div>
-                <div class="chart-area">
-                    <canvas id="revenueLineChart" class="chart-canvas" aria-label="Revenue line chart"></canvas>
-                </div>
-                <div class="chart-area small">
-                    <div style="font-weight:600;margin-bottom:8px">Brands bought (by volume)</div>
-                    <canvas id="brandBarChart" class="chart-canvas" aria-label="Brand bar chart"></canvas>
-                </div>
+        <section class="cards-row" role="list">
+            <div class="card" role="listitem">
+                <div class="label">Total Revenue</div>
+                <div class="value">PHP 64,000.00</div>
             </div>
-
-            <h3 style="margin-top:22px;margin-bottom:8px;color:var(--muted);font-weight:600">Inventory</h3>
-            <section class="cards-row" role="list" id="inventory-cards">
-                <div class="card" role="listitem">
-                    <div class="label">Products in Stock</div>
-                    <div id="productsInStockValue" class="value">0</div>
-                </div>
-                <div class="card" role="listitem">
-                    <div class="label">Pending Orders</div>
-                    <div id="pendingOrdersValue" class="value">0</div>
-                </div>
-                <div class="card" role="listitem" style="flex:2 1 420px">
-                    <div class="label">Low stock items</div>
-                    <div id="lowStockList" style="margin-top:8px;color:var(--muted);font-size:0.95rem">No low stock items</div>
-                </div>
-            </section>
+            <div class="card" role="listitem">
+                <div class="label">Sales</div>
+                <div class="value">100</div>
+            </div>
+            <div class="card" role="listitem">
+                <div class="label">Products in Stock</div>
+                <div class="value">25</div>
+            </div>
+            <div class="card" role="listitem">
+                <div class="label">Pending Orders</div>
+                <div class="value">23</div>
+            </div>
+        </section>
     </main>
 
 </body>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script>
-    (function(){
-        // Candidate paths for data files
-        var base = (window.location.pathname || '/').replace(/\/[^/]*$/, '/');
-        var origin = window.location.origin || '';
-        var candidates = [
-            'data/orders.json', './data/orders.json', base + 'data/orders.json', origin + base + 'data/orders.json', '/data/orders.json'
-        ];
-        var invCandidates = [
-            'data/inventory.json','./data/inventory.json', base + 'data/inventory.json', origin + base + 'data/inventory.json','/data/inventory.json'
-        ];
-
-        function fetchWithTimeout(url, timeout){
-            var ctrl = new AbortController();
-            var id = setTimeout(function(){ ctrl.abort(); }, timeout||3000);
-            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; });
-        }
-
-        async function probe(cands){
-            for(var i=0;i<cands.length;i++){
-                try{
-                    var r = await fetchWithTimeout(cands[i], 2500);
-                    if(r && r.ok){ try{ var j = await r.json(); return { url:cands[i], json:j }; }catch(e){ continue; } }
-                }catch(e){}
-            }
-            return null;
-        }
-
-        function formatPHP(n){ try{ return new Intl.NumberFormat('en-PH',{ style:'currency', currency:'PHP' }).format(Number(n)||0); }catch(e){ return 'PHP ' + (Number(n)||0).toFixed(2); } }
-
-        async function updateKpis(){
-            try{
-                var ordersRes = await probe(candidates);
-                var invRes = await probe(invCandidates);
-
-                var orders = ordersRes && Array.isArray(ordersRes.json) ? ordersRes.json : [];
-                var inv = invRes && Array.isArray(invRes.json) ? invRes.json : [];
-                try{ window.lastInvSource = invRes && invRes.url ? invRes.url : null; }catch(e){}
-
-                // Total revenue: sum order.total (fallback to subtotal+shipping or items)
-                var revenue = 0;
-                var itemsSold = 0;
-                orders.forEach(function(o){
-                    var t = Number(o.total || o.subtotal || 0) || 0;
-                    if(!t){ // fallback compute from items
-                        var items = Array.isArray(o.items)?o.items:[];
-                        items.forEach(function(it){ var qty = Number(it.qty||it.quantity||1)||1; var price = Number(it.price||0)||0; t += qty*price; });
-                    }
-                    revenue += t;
-                    (Array.isArray(o.items)?o.items:[]).forEach(function(it){ itemsSold += Number(it.qty||it.quantity||1)||1; });
-                });
-
-                // Products in stock: sum all sizes quantities in inventory.json
-                var totalStock = 0;
-                inv.forEach(function(p){
-                    var sizes = p.sizes || {};
-                    Object.keys(sizes).forEach(function(k){ totalStock += Number(sizes[k]||0)||0; });
-                });
-
-                // Pending orders
-                var pending = orders.filter(function(o){ var s = (o.status||'').toString().toLowerCase(); return s === 'pending' || s === 'awaiting' || s === 'processing'; }).length;
-
-                // Write to DOM if elements present
-                var revEl = document.getElementById('totalRevenueValue'); if(revEl) revEl.textContent = formatPHP(revenue);
-                var soldEl = document.getElementById('salesValue'); if(soldEl) soldEl.textContent = String(itemsSold);
-                var stockEl = document.getElementById('productsInStockValue'); if(stockEl) stockEl.textContent = String(totalStock);
-                var pendEl = document.getElementById('pendingOrdersValue'); if(pendEl) pendEl.textContent = String(pending);
-
-                // store last results and refresh detailed widgets/charts
-                lastOrders = orders || [];
-                lastInv = inv || [];
-                try{ window.lastOrders = lastOrders; window.lastInv = lastInv; }catch(e){}
-                try{ updateDashboardDetails(lastOrders, lastInv); }catch(e){ console.warn('updateDashboardDetails failed', e); }
-            }catch(e){ console.error('updateKpis failed', e); }
-        }
-
-    // --- Dashboard detail helpers (charts, lists) ---
-    var revenueChart = null;
-    var brandChart = null;
-    var currentRange = 'month';
-    var lastOrders = [];
-    var lastInv = [];
-    var prevRevKey = '';
-    var prevBrandKey = '';
-    var prevLowKey = '';
-
-        function parseOrderDate(o, fallbackIndex){
-            var d = o.created || o.createdAt || o.date || o.timestamp || o.time;
-            if(!d){ return new Date(Date.now() - (fallbackIndex||0)*3600*1000); }
-            try{ return new Date(d); }catch(e){ return new Date(d); }
-        }
-
-        function escapeHtml(text){
-            return String(text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-        }
-
-        function aggregateRevenue(orders, range){
-            // simple aggregation: group by day/week/month/year
-            var buckets = {};
-            orders.forEach(function(o, idx){
-                var dt = parseOrderDate(o, idx);
-                var key;
-                if(range === 'day'){
-                    key = dt.getHours();
-                }else if(range === 'week'){
-                    var wk = new Date(dt); wk.setHours(0,0,0,0); // group by date
-                    key = wk.toISOString().slice(0,10);
-                }else if(range === 'month'){
-                    key = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0');
-                }else{ // year
-                    key = String(dt.getFullYear());
-                }
-                var amt = Number(o.total || o.subtotal || 0) || 0;
-                if(!amt){ // compute from items
-                    var items = Array.isArray(o.items)?o.items:[];
-                    items.forEach(function(it){ var qty = Number(it.qty||it.quantity||1)||1; var price = Number(it.price||0)||0; amt += qty*price; });
-                }
-                buckets[key] = (buckets[key]||0) + amt;
-            });
-            // build sorted arrays
-            var labels = Object.keys(buckets).sort();
-            var data = labels.map(function(k){ return buckets[k]; });
-            return { labels: labels, data: data };
-        }
-
-        function topCountsFromOrders(orders, extractor, topN){
-            var counts = {};
-            orders.forEach(function(o){ var items = Array.isArray(o.items)?o.items:[]; items.forEach(function(it){ var key = extractor(it) || 'Unknown'; counts[key] = (counts[key]||0) + (Number(it.qty||it.quantity||1)||1); }); });
-            var arr = Object.keys(counts).map(function(k){ return { k:k, v:counts[k] }; }).sort(function(a,b){ return b.v - a.v; });
-            return arr.slice(0, topN||5);
-        }
-
-        function updateDashboardDetails(orders, inv){
-            try{
-                // Top brand
-                var topBrands = topCountsFromOrders(orders, function(it){ return it.brand || it.make || it.manufacturer || it.vendor || it.label; }, 1);
-                var topBrand = topBrands.length ? topBrands[0].k : '—';
-                var topBrandEl = document.getElementById('topBrandValue'); if(topBrandEl) topBrandEl.textContent = topBrand;
-
-                // Top size
-                var topSizes = topCountsFromOrders(orders, function(it){ return it.size || it.shoeSize || (it.variant && it.variant.size) || (it.sizeLabel); }, 1);
-                var topSize = topSizes.length ? topSizes[0].k : '—';
-                var topSizeEl = document.getElementById('topSizeValue'); if(topSizeEl) topSizeEl.textContent = topSize;
-
-                // Low stock items (include zero/out-of-stock). Use product rows, variants, and per-item critical levels.
-                try{
-                    var low = [];
-                    // Try to read the Inventory app's saved low-stock threshold so the
-                    // Dashboard uses the same canonical value. Fallback to 5 when
-                    // nothing persisted.
-                    var defaultLowThreshold = (function(){
-                        try{
-                            var saved = localStorage.getItem('inventory_app_settings');
-                            if(saved){ var o = JSON.parse(saved); if(o && o.lowStockThreshold) return Number(o.lowStockThreshold) || 5; }
-                        }catch(e){}
-                        try{ if(window.lastInvSettings && window.lastInvSettings.lowStockThreshold) return Number(window.lastInvSettings.lowStockThreshold) || 5; }catch(e){}
-                        return 5;
-                    })();
-
-                    function getNumber(v){ return Number(v||0)||0; }
-
-                    inv.forEach(function(p){
-                        var title = p.title || p.name || p.product || p.id || 'Unknown';
-
-                        // helper to push an entry
-                        function pushEntry(subtitle, qty, critical){
-                            low.push({ title: subtitle ? (title + ' — ' + subtitle) : title, qty: getNumber(qty), critical: getNumber(critical||defaultLowThreshold) });
-                        }
-
-                        // If explicit variants/skus array exists, check each variant
-                        var variants = p.variants || p.skus || p.items || null;
-                        if(Array.isArray(variants) && variants.length){
-                            variants.forEach(function(v){
-                                // if variant has sizes, report per-size low items
-                                var vCritical = v.criticalLevel || v.critical || v.minStock || v.reorderLevel || p.criticalLevel || p.critical || p.minStock || defaultLowThreshold;
-                                if(v.sizes){ Object.keys(v.sizes||{}).forEach(function(sizeKey){ var q = getNumber(v.sizes[sizeKey]); if(q <= vCritical) pushEntry((v.title || v.name || v.sku || v.id || '') + ' (size ' + sizeKey + ')', q, vCritical); }); }
-                                // also consider aggregate qty fields on variant
-                                var vQty = 0;
-                                vQty = vQty || getNumber(v.qty) || getNumber(v.stock) || getNumber(v.inventory) || getNumber(v.available) || getNumber(v.total);
-                                if(vQty <= vCritical){ pushEntry(v.title || v.name || v.sku || v.id || '', vQty, vCritical); }
-                            });
-                            return; // done with this product
-                        }
-
-                        // No variants — compute total from sizes or qty fields on product
-                        var total = 0;
-                        if(p.sizes){
-                            // report per-size low items first
-                            Object.keys(p.sizes||{}).forEach(function(sizeKey){ var q = getNumber(p.sizes[sizeKey]); var critical = p.criticalLevel || p.critical || p.minStock || p.reorderLevel || defaultLowThreshold; if(q <= critical) pushEntry('size ' + sizeKey, q, critical); total += q; });
-                        }
-                        total = total || getNumber(p.qty) || getNumber(p.stock) || getNumber(p.inventory) || getNumber(p.total) || getNumber(p.available);
-
-                        var critical = p.criticalLevel || p.critical || p.minStock || p.reorderLevel || defaultLowThreshold;
-                        if(total <= critical){ pushEntry('', total, critical); }
-                    });
-
-                    // sort ascending so out-of-stock appear first
-                    low.sort(function(a,b){ return a.qty - b.qty; });
-                    var lowEl = document.getElementById('lowStockList');
-                    if(lowEl){
-                        var lowKey = low.map(function(x){ return x.title+':'+x.qty+':'+x.critical; }).join('|');
-                        if(prevLowKey === lowKey){
-                            // no change
-                        }else{
-                            prevLowKey = lowKey;
-                            if(low.length === 0){
-                                lowEl.textContent = 'No low stock items';
-                            }else{
-                                lowEl.innerHTML = low.map(function(x){
-                                    var qtyLabel = (x.qty === 0) ? '<span style="color:#b71c1c;font-weight:700">Out of stock</span>' : (x.qty+' left');
-                                    var critLabel = x.critical ? (' (critical ≤ '+ x.critical +')') : '';
-                                    return '<div style="margin-bottom:6px"><strong>'+ escapeHtml(x.title) +'</strong> — '+ qtyLabel + critLabel +'</div>';
-                                }).join('');
-                            }
-                        }
-                    }
-                }catch(e){ console.warn('low stock compute failed', e); }
-
-                // Charts: revenue line and brand bar
-                try{
-                    var revAgg = aggregateRevenue(orders, currentRange || 'month');
-                    var revKey = (revAgg.labels||[]).join('|') + '::' + (revAgg.data||[]).join(',');
-                    var ctx = document.getElementById('revenueLineChart');
-                    if(ctx && typeof Chart !== 'undefined'){
-                        if(prevRevKey === revKey && revenueChart){
-                            // no change in data, skip redraw
-                        }else{
-                            prevRevKey = revKey;
-                            if(revenueChart){
-                                revenueChart.data.labels = revAgg.labels;
-                                revenueChart.data.datasets[0].data = revAgg.data;
-                                revenueChart.update();
-                            }else{
-                                revenueChart = new Chart(ctx.getContext('2d'), {
-                                    type: 'line',
-                                    data: { labels: revAgg.labels, datasets: [{ label: 'Revenue', data: revAgg.data, borderColor:'#b71c1c', backgroundColor:'rgba(183,28,28,0.08)', tension:0.3 }] },
-                                    options: { responsive:true, maintainAspectRatio:false, scales: { y: { ticks: { callback: function(v){ return 'PHP '+Number(v).toFixed(2); } } } } }
-                                });
-                            }
-                        }
-                    }
-                }catch(e){ console.warn('revenue chart failed', e); }
-
-                try{
-                    var brands = topCountsFromOrders(orders, function(it){ return it.brand || it.make || it.manufacturer || it.vendor || it.label; }, 10);
-                    var bLabels = brands.map(function(x){ return x.k; });
-                    var bData = brands.map(function(x){ return x.v; });
-                    var brandKey = bLabels.join('|') + '::' + bData.join(',');
-                    var bctx = document.getElementById('brandBarChart');
-                    if(bctx && typeof Chart !== 'undefined'){
-                        if(prevBrandKey === brandKey && brandChart){
-                            // no change, skip
-                        }else{
-                            prevBrandKey = brandKey;
-                            if(brandChart){
-                                brandChart.data.labels = bLabels;
-                                brandChart.data.datasets[0].data = bData;
-                                brandChart.update();
-                            }else{
-                                brandChart = new Chart(bctx.getContext('2d'), {
-                                    type: 'bar', data: { labels: bLabels, datasets:[{ label: 'Units', data: bData, backgroundColor:'#1976d2' }] }, options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false }
-                                });
-                            }
-                        }
-                    }
-                }catch(e){ console.warn('brand chart failed', e); }
-
-            }catch(e){ console.warn('updateDashboardDetails error', e); }
-        }
-
-        document.addEventListener('DOMContentLoaded', function(){
-            (async function(){
-                try{ if(window.PageDataGate && PageDataGate.block) PageDataGate.block('Loading overview...'); }catch(e){}
-                try{ await updateKpis(); }catch(e){ console.warn('dashboard initial update failed', e); }
-                try{ if(window.PageDataGate && PageDataGate.ready) PageDataGate.ready(); }catch(e){}
-                try{
-                    // wire KPI filter buttons to re-render charts without refetching
-                    var buttons = document.querySelectorAll('.kpi-filter');
-                    buttons.forEach(function(b){ b.addEventListener('click', function(){ try{ var r = b.getAttribute('data-range')||'month'; currentRange = r; buttons.forEach(function(x){ x.classList.remove('active'); }); b.classList.add('active'); updateDashboardDetails(lastOrders, lastInv); }catch(e){console.warn(e);} }); });
-                    try{ var def = Array.prototype.find.call(buttons, function(b){ return b.getAttribute('data-range')===currentRange; }); if(def) def.classList.add('active'); }catch(e){}
-                }catch(e){}
-                try{ setInterval(updateKpis, 5000); }catch(e){ console.warn('dashboard kpi interval failed', e); }
-            })();
-        });
-        window.updateDashboardKpis = updateKpis;
-    })();
-    </script>
 </html>

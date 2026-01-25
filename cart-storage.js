@@ -159,7 +159,7 @@ function addToCart(product) {
             if(!fbUser){
                 try{ var returnUrl = window.location.pathname + window.location.search; }catch(e){ var returnUrl = '' }
                 var redirect = 'login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl);
-                try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){}
+                try{ alert('Please sign in to add items to your cart. You will be redirected to the login page.'); }catch(e){}
                 window.location.href = redirect;
                 return { success: false, reason: 'login_required' };
             }
@@ -169,7 +169,7 @@ function addToCart(product) {
             if(!profile || !profile.email){
                 try{ var returnUrl = window.location.pathname + window.location.search; }catch(e){ var returnUrl = '' }
                 var redirect = 'login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl);
-                try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){}
+                try{ alert('Please sign in to add items to your cart. You will be redirected to the login page.'); }catch(e){}
                 window.location.href = redirect;
                 return { success: false, reason: 'login_required' };
             }
@@ -472,42 +472,16 @@ window.ensureSignedInOrRedirect = function(returnUrl){
             var u = firebase.auth().currentUser;
             if(!u){
                 var redirect = 'login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl);
-                try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){}
+                try{ alert('Please sign in to continue. Redirecting to login.'); }catch(e){}
                 window.location.href = redirect;
                 return false;
             }
             return true;
         }
-    // No firebase available — fall back to localStorage profile
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ var redirect='login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl); try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){} window.location.href = redirect; return false; } }catch(e){ window.location.href = 'login.html'; return false; }
+        // No firebase available — fall back to localStorage profile
+        try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ var redirect='login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl); window.location.href = redirect; return false; } }catch(e){ window.location.href = 'login.html'; return false; }
         return true;
     }catch(e){ return false; }
-};
-
-// Robust profile navigation helper used by header/profile icon logic.
-// Ensures the user is signed in before navigating to profile.html. If not signed in,
-// redirects to login.html with an optional return parameter.
-window.handleGoToProfile = function(returnUrl){
-    try{
-        // Prefer Firebase auth when available
-        if(window.firebase && firebase.auth){
-            var u = firebase.auth().currentUser;
-            if(u && u.uid){
-                window.location.href = 'profile.html';
-                return true;
-            }
-            // Not signed in according to Firebase — force login
-            var redirect = 'login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl);
-            try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){}
-            window.location.href = redirect;
-            return false;
-        }
-
-    // No Firebase available — fall back to localStorage `profile`
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ var redirect='login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl); try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){} window.location.href = redirect; return false; } }catch(e){ window.location.href = 'login.html'; return false; }
-        window.location.href = 'profile.html';
-        return true;
-    }catch(e){ try{ window.location.href = 'login.html'; }catch(_){ } return false; }
 };
 
 // Remove all locally-stored data associated with a given email (orders, profile, cart, wishlist)
@@ -1000,42 +974,12 @@ function openCartItemEditor(index){
                 var sObj = (colors[colorIndex] && colors[colorIndex].sizes) ? colors[colorIndex].sizes : {};
                 var keys = Object.keys(sObj || {}).sort(function(a,b){ return Number(a) - Number(b); });
                 if(keys.length === 0){ keys = [ item.size || '' ]; }
-                function _isPreOrderTagged(obj){
-                    try{
-                        if(!obj) return false;
-                        var raw = (obj.tagsManual || obj.tags || obj.tagsList || obj.tags_list) || [];
-                        var list = [];
-                        if(Array.isArray(raw)) list = raw;
-                        else if(typeof raw === 'string') list = raw.split(/[,\/|;]+/);
-                        var lower = list.map(function(t){ return String(t||'').trim().toLowerCase(); }).filter(Boolean);
-                        return (lower.indexOf('pre-order') !== -1 || lower.indexOf('preorder') !== -1);
-                    }catch(e){ return false; }
-                }
-                var allowPre = false;
-                try{
-                    allowPre = !!(item && item.preOrder);
-                    if(!allowPre){
-                        var rec = (colors[colorIndex] && (colors[colorIndex].record || colors[colorIndex].parent)) ? (colors[colorIndex].record || colors[colorIndex].parent) : null;
-                        if(_isPreOrderTagged(rec) || _isPreOrderTagged(item)) allowPre = true;
-                    }
-                }catch(e){ allowPre = false; }
                 keys.forEach(function(s){ var available = (sObj && sObj[s] !== undefined) ? Number(sObj[s]) : 0;
                     var sb = document.createElement('button'); sb.className='btn ghost product-size-btn cart-edit-size'; sb.textContent = s; sb.setAttribute('data-size', s); sb.setAttribute('data-available', String(available));
                     // clear previous state classes
                     sb.classList.remove('low-stock','oos');
-                    if(available <= 0){
-                        if(allowPre){
-                            sb.disabled = false;
-                            sb.classList.add('preorder-allowed');
-                            try{ sb.style.border = '1px dashed #b71c1c'; sb.style.background = '#fff7f7'; sb.style.opacity = '1'; }catch(_){ }
-                        } else {
-                            sb.disabled = true;
-                            sb.classList.add('oos');
-                        }
-                    } else {
-                        sb.disabled = false;
-                        if(available < 6) sb.classList.add('low-stock');
-                    }
+                    if(available <= 0){ sb.disabled = true; sb.classList.add('oos'); }
+                    else { sb.disabled = false; if(available < 6) sb.classList.add('low-stock'); }
                         if((item.size||'') == s){ sb.classList.remove('ghost'); sb.classList.add('primary'); selectedSizeVal = s; }
                         sb.onclick = function(){ if(sb.disabled) return; sizeButtons.querySelectorAll('button').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); }); sb.classList.remove('ghost'); sb.classList.add('primary'); selectedSizeVal = s; updateSizeStockDisplay(s); };
                     sizeButtons.appendChild(sb);
@@ -1044,12 +988,8 @@ function openCartItemEditor(index){
                 function updateSizeStockDisplay(selectedSize){
                     try{
                         var avail = (sObj && sObj[selectedSize] !== undefined) ? Number(sObj[selectedSize]) : 0;
-                        if(!isNaN(avail) && avail <= 0 && allowPre){
-                            sizeStockDiv.innerHTML = 'Stock: <b>0</b> — <span style="display:inline-block;margin-left:8px;padding:2px 10px;border-radius:999px;border:1px solid #f2bcbc;background:#fff0f0;color:#b71c1c;font-weight:700;">Pre-order available</span>';
-                        } else {
-                            sizeStockDiv.textContent = 'Stock: ' + (isNaN(avail)?0:avail) + ' available';
-                            if(!isNaN(avail) && avail > 0 && avail < 6){ var warn = document.createElement('span'); warn.style.color = '#c62828'; warn.style.fontWeight = '700'; warn.style.marginLeft = '8px'; warn.textContent = 'LOW STOCK!'; sizeStockDiv.appendChild(warn); }
-                        }
+                        sizeStockDiv.textContent = 'Stock: ' + (isNaN(avail)?0:avail) + ' available';
+                        if(!isNaN(avail) && avail > 0 && avail < 6){ var warn = document.createElement('span'); warn.style.color = '#c62828'; warn.style.fontWeight = '700'; warn.style.marginLeft = '8px'; warn.textContent = 'LOW STOCK!'; sizeStockDiv.appendChild(warn); }
                     }catch(e){}
                 }
                 // ensure display reflects initial selection

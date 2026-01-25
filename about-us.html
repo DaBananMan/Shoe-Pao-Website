@@ -85,13 +85,13 @@
             <h2>Visit Our Store</h2>
             <div class="about-kv">
                 <div class="k">Address</div>
-                <div class="v" id="storeAddress">BLK 15 LOT 25 PHASE 2 MV VILLAR AVENUE CAMELLA SPRINGVILLE CENTRAL, Bacoor, 4102 Cavite</div>
+                <div class="v" id="storeAddress">TBD — Add full address</div>
                 <div class="k">Hours</div>
-                <div class="v" id="storeHours">Mon–Sun, 10:00 AM – 8:00 PM</div>
+                <div class="v" id="storeHours">TBD — e.g., Mon–Sun, 10:00 AM – 8:00 PM</div>
                 <div class="k">Contact</div>
-                <div class="v" id="storeContact">Facebook: Shoe Pao Special <br> Phone: 0976 187 2871 <br> Email: shoepaospecial@gmail.com</div>
+                <div class="v" id="storeContact">TBD — Phone / Messenger</div>
             </div>
-            <a class="map-link" href="https://maps.app.goo.gl/ncXJEr2q7d9F3mH69" target="_blank" rel="noopener">Get Directions <span style="display:inline-block;width:0;height:0;border-left:8px solid #fff;border-top:6px solid transparent;border-bottom:6px solid transparent;"></span></a>
+            <a class="map-link" href="https://maps.google.com" target="_blank" rel="noopener">Get Directions <span style="display:inline-block;width:0;height:0;border-left:8px solid #fff;border-top:6px solid transparent;border-bottom:6px solid transparent;"></span></a>
         </aside>
     </main>
 
@@ -122,7 +122,7 @@
     function goToNewArrivals(){ window.location.href = 'product-list.html?filter=new'; }
     function goToBrand(brand){ window.location.href = 'product-list.html?brand=' + encodeURIComponent(brand); }
     function goToProductList(){ window.location.href = 'product-list.html'; }
-    function goToUserPage(){ try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } }catch(e){ window.location.href = 'login.html'; } }
+    function goToUserPage(){ try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; }
     function goToCartPage(){ window.location.href = 'cart.html'; }
     function toggleSearchBox(){ var box = document.getElementById('searchBox'); box.style.display = (box.style.display === 'block') ? 'none' : 'block'; if(box.style.display==='block'){ document.getElementById('searchInput').focus(); } }
     function searchKeyDown(e){ if(e.key==='Enter'){ var val = document.getElementById('searchInput').value.trim(); if(val){ window.location.href = 'product-list.html?search=' + encodeURIComponent(val); } } }

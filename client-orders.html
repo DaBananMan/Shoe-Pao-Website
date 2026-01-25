@@ -133,66 +133,40 @@
             <div id="refundModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:10001;align-items:center;justify-content:center;">
                 <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                        <div style="font-weight:700;font-size:1.05rem;">Request a return or refund</div>
+                        <div style="font-weight:700;font-size:1.05rem;">Can you give a reason for your refund?</div>
                         <button onclick="closeRefundModal()" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
                     </div>
-                    <div style="margin-bottom:10px;color:#444;">Provide details and upload at least two images to process your request.</div>
-                    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:8px;">
-                        <label style="display:flex;flex-direction:column;gap:6px;">
-                            <span style="font-weight:600;">Request type</span>
-                            <select id="refundTypeSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
-                                <option value="">Select request type</option>
-                                <option value="Return and Refund">Return and Refund</option>
-                                <option value="Refund only">Refund only</option>
-                            </select>
-                        </label>
-                        <label style="display:flex;flex-direction:column;gap:6px;">
-                            <span style="font-weight:600;">Reason</span>
-                            <select id="refundReasonSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
-                                <option value="">Select a reason</option>
-                                <option value="Wrong item received">Wrong item received</option>
-                                <option value="Item damaged or defective">Item damaged or defective</option>
-                                <option value="Missing item in package">Missing item in package</option>
-                                <option value="Incorrect size sent (store error)">Incorrect size sent (store error)</option>
-                                <option value="Package tampered on arrival">Package tampered on arrival</option>
-                            </select>
-                        </label>
-                        <label style="display:flex;flex-direction:column;gap:6px;">
-                            <span style="font-weight:600;">Refund method</span>
-                            <select id="refundMethodSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
-                                <option value="">Select refund method</option>
-                                <option value="Wallet">Wallet</option>
-                                <option value="Original Payment">Original Payment</option>
-                            </select>
-                        </label>
-                        <label style="display:flex;flex-direction:column;gap:6px;">
-                            <span style="font-weight:600;">Description</span>
-                            <textarea id="refundDescription" maxlength="250" placeholder="Describe the issue (max 250 characters)" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;min-height:80px;resize:vertical;"></textarea>
-                            <div style="font-size:0.9rem;color:#666;"><span id="refundDescCount">0</span>/250</div>
-                        </label>
-                        <div style="display:flex;flex-direction:column;gap:8px;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;">
-                            <div style="font-weight:600;">Select item(s) to return/refund</div>
-                            <div id="refundItemsSelect" style="display:flex;flex-direction:column;gap:8px;"></div>
-                            <div id="refundItemsNote" style="color:#b71c1c;font-weight:600;display:none;">Please select at least one item.</div>
-                        </div>
-                        <div style="display:flex;flex-direction:column;gap:8px;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;">
-                            <div style="font-weight:600;">Upload proof (at least 2 images)</div>
-                            <div style="color:#444;font-size:0.95rem;">Include: product photo, packaging or shipping label, and damage photo (if applicable).</div>
-                            <label style="display:flex;flex-direction:column;gap:6px;">
-                                <span>Product photo</span>
-                                <input id="refundProofProduct" type="file" accept="image/*" />
-                            </label>
-                            <label style="display:flex;flex-direction:column;gap:6px;">
-                                <span>Packaging / shipping label</span>
-                                <input id="refundProofPackaging" type="file" accept="image/*" />
-                            </label>
-                            <label style="display:flex;flex-direction:column;gap:6px;">
-                                <span>Damage photo (if applicable)</span>
-                                <input id="refundProofDamage" type="file" accept="image/*" />
-                            </label>
-                            <div id="refundProofNote" style="color:#b71c1c;font-weight:600;display:none;">Please upload at least two images.</div>
-                        </div>
-                    </div>
+                    <div style="margin-bottom:8px;color:#444;">You may upload an image as proof of the issue (optional). Please provide a short explanation to continue.</div>
+                            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:8px;">
+                                <label style="display:flex;flex-direction:column;gap:6px;">
+                                    <span style="font-weight:600;">Reason</span>
+                                    <select id="refundReasonSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
+                                        <option value="">Select a reason</option>
+                                        <option value="Changed mind">Changed mind</option>
+                                        <option value="Wrong size">Wrong size</option>
+                                        <option value="Defective item">Defective item</option>
+                                        <option value="Others">Others</option>
+                                    </select>
+                                </label>
+                                <input id="refundReasonOtherText" type="text" placeholder="If Others, please specify" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;display:none;" />
+                                <label style="display:flex;flex-direction:column;gap:6px;">
+                                    <span style="font-weight:600;">Refund method</span>
+                                    <select id="refundMethodSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
+                                        <option value="">Select refund method</option>
+                                        <option value="Wallet">Wallet</option>
+                                        <option value="Original Payment">Original Payment</option>
+                                    </select>
+                                </label>
+                                <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+                                    <div id="refundUpload" style="width:100%;border:1px solid #eee;border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;min-height:48px;box-sizing:border-box;">
+                                        <div id="refundUploadInner" style="text-align:center;color:#444;font-family:'Poppins',Arial,sans-serif;width:100%;">
+                                            <img id="refundPreview" src="" alt="" style="max-width:100%;max-height:160px;display:none;border-radius:8px;margin-bottom:8px;object-fit:contain;" />
+                                            <div id="refundUploadPlaceholder" style="font-size:0.98rem;color:#444;padding:6px 8px;">+ Upload Photo (optional)</div>
+                                        </div>
+                                    </div>
+                                    <input id="refundProof" type="file" accept="image/*" style="display:none;" />
+                                </div>
+                            </div>
                     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
                         <button onclick="closeRefundModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Cancel</button>
                         <button id="confirmRefundBtn" onclick="confirmRefund()" disabled style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;">Submit Refund Request</button>
@@ -211,13 +185,12 @@
             <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:8px;">
                 <select id="cancelReasonSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
                     <option value="">Select a reason</option>
-                    <option value="Wrong shipping address">Wrong shipping address</option>
-                    <option value="Wrong payment method (for bank and qr only)">Wrong payment method (for bank and qr only)</option>
-                    <option value="Wrong variant/size order">Wrong variant/size order</option>
                     <option value="Changed mind">Changed mind</option>
-                    <option value="Others (please specify)">Others (please specify)</option>
+                    <option value="Wrong size">Wrong size</option>
+                    <option value="Defective item">Defective item</option>
+                    <option value="Others">Others</option>
                 </select>
-                <textarea id="cancelReasonOtherText" placeholder="Add details for 'Others'" style="display:none;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;min-height:70px;resize:vertical;"></textarea>
+                <input id="cancelReasonOtherText" type="text" placeholder="If Others, please specify" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;display:none;" />
             </div>
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
                 <button onclick="closeCancelModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Back</button>
@@ -320,35 +293,6 @@
             return formatDeliveryAddressText(deliveryObj) || order.delivery_address || order.shippingAddress || '';
         }
 
-        // Add all items from a cancelled order back into the cart
-        function addOrderItemsToCart(order){
-            try{
-                if(!order || !Array.isArray(order.items) || !order.items.length){ alert('No items to add for this order.'); return; }
-                var cart = JSON.parse(localStorage.getItem('cart')||'[]') || [];
-                order.items.forEach(function(it){
-                    var title = it.title || it.name || it.product_name || 'Product';
-                    var price = Number(it.price || it.unit_price || 0) || 0;
-                    var qty = Number(it.qty || it.quantity || 1) || 1;
-                    var image = it.image || it.image_url || it.photo || 'IMAGE/NIKE1.png';
-                    var productId = it.product_id || it.id || title;
-                    var existing = cart.find(function(c){ return c && (c.product_id === productId || c.id === productId); });
-                    if(existing){ existing.qty = (existing.qty || existing.quantity || 1) + qty; }
-                    else {
-                        cart.push({
-                            id: productId,
-                            product_id: productId,
-                            title: title,
-                            price: price,
-                            qty: qty,
-                            image: image
-                        });
-                    }
-                });
-                localStorage.setItem('cart', JSON.stringify(cart));
-                alert('Items added to cart. You can review them before checkout.');
-            }catch(e){ alert('Could not add items to cart.'); }
-        }
-
         // Compute estimated delivery window based on customer's address region
         function computeEstimatedDelivery(order){
             try{
@@ -422,8 +366,6 @@
             try{ return JSON.parse(localStorage.getItem('profile')||'null'); }catch(e){ return null; }
         }
 
-        function _normalizeText(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
-
         var __productsCache = [];
         var __productsCacheLoaded = false;
         var __productsCacheLoading = false;
@@ -448,21 +390,30 @@
             }catch(e){ __productsCacheLoading = false; }
         }
 
+        function _normalizeText(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
+
         function _resolveProductIdByName(brand, title){
             try{
                 if(!title) return '';
-                var products = Array.isArray(__productsCache) ? __productsCache : [];
-                if(products.length){
-                    var t = _normalizeText(title);
-                    var b = _normalizeText(brand);
-                    var match = products.find(function(p){
-                        if(!p) return false;
-                        var pn = _normalizeText(p.model || p.name || p.title);
-                        if(!pn || pn !== t) return false;
-                        if(!b) return true;
-                        return _normalizeText(p.brand) === b;
-                    });
+                var t = _normalizeText(title);
+                var b = _normalizeText(brand);
+                // Prefer in-memory firebase-primed cache when available
+                if(__productsCacheLoaded && Array.isArray(__productsCache) && __productsCache.length){
+                    var m = __productsCache.find(function(p){ if(!p) return false; var pn = _normalizeText(p.model || p.name || p.title); if(!pn || pn !== t) return false; if(!b) return true; return _normalizeText(p.brand||'') === b; });
+                    if(m && m.id) return String(m.id);
+                }
+                // fallback to localStorage 'products'
+                var products = JSON.parse(localStorage.getItem('products')||'[]');
+                if(Array.isArray(products)){
+                    var match = products.find(function(p){ if(!p) return false; var pn = _normalizeText(p.name || p.title); if(!pn || pn !== t) return false; if(!b) return true; return _normalizeText(p.brand||'') === b; });
                     if(match && match.id) return String(match.id);
+                }
+            }catch(e){}
+            try{
+                var inv = JSON.parse(localStorage.getItem('inventory')||'[]');
+                if(Array.isArray(inv)){
+                    var match2 = inv.find(function(p){ if(!p) return false; var pn = _normalizeText(p.name || p.title); if(!pn || pn !== t) return false; if(!b) return true; return _normalizeText(p.brand||'') === b; });
+                    if(match2 && match2.id) return String(match2.id);
                 }
             }catch(e){}
             return '';
@@ -516,7 +467,7 @@
                     var productId = String(it.id || it.productId || it.variantId || it.sku || '').trim();
                     if(!productId) productId = _resolveProductIdByName(brand, title);
 
-                    var key = (brand || title) ? api.getProductKey({ brand: brand, title: title }) : api.getProductKey({ productId: productId, brand: brand, title: title });
+                    var key = api.getProductKey({ productId: productId, brand: brand, title: title });
                     var qty = Number(it.quantity || it.qty || 1);
                     if(!isFinite(qty) || qty <= 0) qty = 1;
                     if(!byKey[key]){
@@ -689,47 +640,6 @@
             const email = (profile && profile.email) ? profile.email : '';
             const uid = (profile && profile.uid) ? profile.uid : '';
 
-            function buildActionButtons(order){
-                var statusNorm = String(order.status||'').toLowerCase().trim();
-                var paymentCode = getOrderPaymentCode(order);
-                var isPending = (!statusNorm) || statusNorm === 'pending' || statusNorm === 'pending payment';
-                var isConfirming = statusNorm === 'confirmed' || statusNorm === 'confirmation';
-                var actions = [];
-                function btn(label, cls, handler, opts){
-                    opts = opts || {};
-                    var style = opts.disabled ? 'opacity:0.55;cursor:not-allowed;' : '';
-                    var attr = opts.disabled ? 'aria-disabled="true"' : '';
-                    return '<button class="order-card-btn ' + cls + '" style="' + style + '" ' + attr + ' onclick="' + handler + '">' + label + '</button>';
-                }
-                if(isPending){
-                    if(paymentCode === 'cod'){
-                        actions.push(btn('Cancel Order', 'cancel-btn', 'window.requestCancelOrderById(\'' + order.id + '\')'));
-                    } else {
-                        actions.push(btn('Request Cancel', 'cancel-btn', 'window.requestCancelOrderById(\'' + order.id + '\')'));
-                        actions.push(btn('Contact Seller', 'contact-btn', 'window.contactSeller(\'' + order.id + '\')'));
-                    }
-                } else if(isConfirming){
-                    actions.push(btn('Request Cancel', 'cancel-btn', 'window.requestCancelOrderById(\'' + order.id + '\')'));
-                    actions.push(btn('Contact Seller', 'contact-btn', 'window.contactSeller(\'' + order.id + '\')'));
-                } else if(statusNorm === 'shipped'){
-                    actions.push(btn('Request Cancel', 'cancel-btn', 'window._clientShippedCancelNotice()', { disabled: true }));
-                    actions.push(btn('Contact Seller', 'contact-btn', 'window.contactSeller(\'' + order.id + '\')'));
-                } else if(statusNorm === 'delivered'){
-                    var within = isWithinReturnWindow(order);
-                    if(within){
-                        actions.push(btn('Return / Refund', 'refund-btn', 'window.requestRefundOrderById(\'' + order.id + '\')'));
-                    } else {
-                        actions.push(btn('Return / Refund', 'refund-btn', 'window.requestRefundOrderById(\'' + order.id + '\')', { disabled: true }));
-                        actions.push('<div style="flex-basis:100%;color:#b71c1c;font-weight:600;font-size:0.92rem;">Return period has expired</div>');
-                    }
-                    actions.push(btn('Rate Items', 'received-btn', 'window.openRatingModalById(\'' + order.id + '\')'));
-                    actions.push(btn('Contact Seller', 'contact-btn', 'window.contactSeller(\'' + order.id + '\')'));
-                } else if(statusNorm.indexOf('cancel') !== -1){
-                    actions.push(btn('Order Again', 'view-btn', 'window._orderAgain(\'' + order.id + '\')'));
-                }
-                return actions.join('');
-            }
-
             ensureFirebaseReady(function(err){
                 if(err){ container.innerHTML='<div style="color:#b71c1c">Firebase not configured.</div>'; return; }
                 try{
@@ -801,8 +711,12 @@
                 card.setAttribute('role','button');
                 card.setAttribute('tabindex','0');
                 const statusNorm = String(order.status||'').toLowerCase().trim();
+                const hasCancelRequest = !!(order.cancelRequest && order.cancelRequest.requestedAt);
+                const hasReturnRequest = !!(order.returnRequest && order.returnRequest.requestedAt);
+                const canCancel = (statusNorm === 'confirmed') && !hasCancelRequest;
+                const canRefund = (statusNorm === 'delivered' || statusNorm === 'received') && !hasReturnRequest && isWithinReturnWindow(order);
+                const hideActions = statusNorm.indexOf('cancel') !== -1 || statusNorm.indexOf('refund') !== -1 || statusNorm.indexOf('return') !== -1;
                 var estText = computeEstimatedDelivery(order);
-                var actionsHtml = buildActionButtons(order);
                 card.innerHTML = `
                     <div class="order-status-box">
                         <img src="IMAGE/PendingIcon.png" class="order-status-icon" alt="${titleCase(order.status)}">
@@ -816,7 +730,13 @@
                     ${ estText ? ('<div style="padding:6px 18px;color:#444;font-size:0.95rem;font-weight:600;">Est. Delivery: ' + estText + '</div>') : '' }
                         ${ isCancellationRevoked(order) ? ('<div style="padding:6px 18px;color:#b71c1c;font-weight:600;">Cancel Request Was Revoked</div>') : '' }
                         ${ statusNorm === 'shipped' ? ('<div class="note-row">Have questions to this order? Contact us at <b>Shoe Pao Facebook Page</b>.</div>') : '' }
-                        <div class="order-card-btn-row">${actionsHtml}</div>
+                        <div class="order-card-btn-row">
+                        ${ (!hideActions && canCancel) ? (`<button class="order-card-btn cancel-btn" onclick="requestCancelOrderById('${order.id}')">Cancel Order</button>`) : '' }
+                        ${ (!hideActions && canRefund) ? (`<button class="order-card-btn refund-btn" onclick="requestRefundOrderById('${order.id}')">Return / Refund</button>`) : '' }
+                        ${ statusNorm === 'shipped' ? (`<button class="order-card-btn contact-btn" onclick="contactSeller('${order.id}')">Contact Seller</button>`) : '' }
+                        ${ statusNorm === 'delivered' ? (`<button class="order-card-btn contact-btn" onclick="contactSeller('${order.id}')">Contact Seller</button>`) : '' }
+                        ${ statusNorm === 'delivered' ? (`<button class="order-card-btn received-btn" onclick="openRatingModalById('${order.id}')">Rate Order</button>`) : '' }
+                    </div>
                 `;
                 card.addEventListener('click', function(e){
                     try{ if(e && e.target && e.target.closest && e.target.closest('button')) return; }catch(ex){}
@@ -843,8 +763,8 @@
 
         window.renderOrders = renderOrders;
 
-        window.addEventListener('DOMContentLoaded', _primeProductsCache);
-        window.addEventListener('DOMContentLoaded', renderOrders);
+    window.addEventListener('DOMContentLoaded', _primeProductsCache);
+    window.addEventListener('DOMContentLoaded', renderOrders);
         // If URL has ?open=<orderId>, open that order modal by finding its index
         window.addEventListener('DOMContentLoaded', function(){
             try{
@@ -864,7 +784,7 @@
             try{
                 if(e.key === 'orders_update'){
                     var payload = null;
-                    try{ payload = JSON.parse(e.newValue || 'null'); }catch(err){ payload = null; }
+                    try{ payload = JSON.parse(e.newValue || '{}'); }catch(err){}
                     if(payload && payload.id){
                         var id = payload.id;
                         // Avoid noisy 404s for client-only orders by checking existence first
@@ -904,67 +824,6 @@
     // Refund flow
     var _pendingRefundIndex = null;
     var _pendingRefundOrderId = null;
-    var _pendingRefundItems = [];
-
-    function renderRefundItemsSelection(){
-        var host = document.getElementById('refundItemsSelect');
-        if(!host) return;
-        host.innerHTML = '';
-        if(!_pendingRefundItems || !_pendingRefundItems.length){
-            host.innerHTML = '<div style="color:#666;">No items found for this order.</div>';
-            return;
-        }
-        _pendingRefundItems.forEach(function(it, idx){
-            var name = it.title || it.name || it.product_name || 'Item';
-            var qty = Number(it.qty || it.quantity || 1) || 1;
-            var variant = '';
-            if(it.size) variant += 'Size: ' + it.size;
-            if(it.color) variant += (variant ? ' • ' : '') + 'Color: ' + it.color;
-            var label = document.createElement('label');
-            label.style.display = 'flex';
-            label.style.alignItems = 'flex-start';
-            label.style.gap = '8px';
-            label.innerHTML = '<input type="checkbox" class="refund-item-checkbox" data-index="' + idx + '" />'
-                + '<div><div style="font-weight:600;">' + name + ' <span style="color:#666;">×' + qty + '</span></div>'
-                + (variant ? ('<div style="color:#666;font-size:0.9rem;">' + variant + '</div>') : '')
-                + '</div>';
-            host.appendChild(label);
-        });
-    }
-
-    function getSelectedRefundItems(){
-        var boxes = document.querySelectorAll('.refund-item-checkbox');
-        var selected = [];
-        boxes.forEach(function(b){
-            if(!b.checked) return;
-            var idx = Number(b.getAttribute('data-index'));
-            if(!isFinite(idx) || !_pendingRefundItems[idx]) return;
-            var it = _pendingRefundItems[idx] || {};
-            selected.push({
-                id: it.id || it.product_id || it.productId || it.sku || '',
-                name: it.title || it.name || it.product_name || '',
-                qty: Number(it.qty || it.quantity || 1) || 1,
-                price: Number(it.price || it.unit_price || 0) || 0,
-                size: it.size || it.variantSize || '',
-                color: it.color || it.variantColor || ''
-            });
-        });
-        return selected;
-    }
-        // Client-side notice when trying to cancel a shipped order
-        window._clientShippedCancelNotice = function(){
-            alert('This order has already been shipped and can no longer be cancelled.');
-        };
-
-        // Order again: re-add items from a cancelled order to cart
-        window._orderAgain = function(orderId){
-            try{
-                var orders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
-                var ord = orders.find(function(o){ return o && String(o.id) === String(orderId); });
-                if(!ord){ alert('Order not found.'); return; }
-                addOrderItemsToCart(ord);
-            }catch(e){ alert('Unable to add items from this order.'); }
-        };
         // Expose these helpers on `window` so inline onclick handlers can call them
         window.requestCancelOrder = function(idx, orderId){
             _pendingCancelIndex = idx;
@@ -988,98 +847,66 @@
         document.addEventListener('DOMContentLoaded', function(){
             // Cancel modal inputs
             var cancelSel = document.getElementById('cancelReasonSelect');
+            var cancelOther = document.getElementById('cancelReasonOtherText');
             function updateCancelBtn(){
                 var btn = document.getElementById('confirmCancelBtn');
                 if(!btn) return;
                 var val = cancelSel ? cancelSel.value : '';
                 if(!val){ btn.disabled = true; return; }
+                if(val === 'Others'){
+                    if(cancelOther) cancelOther.style.display = 'block';
+                    btn.disabled = !(cancelOther && cancelOther.value && cancelOther.value.trim().length > 2);
+                    return;
+                }
+                if(cancelOther) cancelOther.style.display = 'none';
                 btn.disabled = false;
             }
             if(cancelSel) cancelSel.addEventListener('change', updateCancelBtn);
-            
+            if(cancelOther) cancelOther.addEventListener('input', updateCancelBtn);
 
-            var refundType = document.getElementById('refundTypeSelect');
             var refundSel = document.getElementById('refundReasonSelect');
+            var refundOther = document.getElementById('refundReasonOtherText');
             var refundMethod = document.getElementById('refundMethodSelect');
-            var refundDesc = document.getElementById('refundDescription');
-            var refundDescCount = document.getElementById('refundDescCount');
-            var proofProduct = document.getElementById('refundProofProduct');
-            var proofPackaging = document.getElementById('refundProofPackaging');
-            var proofDamage = document.getElementById('refundProofDamage');
-            function updateRefundReasons(){
-                if(!refundSel) return;
-                var typeVal = refundType ? refundType.value : '';
-                var isRefundOnly = String(typeVal || '').toLowerCase() === 'refund only';
-                var options = isRefundOnly
-                    ? [
-                        { value:'', label:'Select a reason' },
-                        { value:'Damaged Item upon arrival', label:'Damaged Item upon arrival' },
-                        { value:'Missing item', label:'Missing item' }
-                    ]
-                    : [
-                        { value:'', label:'Select a reason' },
-                        { value:'Wrong item received', label:'Wrong item received' },
-                        { value:'Item damaged or defective', label:'Item damaged or defective' },
-                        { value:'Missing item in package', label:'Missing item in package' },
-                        { value:'Incorrect size sent (store error)', label:'Incorrect size sent (store error)' },
-                        { value:'Package tampered on arrival', label:'Package tampered on arrival' }
-                    ];
-                refundSel.innerHTML = '';
-                options.forEach(function(opt){
-                    var el = document.createElement('option');
-                    el.value = opt.value;
-                    el.textContent = opt.label;
-                    refundSel.appendChild(el);
-                });
-            }
-            function countProofs(){
-                var n = 0;
-                if(proofProduct && proofProduct.files && proofProduct.files.length) n++;
-                if(proofPackaging && proofPackaging.files && proofPackaging.files.length) n++;
-                if(proofDamage && proofDamage.files && proofDamage.files.length) n++;
-                return n;
-            }
             function updateRefundBtn(){
                 var btn = document.getElementById('confirmRefundBtn'); if(!btn) return;
-                var proofNote = document.getElementById('refundProofNote');
-                if(proofNote) proofNote.style.display = 'none';
-                var itemsNote = document.getElementById('refundItemsNote');
                 var reason = refundSel ? refundSel.value : '';
-                var rType = refundType ? refundType.value : '';
                 var method = refundMethod ? refundMethod.value : '';
-                var descOk = refundDesc && refundDesc.value && refundDesc.value.trim().length > 0 && refundDesc.value.trim().length <= 250;
-                var proofsOk = countProofs() >= 2;
-                var itemsSelected = document.querySelectorAll('.refund-item-checkbox:checked').length > 0;
-                if(itemsNote) itemsNote.style.display = 'none';
-                if(!rType || !reason || !method || !descOk || !proofsOk || !itemsSelected){
-                    if(proofNote && !proofsOk) proofNote.style.display = 'block';
-                    btn.disabled = true;
+                if(refundOther) refundOther.style.display = (reason === 'Others') ? 'block' : 'none';
+                if(!reason || !method){ btn.disabled = true; return; }
+                if(reason === 'Others'){
+                    btn.disabled = !(refundOther && refundOther.value && refundOther.value.trim().length > 2);
                     return;
                 }
                 btn.disabled = false;
             }
             if(refundSel) refundSel.addEventListener('change', updateRefundBtn);
-            if(refundType) refundType.addEventListener('change', function(){
-                updateRefundReasons();
-                updateRefundBtn();
-            });
+            if(refundOther) refundOther.addEventListener('input', updateRefundBtn);
             if(refundMethod) refundMethod.addEventListener('change', updateRefundBtn);
-            if(refundDesc){
-                refundDesc.addEventListener('input', function(){
-                    if(refundDescCount) refundDescCount.textContent = String(refundDesc.value.length || 0);
-                    updateRefundBtn();
+            // Setup refund upload click / preview behavior
+            var refundUpload = document.getElementById('refundUpload');
+            var refundInput = document.getElementById('refundProof');
+            var refundPreview = document.getElementById('refundPreview');
+            var refundPlaceholder = document.getElementById('refundUploadPlaceholder');
+            if(refundUpload && refundInput){
+                refundUpload.addEventListener('click', function(){ refundInput.click(); });
+                refundInput.addEventListener('change', function(e){
+                    var file = (refundInput.files && refundInput.files[0]) || null;
+                    if(!file){ refundPreview.style.display = 'none'; refundPlaceholder.style.display = 'block'; return; }
+                    if(file.type && file.type.indexOf('image') === 0){
+                        var reader = new FileReader();
+                        reader.onload = function(ev){
+                            refundPreview.src = ev.target.result;
+                            refundPreview.style.display = 'block';
+                            refundPlaceholder.style.display = 'none';
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        // not image: just show filename
+                        refundPreview.style.display = 'none';
+                        refundPlaceholder.textContent = file.name || 'Selected file';
+                    }
                 });
             }
-            [proofProduct, proofPackaging, proofDamage].forEach(function(inp){
-                if(inp){ inp.addEventListener('change', updateRefundBtn); }
-            });
-            document.addEventListener('change', function(e){
-                if(e && e.target && e.target.classList && e.target.classList.contains('refund-item-checkbox')){
-                    var itemsNote = document.getElementById('refundItemsNote'); if(itemsNote) itemsNote.style.display = 'none';
-                    updateRefundBtn();
-                }
-            });
-            updateRefundReasons();
         });
 
         function updateOrderInFirestore(orderId, payload){
@@ -1094,102 +921,40 @@
             });
         }
 
-        function getOrderPaymentCode(order){
-            try{
-                var code = (order && (order.paymentCode || order.payment_code || '')) ? String(order.paymentCode || order.payment_code).toLowerCase() : '';
-                if(code) return code;
-                var method = (order && (order.paymentMethod || order.payment_method || order.paymentLabel || order.payment || '')) ? String(order.paymentMethod || order.payment_method || order.paymentLabel || order.payment).toLowerCase() : '';
-                if(method.indexOf('cod') !== -1 || method.indexOf('cash') !== -1) return 'cod';
-                if(method.indexOf('bank') !== -1) return 'bank_transfer';
-                if(method.indexOf('qr') !== -1) return 'qr_ph';
-                return '';
-            }catch(e){ return ''; }
-        }
-
         window.confirmCancel = function(){
             // gather selected reasons
             var sel = document.getElementById('cancelReasonSelect');
+            var otherText = document.getElementById('cancelReasonOtherText');
             var reason = sel ? sel.value : '';
             if(!reason) return;
-            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
+            if(reason === 'Others'){
+                if(!otherText || !otherText.value || otherText.value.trim().length < 3) return;
+                reason = otherText.value.trim();
+            }
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
             var idx = _pendingCancelIndex;
             var order = (orders && orders[idx]) ? orders[idx] : null;
             var orderId = _pendingCancelOrderId || (order && order.id) || null;
-            if(!order){
-                alert('Order details not found. Please refresh and try again.');
-                return;
-            }
-            var nowIso = new Date().toISOString();
             if(order && order.cancelRequest && order.cancelRequest.requestedAt){
                 alert('You already submitted a cancellation request for this order.');
                 return;
             }
-            var statusNorm = String(order && order.status || '').toLowerCase().trim();
-            if(statusNorm.indexOf('cancel') !== -1){
-                alert('This order is already cancelled.');
-                return;
-            }
-            var isPending = (!statusNorm) || statusNorm === 'pending' || statusNorm === 'pending payment';
-            var isPendingOrConfirmation = isPending || statusNorm === 'confirmation';
-            var paymentCode = getOrderPaymentCode(order);
             var prevStatus = (order && order.status) ? order.status : 'Pending';
-            var isImmediateCODCancel = paymentCode === 'cod' && isPendingOrConfirmation;
-
-            if(isImmediateCODCancel){
-                var immediatePayload = {
-                    status: 'cancelled',
-                    previousStatus: prevStatus,
-                    cancelReason: reason,
-                    cancelNote: '',
-                    cancelledAt: nowIso,
-                    cancelRequest: {
-                        cancellationReason: reason,
-                        requestedAt: nowIso,
-                        resolvedAt: nowIso,
-                        approved: true,
-                        resolvedBy: 'system_auto',
-                        previousStatus: prevStatus
-                    },
-                    clientCancellation: {
-                        autoApproved: true,
-                        paymentCode: paymentCode,
-                        decidedAt: nowIso
-                    }
-                };
-                if(order){
-                    order.previousStatus = prevStatus;
-                    order.status = 'Cancelled';
-                    order.cancelReason = immediatePayload.cancelReason;
-                    order.cancelNote = '';
-                    order.cancelledAt = nowIso;
-                    order.cancelRequest = immediatePayload.cancelRequest;
-                    order.clientCancellation = immediatePayload.clientCancellation;
-                    orders[idx] = order;
-                    localStorage.setItem('client_orders', JSON.stringify(orders));
+            var cancelPayload = {
+                previousStatus: prevStatus,
+                cancelRequest: {
+                    cancellationReason: reason,
+                    requestedAt: new Date().toISOString(),
+                    adminNote: ''
                 }
-                updateOrderInFirestore(orderId, immediatePayload);
-            } else {
-                if(!(isPendingOrConfirmation || statusNorm === 'confirmed')){
-                    alert('Cancellation requests are only allowed while an order is pending or confirmed.');
-                    return;
-                }
-                var cancelPayload = {
-                    previousStatus: prevStatus,
-                    cancelRequest: {
-                        cancellationReason: reason,
-                        requestedAt: nowIso,
-                        adminNote: ''
-                    }
-                };
+            };
                 if(order){
                     order.previousStatus = cancelPayload.previousStatus;
                     order.cancelRequest = cancelPayload.cancelRequest;
                     orders[idx] = order;
                     localStorage.setItem('client_orders', JSON.stringify(orders));
                 }
-                updateOrderInFirestore(orderId, cancelPayload);
-            }
-
+            updateOrderInFirestore(orderId, cancelPayload);
             window.closeCancelModal && window.closeCancelModal();
             renderOrders();
             // If order modal is open for this order, close it
@@ -1207,21 +972,11 @@
                     alert('Return window has expired for this order.');
                     return;
                 }
-                _pendingRefundItems = (order && Array.isArray(order.items)) ? order.items.slice() : [];
             }catch(e){ /* ignore */ }
-            var typeSel = document.getElementById('refundTypeSelect'); if(typeSel) typeSel.value = '';
-            var reasonSel = document.getElementById('refundReasonSelect'); if(reasonSel) reasonSel.value = '';
-            var methodSel = document.getElementById('refundMethodSelect'); if(methodSel) methodSel.value = '';
-            var descEl = document.getElementById('refundDescription'); if(descEl){ descEl.value = ''; }
-            var descCount = document.getElementById('refundDescCount'); if(descCount) descCount.textContent = '0';
-            var proofNote = document.getElementById('refundProofNote'); if(proofNote) proofNote.style.display = 'none';
-            var itemsNote = document.getElementById('refundItemsNote'); if(itemsNote) itemsNote.style.display = 'none';
-            ['refundProofProduct','refundProofPackaging','refundProofDamage'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
+            var proofEl = document.getElementById('refundProof'); if(proofEl) proofEl.value = '';
             var btn = document.getElementById('confirmRefundBtn'); if(btn) btn.disabled = true;
             var overlay = document.getElementById('refundModalOverlay'); if(overlay) overlay.style.display = 'flex';
-            setTimeout(function(){ var el = document.getElementById('refundTypeSelect'); if(el) el.focus(); }, 120);
-            try{ updateRefundBtn(); }catch(e){}
-            try{ renderRefundItemsSelection(); }catch(e){}
+            setTimeout(function(){ var el = document.getElementById('refundReasonSelect'); if(el) el.focus(); }, 120);
         }
 
         window.closeRefundModal = function(){
@@ -1232,27 +987,15 @@
 
         window.confirmRefund = function(){
             // gather selected reasons
-            var typeSel = document.getElementById('refundTypeSelect');
             var reasonSel = document.getElementById('refundReasonSelect');
+            var otherText = document.getElementById('refundReasonOtherText');
             var methodSel = document.getElementById('refundMethodSelect');
-            var descEl = document.getElementById('refundDescription');
-            var proofProd = document.getElementById('refundProofProduct');
-            var proofPack = document.getElementById('refundProofPackaging');
-            var proofDamage = document.getElementById('refundProofDamage');
-            var typeVal = typeSel ? typeSel.value : '';
             var reason = reasonSel ? reasonSel.value : '';
             var method = methodSel ? methodSel.value : '';
-            var desc = descEl ? String(descEl.value||'').trim() : '';
-            if(!typeVal || !reason || !method) return;
-            if(!desc || desc.length > 250){ alert('Please provide a description (max 250 characters).'); return; }
-            var proofFiles = [];
-            [proofProd, proofPack, proofDamage].forEach(function(inp){ if(inp && inp.files && inp.files[0]) proofFiles.push(inp.files[0]); });
-            if(proofFiles.length < 2){ alert('Please upload at least two images (product and packaging/label; damage if applicable).'); return; }
-            var selectedItems = getSelectedRefundItems();
-            if(!selectedItems.length){
-                var itemsNote = document.getElementById('refundItemsNote'); if(itemsNote) itemsNote.style.display = '';
-                alert('Please select at least one item.');
-                return;
+            if(!reason || !method) return;
+            if(reason === 'Others'){
+                if(!otherText || !otherText.value || otherText.value.trim().length < 3) return;
+                reason = otherText.value.trim();
             }
 
             var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
@@ -1264,39 +1007,25 @@
                 return;
             }
             var prevStatus = (order && order.status) ? order.status : 'Pending';
-            var typeNorm = String(typeVal || '').toLowerCase();
-            var reqTypeCode = (typeNorm.indexOf('return') !== -1) ? 'return_refund' : 'refund_only';
-            var nextStatus = (reqTypeCode === 'return_refund') ? 'Return and Refund Requested' : 'Refund requested';
             var refundPayload = {
-                status: nextStatus,
                 previousStatus: prevStatus,
                 returnRequest: {
-                    requestTypeCode: reqTypeCode,
-                    requestType: typeVal,
                     returnReason: reason,
                     refundMethod: method,
-                    description: desc,
-                    items: selectedItems,
                     proofImages: [],
                     requestedAt: new Date().toISOString(),
                     refundStatus: 'Pending',
                     adminNote: ''
                 }
             };
-            function readFileAsDataUrl(file){
-                return new Promise(function(resolve, reject){
-                    var fr = new FileReader();
-                    fr.onload = function(ev){ resolve({ dataUrl: ev.target.result, name: file.name || '' }); };
-                    fr.onerror = function(){ reject(new Error('read failed')); };
-                    fr.readAsDataURL(file);
-                });
-            }
-            Promise.all(proofFiles.map(readFileAsDataUrl)).then(function(list){
-                refundPayload.returnRequest.proofImages = list.map(function(x){ return x.dataUrl; });
-                refundPayload.returnRequest.proofNames = list.map(function(x){ return x.name; });
+
+            // if file attached, read it as data URL and persist inside order.refund
+            var proofInput = document.getElementById('refundProof');
+            var file = (proofInput && proofInput.files && proofInput.files[0]) ? proofInput.files[0] : null;
+            function persistOrderWithProof(dataUrl, fileName){
+                if(dataUrl){ refundPayload.returnRequest.proofImages = [dataUrl]; refundPayload.returnRequest.proofName = fileName || ''; }
                 if(order){
                     order.previousStatus = refundPayload.previousStatus;
-                    order.status = nextStatus;
                     order.returnRequest = refundPayload.returnRequest;
                     orders[idx] = order;
                     localStorage.setItem('client_orders', JSON.stringify(orders));
@@ -1305,7 +1034,14 @@
                 window.closeRefundModal && window.closeRefundModal();
                 renderOrders();
                 try{ var overlay = document.getElementById('orderModalOverlay'); if(overlay && overlay.style.display==='flex'){ closeOrderModal(); } }catch(e){}
-            }).catch(function(){ alert('Could not read uploaded files. Please try again.'); });
+            }
+            if(file){
+                var reader = new FileReader();
+                reader.onload = function(ev){ try{ persistOrderWithProof(ev.target.result, file.name); }catch(e){ persistOrderWithProof(null); } };
+                reader.readAsDataURL(file);
+            } else {
+                persistOrderWithProof(null);
+            }
         }
 
         window.openOrderModal = function(idx){
@@ -1417,17 +1153,13 @@
                 if(revDiv){
                     if(isCancellationRevoked(order)){
                         var rev = order.cancellation.revocation || {};
-                        var reasons = (rev.reasons && rev.reasons.length) ? rev.reasons : (order.cancellation.reasons || (order.cancelRequest && order.cancelRequest.revocationReasons) || []);
+                        var reasons = (rev.reasons && rev.reasons.length) ? rev.reasons : (order.cancellation.reasons || []);
                         var ts = rev.timestamp || (order.cancellation.revocation && order.cancellation.revocation.timestamp) || '';
-                        var note = rev.note || order.cancellation.revocationNote || (order.cancelRequest && order.cancelRequest.adminNote) || '';
                         var html = '<div style="font-weight:700;color:#b71c1c;margin-top:6px;">Cancel Request Was Revoked</div>';
                         if(reasons && reasons.length){
                             html += '<div style="color:#444;font-weight:600;margin-top:6px;">Reason(s):</div><ul style="margin:6px 0 0 18px;color:#444;">';
                             reasons.forEach(function(r){ html += '<li>' + (r || '') + '</li>'; });
                             html += '</ul>';
-                        }
-                        if(note){
-                            html += '<div style="margin-top:6px;color:#444;"><strong>Admin note:</strong> ' + (note || '') + '</div>';
                         }
                         if(ts){
                             try{ html += '<div style="margin-top:6px;color:#666;font-size:0.9rem;">Revoked on: ' + new Date(ts).toLocaleString() + '</div>'; }catch(e){ html += '<div style="margin-top:6px;color:#666;font-size:0.9rem;">Revoked on: ' + ts + '</div>'; }
@@ -1448,13 +1180,19 @@
     <script>
     // Navigation bar functions (from profile.html) to match profile header behavior
     function goToHome() { window.location.href = 'home.html'; }
-    function goToProfile() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } }catch(e){ window.location.href = 'login.html'; } }
+    function goToProfile() {
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
+    }
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToOrders() { window.location.href = 'client-orders.html'; }
     function goToWishlist() { window.location.href = 'wishlist.html'; }
     function goToFAQ() { window.location.href = 'privacy.html'; }
     function goToContact() { window.location.href = 'contact.html'; }
-    function goToUserPage() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } }catch(e){ window.location.href = 'login.html'; } }
+    function goToUserPage() {
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
+    }
     function goToCartPage() { window.location.href = 'cart.html'; }
     function toggleSearchBox() {
         var box = document.getElementById('searchBox');
@@ -1505,7 +1243,11 @@
             return parseFloat(v || 0);
         }
         function formatPHP(amount) {
-            return '₱' + Number(amount).toFixed(2);
+            try {
+                return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+            } catch (e) {
+                return '₱' + Number(amount).toFixed(2);
+            }
         }
         function saveCartToLocalStorage() {
             localStorage.setItem('cart', JSON.stringify(cart));
@@ -1659,7 +1401,7 @@
                             var incRes = window.tryIncrementCartItem(cart, idx);
                             if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 items per order allowed.');
+                                else alert('Maximum of 3 pairs of shoes per order.');
                                 return;
                             }
                         } else {
