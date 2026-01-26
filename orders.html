@@ -400,6 +400,35 @@
             display:none;
             justify-content:flex-end;
         }
+
+        /* Full-screen loading overlay to block interactions during critical writes */
+        .orders-loading-overlay {
+            position:fixed;
+            inset:0;
+            background:rgba(34,34,34,0.45);
+            display:none;
+            align-items:center;
+            justify-content:center;
+            flex-direction:column;
+            gap:12px;
+            z-index:100020;
+        }
+        .orders-loading-spinner {
+            width:56px;
+            height:56px;
+            border-radius:50%;
+            border:6px solid #f5f5f5;
+            border-top-color:#b71c1c;
+            animation:ordersSpin 0.9s linear infinite;
+            box-shadow:0 4px 12px rgba(0,0,0,0.18);
+        }
+        .orders-loading-label {
+            color:#fff;
+            font-weight:600;
+            font-size:1rem;
+            text-shadow:0 1px 2px rgba(0,0,0,0.35);
+        }
+        @keyframes ordersSpin { to { transform:rotate(360deg); } }
         .orders-drawer {
             background:#fff;
             width:520px;
@@ -722,6 +751,11 @@
             </div>
         </div>
     </div>
+        <!-- Global loading overlay -->
+        <div id="ordersLoadingOverlay" class="orders-loading-overlay" aria-hidden="true">
+            <div class="orders-loading-spinner" role="status" aria-live="polite"></div>
+            <div id="ordersLoadingLabel" class="orders-loading-label">Processing...</div>
+        </div>
 
     <!-- Cancellation Review Modal (admin) -->
     <div id="cancelReviewModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100000;align-items:center;justify-content:center;">
@@ -845,6 +879,26 @@
     // Dev API base for Node backend. Change or make dynamic for production.
     // API base points to PHP proxy so browser requests go through Apache/PHP.
     const API_BASE = (function(){ try{ var p = window.location.pathname.replace(/\/+$|^\/+/, ''); var seg = p.split('/'); var root = seg.length > 0 ? '/' + seg[0] : ''; return root + '/server-proxy.php'; }catch(e){ return '/server-proxy.php'; } })();
+
+            function showOrdersLoading(label){
+                var overlay = document.getElementById('ordersLoadingOverlay');
+                var lbl = document.getElementById('ordersLoadingLabel');
+                if(!overlay) return;
+                if(lbl && label) lbl.textContent = label; else if(lbl && !label) lbl.textContent = 'Processing...';
+                overlay.style.display = 'flex';
+                overlay.setAttribute('aria-hidden','false');
+                overlay.dataset.prevOverflow = document.body.style.overflow || '';
+                document.body.style.overflow = 'hidden';
+            }
+
+            function hideOrdersLoading(){
+                var overlay = document.getElementById('ordersLoadingOverlay');
+                if(!overlay) return;
+                overlay.style.display = 'none';
+                overlay.setAttribute('aria-hidden','true');
+                var prev = overlay.dataset.prevOverflow || '';
+                document.body.style.overflow = prev;
+            }
 
         function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:0}); }
 
@@ -1641,6 +1695,178 @@
             });
         }
 
+        // Lightweight inventory snapshot for stock validation (no writes)
+        function fetchInventorySnapshot(){
+            return new Promise(function(resolve){
+                try{
+                    if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return resolve(null);
+                    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                    var db = firebase.firestore();
+                    Promise.all([
+                        db.collection('variants').get(),
+                        db.collection('products').get()
+                    ]).then(function(res){
+                        var variants = [];
+                        var products = [];
+                        res[0].forEach(function(doc){ variants.push({ id: doc.id, data: doc.data() || {} }); });
+                        res[1].forEach(function(doc){ products.push({ id: doc.id, data: doc.data() || {} }); });
+                        resolve({ variants: variants, products: products });
+                    }).catch(function(){ resolve(null); });
+                }catch(e){ resolve(null); }
+            });
+        }
+
+        function getVariantStockForSize(variantData, size){
+            if(!variantData || !size) return null;
+            var sKey = String(size);
+            if(Array.isArray(variantData.sizes)){
+                var s = variantData.sizes.find(function(x){ return String(x.eu) === sKey; });
+                if(s && typeof s.stock !== 'undefined') return Number(s.stock) || 0;
+            }
+            if(variantData.sizeMap && typeof variantData.sizeMap === 'object'){
+                if(Object.prototype.hasOwnProperty.call(variantData.sizeMap, sKey)) return Number(variantData.sizeMap[sKey]) || 0;
+            }
+            if(variantData.sizesMap && typeof variantData.sizesMap === 'object'){
+                if(Object.prototype.hasOwnProperty.call(variantData.sizesMap, sKey)) return Number(variantData.sizesMap[sKey]) || 0;
+            }
+            var field = 'stock' + sKey;
+            if(Object.prototype.hasOwnProperty.call(variantData, field)) return Number(variantData[field]) || 0;
+            return null;
+        }
+
+        function getProductStockForSize(productData, colorName, size){
+            if(!productData || !size) return null;
+            var sKey = String(size);
+            var normalize = function(v){ return String(v||'').toLowerCase().trim(); };
+            if(Array.isArray(productData.colors)){
+                var matchColor = productData.colors.find(function(c){
+                    if(!colorName) return true;
+                    return normalize(c.name||'') === normalize(colorName);
+                });
+                if(matchColor && Array.isArray(matchColor.sizes)){
+                    var s = matchColor.sizes.find(function(x){ return String(x.eu) === sKey; });
+                    if(s && typeof s.stock !== 'undefined') return Number(s.stock) || 0;
+                }
+            }
+            return null;
+        }
+
+        function resolveItemStock(item, snapshot){
+            if(!snapshot || !item) return null;
+            var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+            var size = String(item.size || item.eu || item.size_eu || '').trim();
+            if(!size) return null;
+            var qty = Number(item.qty || item.quantity || 1) || 1;
+            var itemId = String(item.product_id || item.productId || item.id || '').trim();
+            var itemInventoryId = String(item.inventoryId || item.inventory_id || item.product_id || item.productId || item.id || '').trim();
+            var itemVariantId = String(item.variantId || item.variant_id || item.variant || '').trim();
+            var itemName = String(item.name || item.title || item.productName || '').trim();
+            var itemBrand = String(item.brand || item.productBrand || '').trim();
+            var itemColor = String(item.color || item.variant || item.colorName || '').trim();
+
+            var variantMatch = null;
+            if(itemVariantId){
+                variantMatch = snapshot.variants.find(function(v){ return String(v.id) === itemVariantId; });
+            }
+            if(!variantMatch && itemId){
+                variantMatch = snapshot.variants.find(function(v){
+                    var d = v.data || {};
+                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || null;
+                    return pid && String(pid) === itemId;
+                });
+            }
+            if(!variantMatch && itemInventoryId){
+                variantMatch = snapshot.variants.find(function(v){
+                    var d = v.data || {};
+                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || null;
+                    return pid && String(pid) === itemInventoryId;
+                });
+            }
+            if(!variantMatch && itemColor){
+                var cNorm = normalize(itemColor);
+                variantMatch = snapshot.variants.find(function(v){
+                    var d = v.data || {};
+                    var vColor = normalize(d.colorName || d.name || d.color || '');
+                    if(!vColor) return false;
+                    if(vColor !== cNorm) return false;
+                    if(itemBrand){
+                        var vBrand = normalize(d.brand || '');
+                        if(vBrand && vBrand !== normalize(itemBrand)) return false;
+                    }
+                    return true;
+                });
+            }
+
+            if(variantMatch){
+                var available = getVariantStockForSize(variantMatch.data, size);
+                if(available !== null) return { available: available, needed: qty, name: itemName || itemId || 'Item', size: size };
+            }
+
+            var productMatch = null;
+            if(itemInventoryId){
+                productMatch = snapshot.products.find(function(p){
+                    var d = p.data || {};
+                    return String(d.id || d.sku || p.id || '') === itemInventoryId;
+                });
+            }
+            if(!productMatch && itemId){
+                productMatch = snapshot.products.find(function(p){
+                    var d = p.data || {};
+                    return String(d.id || d.sku || p.id || '') === itemId;
+                });
+            }
+            if(!productMatch && itemName){
+                var nName = normalize(itemName);
+                productMatch = snapshot.products.find(function(p){
+                    var d = p.data || {};
+                    var model = normalize(d.model || d.name || d.title || '');
+                    if(!model) return false;
+                    if(model !== nName && model.indexOf(nName) === -1 && nName.indexOf(model) === -1) return false;
+                    if(itemBrand){
+                        var b = normalize(d.brand || '');
+                        if(b && b !== normalize(itemBrand)) return false;
+                    }
+                    return true;
+                });
+            }
+            if(productMatch){
+                var availableProd = getProductStockForSize(productMatch.data, itemColor, size);
+                if(availableProd !== null) return { available: availableProd, needed: qty, name: itemName || itemId || 'Item', size: size };
+            }
+
+            return null;
+        }
+
+        async function checkItemsStockAvailable(items, cachedSnapshot){
+            try{
+                if(!Array.isArray(items) || !items.length) return { ok: true, missing: [] };
+                var snapshot = cachedSnapshot || await fetchInventorySnapshot();
+                if(!snapshot) return { ok: true, missing: [] };
+                var missing = [];
+                items.forEach(function(it){
+                    var res = resolveItemStock(it, snapshot);
+                    if(res && res.available < res.needed){
+                        missing.push(res);
+                    }
+                });
+                return { ok: missing.length === 0, missing: missing };
+            }catch(e){ return { ok: true, missing: [] }; }
+        }
+
+        async function ensureOrderCanConfirm(order, cachedSnapshot){
+            if(!order) return false;
+            try{
+                var items = Array.isArray(order.items) && order.items.length ? order.items : await fetchOrderItemsFromFirestore(order.id);
+                var stock = await checkItemsStockAvailable(items, cachedSnapshot);
+                if(!stock.ok){
+                    var msg = 'Cannot confirm order ' + (order.id || '') + ' because these items are out of stock:\n' + stock.missing.map(function(m){ return '- ' + (m.name || 'Item') + ' (Size ' + m.size + '): need ' + m.needed + ', available ' + m.available; }).join('\n');
+                    alert(msg);
+                    return false;
+                }
+                return true;
+            }catch(e){ return true; }
+        }
+
         function fetchOrderItemsFromFirestore(orderId){
             return new Promise(function(resolve){
                 try{
@@ -1742,9 +1968,7 @@
             tbody.innerHTML = '';
             list.forEach((row) => {
                 const tr = document.createElement('tr');
-                var fallbackProfileName = '';
-                try{ fallbackProfileName = JSON.parse(localStorage.getItem('profile')||'{}').name || ''; }catch(e){}
-                var displayName = row.customerName || row.name || fallbackProfileName || '';
+                var displayName = getOrderRecipientName(row) || '';
                 var state = canonicalStatusFromOrder(row);
                 var meta = statusMetaForState(state);
                 var statusHtml = statusBadge(meta.label, meta.type, meta.icon);
@@ -1883,17 +2107,39 @@
             if(archiveBtn) archiveBtn.disabled = disabled;
         }
 
-        function applyBulkAction(action){
+        async function applyBulkAction(action){
             if(!selectedOrderIds.size) return;
             if(action === 'cancel'){
                 openAdminCancelModal(null, Array.from(selectedOrderIds));
                 return;
             }
             if(action === 'archive' && !confirm('Archive selected orders?')) return;
+            if(action === 'confirm'){
+                showOrdersLoading('Confirming selected orders...');
+                try{
+                    var snapshot = await fetchInventorySnapshot();
+                    var blocked = [];
+                    for (const id of Array.from(selectedOrderIds)){
+                        var order = ordersData.find(function(o){ return String(o.id) === String(id); });
+                        if(!order) continue;
+                        var ok = await ensureOrderCanConfirm(order, snapshot);
+                        if(ok){
+                            await updateOrder(id, { status: 'confirmed' });
+                        } else {
+                            blocked.push(id);
+                        }
+                    }
+                    if(blocked.length){ alert('Skipped confirming out-of-stock orders: ' + blocked.join(', ')); }
+                }finally{
+                    selectedOrderIds.clear();
+                    applySearch();
+                    hideOrdersLoading();
+                }
+                return;
+            }
             selectedOrderIds.forEach(function(id){
                 var order = ordersData.find(function(o){ return String(o.id) === String(id); });
                 if(!order) return;
-                if(action === 'confirm') updateOrder(id, { status: 'confirmed' });
                 if(action === 'archive') updateOrder(id, { status: 'archived', archived: true, archivedAt: new Date().toISOString() });
             });
             selectedOrderIds.clear();
@@ -2223,9 +2469,10 @@
                 return;
             }
             if(action === 'confirm'){
-                // TEMPORARY: allow confirming without proof to facilitate testing.
-                // This bypasses the previous proof requirement (we may re-enable later).
-                updateOrder(order.id, { status: 'confirmed' });
+                showOrdersLoading('Confirming order...');
+                ensureOrderCanConfirm(order).then(async function(ok){
+                    if(ok) await updateOrder(order.id, { status: 'confirmed' });
+                }).finally(function(){ hideOrdersLoading(); });
                 return;
             }
             if(action === 'start-processing'){ updateOrder(order.id, { status: 'processing' }); return; }
@@ -2256,7 +2503,7 @@
         }
 
         // Update an order in ordersData (and persist to localStorage), then refresh the current view
-        function updateOrder(orderId, changes, options){
+        async function updateOrder(orderId, changes, options){
             options = options || {};
             try{
                 var idx = ordersData.findIndex(o => String(o.id) === String(orderId));
@@ -2303,26 +2550,28 @@
                     var alreadyAdjusted = (merged.stockAdjusted === true && merged.stockAdjustedSource === 'confirm');
                     var shouldDeduct = (prevNorm !== 'confirmed' && nextNorm === 'confirmed' && !alreadyAdjusted);
                     if(shouldDeduct){
-                        deductOrderItems(orderId, merged).then(function(did){
-                            if(did){
-                                updateOrder(orderId, { stockAdjusted: true, stockAdjustedSource: 'confirm', stockAdjustedAt: new Date().toISOString(), stockRestocked: false }, { skipStockAdjust: true });
+                        try{
+                            var didDeduct = await deductOrderItems(orderId, merged);
+                            if(didDeduct){
+                                await updateOrder(orderId, { stockAdjusted: true, stockAdjustedSource: 'confirm', stockAdjustedAt: new Date().toISOString(), stockRestocked: false }, { skipStockAdjust: true });
                             }
-                        });
+                        }catch(e){ console.warn('deductOrderItems failed', e); }
                     }
                 }
                 if(!options.skipRestock){
-                    var prevNorm = String(prevStatus||'').toLowerCase();
-                    var nextNorm = String(merged.status||'').toLowerCase();
+                    var prevNorm2 = String(prevStatus||'').toLowerCase();
+                    var nextNorm2 = String(merged.status||'').toLowerCase();
                     var adjustedFlag = merged.stockAdjusted === true;
-                    var allowRestock = adjustedFlag || (merged.stockAdjustedSource === 'confirm') || ['confirmed','processing','shipped','delivered'].indexOf(prevNorm) !== -1;
+                    var allowRestock = adjustedFlag || (merged.stockAdjustedSource === 'confirm') || ['confirmed','processing','shipped','delivered'].indexOf(prevNorm2) !== -1;
                     var restockStatuses = ['cancelled','refund processing'];
-                    var shouldRestock = (restockStatuses.indexOf(nextNorm) !== -1 && prevNorm !== nextNorm && !merged.stockRestocked && allowRestock);
+                    var shouldRestock = (restockStatuses.indexOf(nextNorm2) !== -1 && prevNorm2 !== nextNorm2 && !merged.stockRestocked && allowRestock);
                     if(shouldRestock){
-                        restockOrderItems(orderId, merged).then(function(did){
-                            if(did){
-                                updateOrder(orderId, { stockRestocked: true, stockRestockedAt: new Date().toISOString(), stockAdjusted: false }, { skipRestock: true });
+                        try{
+                            var didRestock = await restockOrderItems(orderId, merged);
+                            if(didRestock){
+                                await updateOrder(orderId, { stockRestocked: true, stockRestockedAt: new Date().toISOString(), stockAdjusted: false }, { skipRestock: true });
                             }
-                        });
+                        }catch(e){ console.warn('restockOrderItems failed', e); }
                     }
                 }
                 try{
