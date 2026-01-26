@@ -119,11 +119,15 @@
     </div>
 
     <div id="cancellationCard" class="card" style="display:none;">
-      <div class="section-title">Cancellation Details</div>
+      <div id="cancellationTitle" class="section-title">Cancellation Details</div>
       <div id="cancelReasonText" class="muted"></div>
       <div id="cancelNoteText" class="muted" style="margin-top:6px;"></div>
       <div id="cancelPaymentText" class="muted" style="margin-top:6px;"></div>
       <div id="cancelRevokeText" class="muted" style="margin-top:6px;"></div>
+      <div id="cancelFooterNote" class="muted" style="margin-top:10px;">
+        Note: Refund processing may take up to 7 days depending on the bank. For questions, chat us on Facebook Messenger:
+        <a href="https://www.facebook.com/profile.php?id=100064143366280" target="_blank" rel="noopener" style="color:#1877f2;text-decoration:none;font-weight:600;">Shoe Pao Messenger</a>.
+      </div>
     </div>
 
     <div class="card">
@@ -140,15 +144,24 @@
     <div id="orderError" class="error" style="display:none"></div>
 
     <!-- Return / Refund Modal (mirrors client orders page) -->
-    <div id="refundModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:10001;align-items:center;justify-content:center;">
-      <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+    <div id="refundModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:10001;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+      <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);max-height:calc(80vh - 32px);display:flex;flex-direction:column;overflow:hidden;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div style="font-weight:700;font-size:1.05rem;">Request a return or refund</div>
           <button onclick="window._closeDetailRefundModal()" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
         </div>
-        <div style="margin-bottom:10px;color:#444;">Provide details and upload at least two images to process your request.</div>
-        <div style="margin-bottom:12px;background:#fff3cd;border:1px solid #ffeeba;color:#856404;padding:10px 12px;border-radius:8px;font-weight:600;">IMPORTANT: Please contact us at our facebook page for processing of return/refunds</div>
-        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:8px;">
+        <div style="flex:1 1 auto;min-height:0;overflow-y:auto;">
+          <div style="margin-bottom:10px;color:#444;">Provide details and upload at least two images to process your request.</div>
+          <div style="margin-bottom:12px;background:#fff3cd;border:1px solid #ffeeba;color:#856404;padding:10px 12px;border-radius:8px;font-weight:600;">
+            IMPORTANT: Refund processing may take up to 7 days depending on the bank. For questions, chat us on Facebook Messenger:
+            <a href="https://www.facebook.com/profile.php?id=100064143366280" target="_blank" rel="noopener" style="color:#1877f2;text-decoration:none;font-weight:700;">Shoe Pao Footwear</a>.
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:8px;">
+          <div style="display:flex;flex-direction:column;gap:8px;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;">
+            <div style="font-weight:600;">Select item(s) to return/refund</div>
+            <div id="refundItemsSelect" style="display:flex;flex-direction:column;gap:8px;"></div>
+            <div id="refundItemsNote" style="color:#b71c1c;font-weight:600;display:none;">Please select at least one item.</div>
+          </div>
           <label style="display:flex;flex-direction:column;gap:6px;">
             <span style="font-weight:600;">Request type</span>
             <select id="refundTypeSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
@@ -170,22 +183,29 @@
           </label>
           <label style="display:flex;flex-direction:column;gap:6px;">
             <span style="font-weight:600;">Refund method</span>
-            <select id="refundMethodSelect" style="padding:10px 12px;border:1px solid:#ddd;border-radius:8px;font-family:inherit;">
+            <select id="refundMethodSelect" name="refund_method" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
               <option value="">Select refund method</option>
-              <option value="Wallet">Wallet</option>
-              <option value="Original Payment">Original Payment</option>
+              <option value="GCash">GCash (E-wallet)</option>
+              <option value="Maya">Maya (E-wallet)</option>
+              <option value="BDO Unibank">BDO Unibank (Bank Transfer)</option>
+              <option value="BPI">BPI (Bank Transfer)</option>
+              <option value="Other Bank">Other Bank (Bank Transfer)</option>
             </select>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-weight:600;">Refund method details</span>
+            <input id="refundAccountProvider" type="text" maxlength="60" placeholder="Bank / e-wallet provider" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;" />
+            <input id="refundAccountName" type="text" maxlength="80" placeholder="Account name" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;" />
+            <input id="refundAccountNumber" type="text" maxlength="20" inputmode="numeric" placeholder="Account number" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;" />
+            <div style="font-size:0.92rem;color:#856404;background:#fff3cd;border:1px solid #ffeeba;border-radius:10px;padding:10px 12px;line-height:1.35;">
+              <strong>IMPORTANT:</strong> Please ensure the account details are complete and accurate. Submitting incorrect or incomplete details may result in your return/refund request being cancelled. If a refund is sent to an account due to details you provided, the shop cannot be held responsible.
+            </div>
           </label>
           <label style="display:flex;flex-direction:column;gap:6px;">
             <span style="font-weight:600;">Description</span>
             <textarea id="refundDescription" maxlength="250" placeholder="Describe the issue (max 250 characters)" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;min-height:80px;resize:vertical;"></textarea>
             <div style="font-size:0.9rem;color:#666;"><span id="refundDescCount">0</span>/250</div>
           </label>
-          <div style="display:flex;flex-direction:column;gap:8px;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;">
-            <div style="font-weight:600;">Select item(s) to return/refund</div>
-            <div id="refundItemsSelect" style="display:flex;flex-direction:column;gap:8px;"></div>
-            <div id="refundItemsNote" style="color:#b71c1c;font-weight:600;display:none;">Please select at least one item.</div>
-          </div>
           <div style="display:flex;flex-direction:column;gap:8px;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;">
             <div style="font-weight:600;">Upload proof (at least 2 images)</div>
             <div style="color:#444;font-size:0.95rem;">Include: product photo, packaging or shipping label, and damage photo (if applicable).</div>
@@ -202,6 +222,7 @@
               <input id="refundProofDamage" type="file" accept="image/*" />
             </label>
             <div id="refundProofNote" style="color:#b71c1c;font-weight:600;display:none;">Please upload at least two images.</div>
+          </div>
           </div>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
@@ -756,7 +777,14 @@
         var s = String(status||'').toLowerCase();
         el.className = 'status-badge';
         if(s === 'delivered') el.classList.add('badge-delivered');
-        else if(s === 'cancelled' || s === 'canceled' || s === 'refund processing' || s === 'refunded') el.classList.add('badge-cancelled');
+        else if(
+          s === 'cancelled' || s === 'canceled' ||
+          s === 'cancellation requested' || s === 'cancellation approved' ||
+          s === 'refund requested' || s === 'refund processing' || s === 'refund complete' ||
+          s === 'return and refund requested' || s === 'return and refund approved' ||
+          s === 'awaiting return to seller' || s === 'return complete, processing refund' || s === 'return and refund complete' ||
+          s === 'refunded'
+        ) el.classList.add('badge-cancelled');
         else if(s === 'in transit' || s === 'picked up' || s === 'out for delivery') el.classList.add('badge-transit');
         else el.classList.add('badge-pending');
         el.textContent = status || 'Pending';
@@ -813,14 +841,32 @@
           return k;
         }
 
-        var prevStatus = String((order && (order.previousStatus || (order.cancelRequest && order.cancelRequest.previousStatus))) || '').toLowerCase();
-        var isCancelled = statusNorm.indexOf('cancel') !== -1 || (order && order.cancelRequest && order.cancelRequest.approvedAt);
-        if(isCancelled){
-          if(prevStatus === 'confirmed'){
-            steps = ['Order placed','Preparing','Order cancelled'];
-          } else {
-            steps = ['Order placed','Order cancelled'];
-          }
+        var cancelReq = order && order.cancelRequest ? order.cancelRequest : null;
+        var cancelRequested = !!(cancelReq && cancelReq.requestedAt);
+        var cancelRejected = !!(cancelReq && (cancelReq.rejectedAt || String(cancelReq.status || '').toLowerCase() === 'rejected'));
+        var cancelApproved = !!(cancelReq && (cancelReq.approvedAt || statusNorm === 'cancelled' || statusNorm === 'canceled'));
+
+        // If cancellation was rejected, revert to the original processing status when available.
+        var prevStatus = String((order && (order.previousStatus || (cancelReq && cancelReq.previousStatus))) || '').trim();
+        var statusForTimeline = (cancelRejected && prevStatus) ? prevStatus : currentStatus;
+        statusNorm = String(statusForTimeline || '').toLowerCase();
+
+        var rr = order && order.returnRequest ? order.returnRequest : null;
+        var rrRequested = !!(rr && rr.requestedAt);
+        var rrStatusNorm = String(rr && rr.refundStatus || '').toLowerCase();
+        var rrTypeCode = String(rr && rr.requestTypeCode || '').toLowerCase();
+        var rrTypeText = String(rr && rr.requestType || rr && rr.type || '').toLowerCase();
+        var isReturnRefund = (rrTypeCode === 'return_refund') || (rrTypeText.indexOf('return') !== -1) || (statusNorm.indexOf('return and refund') !== -1);
+
+        var flow = 'normal';
+        if(cancelRequested && !cancelRejected){
+          flow = 'cancel';
+          steps = ['Order placed','Cancellation Requested','Cancellation Approved'];
+        } else if(rrRequested){
+          flow = isReturnRefund ? 'return_refund' : 'refund_only';
+          steps = (flow === 'return_refund')
+            ? ['Return and Refund Requested','Return and Refund Approved','Awaiting Return to Seller','Return complete, processing refund','Return and Refund complete']
+            : ['Refund requested','Refund processing','Refund complete'];
         }
 
         // Build quick lookup of events by normalized step text
@@ -830,7 +876,30 @@
           if(key) map[key.toLowerCase()] = map[key.toLowerCase()] || ev; // keep first/earliest for a step
         });
 
-        var impliedStep = isCancelled ? 'Order cancelled' : statusToStepKey(currentStatus);
+        function refundOnlyStepKey(){
+          if(statusNorm === 'refunded' || rrStatusNorm.indexOf('refunded') !== -1 || (rr && rr.refundedAt)) return 'refund complete';
+          if(statusNorm === 'refund processing' || rrStatusNorm.indexOf('processing') !== -1) return 'refund processing';
+          return 'refund requested';
+        }
+
+        function returnRefundStepKey(){
+          if(statusNorm === 'refunded' || rrStatusNorm.indexOf('refunded') !== -1 || (rr && rr.refundedAt)) return 'return and refund complete';
+          if(statusNorm === 'refund processing' || rrStatusNorm.indexOf('processing') !== -1) return 'return complete, processing refund';
+          if(statusNorm.indexOf('awaiting return') !== -1 || rrStatusNorm.indexOf('awaiting return') !== -1) return 'awaiting return to seller';
+          if(rr && rr.approvedAt) return 'return and refund approved';
+          return 'return and refund requested';
+        }
+
+        function cancelStepKey(){
+          return cancelApproved ? 'cancellation approved' : 'cancellation requested';
+        }
+
+        var impliedStep = (function(){
+          if(flow === 'cancel') return cancelStepKey();
+          if(flow === 'refund_only') return refundOnlyStepKey();
+          if(flow === 'return_refund') return returnRefundStepKey();
+          return statusToStepKey(statusForTimeline);
+        })();
         var stepIndexByName = {};
         steps.forEach(function(s, i){ stepIndexByName[s.toLowerCase()] = i; });
         var impliedIndex = (stepIndexByName[impliedStep.toLowerCase()] !== undefined) ? stepIndexByName[impliedStep.toLowerCase()] : 0;
@@ -1089,10 +1158,9 @@
 
       function contactSeller(){
         try{
-          var fb = (window.SHOE_PAO_FACEBOOK_PAGE_URL || localStorage.getItem('shoePaoFacebookPageUrl') || '').trim();
-          if(!fb) fb = 'https://www.facebook.com/search/top/?q=' + encodeURIComponent('Shoe Pao');
+          var fb = 'https://www.facebook.com/profile.php?id=100064143366280';
           window.open(fb, '_blank', 'noopener');
-        }catch(e){ try{ window.location.href = 'https://www.facebook.com/'; }catch(_e){} }
+        }catch(e){ try{ window.location.href = 'https://www.facebook.com/profile.php?id=100064143366280'; }catch(_e){} }
       }
 
       function updateOrderInFirestore(orderIdToUpdate, payload){
@@ -1229,6 +1297,9 @@
           type: document.getElementById('refundTypeSelect'),
           reason: document.getElementById('refundReasonSelect'),
           method: document.getElementById('refundMethodSelect'),
+          provider: document.getElementById('refundAccountProvider'),
+          acctName: document.getElementById('refundAccountName'),
+          acctNumber: document.getElementById('refundAccountNumber'),
           desc: document.getElementById('refundDescription'),
           descCount: document.getElementById('refundDescCount'),
           proofProduct: document.getElementById('refundProofProduct'),
@@ -1238,6 +1309,55 @@
           submit: document.getElementById('confirmRefundBtn'),
           itemsNote: document.getElementById('refundItemsNote')
         };
+      }
+
+      function _isFixedProviderMethod(method){
+        var m = String(method || '').toLowerCase();
+        return (m === 'gcash' || m === 'maya' || m === 'bdo unibank' || m === 'bpi');
+      }
+
+      function _digitsOnly(s){ return String(s || '').replace(/\D+/g, ''); }
+
+      function _getAccountDigitsRule(method){
+        var m = String(method || '').toLowerCase();
+        if(m === 'gcash') return { exact: 11, max: 11, label: 'GCash number (11 digits)' };
+        if(m === 'maya') return { exact: 11, max: 11, label: 'Maya number (11 digits)' };
+        if(m === 'bdo unibank') return { exact: 10, max: 10, label: 'BDO account number (10 digits)' };
+        if(m === 'bpi') return { exact: 10, max: 10, label: 'BPI account number (10 digits)' };
+        return { min: 6, max: 20, label: 'Account number (6–20 digits)' };
+      }
+
+      function _applyDetailAccountNumberRule(){
+        try{
+          var i = getDetailRefundInputs();
+          if(!i.acctNumber) return;
+          var methodVal = i.method ? i.method.value : '';
+          var rule = _getAccountDigitsRule(methodVal);
+          i.acctNumber.maxLength = Number(rule.max || 20) || 20;
+          var digits = _digitsOnly(i.acctNumber.value);
+          if(digits.length > i.acctNumber.maxLength) digits = digits.slice(0, i.acctNumber.maxLength);
+          i.acctNumber.value = digits;
+        }catch(e){ /* ignore */ }
+      }
+
+      function _syncDetailRefundProviderState(){
+        try{
+          var i = getDetailRefundInputs();
+          if(!i.provider) return;
+          var methodVal = i.method ? i.method.value : '';
+          var fixed = _isFixedProviderMethod(methodVal);
+          if(fixed){
+            i.provider.value = methodVal;
+            i.provider.disabled = true;
+            i.provider.style.opacity = '0.75';
+          }else{
+            i.provider.disabled = false;
+            i.provider.style.opacity = '';
+            if(!i.provider.value || i.provider.value.toLowerCase() === String(methodVal||'').toLowerCase()){
+              i.provider.value = '';
+            }
+          }
+        }catch(e){ /* ignore */ }
       }
 
       var _pendingDetailRefundItems = [];
@@ -1304,7 +1424,16 @@
         var descOk = descVal.length > 0 && descVal.length <= 250;
         var proofsOk = countDetailRefundProofs(i) >= 2;
         var itemsSelected = document.querySelectorAll('.refund-item-checkbox:checked').length > 0;
-        var ready = !!(i.type && i.type.value && i.reason && i.reason.value && i.method && i.method.value && descOk && proofsOk && itemsSelected);
+        var methodVal = i.method ? String(i.method.value || '') : '';
+        var providerVal = i.provider ? String(i.provider.value || '').trim() : '';
+        var acctNameVal = i.acctName ? String(i.acctName.value || '').trim() : '';
+        var acctNumberVal = i.acctNumber ? _digitsOnly(i.acctNumber.value || '') : '';
+        var providerOk = _isFixedProviderMethod(methodVal) ? true : (providerVal.length >= 2);
+        var acctNameOk = acctNameVal.length >= 2;
+        var rule = _getAccountDigitsRule(methodVal);
+        var acctNumberOk = (rule.exact ? (acctNumberVal.length === rule.exact) : (acctNumberVal.length >= (rule.min || 6) && acctNumberVal.length <= (rule.max || 20)));
+        var methodDetailsOk = providerOk && acctNameOk && acctNumberOk;
+        var ready = !!(i.type && i.type.value && i.reason && i.reason.value && i.method && i.method.value && methodDetailsOk && descOk && proofsOk && itemsSelected);
         if(!ready && i.proofNote && !proofsOk) i.proofNote.style.display = 'block';
         if(i.submit) i.submit.disabled = !ready;
         if(i.descCount) i.descCount.textContent = String((i.desc && i.desc.value ? i.desc.value.length : 0) || 0);
@@ -1315,6 +1444,9 @@
         if(i.type) i.type.value = '';
         if(i.reason) i.reason.value = '';
         if(i.method) i.method.value = '';
+        if(i.provider){ i.provider.value = ''; i.provider.disabled = false; i.provider.style.opacity = ''; }
+        if(i.acctName) i.acctName.value = '';
+        if(i.acctNumber) i.acctNumber.value = '';
         if(i.desc) i.desc.value = '';
         if(i.descCount) i.descCount.textContent = '0';
         if(i.itemsNote) i.itemsNote.style.display = 'none';
@@ -1358,7 +1490,20 @@
             i.reason.appendChild(el);
           });
         }
-        [i.type, i.reason, i.method].forEach(function(sel){ if(sel) sel.addEventListener('change', updateDetailRefundBtn); });
+        [i.type, i.reason].forEach(function(sel){ if(sel) sel.addEventListener('change', updateDetailRefundBtn); });
+        if(i.method) i.method.addEventListener('change', function(){ _syncDetailRefundProviderState(); _applyDetailAccountNumberRule(); updateDetailRefundBtn(); });
+        [i.provider, i.acctName].forEach(function(el){ if(el) el.addEventListener('input', updateDetailRefundBtn); });
+        if(i.acctNumber){
+          i.acctNumber.addEventListener('input', function(){
+            var methodVal = i.method ? i.method.value : '';
+            var rule = _getAccountDigitsRule(methodVal);
+            var max = Number(rule.max || 20) || 20;
+            var digits = _digitsOnly(i.acctNumber.value);
+            if(digits.length > max) digits = digits.slice(0, max);
+            i.acctNumber.value = digits;
+            updateDetailRefundBtn();
+          });
+        }
         if(i.desc){ i.desc.addEventListener('input', updateDetailRefundBtn); }
         [i.proofProduct, i.proofPackaging, i.proofDamage].forEach(function(inp){ if(inp) inp.addEventListener('change', updateDetailRefundBtn); });
         document.addEventListener('change', function(e){
@@ -1374,6 +1519,8 @@
           });
         }
         updateDetailRefundReasons();
+        _syncDetailRefundProviderState();
+        _applyDetailAccountNumberRule();
       }
 
       window._openDetailRefundModal = function(){
@@ -1387,6 +1534,8 @@
         var overlay = document.getElementById('refundModalOverlay');
         if(overlay) overlay.style.display = 'flex';
         setTimeout(function(){ var t = document.getElementById('refundTypeSelect'); if(t) t.focus(); }, 120);
+        try{ _syncDetailRefundProviderState(); }catch(e){}
+        try{ _applyDetailAccountNumberRule(); }catch(e){}
         try{ updateDetailRefundBtn(); }catch(e){}
       };
 
@@ -1415,9 +1564,24 @@
         var typeVal = i.type ? i.type.value : '';
         var reason = i.reason ? i.reason.value : '';
         var method = i.method ? i.method.value : '';
+        var provider = i.provider ? String(i.provider.value || '').trim() : '';
+        var acctName = i.acctName ? String(i.acctName.value || '').trim() : '';
+        var acctNumber = i.acctNumber ? _digitsOnly(i.acctNumber.value || '') : '';
         var desc = i.desc ? String(i.desc.value||'').trim() : '';
         if(!typeVal || !reason || !method){ alert('Please complete the form before submitting.'); return; }
+        var providerOk = _isFixedProviderMethod(method) ? true : (provider.length >= 2);
+        var rule = _getAccountDigitsRule(method);
+        var acctNumOk = (rule.exact ? (acctNumber.length === rule.exact) : (acctNumber.length >= (rule.min || 6) && acctNumber.length <= (rule.max || 20)));
+        if(!providerOk || acctName.length < 2 || !acctNumOk){
+          var msg = 'Please provide complete refund account details.';
+          try{ msg = 'Please provide complete refund account details. Expected: ' + (rule && rule.label ? rule.label : 'valid account number'); }catch(e){}
+          alert(msg);
+          return;
+        }
         if(!desc || desc.length > 250){ alert('Please provide a description (max 250 characters).'); return; }
+
+        if(_isFixedProviderMethod(method)) provider = method;
+        var methodDetails = 'Provider: ' + provider + '; Account Name: ' + acctName + '; Account Number: ' + acctNumber;
         var proofFiles = [];
         [i.proofProduct, i.proofPackaging, i.proofDamage].forEach(function(inp){ if(inp && inp.files && inp.files[0]) proofFiles.push(inp.files[0]); });
         if(proofFiles.length < 2){ if(i.proofNote) i.proofNote.style.display = 'block'; alert('Please upload at least two images (product and packaging/label; damage if applicable).'); return; }
@@ -1439,6 +1603,10 @@
             requestType: typeVal,
             returnReason: reason,
             refundMethod: method,
+            refundMethodDetails: methodDetails,
+            refundAccountProvider: provider,
+            refundAccountName: acctName,
+            refundAccountNumber: acctNumber,
             description: desc,
             items: selectedItems,
             proofImages: [],
@@ -1496,12 +1664,16 @@
           var disabled = opts.disabled === true;
           var extraCls = disabled ? ' action-disabled' : '';
           var attr = disabled ? ' aria-disabled="true"' : '';
-          return '<button class="action-btn ' + cls + extraCls + '"' + attr + ' onclick="' + handler + '">' + label + '</button>';
+          var title = opts.title ? (' title="' + String(opts.title).replace(/"/g, '&quot;') + '"') : '';
+          return '<button class="action-btn ' + cls + extraCls + '"' + attr + title + ' onclick="' + handler + '">' + label + '</button>';
         }
         if(isPending){
           actions.push(btn('Cancel Order', 'action-cancel', 'window._detailRequestCancel()'));
         } else if(isConfirming){
           actions.push(btn('Request Cancel', 'action-cancel', 'window._detailRequestCancel()'));
+          actions.push(btn('Contact Seller', 'action-contact', 'window._detailContactSeller()'));
+        } else if(statusNorm === 'processing'){
+          actions.push(btn('Cancel Order', 'action-cancel', 'window._clientShippedCancelNotice()', { disabled: true, title: 'Order is processing and cannot be cancelled.' }));
           actions.push(btn('Contact Seller', 'action-contact', 'window._detailContactSeller()'));
         } else if(statusNorm === 'shipped'){
           actions.push(btn('Request Cancel', 'action-cancel', 'window._clientShippedCancelNotice()', { disabled: true }));
@@ -1771,6 +1943,40 @@
       }
 
       function getDisplayStatus(order){
+        function norm(v){ return String(v || '').trim().toLowerCase(); }
+        try{
+          var o = order || {};
+          // Cancellation overrides 'Delivered' display if a cancellation request exists
+          var cr = o.cancelRequest;
+          if(cr && cr.requestedAt && !cr.rejectedAt){
+            if(cr.approvedAt || norm(o.status) === 'cancelled' || norm(o.status) === 'canceled') return 'Cancellation Approved';
+            return 'Cancellation Requested';
+          }
+
+          // Return/Refund overrides 'Delivered' display if a return request exists
+          var rr = o.returnRequest;
+          if(rr && rr.requestedAt){
+            var st = norm(o.status);
+            var rs = norm(rr.refundStatus);
+            var reqCode = norm(rr.requestTypeCode);
+            var reqType = norm(rr.requestType || rr.type);
+            var isReturnRefund = (reqCode === 'return_refund') || (reqType.indexOf('return') !== -1) || (st.indexOf('return and refund') !== -1);
+
+            if(!isReturnRefund){
+              if(st === 'refunded' || rs.indexOf('refunded') !== -1 || rr.refundedAt) return 'Refund complete';
+              if(st === 'refund processing' || rs.indexOf('processing') !== -1) return 'Refund processing';
+              return 'Refund requested';
+            }
+
+            if(st === 'refunded' || rs.indexOf('refunded') !== -1 || rr.refundedAt) return 'Return and Refund complete';
+            if(st === 'refund processing' || rs.indexOf('processing') !== -1) return 'Return complete, processing refund';
+            if(st === 'awaiting return' || rs.indexOf('awaiting return') !== -1) return 'Awaiting Return to Seller';
+            if(rr.approvedAt) return 'Return and Refund Approved';
+            return 'Return and Refund Requested';
+          }
+        }catch(e){ /* ignore and fall back */ }
+
+        // Default shipping simulation display
         return (order && order._display_status) ? order._display_status : (order && order.status) ? order.status : 'Pending';
       }
 
@@ -1871,10 +2077,79 @@
           safeSetText('paymentPill', 'Payment: ' + (order.payment_method || order.paymentLabel || '—'));
         })();
 
-        // Cancellation details (customer-facing)
+        // Cancellation / Return-Refund details (customer-facing)
         (function(){
           var card = document.getElementById('cancellationCard');
           if(!card) return;
+          var rr = (order && order.returnRequest) ? order.returnRequest : null;
+          if(rr && rr.requestedAt){
+            var titleEl = document.getElementById('cancellationTitle');
+            var footerEl = document.getElementById('cancelFooterNote');
+            var reasonEl = document.getElementById('cancelReasonText');
+            var noteEl = document.getElementById('cancelNoteText');
+            var paymentEl = document.getElementById('cancelPaymentText');
+            var revokeEl = document.getElementById('cancelRevokeText');
+            var statusNorm = String(order && order.status || '').toLowerCase();
+            var rrStatusNorm = String(rr.refundStatus || rr.status || '').toLowerCase();
+            var awaitingReturn = (statusNorm === 'awaiting return to seller' || statusNorm === 'awaiting return' || rrStatusNorm.indexOf('awaiting return') !== -1);
+            if(awaitingReturn){
+              if(titleEl) titleEl.textContent = 'Return Instructions';
+              if(reasonEl) reasonEl.innerHTML = 'Please proceed to the nearest J&amp;T Express (JNT) branch or visit our physical store at Shoe Pao Footwear – Bacoor, Cavite Branch.';
+              if(noteEl){
+                noteEl.innerHTML = ''
+                  + '<div style="margin-top:8px;"><strong>Customer Details:</strong></div>'
+                  + '<div>Name: Paolo Pantua</div>'
+                  + '<div>Address: Blk 15 Lot 25, Phase 2, MV Villar Avenue, Camella Springville Central, Molino 3, Bacoor, Philippines, 4102</div>'
+                  + '<div>Phone Number: 0976 524 8694</div>'
+                  + '<div style="margin-top:8px;">Please note that the shipping or processing fee will be shouldered by the customer.</div>';
+                noteEl.style.display = '';
+              }
+              if(paymentEl){ paymentEl.innerHTML = ''; paymentEl.style.display = 'none'; }
+              if(revokeEl){ revokeEl.innerHTML = ''; revokeEl.style.display = 'none'; }
+              if(footerEl){
+                footerEl.innerHTML = 'Important Notice:<br>Refund processing may take up to 7 business days, depending on the bank.<br>For further inquiries or assistance, please contact us via Facebook Messenger: <a href="https://www.facebook.com/profile.php?id=100064143366280" target="_blank" rel="noopener" style="color:#1877f2;text-decoration:none;font-weight:600;">Shoe Pao Messenger</a>.';
+                footerEl.style.display = '';
+              }
+              card.style.display = '';
+              return;
+            }
+            var refundProcessing = (statusNorm === 'return complete, processing refund' || rrStatusNorm.indexOf('processing') !== -1);
+            var refundComplete = (statusNorm === 'return and refund complete' || statusNorm === 'refunded' || rrStatusNorm.indexOf('refunded') !== -1 || !!rr.refundedAt);
+            if(refundProcessing){
+              if(titleEl) titleEl.textContent = 'Return/Refund Details';
+              if(reasonEl) reasonEl.textContent = 'We already received the return package and now we are processing for your refund.';
+              if(noteEl){ noteEl.innerHTML = ''; noteEl.style.display = 'none'; }
+              if(footerEl){
+                footerEl.innerHTML = 'Note: Refund processing may take up to 7 days depending on the bank. For questions, chat us on Facebook Messenger: <a href="https://www.facebook.com/profile.php?id=100064143366280" target="_blank" rel="noopener" style="color:#1877f2;text-decoration:none;font-weight:600;">Shoe Pao Messenger</a>.';
+                footerEl.style.display = '';
+              }
+              if(paymentEl){ paymentEl.innerHTML = ''; paymentEl.style.display = 'none'; }
+              if(revokeEl){ revokeEl.innerHTML = ''; revokeEl.style.display = 'none'; }
+              card.style.display = '';
+              return;
+            }
+            if(refundComplete){
+              if(titleEl) titleEl.textContent = 'Return/Refund Details';
+              if(reasonEl) reasonEl.textContent = 'Processing of refund is now complete.';
+              if(noteEl){ noteEl.innerHTML = ''; noteEl.style.display = 'none'; }
+              if(footerEl){
+                footerEl.innerHTML = 'For questions, chat us on Facebook Messenger: <a href="https://www.facebook.com/profile.php?id=100064143366280" target="_blank" rel="noopener" style="color:#1877f2;text-decoration:none;font-weight:600;">Shoe Pao Messenger</a>.';
+                footerEl.style.display = '';
+              }
+              if(paymentEl){ paymentEl.innerHTML = ''; paymentEl.style.display = 'none'; }
+              if(revokeEl){ revokeEl.innerHTML = ''; revokeEl.style.display = 'none'; }
+              card.style.display = '';
+              return;
+            }
+            if(titleEl) titleEl.textContent = 'Return/Refund Details';
+            if(footerEl) footerEl.style.display = '';
+            if(reasonEl) reasonEl.innerHTML = 'Return/Refund Request';
+            if(noteEl){ noteEl.innerHTML = 'This request is subjected for approval.'; noteEl.style.display = ''; }
+            if(paymentEl){ paymentEl.innerHTML = ''; paymentEl.style.display = 'none'; }
+            if(revokeEl){ revokeEl.innerHTML = ''; revokeEl.style.display = 'none'; }
+            card.style.display = '';
+            return;
+          }
           var info = getCancellationInfo(order);
           var rev = (order && order.cancellation && order.cancellation.adminRevoked) ? (order.cancellation.revocation || {}) : null;
           var revReasons = rev && Array.isArray(rev.reasons) ? rev.reasons : (order && order.cancelRequest && order.cancelRequest.revocationReasons) || [];
@@ -1886,6 +2161,10 @@
           var noteEl = document.getElementById('cancelNoteText');
           var paymentEl = document.getElementById('cancelPaymentText');
           var revokeEl = document.getElementById('cancelRevokeText');
+          var titleEl = document.getElementById('cancellationTitle');
+          var footerEl = document.getElementById('cancelFooterNote');
+          if(titleEl) titleEl.textContent = 'Cancellation Details';
+          if(footerEl) footerEl.style.display = '';
           var reasonText = info.reason ? ('Reason: ' + escapeHtml(info.reason)) : 'Order was cancelled by admin.';
           if(reasonEl) reasonEl.innerHTML = info.shouldShow ? reasonText : '';
           if(noteEl){

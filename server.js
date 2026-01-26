@@ -79,6 +79,42 @@ try{
   }
 }catch(e){ console.warn('firebase-admin init check failed', e); admin = null; }
 
+// Ensure a default admin account exists (unless explicitly disabled).
+// Uses ADMIN_DEFAULT_EMAIL and ADMIN_DEFAULT_PASSWORD when provided. To disable auto-creation set ADMIN_DISABLE_AUTO_CREATE=true.
+try{
+  (async function ensureDefaultAdmin(){
+    try{
+      if (!admin) return;
+      if (String(process.env.ADMIN_DISABLE_AUTO_CREATE || '').toLowerCase() === 'true') return;
+      const adminEmail = (process.env.ADMIN_DEFAULT_EMAIL || 'admin@localhost').toString().trim();
+      const adminPassword = (process.env.ADMIN_DEFAULT_PASSWORD || 'password').toString();
+      if (!adminEmail) return;
+
+      try{
+        const existing = await admin.auth().getUserByEmail(adminEmail);
+        console.log('Default admin account exists:', existing.uid, existing.email);
+        try{ await admin.auth().setCustomUserClaims(existing.uid, Object.assign({}, existing.customClaims || {}, { admin: true })); }catch(e){}
+        try{ const fdb = admin.firestore(); await fdb.collection('accounts').doc(existing.uid).set({ uid: existing.uid, email: (existing.email||'').toLowerCase(), role: 'admin', displayName: existing.displayName||'Admin' }, { merge: true }); }catch(e){}
+      }catch(err){
+        // create the user if not found
+        if (err && (err.code === 'auth/user-not-found' || String(err).toLowerCase().indexOf('no user record') !== -1)){
+          try{
+            const createOpts = { email: adminEmail, emailVerified: true, displayName: 'Admin' };
+            if (adminPassword && adminPassword.length >= 6) createOpts.password = adminPassword;
+            const created = await admin.auth().createUser(createOpts);
+            console.log('Created default admin user:', created.uid, adminEmail);
+            try{ await admin.auth().setCustomUserClaims(created.uid, { admin: true }); }catch(e){}
+            try{ const fdb = admin.firestore(); await fdb.collection('accounts').doc(created.uid).set({ uid: created.uid, email: adminEmail.toLowerCase(), role: 'admin', displayName: created.displayName||'Admin', createdAt: new Date().toISOString() }, { merge: true }); }catch(e){ console.warn('create default admin accounts doc failed', e); }
+            console.log('Note: auto-created default admin account', adminEmail, '(change or disable auto-creation via env vars)');
+          }catch(e){ console.warn('Failed to create default admin user', e); }
+        } else {
+          console.warn('Default admin lookup failed with unexpected error', err);
+        }
+      }
+    }catch(e){ console.warn('ensureDefaultAdmin failed', e); }
+  })();
+}catch(e){ console.warn('ensureDefaultAdmin scheduling failed', e); }
+
 // Auto-register Windows Scheduled Task to start Node at logon when opt-in is enabled.
 // This is intentionally opt-in: set AUTO_REGISTER_STARTUP=true in your environment to allow
 // the server process to attempt to register the Scheduled Task for the current user.
@@ -370,6 +406,146 @@ app.post('/api/confirm-reset', async (req, res) => {
     try{ db.prepare('UPDATE PasswordResetTokens SET used = 1 WHERE token = ?').run(token); }catch(e){ console.warn('mark token used failed', e); }
     return res.json({ ok: true });
   }catch(err){ console.error('confirm-reset failed', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Client helper: create an `accounts` Firestore doc for the calling user.
+// Accepts POST { idToken } (preferred) or { uid, email } when called from a trusted source.
+app.post('/api/create-account-doc', async (req, res) => {
+  const body = req.body || {};
+  try{
+    if(!admin){ try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ admin = null; } }
+    if(!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
+
+    let uid = body.uid;
+    let email = body.email;
+    if(body.idToken){
+      try{
+        const decoded = await admin.auth().verifyIdToken(String(body.idToken));
+        uid = decoded.uid;
+        // attempt to get user record for email
+        try{ const rec = await admin.auth().getUser(uid); email = rec.email || email; }catch(e){}
+      }catch(e){ return res.status(400).json({ error: 'invalid_id_token', detail: String(e && e.message ? e.message : e) }); }
+    }
+    if(!uid) return res.status(400).json({ error: 'missing_uid' });
+
+    // Build account payload using admin auth metadata when possible
+    let accountPayload = { uid: uid, email: email || '' };
+    try{ const rec = await admin.auth().getUser(uid); accountPayload.displayName = rec.displayName || ''; accountPayload.emailVerified = !!rec.emailVerified; accountPayload.createdAt = rec.metadata && rec.metadata.creationTime ? rec.metadata.creationTime : new Date().toISOString(); }catch(e){}
+
+    // If the client supplied profile information (from signup), merge safe fields into the accounts payload
+    // This ensures the `accounts` document contains phone/address data for admin listing.
+    try{
+      if(body.profile && typeof body.profile === 'object'){
+        const prof = body.profile || {};
+        // Only copy a whitelisted set of fields to avoid unexpected overrides
+        const allowed = {};
+        if(typeof prof.phone === 'string') allowed.phone = prof.phone;
+        if(typeof prof.name === 'string') allowed.name = prof.name;
+        if(typeof prof.displayName === 'string') allowed.displayName = prof.displayName;
+        if(typeof prof.addressMain === 'string') allowed.addressMain = prof.addressMain;
+        if(typeof prof.addressDetails === 'string') allowed.addressDetails = prof.addressDetails;
+  if(prof.deliveryAddress && typeof prof.deliveryAddress === 'object') allowed.deliveryAddress = prof.deliveryAddress;
+  else if(prof.address && typeof prof.address === 'object') allowed.deliveryAddress = prof.address; // accept `address` shape as fallback
+        if(Array.isArray(prof.addresses)) allowed.addresses = prof.addresses;
+        // Merge allowed profile fields into accountPayload (do not overwrite uid/email/createdAt)
+        accountPayload = Object.assign({}, accountPayload, allowed);
+      }
+    }catch(e){ console.warn('create-account-doc: merging profile into accountPayload failed', e); }
+
+    try{
+      const db = admin.firestore();
+      // Write accounts docs (by uid and by encoded email)
+  // Persist canonical account document keyed by UID only. Avoid creating separate
+  // encoded-email alias documents to prevent duplicate entries.
+  await db.collection('accounts').doc(uid).set(accountPayload, { merge: true });
+
+      // NOTE: we intentionally DO NOT write a separate `users/{uid}` document here to avoid
+      // maintaining two parallel collections. The authoritative admin listing is `accounts`.
+
+      return res.json({ ok: true, uid: uid, email: accountPayload.email });
+    }catch(e){ console.error('create-account-doc failed', e); return res.status(500).json({ error: 'firestore_write_failed', detail: String(e && e.message ? e.message : e) }); }
+  }catch(err){ console.error('create-account-doc error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Admin helper: create a new Firebase Auth user and corresponding accounts/{uid} doc.
+// Intended for use by admin UI. This endpoint creates an Auth user (email+password)
+// and writes the canonical accounts/{uid} document using the provided profile.
+app.post('/api/admin/create-user', async (req, res) => {
+  const body = req.body || {};
+  try{
+    if(!admin){ try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ admin = null; } }
+    if(!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
+
+    const email = (body.email || '').toString().trim().toLowerCase();
+    const password = (body.password || '').toString();
+    const profile = (body.profile && typeof body.profile === 'object') ? body.profile : {};
+    if(!email) return res.status(400).json({ error: 'email required' });
+    if(!password) return res.status(400).json({ error: 'password required' });
+
+    // create auth user
+    let userRecord;
+    try{
+      userRecord = await admin.auth().createUser({ email: email, password: password, displayName: profile.name || profile.displayName || '' });
+    }catch(e){
+      console.error('admin createUser failed', e);
+      return res.status(500).json({ error: 'create_user_failed', detail: String(e && e.message ? e.message : e) });
+    }
+
+    const uid = userRecord.uid;
+    // build account payload
+    let accountPayload = { uid: uid, email: email, displayName: userRecord.displayName || '', emailVerified: !!userRecord.emailVerified, createdAt: userRecord.metadata && userRecord.metadata.creationTime ? userRecord.metadata.creationTime : new Date().toISOString() };
+    try{
+      // whitelist profile fields
+      const allowed = {};
+      if(typeof profile.phone === 'string') allowed.phone = profile.phone;
+      if(typeof profile.name === 'string') allowed.name = profile.name;
+      if(typeof profile.displayName === 'string') allowed.displayName = profile.displayName;
+      if(typeof profile.addressMain === 'string') allowed.addressMain = profile.addressMain;
+      if(typeof profile.addressDetails === 'string') allowed.addressDetails = profile.addressDetails;
+      if(profile.deliveryAddress && typeof profile.deliveryAddress === 'object') allowed.deliveryAddress = profile.deliveryAddress;
+      if(Array.isArray(profile.addresses)) allowed.addresses = profile.addresses;
+      accountPayload = Object.assign({}, accountPayload, allowed);
+    }catch(e){ console.warn('admin/create-user: merging profile failed', e); }
+
+    try{
+      const fdb = admin.firestore();
+      await fdb.collection('accounts').doc(uid).set(accountPayload, { merge: true });
+      return res.json({ ok: true, uid: uid, email: email });
+    }catch(e){ console.error('admin/create-user firestore write failed', e); return res.status(500).json({ error: 'firestore_write_failed', detail: String(e && e.message ? e.message : e) }); }
+  }catch(err){ console.error('admin/create-user error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Admin: list accounts (requires caller to present a Firebase ID token)
+app.get('/api/accounts', async (req, res) => {
+  try{
+    if(!admin){ try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ admin = null; } }
+    if(!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
+
+    let idToken = null;
+    const auth = (req.headers && req.headers.authorization) ? req.headers.authorization : null;
+    if(auth && typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ')) idToken = auth.slice(7).trim();
+    if(!idToken && req.query && req.query.idToken) idToken = String(req.query.idToken);
+    if(!idToken) return res.status(401).json({ error: 'id_token_required' });
+
+    let decoded;
+    try{ decoded = await admin.auth().verifyIdToken(idToken); }catch(e){ return res.status(401).json({ error: 'invalid_id_token', detail: String(e && e.message ? e.message : e) }); }
+
+    // Optional allowlist: set ADMIN_EMAILS env var to a comma-separated list to restrict access
+    if(process.env.ADMIN_EMAILS){
+      const allow = (process.env.ADMIN_EMAILS||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+      const email = (decoded && decoded.email) ? String(decoded.email).toLowerCase() : null;
+      if(!email || allow.indexOf(email) === -1) return res.status(403).json({ error: 'forbidden' });
+    }
+
+    try{
+      const fdb = admin.firestore();
+      const limit = Math.min(2000, Number(req.query.limit) || 1000);
+      const snap = await fdb.collection('accounts').limit(limit).get();
+      const accounts = [];
+      snap.forEach(doc => { const d = doc.data(); accounts.push(d); });
+      return res.json({ accounts: accounts });
+    }catch(e){ console.error('api/accounts failed', e); return res.status(500).json({ error: 'firestore_read_failed', detail: String(e && e.message ? e.message : e) }); }
+  }catch(err){ console.error('api/accounts error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
 });
 
 // Record that a password reset was completed for an email (client informs server).

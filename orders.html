@@ -524,11 +524,7 @@
                 <a class="nav-item" href="accounts.html">Accounts</a>
             </div>
         </div>
-        <div class="nav-right">
-            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
-                <img src="IMAGE/USERICON.png" alt="User">
-            </button>
-        </div>
+        <!-- profile removed for admin UI -->
     </header>
     <div class="site-container">
     <div class="orders-page">
@@ -806,8 +802,8 @@
     // Navigation bar functions
     function goToHome() { window.location.href = 'home.html'; }
     function goToProfile() {
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
+        // profile navigation removed for admin UI
+        return;
     }
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToOrders() { window.location.href = 'orders.html'; }
@@ -815,8 +811,8 @@
     function goToFAQ() { window.location.href = 'privacy.html'; }
     function goToContact() { window.location.href = 'contact.html'; }
     function goToUserPage() {
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
+        // profile/user navigation removed for admin UI
+        return;
     }
     function goToCartPage() { window.location.href = 'cart.html'; }
     function toggleSearchBox() {
