@@ -1105,12 +1105,42 @@ function openCartItemEditor(index){
                 var sObj = (colors[colorIndex] && colors[colorIndex].sizes) ? colors[colorIndex].sizes : {};
                 var keys = Object.keys(sObj || {}).sort(function(a,b){ return Number(a) - Number(b); });
                 if(keys.length === 0){ keys = [ item.size || '' ]; }
+                function _isPreOrderTagged(obj){
+                    try{
+                        if(!obj) return false;
+                        var raw = (obj.tagsManual || obj.tags || obj.tagsList || obj.tags_list) || [];
+                        var list = [];
+                        if(Array.isArray(raw)) list = raw;
+                        else if(typeof raw === 'string') list = raw.split(/[,\/|;]+/);
+                        var lower = list.map(function(t){ return String(t||'').trim().toLowerCase(); }).filter(Boolean);
+                        return (lower.indexOf('pre-order') !== -1 || lower.indexOf('preorder') !== -1);
+                    }catch(e){ return false; }
+                }
+                var allowPre = false;
+                try{
+                    allowPre = !!(item && item.preOrder);
+                    if(!allowPre){
+                        var rec = (colors[colorIndex] && (colors[colorIndex].record || colors[colorIndex].parent)) ? (colors[colorIndex].record || colors[colorIndex].parent) : null;
+                        if(_isPreOrderTagged(rec) || _isPreOrderTagged(item)) allowPre = true;
+                    }
+                }catch(e){ allowPre = false; }
                 keys.forEach(function(s){ var available = (sObj && sObj[s] !== undefined) ? Number(sObj[s]) : 0;
                     var sb = document.createElement('button'); sb.className='btn ghost product-size-btn cart-edit-size'; sb.textContent = s; sb.setAttribute('data-size', s); sb.setAttribute('data-available', String(available));
                     // clear previous state classes
                     sb.classList.remove('low-stock','oos');
-                    if(available <= 0){ sb.disabled = true; sb.classList.add('oos'); }
-                    else { sb.disabled = false; if(available < 6) sb.classList.add('low-stock'); }
+                    if(available <= 0){
+                        if(allowPre){
+                            sb.disabled = false;
+                            sb.classList.add('preorder-allowed');
+                            try{ sb.style.border = '1px dashed #b71c1c'; sb.style.background = '#fff7f7'; sb.style.opacity = '1'; }catch(_){ }
+                        } else {
+                            sb.disabled = true;
+                            sb.classList.add('oos');
+                        }
+                    } else {
+                        sb.disabled = false;
+                        if(available < 6) sb.classList.add('low-stock');
+                    }
                         if((item.size||'') == s){ sb.classList.remove('ghost'); sb.classList.add('primary'); selectedSizeVal = s; }
                         sb.onclick = function(){ if(sb.disabled) return; sizeButtons.querySelectorAll('button').forEach(function(x){ x.classList.remove('primary'); x.classList.add('ghost'); }); sb.classList.remove('ghost'); sb.classList.add('primary'); selectedSizeVal = s; updateSizeStockDisplay(s); };
                     sizeButtons.appendChild(sb);
@@ -1119,8 +1149,12 @@ function openCartItemEditor(index){
                 function updateSizeStockDisplay(selectedSize){
                     try{
                         var avail = (sObj && sObj[selectedSize] !== undefined) ? Number(sObj[selectedSize]) : 0;
-                        sizeStockDiv.textContent = 'Stock: ' + (isNaN(avail)?0:avail) + ' available';
-                        if(!isNaN(avail) && avail > 0 && avail < 6){ var warn = document.createElement('span'); warn.style.color = '#c62828'; warn.style.fontWeight = '700'; warn.style.marginLeft = '8px'; warn.textContent = 'LOW STOCK!'; sizeStockDiv.appendChild(warn); }
+                        if(!isNaN(avail) && avail <= 0 && allowPre){
+                            sizeStockDiv.innerHTML = 'Stock: <b>0</b> — <span style="display:inline-block;margin-left:8px;padding:2px 10px;border-radius:999px;border:1px solid #f2bcbc;background:#fff0f0;color:#b71c1c;font-weight:700;">Pre-order available</span>';
+                        } else {
+                            sizeStockDiv.textContent = 'Stock: ' + (isNaN(avail)?0:avail) + ' available';
+                            if(!isNaN(avail) && avail > 0 && avail < 6){ var warn = document.createElement('span'); warn.style.color = '#c62828'; warn.style.fontWeight = '700'; warn.style.marginLeft = '8px'; warn.textContent = 'LOW STOCK!'; sizeStockDiv.appendChild(warn); }
+                        }
                     }catch(e){}
                 }
                 // ensure display reflects initial selection

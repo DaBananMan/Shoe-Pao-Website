@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shoe Pao — Add Product</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="inventory-app.css" />
+  <style>
+    :root { --accent:#b71c1c; --page-bg:#ffffff; }
+    body { font-family:'Poppins',Arial,sans-serif; background:var(--page-bg); color:#000; }
+    main.add-product-page { max-width: 1200px; margin: 80px auto 120px; padding: 0 20px; display: flex; flex-direction: column; gap: 20px; }
+    .page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+    .page-header h1 { margin: 4px 0 6px 0; }
+    .page-header .muted { color:#666; }
+    .actions { display:flex; gap:12px; align-items:center; }
+    .card { background:#fff; border:1px solid #e6e6e6; border-radius:16px; padding:20px; box-shadow:0 8px 28px rgba(0,0,0,0.04); }
+    .section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+    .form-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field input, .field select, .field textarea { width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:10px; font-size:0.98rem; }
+    .field textarea { resize:vertical; min-height:96px; }
+    .muted { color:#666; font-size:0.95rem; }
+    .pill { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; background:#f9f9f9; border:1px solid #eee; border-radius:12px; }
+    .color-list { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+    .color-card { border:1px solid #e5e5e5; border-radius:14px; padding:14px; display:flex; justify-content:space-between; align-items:center; gap:12px; cursor:pointer; background:#fff; transition: border-color 0.15s, box-shadow 0.15s; }
+    .color-card:hover { border-color:#f2b2b2; box-shadow:0 10px 24px rgba(183,28,28,0.05); }
+    .color-card.active { border-color:#b71c1c; box-shadow:0 10px 30px rgba(183,28,28,0.12); }
+    .color-dot { width:18px; height:18px; border-radius:50%; border:1px solid #ddd; }
+    .color-meta { display:flex; flex-direction:column; gap:2px; }
+    .color-actions { display:inline-flex; gap:8px; }
+    .color-workspace { border:1px solid #e5e5e5; border-radius:16px; padding:16px; background:#fcfcfc; }
+    .variant-images { margin-top:6px; }
+    .variant-images-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; }
+    .variant-image-slot { border:1px dashed #d9d9d9; border-radius:12px; padding:12px; background:#fff; display:flex; flex-direction:column; gap:8px; }
+    .variant-image-preview { width:100%; aspect-ratio:1 / 1; border-radius:10px; overflow:hidden; background:#f7f7f7; display:flex; align-items:center; justify-content:center; }
+    .variant-image-preview img { width:100%; height:100%; object-fit:cover; }
+    .variant-image-actions { display:flex; gap:8px; align-items:center; justify-content:flex-start; }
+    .small-btn { padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#f7f7f7; cursor:pointer; }
+    .ghost { background:transparent; border:1px solid #dedede; color:#333; border-radius:8px; padding:6px 12px; cursor:pointer; }
+    .sizes-panel { margin-top:18px; display:flex; flex-direction:column; gap:10px; }
+    .size-add { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .size-list { display:flex; flex-direction:column; gap:8px; }
+    .size-row { display:grid; grid-template-columns: 80px 1fr 140px 110px; align-items:center; gap:10px; padding:10px 12px; background:#fff; border:1px solid #e5e5e5; border-radius:10px; }
+    .qty-controls { display:inline-flex; gap:6px; align-items:center; justify-content:flex-start; }
+    .qty-btn { background:#f0f0f0; border:1px solid #d9d9d9; border-radius:8px; width:32px; height:32px; font-size:1.05rem; cursor:pointer; }
+    .helper-text { margin:4px 0 0 0; color:#666; font-size:0.9rem; }
+    .chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:#f7f7f7; border:1px solid #eee; font-size:0.92rem; }
+    .danger-text { color:#b71c1c; }
+    .warn { color:#b26b00; font-weight:600; }
+    @media (max-width: 720px) {
+      .size-row { grid-template-columns: 1fr; }
+      .actions { width:100%; justify-content:flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="nav-left">
+      <div class="nav-left-inner">
+        <a class="logo-wrap" href="dashboard.html" aria-label="Shoe Pao dashboard">
+          <img src="IMAGE/SHOEPAOLOGO.png" alt="ShoePao logo">
+          <span class="site-title">Shoe Pao Footwear</span>
+        </a>
+        <a class="nav-item" href="dashboard.html">OVERVIEW</a>
+        <a class="nav-item" href="orders.html">Orders</a>
+        <a class="nav-item" href="inventory.html">Inventory</a>
+        <a class="nav-item" href="accounts.html">Accounts</a>
+      </div>
+    </div>
+    <div class="nav-right">
+      <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
+        <img src="IMAGE/USERICON.png" alt="User">
+      </button>
+    </div>
+  </header>
+
+  <main class="add-product-page">
+    <div class="page-header">
+      <div>
+        <p class="muted" style="margin:0; letter-spacing:0.12em; text-transform:uppercase;">Inventory</p>
+        <h1>Add Product</h1>
+        <p class="muted">Create the product, then add colors, sizes, and required images before publishing.</p>
+      </div>
+      <div class="actions">
+        <a class="secondary" href="inventory.html">Back to Inventory</a>
+        <button id="saveProductPageBtn" class="primary">Save Product</button>
+      </div>
+    </div>
+
+    <section class="card">
+      <div class="section-head">
+        <h2 style="margin:0;">Product Information</h2>
+        <span class="muted">All fields mirror the previous modal.</span>
+      </div>
+      <div class="form-grid">
+        <label class="field">
+          <span>Brand</span>
+          <input id="prodBrand" placeholder="Brand" required />
+        </label>
+        <label class="field">
+          <span>Model</span>
+          <input id="prodModel" placeholder="Model" required />
+        </label>
+        <label class="field">
+          <span>Category</span>
+          <select id="prodCategory">
+            <option value="">Select category</option>
+            <option>Basketball/Performance</option>
+            <option>Lifestyle/Streetwear</option>
+            <option>Running/Training</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Gender-Fitting</span>
+          <div class="pill">
+            <label><input type="checkbox" id="prodGenderMen" value="Men" /> Men</label>
+            <label><input type="checkbox" id="prodGenderWomen" value="Women" /> Women</label>
+            <label><input type="checkbox" id="prodGenderUnisex" value="Unisex" checked /> Unisex</label>
+          </div>
+        </label>
+        <label class="field">
+          <span>SKU</span>
+          <input id="prodSKU" placeholder="SKU (auto: SP-BBB-MMMM-XXXX)" readonly />
+        </label>
+        <label class="field">
+          <span>Status</span>
+          <select id="prodStatus">
+            <option value="active" selected>Active</option>
+            <option value="archived">Archived</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Critical Level</span>
+          <input id="prodCriticalLevel" type="number" min="1" placeholder="Low Stock Threshold" />
+        </label>
+        <label class="field">
+          <span>Original Price</span>
+          <input id="priceOriginal" type="number" min="0" step="0.01" placeholder="Original Price" required />
+        </label>
+        <label class="field">
+          <span>Sale Price</span>
+          <input id="priceSale" type="number" min="0" step="0.01" placeholder="Sale Price" />
+        </label>
+      </div>
+      <div class="form-grid" style="margin-top:12px;">
+        <label class="field" style="grid-column:1 / -1;">
+          <span>Description</span>
+          <textarea id="prodDescription" placeholder="Description (optional)" rows="3"></textarea>
+        </label>
+        <label class="field" style="grid-column:1 / -1;">
+          <span>AR Link</span>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <input id="prodARLink" placeholder="https://... (AR webfilter link)" style="flex:1; min-width:240px;" />
+            <button id="prodGenerateQrBtn" type="button" class="secondary">Generate QR</button>
+            <img id="prodARQrPreview" src="" alt="QR preview" style="width:84px;height:84px;border-radius:8px;background:#f7f7f7;display:none;border:1px solid #eee;" />
+          </div>
+          <p class="muted" style="margin:6px 0 0 0;">Provide the AR webfilter link to auto-generate a QR code.</p>
+        </label>
+        <div class="field" style="grid-column:1 / -1;">
+          <span>Manual Tags</span>
+          <div class="pill" style="flex-wrap:wrap; gap:16px;">
+            <label><input type="checkbox" id="tagNew" /> New</label>
+            <label><input type="checkbox" id="tagSale" /> Sale</label>
+            <label><input type="checkbox" id="tagPreOrder" /> Pre-Order</label>
+            <label><input type="checkbox" id="tagBestSeller" /> Best Seller</label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <h2 style="margin:0;">Variants</h2>
+          <p class="muted" style="margin:4px 0 0 0;">Add colors, upload four images each, and set sizes (EU 35-49).</p>
+        </div>
+        <div class="add-color-controls" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <input id="variantColorName" placeholder="Color name" style="padding:10px 12px; border:1px solid #ddd; border-radius:10px;" />
+          <input id="variantColorCode" type="color" aria-label="Pick color" style="width:48px; height:44px; border:none; background:transparent;" />
+          <button id="addColorBtn" class="secondary" type="button">Add color</button>
+        </div>
+      </div>
+      <div id="colorList" class="color-list"></div>
+      <div id="colorWorkspace" class="color-workspace" style="margin-top:14px;"></div>
+    </section>
+  </main>
+
+  <script>
+    window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
+      apiKey: "AIzaSyDf1LltQfn3_AXmV1-gpm2SWOTInXfIdgY",
+      authDomain: "shoe-pao-special.firebaseapp.com",
+      projectId: "shoe-pao-special",
+      storageBucket: "shoe-pao-special.firebasestorage.app",
+      messagingSenderId: "590509920226",
+      appId: "1:590509920226:web:9daf77b2841e3d699633bb",
+      measurementId: "G-JD4WGCKFQC"
+    };
+    window.ALLOW_ANON_SIGNIN = true;
+  </script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="add-product.js"></script>
+</body>
+</html>
