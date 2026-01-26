@@ -173,15 +173,29 @@
             z-index: 2;
         }
         .badge-sale {
+            display: inline-flex;
+            align-items: center;
+            background: #fdeaec;
+            color: #b71c1c;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border-radius: 8px;
+            padding: 3px 10px;
+            border: 1px solid #f4c7cd;
+            box-shadow: none;
+        }
+        .badge-tryon {
             position: absolute;
-            top: 16px;
-            left: 16px;
-            background: #b71c1c;
-            color: #fff;
-            font-size: 0.98rem;
-            font-weight: 500;
-            border-radius: 12px;
-            padding: 4px 14px;
+            top: 14px;
+            right: 14px;
+            background: #e3f2fd;
+            color: #1565c0;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border-radius: 10px;
+            padding: 5px 11px;
+            border: 1px solid #bbdefb;
+            box-shadow: 0 4px 10px rgba(21,101,192,0.12);
             z-index: 2;
         }
         .badge-preorder {
@@ -243,6 +257,8 @@
             margin-right: 8px;
             font-size: 0.98rem;
         }
+        .shoe-price-block { display: inline-flex; align-items: baseline; gap: 6px; }
+        .price-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     </style>
 </head>
 <body class="productlist-body page-loading" style="min-height:100vh;display:flex;flex-direction:column;">
@@ -409,12 +425,11 @@
                     <div class="shoe-card" data-gender="Women" data-size="8" style="cursor:pointer;" onclick="viewProduct('Cloudtilt','Cloudtilt Iron Dew Womens','P1,299.00','IMAGE/SALESSHOE1.png','Sale')">
                         <div class="shoe-img-box">
                             <img src="IMAGE/SALESSHOE1.png" class="shoe-img" alt="Cloudtilt Iron Dew Womens">
-                            <span class="badge-sale">Sale</span>
                         </div>
                         <div class="shoe-info-box">
                             <div class="shoe-info-top">
                                 <span class="shoe-brand">Cloudtilt</span>
-                                <span><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span>
+                                <span class="price-stack"><span class="badge-sale">Sale</span><span class="shoe-price-block"><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span></span>
                             </div>
                             <div class="shoe-info-bottom">Cloudtilt Iron Dew Womens</div>
                         </div>
@@ -422,12 +437,11 @@
                     <div class="shoe-card" data-gender="Men" data-size="9" style="cursor:pointer;" onclick="viewProduct('New Balance','New Balance 530','P1,299.00','IMAGE/SALESSHOE2.png','Sale')">
                         <div class="shoe-img-box">
                             <img src="IMAGE/SALESSHOE2.png" class="shoe-img" alt="New Balance 530">
-                            <span class="badge-sale">Sale</span>
                         </div>
                         <div class="shoe-info-box">
                             <div class="shoe-info-top">
                                 <span class="shoe-brand">New Balance</span>
-                                <span><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span>
+                                <span class="price-stack"><span class="badge-sale">Sale</span><span class="shoe-price-block"><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span></span>
                             </div>
                             <div class="shoe-info-bottom">New Balance 530</div>
                         </div>
@@ -446,7 +460,26 @@
     function goToUserPage(){ window.location.href = 'profile.html'; }
     function toggleSearchBox(){ const box = document.getElementById('searchBox'); if(box){ box.style.display = (box.style.display==='none'||!box.style.display)?'block':'none'; } }
     function searchKeyDown(e){ if(e.key==='Enter'){ applyAllFilters(); } }
-    function viewProduct(brand,title,price,img,badge){ try{ localStorage.setItem('productBrand', brand||''); localStorage.setItem('productTitle', title||''); localStorage.setItem('productPrice', price||''); localStorage.setItem('productImg', img||''); localStorage.setItem('productBadge', badge||''); }catch(_){ } window.location.href = 'product-view.html'; }
+    function viewProduct(brand,title,price,img,badge,originalPrice){
+        try{
+            var orig = originalPrice;
+            if(!orig && typeof event !== 'undefined'){
+                var target = event.currentTarget || event.target;
+                if(target && target.querySelector){
+                    var oldEl = target.querySelector('.shoe-price-old');
+                    if(oldEl && oldEl.textContent) orig = oldEl.textContent;
+                }
+            }
+            localStorage.setItem('productBrand', brand||'');
+            localStorage.setItem('productTitle', title||'');
+            localStorage.setItem('productPrice', price||'');
+            if(orig) localStorage.setItem('productOriginalPrice', orig);
+            else localStorage.removeItem('productOriginalPrice');
+            localStorage.setItem('productImg', img||'');
+            localStorage.setItem('productBadge', badge||'');
+        }catch(_){ }
+        window.location.href = 'product-view.html';
+    }
     var productListReady = false;
     function markProductsReady(){
         if(productListReady) return;
@@ -724,6 +757,7 @@
             try{
                 var grid = document.getElementById('productGrid');
                 if(!grid) return;
+                function formatPrice(n){ return 'P' + Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2}); }
                 var inv = Array.isArray(inventoryRows) ? inventoryRows : [];
                 inv = inv.filter(function(item){
                     var s = (item && item.status) ? String(item.status).toLowerCase() : 'active';
@@ -752,8 +786,21 @@
                     var prices = g.variants.map(function(v){ return Number(v.price||0); });
                     var minP = Math.min.apply(null, prices);
                     var maxP = Math.max.apply(null, prices);
-                    var priceText = (minP === maxP) ? ('P' + Number(minP).toLocaleString(undefined,{minimumFractionDigits:2}))
-                                                    : ('From P' + Number(minP).toLocaleString(undefined,{minimumFractionDigits:2}));
+                    var saleVariants = g.variants.filter(function(v){ return Number(v.originalPrice||0) > Number(v.price||0); });
+                    var priceText = (minP === maxP) ? formatPrice(minP)
+                                                    : ('From ' + formatPrice(minP));
+                    var priceHtml = '';
+                    if(saleVariants.length){
+                        var best = saleVariants.reduce(function(best,v){
+                            var sale = Number(v.price||0);
+                            var orig = Number(v.originalPrice||0);
+                            if(!best || sale < best.sale){ return { sale: sale, orig: orig }; }
+                            return best;
+                        }, null);
+                        priceHtml = '<span class="shoe-price-old">'+formatPrice(best.orig||0)+'</span><span class="shoe-price">'+formatPrice(best.sale||0)+'</span>';
+                    } else {
+                        priceHtml = '<span class="shoe-price">'+priceText+'</span>';
+                    }
 
                     var genderSet = new Set();
                     g.variants.forEach(function(v){
@@ -791,10 +838,14 @@
                     function hasTag(tag){ return tagsLower.indexOf(String(tag).toLowerCase()) !== -1; }
                     var isSale = hasTag('sale');
                     var isNew = hasTag('new arrival') || hasTag('new');
+                    var isTryOn = hasTag('try on!') || hasTag('try on');
                     var totalStock = g.variants.reduce(function(acc, v){ try{ var sm=v.sizes||{}; return acc + Object.values(sm).reduce(function(a,b){ return a + (Number(b)||0); },0); }catch(_){ return acc; } }, 0);
-                    var isPreOrder = totalStock === 0 || hasTag('pre-order');
+                    // Only show Pre-Order when explicitly tagged (don't infer from 0 stock)
+                    var isPreOrder = hasTag('pre-order') || hasTag('preorder') || hasTag('pre order');
                     var anyProductId = (primary && primary.productId) || '';
                     var isBest = (anyProductId && bestSet.has(anyProductId)) || hasTag('best seller');
+                    var overlayHtml = isNew ? '<span class="badge-new">New</span>' : (isBest ? '<span class="badge-bestseller">Best Seller</span>' : (isPreOrder ? '<span class="badge-preorder">Pre-Order</span>' : ''));
+                    var overlayTryOn = isTryOn ? '<span class="badge-tryon">Try On!</span>' : '';
 
                     var card = document.createElement('div');
                     card.className = 'shoe-card';
@@ -812,13 +863,13 @@
                         '<div class="shoe-img-box">' +
                         '  <img src="'+imgSrc+'" class="shoe-img shoe-img-base'+flipClass+'" alt="'+(g.baseName||'Product')+'">' +
                         '  <img src="'+imgSrc+'" class="shoe-img shoe-img-overlay'+flipClass+'" alt="'+(g.baseName||'Product')+' preview" aria-hidden="true">' +
-                        (isSale ? '<span class="badge-sale">Sale</span>' : (isNew ? '<span class="badge-new">New</span>' : (isBest ? '<span class="badge-bestseller">Best Seller</span>' : (isPreOrder ? '<span class="badge-preorder">Pre-Order</span>' : '')))) +
+                        overlayHtml + overlayTryOn +
                         '  <div class="variant-swatches">'+ swHTML +'</div>' +
                         '</div>' +
                         '<div class="shoe-info-box">' +
                         '  <div class="shoe-info-top">' +
                         '    <span class="shoe-model">'+(g.baseName||'')+'</span>' +
-                        '    <span class="shoe-price">'+priceText+'</span>' +
+                        '    <span class="price-stack">'+ (isSale ? '<span class="badge-sale">Sale</span>' : '') + '<span class="shoe-price-block">'+priceHtml+'</span></span>' +
                         '  </div>' +
                         '  <div class="shoe-info-bottom">'+(g.brand||'')+' ('+g.variants.length+' colors)</div>' +
                         '</div>';
@@ -840,7 +891,8 @@
                                         images: imgs,
                                         price: Number(v.price||0),
                                         sizes: v.sizes || {},
-                                        gender: v.gender || ''
+                                        gender: v.gender || '',
+                                        originalPrice: Number(v.originalPrice||0)
                                     };
                                 })
                             };
@@ -848,7 +900,8 @@
                             var sel = modelData.variants[0] || {};
                             localStorage.setItem('productBrand', modelData.brand);
                             localStorage.setItem('productTitle', sel.name || (modelData.baseName + (sel.color?(' '+sel.color):'')));
-                            localStorage.setItem('productPrice', 'P' + Number(sel.price||0).toLocaleString(undefined,{minimumFractionDigits:2}));
+                            localStorage.setItem('productPrice', formatPrice(sel.price||0));
+                            localStorage.setItem('productOriginalPrice', formatPrice(sel.originalPrice||0));
                             localStorage.setItem('productImg', sel.image || '');
                             localStorage.setItem('productBadge', '');
                             localStorage.setItem('productId', sel.productId || sel.id || '');
@@ -933,12 +986,14 @@
                 const brandName = (prod.brand || '').toString().toLowerCase();
                 if(selectedBrands.length > 0 && brandName && selectedBrands.indexOf(brandName) === -1){ card.style.display = 'none'; return; }
 
-                if(urlFilter === 'sale' || urlFilter === 'new'){
+                if(urlFilter === 'sale' || urlFilter === 'new' || urlFilter === 'tryon'){
                     const tagStr = (card.getAttribute('data-tags') || '').toString().toLowerCase();
                     const hasSale = tagStr.indexOf('sale') !== -1;
                     const hasNew = tagStr.indexOf('new arrival') !== -1 || tagStr.indexOf('new') !== -1;
+                    const hasTryOn = tagStr.indexOf('try on') !== -1 || tagStr.indexOf('tryon') !== -1;
                     if(urlFilter === 'sale' && !hasSale && !card.querySelector('.badge-sale')){ card.style.display = 'none'; return; }
                     if(urlFilter === 'new' && !hasNew && !card.querySelector('.badge-new')){ card.style.display = 'none'; return; }
+                    if(urlFilter === 'tryon' && !hasTryOn && !card.querySelector('.badge-tryon')){ card.style.display = 'none'; return; }
                 }
 
                 if(searchTerm){

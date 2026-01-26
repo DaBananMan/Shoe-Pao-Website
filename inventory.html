@@ -284,10 +284,6 @@
                     <input id="priceSale" type="number" min="0" step="0.01" placeholder="Sale Price" />
                 </label>
                 <label class="field">
-                    <div class="field-title">Cost</div>
-                    <input id="priceCost" type="number" min="0" step="0.01" placeholder="Cost" />
-                </label>
-                <label class="field">
                     <div class="field-title">Description</div>
                     <textarea id="prodDescription" placeholder="Description (optional)" rows="3"></textarea>
                 </label>
@@ -311,6 +307,7 @@
                     <label><input type="checkbox" id="tagSale" /> Sale</label>
                     <label><input type="checkbox" id="tagPreOrder" /> Pre-Order</label>
                     <label><input type="checkbox" id="tagBestSeller" /> Best Seller</label>
+                    <label><input type="checkbox" id="tagTryOn" /> Try On!</label>
                 </div>
                 <p class="muted" style="margin:0;">Manual tags are added on top of auto tags.</p>
             </div>
@@ -643,6 +640,10 @@
                             <h3>Sizes & Images</h3>
                             <p class="muted">Manage stock by size and upload 4 images per color.</p>
                         </div>
+                        <div class="variant-tag-toggle" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+                            <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;"><input type="checkbox" id="variantTagTryOn"> Try On!</label>
+                            <span class="muted" style="font-size:0.92rem;">Manual tag applies to the product.</span>
+                        </div>
                         <div class="variant-workspace">
                             <div id="sizesEditor" class="sizes-editor"></div>
                         </div>
@@ -662,7 +663,6 @@
                     <select id="bulkPriceField">
                         <option value="original">Original</option>
                         <option value="sale">Sale</option>
-                        <option value="cost">Cost</option>
                     </select>
                 </label>
                 <label>
@@ -698,7 +698,7 @@
                         <option value="size">Specific size</option>
                     </select>
                 </label>
-                <input id="bulkRestockSize" type="number" min="35" max="45" step="1" placeholder="EU size (35–45)" />
+                <input id="bulkRestockSize" type="number" min="35" max="49" step="1" placeholder="EU size (35–49)" />
                 <input id="bulkRestockQty" type="number" min="0" step="1" placeholder="Quantity to add" />
             </div>
             <div class="modal-actions">
