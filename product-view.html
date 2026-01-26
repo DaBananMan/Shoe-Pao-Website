@@ -34,6 +34,15 @@
             box-shadow: none !important;
             background: transparent !important;
         }
+        /* Block page until product data is loaded */
+        body.page-loading { overflow: hidden; }
+        #pageShell { opacity: 0; pointer-events: none; }
+        body.page-ready #pageShell { opacity: 1; pointer-events: auto; }
+        .page-loader { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px; background: #fff; z-index: 1300; }
+        .page-loader__spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: #b71c1c; border-radius: 50%; animation: page-spin 0.85s linear infinite; }
+        .page-loader__text { font-size: 1rem; color: #222; }
+        @keyframes page-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        body.page-ready .page-loader { display: none; }
         .search-input::-webkit-input-placeholder {
             color: #888;
             opacity: 1;
@@ -151,6 +160,7 @@
         .productview-availability b {
             font-weight: 600;
         }
+        .productview-disclaimer { font-size: 0.95rem; color: #b71c1c; font-weight: 600; margin-top: 6px; }
         .productview-caption {
             font-size: 0.98rem;
             color: #444;
@@ -1322,7 +1332,12 @@
         }
     </style>
 </head>
-<body>
+<body class="page-loading">
+    <div id="pageLoader" class="page-loader" role="status" aria-live="polite">
+        <div class="page-loader__spinner" aria-hidden="true"></div>
+        <div id="pageLoaderText" class="page-loader__text">Loading product...</div>
+    </div>
+    <div id="pageShell" aria-hidden="true">
     <!-- Navigation Bar -->
     <!-- ...existing code from product-list.html nav bar... -->
     <nav class="homepage-header">
@@ -1334,7 +1349,15 @@
                 </a>
                 <span class="header-link" onclick="scrollToSection('sale')">Sale</span>
                 <span class="header-link" onclick="scrollToSection('new-arrivals')">New Arrivals</span>
-                <span class="header-link" onclick="scrollToSection('brands')">Brands</span>
+                <span class="header-link" id="brandNavPV" style="position:relative;">Brands
+                    <div class="brand-dropdown" id="brandDropdownPV" aria-hidden="true" style="display:none; position:absolute; top:100%; left:50%; transform:translateX(-50%); background:#fff; color:#222; border:1px solid #eee; padding:8px 10px; border-radius:6px; box-shadow:0 6px 18px rgba(0,0,0,0.08); z-index:120; white-space:nowrap; text-align:center;">
+                        <a href="product-list.html?brand=Nike" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('Nike')"><img src="IMAGE/NIKELOGO.png" alt="Nike" style="height:28px;"></a>
+                        <a href="product-list.html?brand=Adidas" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('Adidas')"><img src="IMAGE/ADIDASLOGO.png" alt="Adidas" style="height:28px;"></a>
+                        <a href="product-list.html?brand=On" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('On')"><img src="IMAGE/CLOUDTILTLOGO.png" alt="On" style="height:28px;"></a>
+                        <a href="product-list.html?brand=Onitsuka%20Tiger" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('Onitsuka Tiger')"><img src="IMAGE/res/onitsuka-tiger-seeklogo.png" alt="Onitsuka Tiger" style="height:28px;"></a>
+                        <a href="product-list.html?brand=New%20Balance" class="brand-drop-link" onclick="event.preventDefault(); goToBrand('New Balance')"><img src="IMAGE/NEWBALANCELOGO.png" alt="New Balance" style="height:28px;"></a>
+                    </div>
+                </span>
                 <span class="header-link" onclick="goToProductList()">Shop All</span>
             </div>
             <div style="display:flex;align-items:center;gap:18px;">
@@ -1369,6 +1392,7 @@
                 </div>
                 <span class="productview-availability">Availability: <b>In Stock</b></span>
             </div>
+            <div class="productview-disclaimer">Note: Premium replica pairs, not original brand-manufactured products.</div>
             <div class="productview-caption">Delivery/shipping calculated at checkout.</div>
                 <div class="productview-color-row" id="colorOptionsRow" style="display:none;align-items:center;">
                     <span class="productview-color-label">Colors:</span>
@@ -1713,6 +1737,23 @@ On page.</div>
     // Allow anonymous sign-in to read stock when rules require auth
     try{ if(window.ALLOW_ANON_SIGNIN === undefined) window.ALLOW_ANON_SIGNIN = true; }catch(e){}
 
+    var productViewReady = false;
+    function markViewReady(){
+        if(productViewReady) return;
+        productViewReady = true;
+        if(window.PageDataGate && PageDataGate.ready) PageDataGate.ready();
+        document.body.classList.remove('page-loading');
+        document.body.classList.add('page-ready');
+        var shell = document.getElementById('pageShell');
+        if(shell) shell.removeAttribute('aria-hidden');
+    }
+    function markViewError(msg){
+        if(window.PageDataGate && PageDataGate.error) PageDataGate.error(msg);
+        var t = document.getElementById('pageLoaderText');
+        if(t && msg) t.textContent = msg;
+        markViewReady();
+    }
+
     var _productStockMap = null;
     var _currentProductDoc = null;
 
@@ -1798,8 +1839,9 @@ On page.</div>
     }
 
     function loadProductStockFromFirestore(cb){
+        if(window.PageDataGate && PageDataGate.block) PageDataGate.block('Loading product...');
         ensureFirebaseReady(function(err){
-            if(err) { if(cb) cb(err); return; }
+            if(err) { if(cb) cb(err); markViewError('Unable to load product data.'); return; }
             try{
                 if(window.ALLOW_ANON_SIGNIN === true && firebase.auth && !firebase.auth().currentUser){
                     firebase.auth().signInAnonymously().catch(function(){});
@@ -1876,9 +1918,10 @@ On page.</div>
                         }
                     }
                     _productStockMap = sizesMap || null;
+                    markViewReady();
                     if(cb) cb(null, _productStockMap);
-                }).catch(function(e){ if(cb) cb(e); });
-            }catch(e){ if(cb) cb(e); }
+                }).catch(function(e){ if(cb) cb(e); markViewError('Unable to load product data.'); });
+            }catch(e){ if(cb) cb(e); markViewError('Unable to load product data.'); }
         });
     }
     // AR Modal functions
@@ -1950,6 +1993,9 @@ On page.</div>
     function scrollToSection(sectionId) {
         window.location.href = 'home.html#' + sectionId;
     }
+    function goToBrand(brand) {
+        window.location.href = 'product-list.html?brand=' + encodeURIComponent(brand || '');
+    }
     function goToProductList() {
         window.location.href = 'product-list.html';
     }
@@ -1967,6 +2013,19 @@ On page.</div>
             document.getElementById('searchInput').focus();
         }
     }
+
+    // Brand dropdown toggle (mirror home page behavior)
+    document.addEventListener('DOMContentLoaded', function(){
+        var nav = document.getElementById('brandNavPV');
+        var dd = document.getElementById('brandDropdownPV');
+        if(!nav || !dd) return;
+        nav.addEventListener('click', function(e){
+            e.stopPropagation();
+            var showing = dd.style.display === 'flex';
+            dd.style.display = showing ? 'none' : 'flex';
+        });
+        document.addEventListener('click', function(){ dd.style.display = 'none'; });
+    });
     
     // Smooth-scroll down to the reviews header on the product page
     function scrollToReviews() {
@@ -2611,6 +2670,7 @@ On page.</div>
                 });
             }
         }catch(e){}
+        markViewReady();
     });
     // If page is opened with ?openAR=1 instruct the page to open the AR modal automatically
     (function(){
@@ -2991,8 +3051,6 @@ On page.</div>
     <script src="js/ratings-storage.js"></script>
     <script src="js/firebase-config.js"></script>
     <script src="cart-storage.js"></script>
-</body>
-    
     <footer class="footer-section">
         <div class="site-container">
             <div class="footer-row">
@@ -3013,4 +3071,6 @@ On page.</div>
             </div>
         </div>
     </footer>
+    </div>
+</body>
 </html>
