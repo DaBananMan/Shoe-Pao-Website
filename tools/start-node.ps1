@@ -88,15 +88,15 @@ if (-not (Test-Path $serverJs)) {
 # Helper to persist start metadata alongside numeric PID
 function Write-StartInfo {
     param(
-        [int]$pid,
+        [int]$processId,
         [string]$launcher,
         [string]$launcherPath
     )
     # Keep node.pid numeric for compatibility with other tools
-    try{ $pid | Out-File -FilePath $pidFile -Encoding ascii -Force } catch {}
+    try{ $processId | Out-File -FilePath $pidFile -Encoding ascii -Force } catch {}
     # Write extra info to node.pid.info as JSON
     $infoFile = Join-Path $projRoot 'node.pid.info'
-    $info = @{ startedAt = (Get-Date).ToString(); launcher = $launcher; launcherPath = $launcherPath; pid = $pid }
+    $info = @{ startedAt = (Get-Date).ToString(); launcher = $launcher; launcherPath = $launcherPath; pid = $processId }
     try{ $info | ConvertTo-Json | Out-File -FilePath $infoFile -Encoding utf8 -Force } catch {}
 }
 
@@ -117,7 +117,7 @@ if ($nodePath) {
             }
         } catch {}
 
-        Write-StartInfo -pid $nodePid -launcher 'node' -launcherPath $nodePath
+    Write-StartInfo -processId $nodePid -launcher 'node' -launcherPath $nodePath
         Write-Output "Started Node ($nodePath $serverJs) with PID $nodePid. Logs: $logOut and $logErr"
     } catch {
         $msg = "Failed to start node directly: $_"
@@ -137,11 +137,11 @@ if ($nodePath) {
         $nodes = Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.StartTime -ge $since } | Sort-Object StartTime -Descending
         if ($nodes.Count -gt 0) {
             $nodePid = $nodes[0].Id
-            Write-StartInfo -pid $nodePid -launcher 'npm' -launcherPath (Get-Command $npm).Path
+            Write-StartInfo -processId $nodePid -launcher 'npm' -launcherPath (Get-Command $npm).Path
             Write-Output "Started via npm (PID $launcherPid). Detected node child PID $nodePid. Logs: $logOut and $logErr"
         } else {
             # No child node found; record npm PID so we can attempt cleanup later
-            Write-StartInfo -pid $launcherPid -launcher 'npm' -launcherPath (Get-Command $npm).Path
+            Write-StartInfo -processId $launcherPid -launcher 'npm' -launcherPath (Get-Command $npm).Path
             Write-Output "Started npm (PID $launcherPid). No node process detected yet; logs: $logOut and $logErr"
         }
     } catch {
