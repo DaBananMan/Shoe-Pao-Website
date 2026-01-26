@@ -115,6 +115,7 @@
         .productlist-caption .brand {
             font-weight: 700;
         }
+        .productlist-disclaimer { font-size: 0.95rem; color: #b71c1c; font-weight: 600; text-align: center; margin-top: 4px; }
         .productlist-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -123,6 +124,15 @@
             width: 100%;
             max-width: 900px;
         }
+        /* Block page until inventory is loaded */
+        body.page-loading { overflow: hidden; }
+        #pageShell { opacity: 0; pointer-events: none; }
+        body.page-ready #pageShell { opacity: 1; pointer-events: auto; }
+        .page-loader { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px; background: #fff; z-index: 1300; }
+        .page-loader__spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: #b71c1c; border-radius: 50%; animation: page-spin 0.85s linear infinite; }
+        .page-loader__text { font-size: 1rem; color: #222; }
+        @keyframes page-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        body.page-ready .page-loader { display: none; }
         .shoe-card {
             background: none;
             border: none;
@@ -235,7 +245,12 @@
         }
     </style>
 </head>
-<body class="productlist-body" style="min-height:100vh;display:flex;flex-direction:column;">
+<body class="productlist-body page-loading" style="min-height:100vh;display:flex;flex-direction:column;">
+    <div id="pageLoader" class="page-loader" role="status" aria-live="polite">
+        <div class="page-loader__spinner" aria-hidden="true"></div>
+        <div id="pageLoaderText" class="page-loader__text">Loading products...</div>
+    </div>
+    <div id="pageShell" aria-hidden="true">
     <!-- Navigation Bar (copied from home.html) -->
     <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:72px;padding-left:46px;">
     <div style="display:flex;align-items:center;gap:24px;">
@@ -325,6 +340,7 @@
                         <span style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;">✕</span>
                         <span>Clear search</span>
                     </button>
+                    <div class="productlist-disclaimer">All products are premium replicas; not original brand-manufactured.</div>
                 </div>
                 <div class="productlist-grid" id="productGrid">
                     <div class="shoe-card" data-gender="Men" data-size="8" style="cursor:pointer;" onclick="viewProduct('Nike','Nike Airmax TN Aqua Blue','P1,299.00','IMAGE/NIKE1.png','New')">
@@ -423,245 +439,33 @@
     </main>
     
     <script>
-    // Header nav helpers (product-list)
+    // Navigation helpers used by header links and search box
     function goToSale(){ window.location.href = 'product-list.html?filter=sale'; }
     function goToNewArrivals(){ window.location.href = 'product-list.html?filter=new'; }
-    // Brand dropdown toggle for product-list header
-    document.addEventListener('DOMContentLoaded', function(){
-        var brandNav = document.getElementById('brandNavPL');
-        var brandDropdown = document.getElementById('brandDropdownPL');
-        if(!brandNav || !brandDropdown) return;
-        brandNav.addEventListener('click', function(e){
-            e.stopPropagation();
-            var showing = brandDropdown.style.display === 'block';
-            brandDropdown.style.display = showing ? 'none' : 'block';
-        });
-        document.addEventListener('click', function(){ brandDropdown.style.display = 'none'; });
-
-        // Read URL params and pre-filter cards if needed
-    var params = new URLSearchParams(window.location.search);
-    var qBrand = params.get('brand');
-    var qFilter = params.get('filter');
-
-    function applyUrlFilters(){
-            // hide the large Brands section when a specific filter/brand is active
-            var brandsSection = document.getElementById('brands');
-            if(brandsSection && (qBrand || qFilter)) brandsSection.style.display = 'none';
-
-            // apply card filtering
-            var cards = Array.from(document.querySelectorAll('.shoe-card'));
-            var visibleCount = 0;
-            cards.forEach(function(card){
-                var keep = true;
-                if(qBrand){
-                    var b = (card.getAttribute('data-brand')||'').toLowerCase();
-                    if(b !== qBrand.toLowerCase()) keep = false;
-                }
-                if(qFilter === 'sale'){
-                    var tags = (card.getAttribute('data-tags')||'').toLowerCase();
-                    var hasSale = tags.indexOf('sale') !== -1;
-                    if(!hasSale){
-                        var badge = card.querySelector('.badge-sale');
-                        if(!badge) keep = false;
-                    }
-                }
-                if(qFilter === 'new'){
-                    var tagsNew = (card.getAttribute('data-tags')||'').toLowerCase();
-                    var hasNew = tagsNew.indexOf('new arrival') !== -1 || tagsNew.indexOf('new') !== -1;
-                    if(!hasNew){
-                        var badge = card.querySelector('.badge-new');
-                        if(!badge) keep = false;
-                    }
-                }
-                card.style.display = keep ? '' : 'none';
-                if(keep) visibleCount++;
-            });
-
-            // show no-results message if nothing matched
-            var content = document.querySelector('.productlist-content');
-            if(!content) return;
-            var existing = document.querySelector('.no-results-message');
-            if(existing) existing.remove();
-            if(visibleCount === 0){
-                var msg = 'No matching products';
-                if(qFilter === 'sale') msg = 'No shoes on Sale';
-                else if(qFilter === 'new') msg = 'No New Arrivals';
-                else if(qBrand) msg = 'No ' + qBrand + ' shoes';
-                var el = document.createElement('div');
-                el.className = 'no-results-message';
-                el.style.padding = '28px';
-                el.style.color = '#666';
-                el.style.fontSize = '1.05rem';
-                el.textContent = msg;
-                content.insertBefore(el, content.firstChild);
-            }
-        }
-
-        function runInitialFilters(){
-            // prefer brand-specific filtering if a brand param is present
-            if(qBrand){
-                // run after a brief delay to ensure cards rendered
-                setTimeout(function(){ try{ applyBrand(qBrand); }catch(e){ applyUrlFilters(); } }, 150);
-                return;
-            }
-            if(qFilter){
-                setTimeout(applyUrlFilters, 150);
-            }
-        }
-
-        // run initial filters when page loads
-        runInitialFilters();
-    });
-    </script>
-    <script>
-    function viewProduct(brand, name, price, img, badge, productId) {
-        var params = new URLSearchParams();
-        if(brand) params.set('brand', brand);
-        if(name) params.set('name', name);
-        if(price) params.set('price', price);
-        if(img) params.set('img', img);
-        if(badge) params.set('badge', badge);
-        if(productId) params.set('pid', productId);
-        window.location.href = 'product-view.html' + (params.toString() ? ('?' + params.toString()) : '');
+    function goToProductList(){ window.location.href = 'product-list.html'; }
+    function goToUserPage(){ window.location.href = 'profile.html'; }
+    function toggleSearchBox(){ const box = document.getElementById('searchBox'); if(box){ box.style.display = (box.style.display==='none'||!box.style.display)?'block':'none'; } }
+    function searchKeyDown(e){ if(e.key==='Enter'){ applyAllFilters(); } }
+    function viewProduct(brand,title,price,img,badge){ try{ localStorage.setItem('productBrand', brand||''); localStorage.setItem('productTitle', title||''); localStorage.setItem('productPrice', price||''); localStorage.setItem('productImg', img||''); localStorage.setItem('productBadge', badge||''); }catch(_){ } window.location.href = 'product-view.html'; }
+    var productListReady = false;
+    function markProductsReady(){
+        if(productListReady) return;
+        productListReady = true;
+        if(window.PageDataGate && PageDataGate.ready) PageDataGate.ready();
+        document.body.classList.remove('page-loading');
+        document.body.classList.add('page-ready');
+        var shell = document.getElementById('pageShell');
+        if(shell) shell.removeAttribute('aria-hidden');
     }
-    // Add to Cart button logic
-    document.addEventListener('DOMContentLoaded', function() {
-    });
-    // Navigation bar functions (copied from home.html)
-    function goToHomeTop() { window.location.href = 'home.html#top'; }
-    function goToSale() { window.location.href = 'product-list.html?filter=sale'; }
-    function goToNewArrivals() { window.location.href = 'product-list.html?filter=new'; }
-    function goToBrands() { window.location.href = 'product-list.html'; }
-    function goToProductList() { window.location.href = 'product-list.html'; }
-    function goToUserPage() {
-        try{
-            if(typeof window.ensureSignedInOrRedirect === 'function'){
-                if(!ensureSignedInOrRedirect('profile.html')) return;
-            } else {
-                var p = JSON.parse(localStorage.getItem('profile')||'null');
-                if(!p || !p.email){ window.location.href = 'login.html'; return; }
-            }
-        }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
-    }
-    function goToCartPage() { window.location.href = 'cart.html'; }
-    function toggleSearchBox() {
-        var box = document.getElementById('searchBox');
-        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
-        if (box.style.display === 'block') {
-            document.getElementById('searchInput').focus();
-        }
-    }
-    function searchKeyDown(e) {
-        if (e.key === 'Enter') {
-            var val = document.getElementById('searchInput').value.trim();
-            if (val) {
-                window.location.href = 'product-list.html?search=' + encodeURIComponent(val);
-            }
-        }
-    }
-    // Gender filter: delegate to unified filter so all controls combine correctly
-    function filterGender() {
-        applyAllFilters();
+    function markProductsError(msg){
+        if(window.PageDataGate && PageDataGate.error) PageDataGate.error(msg);
+        var t = document.getElementById('pageLoaderText');
+        if(t && msg) t.textContent = msg;
+        markProductsReady();
     }
 
-    // Apply a brand filter from the header dropdown or elsewhere.
-    // This will check the corresponding brand checkbox, uncheck others, and run the unified filter.
-    function applyBrand(brand){
-        try{
-            if(!brand) return;
-            var boxes = Array.from(document.querySelectorAll('.brand-checkbox'));
-            var found = false;
-            boxes.forEach(function(b){
-                if(!b) return;
-                if(String(b.value || '').toLowerCase() === String(brand||'').toLowerCase()){ b.checked = true; found = true; }
-                else b.checked = false;
-            });
-            // if no brand checkboxes exist (or none matched), just perform a search-like filter
-            if(!found){
-                // mark search box and clear other filters
-                try{ var si = document.getElementById('searchInput'); if(si) si.value = '';}catch(e){}
-            }
-            // hide dropdown if present
-            try{ var dd = document.getElementById('brandDropdownPL'); if(dd) dd.style.display = 'none'; }catch(e){}
-            // apply unified filters to update visible cards
-            if(typeof applyAllFilters === 'function') applyAllFilters();
-            // update URL param for shareability (without reload)
-            try{
-                var url = new URL(window.location.href);
-                url.searchParams.set('brand', brand);
-                window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-            }catch(e){}
-        }catch(e){ console.error('applyBrand failed', e); }
-    }
-    // Size filter + EU/US toggle with persistent selected sizes (stored as EU internally)
     (function(){
-        const EU_SIZES = ['36','37','38','39','40','41','42','43','44','45'];
-        const US_SIZES = ['5','5.5','6.5','7','7.5','8','8.5','9.5','10','11'];
-        const US_TO_EU = { '5':'36','5.5':'37','6.5':'38','7':'39','7.5':'40','8':'41','8.5':'42','9.5':'43','10':'44','11':'45' };
-        const EU_TO_US = Object.fromEntries(Object.entries(US_TO_EU).map(([u,e])=>[e,u]));
-
-        function getStandard(){ return localStorage.getItem('sizeStandard') || 'EU'; }
-        function setStandard(v){ localStorage.setItem('sizeStandard', v); }
-
-        // selected sizes are stored as an array of EU sizes in localStorage.selectedEU
-        function getSelectedEU(){ try{ return JSON.parse(localStorage.getItem('selectedEU') || '[]'); }catch(e){ return []; } }
-        function setSelectedEU(arr){ localStorage.setItem('selectedEU', JSON.stringify(Array.from(new Set(arr)))); }
-        function toggleSelectedEU(eu){ const cur = new Set(getSelectedEU()); if(cur.has(eu)) cur.delete(eu); else cur.add(eu); setSelectedEU([...cur]); }
-
-        const euBtn = document.getElementById('euBtn');
-        const usBtn = document.getElementById('usBtn');
-        const sizeBtnRow = document.getElementById('sizeBtnRow');
-
-        function clearSizeButtons(){ sizeBtnRow.innerHTML = ''; }
-
-        function renderSizeButtons(){
-            clearSizeButtons();
-            const std = getStandard();
-            const sizes = (std === 'EU') ? EU_SIZES : US_SIZES;
-            const selectedEU = new Set(getSelectedEU());
-            sizes.forEach(sz => {
-                const b = document.createElement('button');
-                b.className = 'size-btn';
-                b.textContent = sz;
-                b.dataset.size = sz;
-                // determine the EU equivalent for this button
-                const eu = (std === 'EU') ? sz : (US_TO_EU[sz] || null);
-                if(eu && selectedEU.has(eu)) b.classList.add('active');
-                b.addEventListener('click', function(){
-                    if(!eu) return;
-                    toggleSelectedEU(eu);
-                    // re-render to keep visual state consistent across standards
-                    renderSizeButtons();
-                    applyAllFilters();
-                });
-                sizeBtnRow.appendChild(b);
-            });
-            // style standard buttons
-            if(getStandard() === 'EU'){
-                euBtn.style.background = '#222'; euBtn.style.color = '#fff'; euBtn.style.borderColor = '#222';
-                usBtn.style.background = '#fff'; usBtn.style.color = '#222'; usBtn.style.borderColor = '#ccc';
-            } else {
-                usBtn.style.background = '#222'; usBtn.style.color = '#fff'; usBtn.style.borderColor = '#222';
-                euBtn.style.background = '#fff'; euBtn.style.color = '#222'; euBtn.style.borderColor = '#ccc';
-            }
-        }
-
-        euBtn.addEventListener('click', function(){ setStandard('EU'); renderSizeButtons(); applyAllFilters(); });
-        usBtn.addEventListener('click', function(){ setStandard('US'); renderSizeButtons(); applyAllFilters(); });
-
-        function getCardProductInfo(card){
-            let brand = card.getAttribute('data-brand') || '';
-            let title = card.getAttribute('data-title') || '';
-            if(!brand || !title){
-                const onclick = card.getAttribute('onclick') || '';
-                const m = onclick.match(/viewProduct\(\s*'([^']*)'\s*,\s*'([^']*)'/);
-                if(m){ brand = brand || m[1]; title = title || m[2]; }
-            }
-            return { brand: (brand||'').trim(), title: (title||'').trim() };
-        }
-
-        // ===== Load inventory rows from Firestore products/variants =====
+        // ===== Inventory state and Firebase bootstrap =====
         var inventoryRows = [];
         var inventoryLoaded = false;
         var inventoryLoading = false;
@@ -690,6 +494,25 @@
         }
 
         function buildInventoryRows(products, variants){
+            function collectTags(src, bucket){
+                if(!src || !bucket) return;
+                function add(val){
+                    if(val === undefined || val === null) return;
+                    if(Array.isArray(val)) { val.forEach(add); return; }
+                    if(typeof val === 'string'){
+                        val.split(/[,/|;]+/).forEach(function(part){
+                            var t = String(part||'').trim();
+                            if(t) bucket.push(t);
+                        });
+                        return;
+                    }
+                    if(typeof val === 'object'){
+                        Object.keys(val).forEach(function(k){ if(/tag/i.test(k)) add(val[k]); });
+                    }
+                }
+                ['tagsManual','tags','tagsList','tags_list','tagList','tag','labels'].forEach(function(key){ add(src[key]); });
+            }
+
             var map = {};
             (variants || []).forEach(function(v){
                 var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || null;
@@ -704,6 +527,7 @@
                     sizes: Array.isArray(v.sizes) ? v.sizes : []
                 });
             });
+
             var out = [];
             (products || []).forEach(function(p){
                 var pid = p.id || p.productId || p.sku || '';
@@ -718,12 +542,26 @@
                     }
                     return c;
                 }) : variantColors;
+
                 var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : (p.image || '');
                 (colorsArr || []).forEach(function(c){
                     var colorImages = Array.isArray(c.images) ? c.images.filter(Boolean) : [];
                     var colorImg = colorImages.length ? colorImages[0] : (c.image || baseImg);
                     var sizesMap = {};
                     (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
+
+                    var salePrice = Number((p.pricing && (p.pricing.sale||p.pricing.original)) || p.price || 0);
+                    var originalPrice = Number((p.pricing && p.pricing.original) || p.originalPrice || 0);
+                    var tags = [];
+                    collectTags(p, tags);
+                    collectTags(c, tags);
+                    if(originalPrice && salePrice && salePrice < originalPrice) tags.push('Sale');
+                    if(p.isNew || p.newArrival || p.new_arrival || p.isNewArrival || p.status === 'new') tags.push('New');
+                    var tagSet = new Set(tags.map(function(t){ return String(t||'').trim(); }).filter(Boolean).map(function(t){ return t.toLowerCase(); }));
+                    if(Array.from(tagSet).some(function(t){ return t.indexOf('new') !== -1; })) tagSet.add('new');
+                    if(Array.from(tagSet).some(function(t){ return t.indexOf('sale') !== -1; })) tagSet.add('sale');
+                    var dedupTags = Array.from(tagSet).map(function(t){ return (t === 'new') ? 'New' : (t === 'sale' ? 'Sale' : t); });
+
                     out.push({
                         id: (p.sku || p.id || '') + ':' + (c.id || c.name || ''),
                         name: (p.model || p.name || '') + (c.name ? (' ' + c.name) : ''),
@@ -732,13 +570,13 @@
                         image: colorImg || baseImg || 'IMAGE/NIKE1.png',
                         images: colorImages,
                         sizes: sizesMap,
-                        price: Number((p.pricing && (p.pricing.sale||p.pricing.original)) || p.price || 0),
-                        originalPrice: Number((p.pricing && p.pricing.original) || p.originalPrice || 0),
+                        price: salePrice,
+                        originalPrice: originalPrice,
                         productId: p.id || '',
                         colorId: c.id || '',
                         createdAt: p.createdAt || null,
                         gender: p.gender || '',
-                        tags: Array.isArray(p.tagsManual) ? p.tagsManual : [],
+                        tags: dedupTags,
                         status: p.status || 'active'
                     });
                 });
@@ -748,6 +586,7 @@
 
         function loadInventoryRows(cb){
             if(inventoryLoaded || inventoryLoading){ if(cb) cb(null, inventoryRows); return; }
+            if(window.PageDataGate && PageDataGate.block) PageDataGate.block('Loading products...');
             inventoryLoading = true;
             ensureFirebaseReady(function(err){
                 if(err){ inventoryLoading = false; if(cb) cb(err); return; }
@@ -780,7 +619,6 @@
             }catch(e){ return null; }
         }
 
-        // Helper to derive a base model name by stripping trailing color from item.name
         function getBaseModelName(item){
             try{
                 var name = (item && item.name) ? String(item.name) : '';
@@ -795,65 +633,137 @@
             }catch(e){ return (item && item.name) ? String(item.name) : ''; }
         }
 
-        // Render inventory items as grouped models (one card per model with color variants)
+        // ===== Filters: size, brand, gender, search =====
+        const EU_SIZES = ['36','37','38','39','40','41','42','43','44','45'];
+        const US_SIZES = ['5','5.5','6.5','7','7.5','8','8.5','9.5','10','11'];
+        const US_TO_EU = { '5':'36','5.5':'37','6.5':'38','7':'39','7.5':'40','8':'41','8.5':'42','9.5':'43','10':'44','11':'45' };
+
+        function getStandard(){ return localStorage.getItem('sizeStandard') || 'EU'; }
+        function setStandard(v){ localStorage.setItem('sizeStandard', v); }
+        function getSelectedEU(){ try{ return JSON.parse(localStorage.getItem('selectedEU') || '[]'); }catch(e){ return []; } }
+        function setSelectedEU(arr){ localStorage.setItem('selectedEU', JSON.stringify(Array.from(new Set(arr)))); }
+        function toggleSelectedEU(eu){ const cur = new Set(getSelectedEU()); if(cur.has(eu)) cur.delete(eu); else cur.add(eu); setSelectedEU([...cur]); }
+
+        const euBtn = document.getElementById('euBtn');
+        const usBtn = document.getElementById('usBtn');
+        const sizeBtnRow = document.getElementById('sizeBtnRow');
+
+        function clearSizeButtons(){ if(sizeBtnRow) sizeBtnRow.innerHTML = ''; }
+        function renderSizeButtons(){
+            if(!sizeBtnRow) return;
+            clearSizeButtons();
+            const std = getStandard();
+            const sizes = (std === 'EU') ? EU_SIZES : US_SIZES;
+            const selectedEU = new Set(getSelectedEU());
+            sizes.forEach(sz => {
+                const b = document.createElement('button');
+                b.className = 'size-btn';
+                b.textContent = sz;
+                b.dataset.size = sz;
+                const eu = (std === 'EU') ? sz : (US_TO_EU[sz] || null);
+                if(eu && selectedEU.has(eu)) b.classList.add('active');
+                b.addEventListener('click', function(){ if(!eu) return; toggleSelectedEU(eu); renderSizeButtons(); applyAllFilters(); });
+                sizeBtnRow.appendChild(b);
+            });
+            if(euBtn && usBtn){
+                if(std === 'EU'){
+                    euBtn.style.background = '#222'; euBtn.style.color = '#fff'; euBtn.style.borderColor = '#222';
+                    usBtn.style.background = '#fff'; usBtn.style.color = '#222'; usBtn.style.borderColor = '#ccc';
+                } else {
+                    usBtn.style.background = '#222'; usBtn.style.color = '#fff'; usBtn.style.borderColor = '#222';
+                    euBtn.style.background = '#fff'; euBtn.style.color = '#222'; euBtn.style.borderColor = '#ccc';
+                }
+            }
+        }
+        if(euBtn) euBtn.addEventListener('click', function(){ setStandard('EU'); renderSizeButtons(); applyAllFilters(); });
+        if(usBtn) usBtn.addEventListener('click', function(){ setStandard('US'); renderSizeButtons(); applyAllFilters(); });
+
+        function getCardProductInfo(card){
+            let brand = card.getAttribute('data-brand') || '';
+            let title = card.getAttribute('data-title') || '';
+            if(!brand || !title){
+                const onclick = card.getAttribute('onclick') || '';
+                const m = onclick.match(/viewProduct\(\s*'([^']*)'\s*,\s*'([^']*)'/);
+                if(m){ brand = brand || m[1]; title = title || m[2]; }
+            }
+            return { brand: (brand||'').trim(), title: (title||'').trim() };
+        }
+
+        function applyBrand(brand){
+            try{
+                if(!brand) return;
+                var boxes = Array.from(document.querySelectorAll('.brand-checkbox'));
+                var found = false;
+                boxes.forEach(function(b){
+                    if(!b) return;
+                    if(String(b.value || '').toLowerCase() === String(brand||'').toLowerCase()){ b.checked = true; found = true; }
+                    else b.checked = false;
+                });
+                try{ var dd = document.getElementById('brandDropdownPL'); if(dd) dd.style.display = 'none'; }catch(_){ }
+                if(typeof applyAllFilters === 'function') applyAllFilters();
+                try{ var url = new URL(window.location.href); url.searchParams.set('brand', brand); window.history.replaceState({}, '', url.pathname + url.search + url.hash); }catch(_){ }
+            }catch(e){ console.error('applyBrand failed', e); }
+        }
+        window.applyBrand = applyBrand;
+
+        // Toggle brand dropdown like home page
+        document.addEventListener('DOMContentLoaded', function(){
+            var nav = document.getElementById('brandNavPL');
+            var dd = document.getElementById('brandDropdownPL');
+            if(!nav || !dd) return;
+            nav.addEventListener('click', function(e){
+                e.stopPropagation();
+                var showing = dd.style.display === 'flex';
+                dd.style.display = showing ? 'none' : 'flex';
+            });
+            document.addEventListener('click', function(){ dd.style.display = 'none'; });
+        });
+
+        // ===== Render inventory items as grouped models =====
         function renderInventoryCards(){
             try{
                 var grid = document.getElementById('productGrid');
                 if(!grid) return;
                 var inv = Array.isArray(inventoryRows) ? inventoryRows : [];
-                if(!Array.isArray(inv)) return;
                 inv = inv.filter(function(item){
                     var s = (item && item.status) ? String(item.status).toLowerCase() : 'active';
                     return s === 'active';
                 });
 
-                // Group by brand + base model name
                 var groups = {};
                 inv.forEach(function(item){
                     if(!item) return;
                     var brand = (item.brand||'').toString().trim();
                     var base = getBaseModelName(item);
                     var key = (brand + '|||'+ base).toLowerCase();
-                    if(!groups[key]){
-                        groups[key] = { brand: brand, baseName: base, variants: [] };
-                    }
+                    if(!groups[key]) groups[key] = { brand: brand, baseName: base, variants: [] };
                     groups[key].variants.push(item);
                 });
 
-                // Clear existing static cards and rebuild grid from groups
                 grid.innerHTML = '';
-
-                // Precompute best sellers from admin sales log (by productId)
                 var bestSet = new Set();
 
                 Object.keys(groups).forEach(function(key){
                     var g = groups[key];
                     if(!g || !g.variants || g.variants.length === 0) return;
-                    // choose primary variant (first with image)
                     var primary = g.variants.find(function(v){ return v && v.image; }) || g.variants[0];
                     var imgSrc = (primary && primary.image) ? primary.image : 'IMAGE/NIKE1.png';
 
-                    // price: show single if same across variants, else From min
                     var prices = g.variants.map(function(v){ return Number(v.price||0); });
                     var minP = Math.min.apply(null, prices);
                     var maxP = Math.max.apply(null, prices);
                     var priceText = (minP === maxP) ? ('P' + Number(minP).toLocaleString(undefined,{minimumFractionDigits:2}))
                                                     : ('From P' + Number(minP).toLocaleString(undefined,{minimumFractionDigits:2}));
 
-                    // gender: normalize per-variant gender values (split lists like "Men, Women")
-                    // and compute group-level gender: if all same -> that, else 'Unisex'
                     var genderSet = new Set();
                     g.variants.forEach(function(v){
                         try{
                             var raw = v && v.gender ? v.gender : '';
                             var parts = [];
-                            if(Array.isArray(raw)){
-                                parts = raw.map(function(x){ return (x||'').toString().trim(); }).filter(Boolean);
-                            } else {
+                            if(Array.isArray(raw)) parts = raw.map(function(x){ return (x||'').toString().trim(); }).filter(Boolean);
+                            else {
                                 var s = (raw||'').toString();
-                                // split common separators
                                 parts = s.split(/[,\/|;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
-                                // if splitting didn't produce tokens, detect common keywords inside the string
                                 if(parts.length === 0){
                                     if(/men/i.test(s)) parts.push('Men');
                                     if(/women/i.test(s)) parts.push('Women');
@@ -866,7 +776,6 @@
                     var genders = Array.from(genderSet).filter(Boolean);
                     var genderAttr = (genders.length === 1) ? genders[0] : 'Unisex';
 
-                    // Compute group-level tags
                     var tagSet = new Set();
                     g.variants.forEach(function(v){
                         try{
@@ -897,7 +806,6 @@
                     if(tags.length) card.setAttribute('data-tags', tags.join('|'));
 
                     var flipClass = (g.brand && g.brand.toString().toLowerCase().indexOf('nike')!==-1) ? ' flip-horizontal' : '';
-                    // Build swatches markup (limit to 8)
                     var swHTML = '';
                     g.variants.slice(0,8).forEach(function(v){ var src = v.image || imgSrc; swHTML += '<button type="button" class="variant-swatch" title="'+(v.color||g.baseName||'Color')+'"><img src="'+src+'" alt="'+(v.color||'color')+'"></button>'; });
                     var inner = '' +
@@ -916,7 +824,6 @@
                         '</div>';
                     card.innerHTML = inner;
 
-                    // Click -> store grouped model in localStorage and go to product view
                     card.addEventListener('click', function(){
                         try{
                             var modelData = {
@@ -938,7 +845,6 @@
                                 })
                             };
                             localStorage.setItem('modelData', JSON.stringify(modelData));
-                            // default select first variant for legacy keys
                             var sel = modelData.variants[0] || {};
                             localStorage.setItem('productBrand', modelData.brand);
                             localStorage.setItem('productTitle', sel.name || (modelData.baseName + (sel.color?(' '+sel.color):'')));
@@ -947,17 +853,15 @@
                             localStorage.setItem('productBadge', '');
                             localStorage.setItem('productId', sel.productId || sel.id || '');
                             localStorage.setItem('productColor', sel.color || '');
-                        }catch(e){}
+                        }catch(_){ }
                         window.location.href = 'product-view.html';
                     });
 
-                    // Swatch hover previews: change image on swatch hover and reset on mouseleave
                     try{
                         var baseImg = card.querySelector('.shoe-img-base');
                         var overlayImg = card.querySelector('.shoe-img-overlay');
                         var primarySrc = imgSrc;
                         var variantSrcs = g.variants.map(function(v){ return v && v.image ? v.image : primarySrc; }).filter(Boolean);
-                        // remove duplicate sequential srcs
                         variantSrcs = variantSrcs.filter(function(src, i, a){ return i===0 || src !== a[i-1]; });
 
                         function crossfadeTo(src){
@@ -974,32 +878,20 @@
                             }catch(_){ baseImg.src = src; }
                         }
 
-                        // Manual swatch preview pauses shuffle
                         card.querySelectorAll('.variant-swatch img').forEach(function(s){
-                            s.addEventListener('mouseenter', function(){
-                                stopShuffle(true);
-                                crossfadeTo(s.getAttribute('src'));
-                            });
-                            s.parentElement.addEventListener('mouseleave', function(){
-                                // resume only if still hovering the card and not over another swatch
-                                if(card.matches(':hover')) startShuffle();
-                            });
+                            s.addEventListener('mouseenter', function(){ stopShuffle(true); crossfadeTo(s.getAttribute('src')); });
+                            s.parentElement.addEventListener('mouseleave', function(){ if(card.matches(':hover')) startShuffle(); });
                         });
 
                         var shuffleIndex = 0;
                         function startShuffle(){
                             if(card._shuffleTimer) return;
                             if(!variantSrcs || variantSrcs.length <= 1) return;
-                            // start from current image index if present
                             var currentSrc = baseImg ? baseImg.src : primarySrc;
-                            // normalize to relative path end for matching
                             try{ var parts = currentSrc.split('/'); currentSrc = parts[parts.length-1]; }catch(_){ }
                             var idx = variantSrcs.findIndex(function(s){ try{ var p=s.split('/'); return (p[p.length-1]===currentSrc); }catch(_){ return s===currentSrc; } });
                             shuffleIndex = Math.max(0, idx);
-                            card._shuffleTimer = setInterval(function(){
-                                shuffleIndex = (shuffleIndex + 1) % variantSrcs.length;
-                                crossfadeTo(variantSrcs[shuffleIndex]);
-                            }, 1000); // shuffle every 1s
+                            card._shuffleTimer = setInterval(function(){ shuffleIndex = (shuffleIndex + 1) % variantSrcs.length; crossfadeTo(variantSrcs[shuffleIndex]); }, 1000);
                         }
                         function stopShuffle(keepCurrent){ if(card._shuffleTimer){ clearInterval(card._shuffleTimer); card._shuffleTimer = null; } if(!keepCurrent){ crossfadeTo(primarySrc); } }
 
@@ -1015,219 +907,151 @@
         }
 
         function getQueryParam(name){
-            try{
-                const params = new URLSearchParams(window.location.search);
-                return params.get(name) || '';
-            }catch(e){ return ''; }
+            try{ return new URLSearchParams(window.location.search).get(name) || ''; }catch(e){ return ''; }
         }
 
         function applyAllFilters(){
-                const men = document.getElementById('genderMen') ? document.getElementById('genderMen').checked : true;
-                const women = document.getElementById('genderWomen') ? document.getElementById('genderWomen').checked : true;
-                const unisex = document.getElementById('genderUnisex') ? document.getElementById('genderUnisex').checked : true;
-                const selectedEU = getSelectedEU();
-                const urlFilter = (getQueryParam('filter') || '').toLowerCase();
+            const men = document.getElementById('genderMen') ? document.getElementById('genderMen').checked : true;
+            const women = document.getElementById('genderWomen') ? document.getElementById('genderWomen').checked : true;
+            const unisex = document.getElementById('genderUnisex') ? document.getElementById('genderUnisex').checked : true;
+            const selectedEU = getSelectedEU();
+            const urlFilter = (getQueryParam('filter') || '').toLowerCase();
+            const selectedBrands = Array.from(document.querySelectorAll('.brand-checkbox:checked')).map(b=>b.value.toString().toLowerCase());
+            const cards = Array.from(document.querySelectorAll('.shoe-card'));
+            let visibleCount = 0;
+            const rawSearch = (document.getElementById('searchInput') ? document.getElementById('searchInput').value.trim() : '') || getQueryParam('search') || '';
+            const searchTerm = rawSearch.toString().toLowerCase();
 
-                // gather selected brands (by value) - if none selected, show all brands
-                const selectedBrands = Array.from(document.querySelectorAll('.brand-checkbox:checked')).map(b=>b.value.toString().toLowerCase());
+            cards.forEach(card => {
+                const gender = (card.getAttribute('data-gender') || '').toString();
+                const anyGenderChecked = men || women || unisex;
+                let genderPass = true;
+                if(anyGenderChecked){ genderPass = ((men && gender === 'Men') || (women && gender === 'Women') || (unisex && gender === 'Unisex')); }
+                if(!genderPass){ card.style.display = 'none'; return; }
 
-                const cards = Array.from(document.querySelectorAll('.shoe-card'));
-                let visibleCount = 0;
-                const rawSearch = (document.getElementById('searchInput') ? document.getElementById('searchInput').value.trim() : '') || getQueryParam('search') || '';
-                const searchTerm = rawSearch.toString().toLowerCase();
+                const prod = getCardProductInfo(card);
+                const brandName = (prod.brand || '').toString().toLowerCase();
+                if(selectedBrands.length > 0 && brandName && selectedBrands.indexOf(brandName) === -1){ card.style.display = 'none'; return; }
 
-                cards.forEach(card => {
-                    const gender = (card.getAttribute('data-gender') || '').toString();
+                if(urlFilter === 'sale' || urlFilter === 'new'){
+                    const tagStr = (card.getAttribute('data-tags') || '').toString().toLowerCase();
+                    const hasSale = tagStr.indexOf('sale') !== -1;
+                    const hasNew = tagStr.indexOf('new arrival') !== -1 || tagStr.indexOf('new') !== -1;
+                    if(urlFilter === 'sale' && !hasSale && !card.querySelector('.badge-sale')){ card.style.display = 'none'; return; }
+                    if(urlFilter === 'new' && !hasNew && !card.querySelector('.badge-new')){ card.style.display = 'none'; return; }
+                }
 
-                    // gender filtering: if no gender checkboxes are checked, treat as 'show all'
-                    const anyGenderChecked = men || women || unisex;
-                    let genderPass = true;
-                    if(anyGenderChecked){
-                        genderPass = ((men && gender === 'Men') || (women && gender === 'Women') || (unisex && gender === 'Unisex'));
-                    }
-                    if(!genderPass){ card.style.display = 'none'; return; }
+                if(searchTerm){
+                    const titleText = (prod.title || '').toString().toLowerCase();
+                    const cardText = (card.textContent || '').toString().toLowerCase();
+                    if(!(titleText.includes(searchTerm) || brandName.includes(searchTerm) || cardText.includes(searchTerm))){ card.style.display = 'none'; return; }
+                }
 
-                    // brand filtering
-                    const prod = getCardProductInfo(card);
-                    const brandName = (prod.brand || '').toString().toLowerCase();
-                    if(selectedBrands.length > 0 && brandName){
-                        if(selectedBrands.indexOf(brandName) === -1){ card.style.display = 'none'; return; }
-                    }
+                if(selectedEU.length === 0){ card.style.display = ''; visibleCount++; return; }
 
-                    // sale/new filter based on tags
-                    if(urlFilter === 'sale' || urlFilter === 'new'){
-                        const tagStr = (card.getAttribute('data-tags') || '').toString().toLowerCase();
-                        const hasSale = tagStr.indexOf('sale') !== -1;
-                        const hasNew = tagStr.indexOf('new arrival') !== -1 || tagStr.indexOf('new') !== -1;
-                        if(urlFilter === 'sale' && !hasSale){
-                            if(!card.querySelector('.badge-sale')){ card.style.display = 'none'; return; }
-                        }
-                        if(urlFilter === 'new' && !hasNew){
-                            if(!card.querySelector('.badge-new')){ card.style.display = 'none'; return; }
-                        }
-                    }
-
-                    // search filtering (match title or brand)
-                    if(searchTerm){
-                        const titleText = (prod.title || '').toString().toLowerCase();
-                        // also check visible card text as fallback
-                        const cardText = (card.textContent || '').toString().toLowerCase();
-                        if(!(titleText.includes(searchTerm) || brandName.includes(searchTerm) || cardText.includes(searchTerm))){
-                            card.style.display = 'none'; return;
-                        }
-                    }
-
-                    // size filtering
-                    if(selectedEU.length === 0){ card.style.display = ''; visibleCount++; return; }
-
-                    // Size filtering: for grouped cards, aggregate sizes across variants (brand+base-name)
-                    let sizeMatch = false;
-                    try{
-                        const baseName = card.getAttribute('data-base-name') || '';
-                        const brandForCard = (prod.brand || '').toString();
-                        if(baseName){
-                            const inv = Array.isArray(inventoryRows) ? inventoryRows : [];
-                            const matches = Array.isArray(inv) ? inv.filter(function(i){
-                                if(!i) return false;
-                                const b = (i.brand||'').toString().toLowerCase();
-                                const thisB = brandForCard.toLowerCase();
-                                const thisBase = baseName.toLowerCase();
-                                const iBase = (function(){
-                                    try{
-                                        var nm = (i.name||'').toString();
-                                        var col = (i.color||'')+'';
-                                        if(col){
-                                            var esc = col.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                            var re = new RegExp('\\s*' + esc + '\\s*$', 'i');
-                                            nm = nm.replace(re, '').trim();
-                                        }
-                                        return nm.toLowerCase();
-                                    }catch(_){ return (i.name||'').toString().toLowerCase(); }
-                                })();
-                                return b === thisB && iBase === thisBase;
-                            }) : [];
-                            // union of sizes: if any variant has qty>0 for a selected EU size, it's a match
-                            selectedEU.forEach(function(eu){
-                                if(sizeMatch) return;
-                                for(var k=0;k<matches.length;k++){
-                                    var row = matches[k];
-                                    var q = (row && row.sizes && (row.sizes[eu] !== undefined)) ? Number(row.sizes[eu]) : null;
-                                    if(q !== null && q > 0){ sizeMatch = true; break; }
-                                }
-                            });
-                        } else {
-                            // Fallback: single-row match
-                            const invRow = findInventoryForProduct(prod);
-                            if(!invRow){ sizeMatch = true; }
-                            else {
-                                for(const eu of selectedEU){
-                                    const qty = (invRow.sizes && (invRow.sizes[eu] !== undefined)) ? Number(invRow.sizes[eu]) : null;
-                                    if(q !== null && q > 0){ sizeMatch = true; break; }
-                                }
+                let sizeMatch = false;
+                try{
+                    const baseName = card.getAttribute('data-base-name') || '';
+                    const brandForCard = (prod.brand || '').toString();
+                    if(baseName){
+                        const inv = Array.isArray(inventoryRows) ? inventoryRows : [];
+                        const matches = inv.filter(function(i){
+                            if(!i) return false;
+                            const b = (i.brand||'').toString().toLowerCase();
+                            const thisB = brandForCard.toLowerCase();
+                            const thisBase = baseName.toLowerCase();
+                            const iBase = (function(){
+                                try{
+                                    var nm = (i.name||'').toString();
+                                    var col = (i.color||'')+'';
+                                    if(col){
+                                        var esc = col.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                        var re = new RegExp('\\s*' + esc + '\\s*$', 'i');
+                                        nm = nm.replace(re, '').trim();
+                                    }
+                                    return nm.toLowerCase();
+                                }catch(_){ return (i.name||'').toString().toLowerCase(); }
+                            })();
+                            return b === thisB && iBase === thisBase;
+                        });
+                        selectedEU.forEach(function(eu){
+                            if(sizeMatch) return;
+                            for(var k=0;k<matches.length;k++){
+                                var row = matches[k];
+                                var q = (row && row.sizes && (row.sizes[eu] !== undefined)) ? Number(row.sizes[eu]) : null;
+                                if(q !== null && q > 0){ sizeMatch = true; break; }
+                            }
+                        });
+                    } else {
+                        const invRow = findInventoryForProduct(prod);
+                        if(!invRow){ sizeMatch = true; }
+                        else {
+                            for(const eu of selectedEU){
+                                const qty = (invRow.sizes && (invRow.sizes[eu] !== undefined)) ? Number(invRow.sizes[eu]) : null;
+                                if(qty !== null && qty > 0){ sizeMatch = true; break; }
                             }
                         }
-                    }catch(e){ sizeMatch = true; }
-
-                    card.style.display = sizeMatch ? '' : 'none';
-                    if(sizeMatch) visibleCount++;
-                });
-
-                // update caption based on search
-                try{
-                    const capEl = document.getElementById('productlist-caption');
-                    const clearBtn = document.getElementById('clearSearchBtn');
-                    if(capEl){
-                        if(rawSearch){
-                            if(visibleCount > 0) capEl.textContent = `Showing ${visibleCount} product${visibleCount>1? 's':''} for "${rawSearch}"`;
-                            else capEl.textContent = `No results found for "${rawSearch}"`;
-                            if(clearBtn) clearBtn.style.display = 'block';
-                        } else {
-                            capEl.textContent = '';
-                            if(clearBtn) clearBtn.style.display = 'none';
-                        }
                     }
-                }catch(e){ /* ignore caption errors */ }
+                }catch(_){ sizeMatch = true; }
+
+                card.style.display = sizeMatch ? '' : 'none';
+                if(sizeMatch) visibleCount++;
+            });
+
+            try{
+                const capEl = document.getElementById('productlist-caption');
+                const clearBtn = document.getElementById('clearSearchBtn');
+                if(capEl){
+                    if(rawSearch){
+                        if(visibleCount > 0) capEl.textContent = `Showing ${visibleCount} product${visibleCount>1? 's':''} for "${rawSearch}"`;
+                        else capEl.textContent = `No results found for "${rawSearch}"`;
+                        if(clearBtn) clearBtn.style.display = 'block';
+                    } else {
+                        capEl.textContent = '';
+                        if(clearBtn) clearBtn.style.display = 'none';
+                    }
+                }
+            }catch(_){ }
         }
+        window.applyAllFilters = applyAllFilters;
 
         window.addEventListener('storage', function(e){
-            if(e.key === 'sizeStandard' || e.key === 'selectedEU'){
-                renderSizeButtons();
-                applyAllFilters();
-            }
+            if(e.key === 'sizeStandard' || e.key === 'selectedEU'){ renderSizeButtons(); applyAllFilters(); }
         });
 
         document.addEventListener('DOMContentLoaded', function(){
-            // Ensure sensible default filters on load so published inventory is visible
             if(!localStorage.getItem('sizeStandard')) localStorage.setItem('sizeStandard','EU');
-            // Reset selected sizes to show all by default (prevents accidental size filtering hiding groups)
-            try { localStorage.setItem('selectedEU', JSON.stringify([])); } catch(e) {}
-            // Ensure brand and gender checkboxes are checked by default so published cards are not hidden
-            try { document.querySelectorAll('.brand-checkbox').forEach(cb => cb.checked = true); } catch(e) {}
-            try { if(document.getElementById('genderMen')) document.getElementById('genderMen').checked = true; if(document.getElementById('genderWomen')) document.getElementById('genderWomen').checked = true; if(document.getElementById('genderUnisex')) document.getElementById('genderUnisex').checked = true; } catch(e) {}
-            // Clear any search param/input on initial load to avoid accidental filtering
-            try { const si = document.getElementById('searchInput'); if(si) si.value = ''; const url = new URL(window.location.href); url.searchParams.delete('search'); window.history.replaceState({}, '', url.pathname + url.search + url.hash); } catch(e) {}
+            try { localStorage.setItem('selectedEU', JSON.stringify([])); } catch(_){ }
+            try { document.querySelectorAll('.brand-checkbox').forEach(cb => cb.checked = true); } catch(_){ }
+            try { if(document.getElementById('genderMen')) document.getElementById('genderMen').checked = true; if(document.getElementById('genderWomen')) document.getElementById('genderWomen').checked = true; if(document.getElementById('genderUnisex')) document.getElementById('genderUnisex').checked = true; } catch(_){ }
+            try { const si = document.getElementById('searchInput'); if(si) si.value = ''; const url = new URL(window.location.href); url.searchParams.delete('search'); window.history.replaceState({}, '', url.pathname + url.search + url.hash); } catch(_){ }
             renderSizeButtons();
-            // render inventory cards after Firestore rows load
-            loadInventoryRows(function(){
+            loadInventoryRows(function(err){
+                if(err){ markProductsError('Unable to load products.'); return; }
                 try{ renderInventoryCards(); }catch(_){ }
                 try{ applyAllFilters(); }catch(_){ }
+                markProductsReady();
             });
-            // if a search param exists in URL, populate the nav search input so users can cancel/see it
-            try{
-                const raw = getQueryParam('search');
-                const si = document.getElementById('searchInput');
-                if(raw && si) si.value = raw;
-            }catch(e){}
+            try{ const raw = getQueryParam('search'); const si = document.getElementById('searchInput'); if(raw && si) si.value = raw; }catch(_){ }
             applyAllFilters();
-            // wire clear button
             try{
                 const clearBtn = document.getElementById('clearSearchBtn');
                 if(clearBtn){
                     clearBtn.addEventListener('click', function(){
-                        const si = document.getElementById('searchInput');
-                        if(si) si.value = '';
-                        // remove search param from URL without reload
-                        try{
-                            const url = new URL(window.location.href);
-                            url.searchParams.delete('search');
-                            window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-                        }catch(e){}
+                        const si = document.getElementById('searchInput'); if(si) si.value = '';
+                        try{ const url = new URL(window.location.href); url.searchParams.delete('search'); window.history.replaceState({}, '', url.pathname + url.search + url.hash); }catch(_){ }
                         applyAllFilters();
-                        // hide caption/clear button
-                        const cap = document.getElementById('productlist-caption');
-                        if(cap) cap.textContent = '';
+                        const cap = document.getElementById('productlist-caption'); if(cap) cap.textContent = '';
                         clearBtn.style.display = 'none';
                     });
                 }
-            }catch(e){}
-            window.applyAllFilters = applyAllFilters;
+            }catch(_){ }
         });
+
+        window.addEventListener('DOMContentLoaded', function(){ if (typeof applyAllFilters === 'function') applyAllFilters(); });
+        window.addEventListener('focus', function(){ try{ loadInventoryRows(function(){ renderInventoryCards(); renderSizeButtons(); if(typeof applyAllFilters==='function') applyAllFilters(); }); }catch(_){ } });
+        document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'){ try{ loadInventoryRows(function(){ renderInventoryCards(); renderSizeButtons(); if(typeof applyAllFilters==='function') applyAllFilters(); }); }catch(_){ } } });
     })();
-    // Initial filter: show all (use unified filter)
-    window.addEventListener('DOMContentLoaded', function() {
-        if (typeof applyAllFilters === 'function') applyAllFilters();
-    });
-    // When page regains focus (user navigates back here), refresh inventory cards and filters
-    window.addEventListener('focus', function(){
-        try{
-            loadInventoryRows(function(){
-                renderInventoryCards();
-                renderSizeButtons();
-                if(typeof applyAllFilters==='function') applyAllFilters();
-            });
-        }catch(e){}
-    });
-    document.addEventListener('visibilitychange', function(){
-        if(document.visibilityState==='visible'){
-            try{
-                loadInventoryRows(function(){
-                    renderInventoryCards();
-                    renderSizeButtons();
-                    if(typeof applyAllFilters==='function') applyAllFilters();
-                });
-            }catch(e){}
-        }
-    });
     </script>
 
 
@@ -1544,5 +1368,6 @@
     })();
     </script>
     <script src="cart-storage.js"></script>
+    </div>
 </body>
 </html>
