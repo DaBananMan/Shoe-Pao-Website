@@ -268,8 +268,9 @@
         @media (max-width: 700px) {
             section#sale { padding-top: 12px; }
         }
-        /* center headers for Sale and New Arrivals only */
+        /* center headers for Sale, Try On, and New Arrivals */
         section#sale .section-header,
+        section#try-on .section-header,
         section#new-arrivals .section-header {
             margin-left: 0;
             text-align: center;
@@ -308,15 +309,51 @@
             transform: scaleX(-1);
         }
         .badge-sale {
+            display: inline-flex;
+            align-items: center;
+            background: #fdeaec;
+            color: #b71c1c;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border-radius: 8px;
+            padding: 3px 10px;
+            border: 1px solid #f4c7cd;
+            box-shadow: none;
+        }
+        .tags-row {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .badge-tag {
+            display: inline-flex;
+            align-items: center;
+            background: #fff;
+            color: #444;
+            font-size: 0.78rem;
+            font-weight: 650;
+            border-radius: 999px;
+            padding: 3px 10px;
+            border: 1px solid #ddd;
+            box-shadow: none;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .badge-tryon {
             position: absolute;
-            top: 16px;
-            left: 16px;
-            background: #b71c1c;
-            color: #fff;
-            font-size: 0.98rem;
-            font-weight: 500;
-            border-radius: 12px;
-            padding: 4px 18px;
+            top: 14px;
+            right: 14px;
+            background: #e3f2fd;
+            color: #1565c0;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border-radius: 10px;
+            padding: 5px 11px;
+            border: 1px solid #bbdefb;
+            box-shadow: 0 4px 10px rgba(21,101,192,0.12);
             z-index: 2;
         }
         .badge-new {
@@ -360,6 +397,8 @@
             margin-right: 8px;
             font-size: 0.98rem;
         }
+        .shoe-price-block { display: inline-flex; align-items: baseline; gap: 6px; }
+        .price-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
         .shoe-info-bottom {
             font-size: 0.98rem;
             color: #444;
@@ -647,10 +686,41 @@
         if(t && msg) t.textContent = msg;
         markHomeReady();
     }
+    function normalizeTagValue(v){
+        return String(v || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '')
+            .trim();
+    }
     function hasTag(item, tag) {
         var list = Array.isArray(item && item.tags) ? item.tags : [];
-        var target = String(tag || '').toLowerCase();
-        return list.some(function(t){ return String(t || '').toLowerCase() === target; });
+        var target = normalizeTagValue(tag);
+        if(!target) return false;
+        return list.some(function(t){ return normalizeTagValue(t) === target; });
+    }
+    function prettyTagLabel(tag){
+        var s = String(tag || '').trim();
+        if(!s) return '';
+        if (s === s.toLowerCase()) {
+            s = s.replace(/\b\w/g, function(ch){ return ch.toUpperCase(); });
+        }
+        return s;
+    }
+    function getExtraTags(item, maxCount){
+        var list = Array.isArray(item && item.tags) ? item.tags : [];
+        var out = [];
+        var seen = new Set();
+        var skip = new Set(['sale','new','tryon']);
+        for (var i = 0; i < list.length; i++) {
+            var raw = String(list[i] || '').trim();
+            if(!raw) continue;
+            var norm = normalizeTagValue(raw);
+            if(!norm || skip.has(norm) || seen.has(norm)) continue;
+            seen.add(norm);
+            out.push(prettyTagLabel(raw));
+            if (out.length >= (maxCount || 2)) break;
+        }
+        return out;
     }
     function renderSaleItems(rows) {
         var container = document.getElementById('saleRow');
@@ -680,11 +750,13 @@
             img.className = 'shoe-img';
             img.src = item.image || 'IMAGE/NIKE1.png';
             img.alt = item.name || 'Sale Item';
-            var badge = document.createElement('span');
-            badge.className = 'badge-sale';
-            badge.textContent = 'Sale';
             imgBox.appendChild(img);
-            imgBox.appendChild(badge);
+            if (hasTag(item, 'Try On!')) {
+                var tryTag = document.createElement('span');
+                tryTag.className = 'badge-tryon';
+                tryTag.textContent = 'Try On!';
+                imgBox.appendChild(tryTag);
+            }
             var infoBox = document.createElement('div');
             infoBox.className = 'shoe-info-box';
             var infoTop = document.createElement('div');
@@ -692,7 +764,14 @@
             var brand = document.createElement('span');
             brand.className = 'shoe-brand';
             brand.textContent = item.brand || '';
+            var priceStack = document.createElement('span');
+            priceStack.className = 'price-stack';
+            var saleTag = document.createElement('span');
+            saleTag.className = 'badge-sale';
+            saleTag.textContent = 'Sale';
+            priceStack.appendChild(saleTag);
             var priceWrap = document.createElement('span');
+            priceWrap.className = 'shoe-price-block';
             var priceOld = document.createElement('span');
             priceOld.className = 'shoe-price-old';
             priceOld.textContent = formatHomePrice(item.originalPrice || item.price || 0);
@@ -703,18 +782,145 @@
                 priceWrap.appendChild(priceOld);
             }
             priceWrap.appendChild(price);
+            priceStack.appendChild(priceWrap);
             infoTop.appendChild(brand);
-            infoTop.appendChild(priceWrap);
+            infoTop.appendChild(priceStack);
             var infoBottom = document.createElement('div');
             infoBottom.className = 'shoe-info-bottom';
             infoBottom.textContent = item.name || '';
             infoBox.appendChild(infoTop);
             infoBox.appendChild(infoBottom);
+            var extraTags = getExtraTags(item, 2);
+            if (extraTags.length) {
+                var tagRow = document.createElement('div');
+                tagRow.className = 'tags-row';
+                extraTags.forEach(function(t){
+                    var badge = document.createElement('span');
+                    badge.className = 'badge-tag';
+                    badge.textContent = t;
+                    tagRow.appendChild(badge);
+                });
+                infoBox.appendChild(tagRow);
+            }
             card.appendChild(imgBox);
             card.appendChild(infoBox);
             container.appendChild(card);
         });
         if (saleItems.length > 5) container.classList.add('scrollable');
+    }
+
+    function renderTryOnItems(rows) {
+        var container = document.getElementById('tryOnRow');
+        if (!container) return;
+        container.innerHTML = '';
+        container.classList.remove('scrollable');
+
+        var tryOnItems = (rows || []).filter(function(r){
+            return hasTag(r, 'Try On') || hasTag(r, 'Try On!');
+        });
+        if (!tryOnItems.length) return;
+
+        tryOnItems.slice(0, 6).forEach(function(item){
+            var card = document.createElement('div');
+            card.className = 'shoe-card';
+            card.style.cursor = 'pointer';
+            card.onclick = function(){
+                viewProduct(
+                    item.brand || '',
+                    item.name || '',
+                    formatHomePrice(item.price || 0),
+                    item.image || 'IMAGE/NIKE1.png',
+                    'Try On!',
+                    item.productId || '',
+                    item.color || ''
+                );
+            };
+
+            var imgBox = document.createElement('div');
+            imgBox.className = 'shoe-img-box';
+            var img = document.createElement('img');
+            img.className = 'shoe-img';
+            img.src = item.image || 'IMAGE/NIKE1.png';
+            img.alt = item.name || 'Try On Item';
+            imgBox.appendChild(img);
+
+            // Always show Try On badge since this section is filtered.
+            var tryTag = document.createElement('span');
+            tryTag.className = 'badge-tryon';
+            tryTag.textContent = 'Try On!';
+            imgBox.appendChild(tryTag);
+
+            // Optional New badge if item is also tagged New.
+            if (hasTag(item, 'New')) {
+                var newBadge = document.createElement('span');
+                newBadge.className = 'badge-new';
+                newBadge.textContent = 'New';
+                imgBox.appendChild(newBadge);
+            }
+
+            var infoBox = document.createElement('div');
+            infoBox.className = 'shoe-info-box';
+            var infoTop = document.createElement('div');
+            infoTop.className = 'shoe-info-top';
+            var brand = document.createElement('span');
+            brand.className = 'shoe-brand';
+            brand.textContent = item.brand || '';
+
+            var right = document.createElement('span');
+            // Match Sale layout when applicable; otherwise just show price.
+            if (hasTag(item, 'Sale')) {
+                right.className = 'price-stack';
+                var saleTag = document.createElement('span');
+                saleTag.className = 'badge-sale';
+                saleTag.textContent = 'Sale';
+                right.appendChild(saleTag);
+
+                var priceWrap = document.createElement('span');
+                priceWrap.className = 'shoe-price-block';
+                var priceOld = document.createElement('span');
+                priceOld.className = 'shoe-price-old';
+                priceOld.textContent = formatHomePrice(item.originalPrice || item.price || 0);
+                var price = document.createElement('span');
+                price.className = 'shoe-price';
+                price.textContent = formatHomePrice(item.price || 0);
+                if (item.originalPrice && Number(item.originalPrice) > Number(item.price || 0)) {
+                    priceWrap.appendChild(priceOld);
+                }
+                priceWrap.appendChild(price);
+                right.appendChild(priceWrap);
+            } else {
+                right.className = 'shoe-price';
+                right.textContent = formatHomePrice(item.price || 0);
+            }
+
+            infoTop.appendChild(brand);
+            infoTop.appendChild(right);
+
+            var infoBottom = document.createElement('div');
+            infoBottom.className = 'shoe-info-bottom';
+            infoBottom.textContent = item.name || '';
+            infoBox.appendChild(infoTop);
+            infoBox.appendChild(infoBottom);
+
+            var extraTags = getExtraTags(item, 2);
+            if (extraTags.length) {
+                var tagRow = document.createElement('div');
+                tagRow.className = 'tags-row';
+                extraTags.forEach(function(t){
+                    var badge = document.createElement('span');
+                    badge.className = 'badge-tag';
+                    badge.textContent = t;
+                    tagRow.appendChild(badge);
+                });
+                infoBox.appendChild(tagRow);
+            }
+
+            card.appendChild(imgBox);
+            card.appendChild(infoBox);
+            container.appendChild(card);
+        });
+
+        if (tryOnItems.length > 5) container.classList.add('scrollable');
     }
     function renderNewArrivals(rows) {
         var container = document.getElementById('arrivalRow');
@@ -750,6 +956,12 @@
             badge.textContent = 'New';
             imgBox.appendChild(img);
             imgBox.appendChild(badge);
+            if (hasTag(item, 'Try On!')) {
+                var tryTag = document.createElement('span');
+                tryTag.className = 'badge-tryon';
+                tryTag.textContent = 'Try On!';
+                imgBox.appendChild(tryTag);
+            }
             var infoBox = document.createElement('div');
             infoBox.className = 'shoe-info-box';
             var infoTop = document.createElement('div');
@@ -767,6 +979,18 @@
             infoBottom.textContent = item.name || '';
             infoBox.appendChild(infoTop);
             infoBox.appendChild(infoBottom);
+            var extraTags = getExtraTags(item, 2);
+            if (extraTags.length) {
+                var tagRow = document.createElement('div');
+                tagRow.className = 'tags-row';
+                extraTags.forEach(function(t){
+                    var badge = document.createElement('span');
+                    badge.className = 'badge-tag';
+                    badge.textContent = t;
+                    tagRow.appendChild(badge);
+                });
+                infoBox.appendChild(tagRow);
+            }
             card.appendChild(imgBox);
             card.appendChild(infoBox);
             container.appendChild(card);
@@ -779,6 +1003,7 @@
             if (err) { markHomeError('Unable to load products.'); return; }
             try {
                 renderSaleItems(rows || []);
+                renderTryOnItems(rows || []);
                 renderNewArrivals(rows || []);
                 initBrandFilters();
             } catch(e){ console.error(e); }
@@ -959,10 +1184,20 @@
                     collectTags(c, tags);
                     if(originalPrice && salePrice && salePrice < originalPrice) tags.push('Sale');
                     if(p.isNew || p.newArrival || p.new_arrival || p.isNewArrival || p.status === 'new') tags.push('New');
-                    var tagSet = new Set(tags.map(function(t){ return String(t||'').trim(); }).filter(Boolean).map(function(t){ return t.toLowerCase(); }));
+                    var tagLabelByNorm = {};
+                    var tagSet = new Set();
+                    tags.map(function(t){ return String(t||'').trim(); }).filter(Boolean).forEach(function(raw){
+                        var norm = String(raw).toLowerCase();
+                        if(!tagLabelByNorm[norm]) tagLabelByNorm[norm] = raw;
+                        tagSet.add(norm);
+                    });
                     if(Array.from(tagSet).some(function(t){ return t.indexOf('new') !== -1; })) tagSet.add('new');
                     if(Array.from(tagSet).some(function(t){ return t.indexOf('sale') !== -1; })) tagSet.add('sale');
-                    var dedupTags = Array.from(tagSet).map(function(t){ return (t === 'new') ? 'New' : (t === 'sale' ? 'Sale' : t); });
+                    var dedupTags = Array.from(tagSet).map(function(t){
+                        if (t === 'new') return 'New';
+                        if (t === 'sale') return 'Sale';
+                        return tagLabelByNorm[t] || t;
+                    });
 
                     out.push({
                         id: (p.sku || p.id || '') + ':' + (c.id || c.name || ''),
@@ -1082,6 +1317,12 @@
     <section id="sale">
         <div class="section-header">Sale</div>
         <div class="sale-row" id="saleRow"></div>
+    </section>
+
+    <!-- Try On Section -->
+    <section id="try-on">
+        <div class="section-header">Try On</div>
+        <div class="sale-row" id="tryOnRow"></div>
     </section>
 
     <!-- New Arrival Section -->
