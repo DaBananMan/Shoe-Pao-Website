@@ -5,10 +5,7 @@
 $taskName = 'ShoePaoNode'
 $projRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $projRoot = $projRoot.Path
-$preferred = Join-Path $projRoot 'tools\node-watch.ps1'
-$fallback = Join-Path $projRoot 'tools\start-node.ps1'
-# Prefer the supervisor watch script if present so the service auto-restarts on crashes
-if (Test-Path $preferred) { $script = $preferred } else { $script = $fallback }
+$script = Join-Path $projRoot 'tools\start-node.ps1'
 
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$script`""
 $trigger = New-ScheduledTaskTrigger -AtLogon

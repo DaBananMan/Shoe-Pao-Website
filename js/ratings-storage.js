@@ -125,11 +125,6 @@
     return { avg: sum / list.length, count: list.length, breakdown: breakdown };
   }
 
-  function getAllRatings(){
-    const store = getStore();
-    return Object.assign({}, store);
-  }
-
   function starsText(n){
     const s = sanitizeStars(n);
     return '★★★★★'.slice(0,s) + '☆☆☆☆☆'.slice(0,5-s);
@@ -141,7 +136,6 @@
     addOrUpdateRating: addOrUpdateRating,
     getRatings: getRatings,
     getSummary: getSummary,
-    getAllRatings: getAllRatings,
     starsText: starsText
   };
 })();

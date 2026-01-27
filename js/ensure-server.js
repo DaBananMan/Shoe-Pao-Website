@@ -80,6 +80,20 @@
       // Periodically flush outbox and when page gains connectivity
       try{ setInterval(flushOutboxOnce, 10000); window.addEventListener && window.addEventListener('online', flushOutboxOnce); }catch(e){}
 
+      // Try to ensure the Node API server is running (local dev convenience).
+      // This calls a small PHP script which will start the Node process via a helper
+      // if it's not already running. It's safe because the PHP helper restricts
+      // execution to Windows and local requests by default.
+      try{
+        if(window.location && window.location.hostname === 'localhost'){
+          fetch('/tools/ensure-node.php', { method: 'GET', credentials: 'same-origin' }).then(function(r){
+            return r.json().catch(function(){ return null; });
+          }).then(function(json){
+            try{ if(json) console.debug('ensure-node:', json); }catch(e){}
+          }).catch(function(err){ /* ignore */ });
+        }
+      }catch(e){}
+
       window.fetch = function(input, init){
         try{
           var url = input;
