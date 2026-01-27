@@ -1,0 +1,1250 @@
+/* Sticky footer layout for product-list.html */
+.productlist-body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+/* Topbar / dashboard navigation shared styles */
+.topbar{
+    background:#fff;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #eee;position:sticky;top:0;z-index:50
+}
+.nav-left{display:flex;align-items:center;gap:22px;width:70%;max-width:820px}
+.nav-left-inner{display:flex;align-items:center;justify-content:space-between;width:100%}
+.logo-wrap{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
+.logo-wrap img{height:40px}
+.site-title{font-weight:600;color:#b71c1c;font-size:1.05rem}
+.nav-item{font-size:0.98rem;font-weight:500;color:#222;cursor:pointer;text-decoration:none;padding:8px 12px;border-radius:6px}
+.nav-item:hover{color:#b71c1c}
+.nav-right{display:flex;align-items:center;gap:12px}
+.profile-btn{background:none;border:0;padding:6px;cursor:pointer}
+.profile-btn img{width:34px;height:34px}
+
+.productlist-main-content {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+.footer, footer {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    background: #111 !important;
+    color: #fff !important;
+    width: 100% !important;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1rem;
+    border-top: none;
+    box-shadow: 0 -2px 16px rgba(0,0,0,0.08);
+    z-index: 99999 !important;
+}
+/* === Cart Sidebar Overlay Styles (from product-view.html) === */
+/* ====== ADDED CART OVERLAY & SIDEBAR STYLES (from product-view.html) ====== */
+.cart-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(34,34,34,0.45);
+    display: none;
+    z-index: 99998;
+}
+.cart-overlay.show {
+    display: block;
+}
+/* Off-canvas cart sidebar using transform so it doesn't affect layout
+   or create horizontal overflow when hidden. */
+.cart-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0; /* pinned to right, but pushed out of view using transform */
+    transform: translateX(100%); /* hidden off-canvas without changing layout */
+    width: 420px;
+    max-width: 98vw;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -12px 0 32px rgba(34,34,34,0.18);
+    z-index: 99999;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: transform 0.28s ease;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+.cart-sidebar.open {
+    transform: translateX(0);
+}
+.cart-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.cart-header-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #222;
+}
+.cart-close {
+    background: none;
+    border: none;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.cart-divider {
+    height: 2px;
+    background: #eee;
+    width: 100%;
+    margin: 4px 0 8px 0;
+}
+.cart-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+.cart-item-box {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #f0f0f0;
+    padding: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    position: relative;
+}
+
+/* Layout variables for cart action buttons. Adjust these to control spacing. */
+.cart-item-box { --edit-gap:6px; --edit-width:56px; }
+.cart-item-img {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #f7f7f7;
+    flex-shrink: 0;
+}
+.cart-item-middle {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+.cart-item-middle {
+    /* ensure text doesn't flow underneath the absolute-positioned icons on the right */
+    padding-right: 96px;
+}
+.cart-item-title {
+    font-weight: 600;
+    font-size: 0.99rem;
+    color: #222;
+    /* allow wrapping so long model names break onto a new line before colliding with icons */
+    overflow-wrap: break-word;
+    word-break: normal;
+    white-space: normal;
+    display: block;
+}
+.cart-item-brand {
+    font-size: 0.93rem;
+    color: #666;
+}
+.cart-item-size {
+    font-size: 0.92rem;
+    color: #444;
+}
+.cart-quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+.qty-btn {
+    background: none;
+    border: none;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.cart-item-remove {
+    position: absolute;
+    top: 8px;
+    /* moved slightly left so Edit can appear to the right of the trash */
+    right: 72px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cart-item-price {
+    position: absolute;
+    right: 12px;
+    bottom: 8px;
+    font-weight: 600;
+    color: #222;
+}
+.cart-subtotal-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #222;
+    padding-top: 6px;
+}
+.cart-checkout-btn {
+    background: #111;
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 12px 18px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    width: 100%;
+}
+
+/* Ensure cart edit modal uses white background with black text even on pages
+   that don't include the admin `inventory-app.css`. The modal is created
+   with classes `bank-modal cart-edit-modal` by the script, so target that
+   to neutralize the global low-stock orange inside the modal. */
+.bank-modal.cart-edit-modal {
+    background: #ffffff !important;
+    color: #000000 !important;
+}
+.bank-modal.cart-edit-modal .bank-modal-close { color: #000000 !important; }
+.bank-modal.cart-edit-modal .btn.ghost {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #ddd !important;
+}
+.bank-modal.cart-edit-modal .btn.primary {
+    background: #000000 !important;
+    color: #ffffff !important;
+    border: 0 !important;
+}
+.bank-modal.cart-edit-modal .btn.low-stock:not(.primary),
+.bank-modal.cart-edit-modal .product-size-btn,
+.bank-modal.cart-edit-modal .gender-btn {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #ddd !important;
+}
+.bank-modal.cart-edit-modal .product-size-btn.oos,
+.bank-modal.cart-edit-modal .btn.oos { opacity: 0.45 !important; }
+.cart-empty {
+    color: #666;
+    font-size: 0.98rem;
+    padding: 18px 0;
+    text-align: center;
+}
+/* Force cart item titles to wrap and reserve right space for icons.
+   This overrides any earlier rules that set nowrap/ellipsis so long names
+   will start a new line before colliding with the price/trash icons. */
+.cart-item-middle { padding-right: 96px !important; }
+.cart-item-title {
+    white-space: normal !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+}
+/* Duplicate cart-sidebar rules removed (off-canvas transform implementation used earlier) */
+.cart-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.cart-header-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #222;
+}
+.cart-close {
+    background: none;
+    border: none;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+.cart-divider {
+    height: 2px;
+    background: #eee;
+    width: 100%;
+    margin: 4px 0 8px 0;
+}
+.cart-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+.cart-item-box {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #f0f0f0;
+    padding: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    position: relative;
+}
+.cart-item-img {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #f7f7f7;
+    flex-shrink: 0;
+}
+.cart-item-middle {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    /* prevent the middle column's content from flowing under the absolute-positioned icons */
+    padding-right: 96px;
+    min-width: 0;
+}
+.cart-item-title {
+    font-size: 1.08rem;
+    font-weight: 600;
+    color: #222;
+    /* allow wrapping so the name moves to a new line before colliding with icons */
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+}
+.cart-item-brand {
+    font-size: 0.98rem;
+    color: #888;
+}
+.cart-item-size {
+    font-size: 0.98rem;
+    color: #444;
+}
+.cart-quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+.qty-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cart-item-qty {
+    font-size: 1.08rem;
+    font-weight: 500;
+    color: #222;
+    margin: 0 6px;
+}
+.cart-item-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-left: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cart-item-price {
+    font-size: 1.08rem;
+    font-weight: 600;
+    color: #222;
+    margin-left: auto;
+    align-self: flex-end;
+}
+.cart-empty {
+    text-align: center;
+    color: #888;
+    font-size: 1.08rem;
+    margin: 32px 0;
+}
+/* Global small button styles used across modals and cart edit UI */
+.btn{ font-family: 'Poppins', Arial, sans-serif; padding:8px 10px; border-radius:8px; border:none; cursor:pointer; font-size:0.95rem; }
+.btn.ghost{ background:#fff; border:1px solid #ddd; color:#222; }
+.btn.primary{ background:#222; color:#fff; border:0; }
+/* Low-stock should show orange only when NOT selected. When selected (primary) the button becomes the primary color. */
+.btn.low-stock:not(.primary){ background: #ff9800; color: #fff; border-color: #e67e22; }
+.btn:disabled{ opacity:0.45; cursor:not-allowed; }
+
+/* Low-stock (warning) and out-of-stock states for size buttons
+    Only apply the orange low-stock styling when the button is NOT selected
+    (i.e. doesn't have the .primary class). This prevents low-stock from
+    overriding the primary selected state. */
+.btn.low-stock:not(.primary){ background: #ff9800; color: #fff; border-color: #e67e22; }
+.btn.low-stock:not(.primary):hover{ filter: brightness(0.95); }
+.btn.oos{ opacity: 0.45; text-decoration: line-through; pointer-events: none; }
+
+/* Ensure remove (trash) icon has space from edit button and doesn't overlap */
+.cart-item-remove { position: absolute; top: 8px; right: calc(var(--edit-gap) + var(--edit-width) + var(--edit-gap)); width: 28px; height: 28px; }
+
+/* Position the Edit button between the trash icon and the right border using variables above */
+.cart-item-edit { position: absolute; top: 8px; right: var(--edit-gap); width: var(--edit-width); padding:6px 10px; border-radius:8px; }
+
+.cart-subtotal-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.12rem;
+    font-weight: 600;
+    color: #222;
+    margin: 8px 0 16px 0;
+}
+.cart-checkout-btn {
+    background: #b71c1c;
+    color: #fff;
+    border: none;
+    border-radius: 22px;
+    padding: 14px 0;
+    font-size: 1.12rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.2s;
+    width: 100%;
+}
+.cart-checkout-btn:hover {
+    background: #222;
+}
+/* Sticky footer flexbox layout for profile page */
+.profile-body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.profile-main {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+/* AR Modal Overlay Styles - ensure overlay and centering */
+.ar-modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(34,34,34,0.45) !important;
+    display: none !important; /* 🔹 start hidden, shown via JS */
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 99999 !important;
+}
+.ar-modal {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(34,34,34,0.18);
+    padding: 32px 38px 28px 38px;
+    min-width: 420px;
+    max-width: 98vw;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    position: relative;
+    align-items: stretch;
+    outline: none;
+    z-index: 100000; /* 🔹 ensure it's above overlay */
+}
+.ar-modal-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+.ar-modal-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #222;
+}
+.ar-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 1.5rem; /* 🔹 make sure × looks right */
+    color: #444;
+}
+.ar-modal-close:hover {
+    color: #b71c1c; /* 🔹 hover state */
+}
+.ar-modal-desc {
+    font-size: 1.08rem;
+    color: #444;
+    text-align: center;
+}
+.ar-modal-divider {
+    width: 100%;
+    height: 2px;
+    background: #eee;
+    margin: 12px 0;
+}
+.ar-modal-bottom-row {
+    display: flex;
+    gap: 32px;
+    justify-content: space-between;
+    margin-top: 12px;
+}
+.ar-modal-bottom-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 180px;
+}
+.ar-modal-dot-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ar-modal-dot {
+    width: 8px;
+    height: 8px;
+    background: #b71c1c;
+    border-radius: 50%;
+    display: inline-block;
+}
+.ar-modal-bottom-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #222;
+}
+.ar-modal-bottom-desc {
+    font-size: 0.98rem;
+    color: #444;
+}
+.ar-modal-qr {
+    width: 120px;
+    height: 120px;
+    margin-top: 8px;
+    border-radius: 12px;
+    background: #f7f7f7;
+}
+.ar-modal-mobile-btn {
+    background: #b71c1c;
+    color: #fff;
+    border: none;
+    border-radius: 18px;
+    padding: 10px 28px;
+    font-size: 1.08rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.2s;
+}
+.ar-modal-mobile-btn:hover {
+    background: #222;
+}
+
+/* === Rest of your CSS untouched === */
+.homepage-header > div,
+.homepage-header > a,
+.homepage-header > span,
+.homepage-header > button {
+    padding-top: 14.22px; /* 12px + 2% of 12px = 12px * 1.185 = 14.22px */
+    padding-bottom: 14.22px;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* When header uses .site-container inside the nav, ensure the
+   container lays out the left and right header regions side-by-side. */
+.homepage-header .site-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* Sticky footer layout for product-list.html */
+.productlist-body {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.productlist-main-content {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+.footer, footer {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}
+/* Ensure footer stays at bottom if content is short */
+/* .productlist-content min-height removed to fix sticky footer white space */
+
+.productlist-content {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 0 !important;
+}
+
+.productlist-main {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: 0 !important;
+}
+/* Layout: place sidebar to the left and product content to the right */
+.productlist-main {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 28px;
+}
+.productlist-sidebar {
+    flex: 0 0 260px; /* fixed-ish sidebar width */
+}
+.productlist-content {
+    flex: 1 1 auto;
+    min-width: 0; /* allow children to shrink inside flex */
+}
+/* Sticky Footer Layout for Product List */
+html, body {
+    margin: 0;
+    padding: 0;
+    /* Hide any horizontal overflow caused by off-canvas UI (cart sidebar,
+       modals, etc.). We keep the cart off-canvas via transform but some
+       browsers still report it as overflowing; hiding horizontal overflow
+       prevents the visible white bar while preserving the slide-in animation. */
+    overflow-x: hidden;
+}
+.main-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+.main-content {
+    flex: 1;
+}
+.productlist-caption-row {
+    margin-bottom: 2px !important;
+}
+.productlist-grid {
+    margin-top: 0 !important;
+}
+.productlist-caption-row {
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+.productlist-grid {
+    margin-top: 0;
+}
+.productlist-caption-row {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    display: flex;
+    align-items: flex-end;
+    min-height: 0;
+}
+.productlist-caption {
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: #222;
+    margin-bottom: 0;
+}
+
+/* Canonical footer styles (moved from home.html) */
+.footer-section {
+    background: #111;
+    color: #fff;
+    /* Remove footer's own horizontal vw padding since we wrap footer
+       inner content with .site-container which provides consistent
+       left/right padding aligned with the header. This prevents
+       double-padding that can push footer text off-screen. */
+    padding: 48px 0 24px 0;
+    margin-top: 64px;
+}
+.footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 48px;
+}
+.footer-left {
+    flex: 2;
+}
+.footer-header {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 18px;
+}
+.footer-subheader {
+    font-size: 1.05rem;
+    font-weight: 400;
+    margin-bottom: 12px;
+}
+.footer-divider {
+    width: 100%;
+    height: 2px;
+    background: #444;
+    margin: 18px 0 12px 0;
+}
+.footer-note {
+    font-size: 0.92rem;
+    color: #bbb;
+    margin-top: 12px;
+}
+.footer-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-end;
+}
+.footer-link {
+    color: #fff;
+    font-size: 1.05rem;
+    text-decoration: none;
+    margin-bottom: 2px;
+    transition: color 0.2s;
+}
+.footer-link:hover { color: #b71c1c; }
+
+@media (max-width: 700px) {
+    .footer-row { flex-direction: column; gap: 18px; }
+    .footer-right { align-items: flex-start; }
+}
+
+/* Site-wide content container to keep consistent spacing across pages.
+   Use by inserting <div class="site-container"> directly after the header/nav
+   and closing it before the footer. This ensures left/right padding aligns with
+   header controls (logo, cart) while keeping footer full-width unless wrapped. */
+.site-container {
+    /* Use padding to align content with the header controls (logo, cart).
+       Padding keeps the page width at 100% while shifting inner content
+       to match the nav without introducing extra page margins that
+       can cause centering or overflow. */
+    margin: 0;
+    width: 100%;
+    padding-left: 46px;
+    padding-right: 40px;
+    box-sizing: border-box;
+}
+
+/* Debug helper: add class 'debug-layout' to <body> to visualize container and footer bounds
+   Use in the browser console to diagnose alignment: document.body.classList.add('debug-layout')
+   Remove with: document.body.classList.remove('debug-layout') */
+.debug-layout .site-container { outline: 2px dashed rgba(0,128,255,0.6); }
+.debug-layout .footer-row { outline: 2px dashed rgba(255,128,0,0.6); }
+
+@media (max-width: 900px) {
+    .site-container {
+        /* Use symmetric inner padding on small screens instead of margins */
+        padding-left: 16px;
+        padding-right: 16px;
+        width: 100%;
+    }
+}
+
+/* --- POPPINS FONT USAGE FOR LOGIN AND SIGNUP PAGE --- */
+@font-face {
+    font-family: 'Poppins';
+    src: url('FONT/Poppins-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'Poppins';
+    src: url('FONT/Poppins-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'Poppins';
+    src: url('FONT/Poppins-SemiBold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+}
+[class^="search-input"], .search-input {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    color: #222;
+}
+
+.search-input:focus {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+.search-input::-webkit-input-placeholder {
+    color: #888;
+    opacity: 1;
+}
+.search-input:-ms-input-placeholder {
+    color: #888;
+    opacity: 1;
+}
+.search-input::placeholder {
+    color: #888;
+    opacity: 1;
+}
+body {
+    background: #fff;
+    font-family: 'Poppins', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+.form-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
+}
+.form-section > * {
+    width: 100%;
+    max-width: 400px;
+}
+/* Center the signup form and logo as a unit */
+.toggle-password {
+    display: inline-flex;
+    align-items: center;
+    /* Center the signup form and logo */
+    gap: 4px;
+}
+.password-label-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+.password-label-row .input-label {
+    margin: 0;
+    text-align: left;
+    flex: 1;
+}
+.password-label-row .toggle-password {
+    text-align: right;
+    flex: 0;
+}
+.password-row {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.toggle-password {
+    align-self: flex-end;
+    margin-bottom: 4px;
+    cursor: pointer;
+    font-size: 0.95em;
+    color: #555;
+}
+.container {
+    max-width: 400px;
+    margin: 60px auto;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.logo {
+    width: 110px;
+    margin-bottom: 32px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.login-header {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 600;
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 8px;
+    color: #222;
+    letter-spacing: 0.5px;
+    border: none !important;
+    outline: none;
+    width: 100%;
+    padding: 0;
+}
+.subheader {
+    font-size: 1rem;
+    color: #444;
+    margin-bottom: 28px;
+    text-align: center;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+.signup-link {
+    text-decoration: underline;
+    color: #222;
+    cursor: pointer;
+    font-weight: 500;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+
+.login-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+.input-label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1rem;
+    color: #222;
+    margin-bottom: 4px;
+    margin-left: 2px;
+    text-align: left;
+    font-weight: 500;
+}
+.input-box {
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 22px;
+    margin-bottom: 18px;
+    outline: none;
+    box-sizing: border-box;
+    background: #f5f5f5;
+    color: #222;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 400;
+    transition: box-shadow 0.2s;
+    box-shadow: 0 1px 4px rgba(34,34,34,0.07);
+}
+
+.input-box:focus {
+    box-shadow: 0 0 0 2px #b71c1c33;
+    background: #fff;
+}
+
+.toggle-password {
+    font-size: 1rem;
+    color: #7a7a7a;
+    cursor: pointer;
+    user-select: none;
+    margin-left: 8px;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+}
+
+.eye-icon {
+    margin-right: 2px;
+    font-size: 1.1em;
+}
+.forgot-row {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -10px;
+    margin-bottom: 18px;
+}
+.forgot-link {
+    text-decoration: underline;
+    color: #222;
+    font-size: 0.97rem;
+    cursor: pointer;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 400;
+}
+.login-btn {
+    width: 100%;
+    padding: 14px 0;
+    background: #222;
+    color: #fff;
+    border: none;
+    border-radius: 28px;
+    font-size: 1.15rem;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 18px;
+    transition: background 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 8px rgba(34,34,34,0.10);
+}
+.login-btn:hover {
+    background: #b71c1c;
+    box-shadow: 0 4px 16px rgba(34,34,34,0.13);
+}
+/* --- SIGNUP PAGE LAYOUT --- */
+.signup-wrapper {
+    display: flex;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    margin-bottom: 32px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+.logo-section {
+    display: flex;
+    align-items: flex-start;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 600;
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 10px;
+    color: #222;
+    letter-spacing: 0.5px;
+    border: none !important;
+    outline: none;
+    width: 100%;
+    padding: 0;
+    width: 120px;
+    height: auto;
+}
+.form-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
+    transform: translateX(-190px); /* Move form 40% more left from previous (-136px) */
+}
+.form-section > * {
+    width: 100%;
+    max-width: 400px;
+}
+.signup-header {
+    align-self: flex-start;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 32px;
+    color: #222;
+    margin-left: 40px; /* Move heading 10% more to the right */
+}
+.name-row {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+}
+.input-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+.input-label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.95rem;
+    color: #444;
+    font-weight: 500;
+    margin-bottom: 6px;
+    text-align: left;
+}
+.input-box, .phone-row {
+    margin-bottom: 18px;
+    font-size: 1rem;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+.password-instruction {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 18px;
+    margin-top: -10px;
+    font-weight: 400;
+}
+.checkbox-row {
+    margin-bottom: 10px;
+}
+.checkbox-row label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.97rem;
+    color: #222;
+    font-weight: 400;
+}
+.signup-action-row {
+    display: flex;
+    align-items: center;
+    margin-top: 28px;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 16px;
+}
+.signup-btn {
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 28px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-right: 0;
+    transition: background 0.2s;
+    font-family: 'Poppins', Arial, sans-serif;
+    white-space: nowrap;
+    min-width: 110px;
+}
+.signup-btn:hover {
+    background: #b71c1c;
+}
+.login-link-row {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.98rem;
+    color: #222;
+    font-weight: 400;
+    white-space: nowrap;
+}
+.login-link-row a {
+    text-decoration: underline;
+    color: #222;
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 400;
+    white-space: nowrap;
+}
+/* --- END SIGNUP PAGE LAYOUT --- */
+/* --- SIGNUP PAGE FONT AND FONT SIZE --- */
+body {
+    font-family: 'Poppins', Arial, sans-serif;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+}
+.signup-header {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 2rem;
+    font-weight: 600;
+    color: #222;
+    margin-bottom: 32px;
+}
+.input-label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.95rem;
+    color: #444;
+    font-weight: 500;
+    margin-bottom: 6px;
+    text-align: left;
+}
+.input-box, .phone-input {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1rem;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 18px;
+    background: #fff;
+    outline: none;
+    transition: border 0.2s;
+}
+.input-box:focus, .phone-input:focus {
+    border-color: #b71c1c;
+}
+.password-instruction {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 18px;
+    margin-top: -10px;
+}
+.checkbox-row label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 0.97rem;
+    color: #222;
+}
+.signup-btn {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+.login-link-row {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-size: 1rem;
+    color: #222;
+}
+.login-link-row a {
+    text-decoration: underline;
+    color: #222;
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: 'Poppins', Arial, sans-serif;
+}
+/* --- END SIGNUP PAGE FONT AND FONT SIZE --- */
+/* --- PHONE NUMBER DIVIDER --- */
+.phone-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+    height: 44px;
+    position: relative;
+    overflow: hidden;
+}
+.phone-prefix {
+    color: #444;
+    font-size: 1rem;
+    pointer-events: none;
+    margin-left: -2px; /* move +63 8% more right from previous -13px */
+    margin-right: 12px;
+    white-space: nowrap;
+    z-index: 2;
+}
+.phone-divider {
+    width: 1px;
+    height: 60%;
+    background: #ccc;
+    margin: 0 12px 0 0;
+    display: inline-block;
+    z-index: 2;
+}
+.phone-input {
+    border: none;
+    outline: none;
+    font-size: 1rem;
+    background: transparent;
+    flex: 1;
+    letter-spacing: 2px;
+    padding-left: 93px; /* keep previous right adjustment */
+    height: 100%;
+    text-align: left;
+    z-index: 1;
+    position: relative;
+    top: 7px; /* move up by 40% from previous 35px */
+    left: -37px; /* move input 40% left */
+}
+.phone-input:focus {
+    border: none;
+    outline: none;
+}

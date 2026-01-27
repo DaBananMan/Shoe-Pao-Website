@@ -1,0 +1,64 @@
+[
+  {
+    "email": "jemar@gmail.com",
+    "password": "password",
+    "role": "user",
+    "firstName": "Jemar",
+    "lastName": "Eden",
+    "name": "Jemar Eden",
+    "phone": "917 265 5421",
+    "addressMain": "Jemar Eden, BLK 69 LOT 18 Fairview",
+    "addressDetails": "QUEZON CITY, 1118, PH"
+  },
+  {
+    "email": "admin@gmail.com",
+    "password": "admin",
+    "role": "admin",
+    "firstName": "Admin",
+    "lastName": "Admin"
+  },
+  {
+    "email": "jimbo@gmail.com",
+    "password": "jimbo",
+    "firstName": "Jim",
+    "lastName": "Jimbo",
+    "name": "Jim Jimbo",
+    "phone": "123 123 1231",
+    "role": "user",
+    "registeredAt": 1765202846855,
+    "addressMain": "Bingo"
+  },
+  {
+    "email": "op@gmail.com",
+    "password": "optimus",
+    "firstName": "Orion",
+    "lastName": "Pax",
+    "name": "Orion Pax",
+    "phone": "134 234 2345",
+    "role": "user",
+    "registeredAt": 1765203146652,
+    "addressMain": "Cybertron"
+  },
+  {
+    "email": "kermit@gmail.com",
+    "password": "ribbit",
+    "firstName": "Kermit",
+    "lastName": "Frog",
+    "name": "Kermit Frog",
+    "phone": "999 999 9999",
+    "role": "user",
+    "registeredAt": 1765203347141,
+    "addressMain": "Elmore"
+  },
+  {
+    "email": "ph@gmail.com",
+    "password": "pza",
+    "firstName": "Pizza",
+    "lastName": "Hut",
+    "name": "Pizza Hut",
+    "phone": "112 312 3123",
+    "role": "user",
+    "registeredAt": 1765204419712,
+    "addressMain": "Pizza Hut"
+  }
+]

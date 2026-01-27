@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Shoe Pao — Your Orders</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+    body{font-family:'Poppins',Arial,sans-serif;background:#fff;margin:0;color:#222;display:flex;flex-direction:column;min-height:100vh}
+    .orders-container{max-width:1100px;margin:24px auto;padding:22px;flex:1}
+    footer.footer-section{margin-top:auto}
+        .orders-header{margin-bottom:16px}
+        .orders-header h1{font-size:1.8rem;margin:0}
+        .orders-sub{color:#666;margin-top:8px}
+        .orders-list{display:flex;flex-wrap:wrap;gap:24px}
+        .order-card{background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(34,34,34,0.07);width:300px;display:flex;flex-direction:column;border:1px solid #eee;cursor:pointer;transition:transform .15s, box-shadow .15s}
+        .order-card:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(34,34,34,0.12)}
+        .order-status-box{background:#f5f5f5;border-radius:8px 8px 0 0;padding:12px 18px;display:flex;align-items:center;gap:12px}
+        .order-status-icon{width:28px;height:28px}
+        .order-card-img{width:100%;height:180px;object-fit:cover}
+        .order-card-divider{height:1.5px;background:#eee;width:100%}
+        .order-card-info-row{display:flex;justify-content:space-between;padding:12px 18px 0 18px}
+        .order-card-code-row{padding:6px 18px 0 18px;color:#444}
+        .order-card-btn-row{display:flex;gap:8px;padding:12px 18px 18px 18px;flex-wrap:wrap}
+        .order-card-btn{flex:1;min-width:120px;padding:10px;border-radius:22px;border:none;cursor:pointer;font-weight:600}
+        .view-btn{background:#222;color:#fff}
+        .cancel-btn{background:#b71c1c;color:#fff}
+        .refund-btn{background:#777;color:#fff}
+        .contact-btn{background:#1877f2;color:#fff}
+        .received-btn{background:#2e7d32;color:#fff}
+        .note-row{padding:6px 18px;color:#444;font-size:0.92rem;line-height:1.35}
+        .rating-item{display:flex;gap:12px;align-items:flex-start;border:1px solid #eee;border-radius:14px;padding:12px}
+        .rating-item img{width:56px;height:56px;object-fit:cover;border-radius:12px}
+        .rating-stars{display:flex;gap:6px;margin:6px 0 10px 0}
+        .rating-star{background:transparent;border:none;font-size:22px;line-height:1;cursor:pointer;padding:0;color:#c7c7c7}
+        .rating-star.active{color:#f5a623}
+        .rating-comment{width:100%;border:1px solid #ddd;border-radius:12px;padding:10px;font-family:inherit;font-size:0.98rem;min-height:72px;resize:vertical}
+        @media (max-width:760px){.orders-container{padding:12px}.order-card{width:100%}}
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar (copied from profile.html) -->
+    <nav class="homepage-header" style="position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.04);padding:0 40px;display:flex;align-items:center;justify-content:space-between;height:72px;padding-left:46px;">
+        <div style="display:flex;align-items:center;gap:24px;">
+            <a href="home.html" style="display:flex;align-items:center;gap:30px;text-decoration:none;color:inherit;">
+                <img src="IMAGE/SHOEPAOLOGO.png" alt="SHOEPAO Logo" style="height:42px;width:auto;cursor:pointer;">
+                <span class="header-caption" style="font-size:1.18rem;font-weight:600;color:#b71c1c;cursor:pointer;">Shoe Pao Footwear</span>
+            </a>
+            <span class="header-link" onclick="goToProfile()">Profile</span>
+            <span class="header-link" onclick="goToProductList()">Shop</span>
+            <span class="header-link" onclick="goToOrders()">Orders</span>
+            <span class="header-link" onclick="goToWishlist()">Wishlist</span>
+            <span class="header-link" onclick="goToFAQ()">Policies</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;">
+            <button class="header-icon-btn" onclick="toggleSearchBox()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/SEARCHICON.png" class="header-icon" alt="Search" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToUserPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/USERICON.png" class="header-icon" alt="User" style="width:26px;height:26px;"></button>
+            <button class="header-icon-btn" onclick="goToCartPage()" style="background:none;border:none;padding:6px;display:flex;align-items:center;cursor:pointer;"><img src="IMAGE/CARTICON.png" class="header-icon" alt="Cart" style="width:26px;height:26px;"></button>
+        </div>
+        <div class="search-box" id="searchBox" style="display:none;position:absolute;top:72px;right:80px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px 16px;z-index:101;">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search products..." onkeydown="searchKeyDown(event)" style="font-family:'Poppins',Arial,sans-serif;font-size:1rem;border:none;outline:none;width:220px;padding:6px 0;">
+        </div>
+    </nav>
+
+    <main class="orders-container">
+        <div class="orders-header">
+            <h1>Orders</h1>
+            <div class="orders-sub">Your recent orders and their status</div>
+        </div>
+
+        <div class="orders-list" id="ordersList">
+            <!-- order cards rendered here -->
+        </div>
+    </main>
+
+    <footer class="footer-section">
+        <div class="site-container">
+            <div class="footer-row">
+                <div class="footer-left">
+                    <div class="footer-header">Have questions?</div>
+                    <div class="footer-subheader">Contact us at our facebook page</div>
+                    <div class="footer-subheader" style="margin-top:18px;">Or via phone/email</div>
+                    <div class="footer-divider"></div>
+                    <div class="footer-note">All product names, logos, brands, trademarks, and registered trademarks are the property of their respective owners. All company, product, and service names used on this website are for identification purposes only. Use of these names, logos, and brands does not imply endorsement or affiliation.<br><br>© 2025 Shoe Pao Footwear. All rights reserved.</div>
+                </div>
+                <div class="footer-right">
+                    <a href="about-us.html" class="footer-link">About Us</a>
+                    <a href="shipping.html" class="footer-link">Shipping</a>
+                    <a href="returns.html" class="footer-link">Returns & Exchanges</a>
+                    <a href="privacy.html" class="footer-link">Privacy Policy</a>
+                    <a href="terms.html" class="footer-link">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Order Details Modal Overlay -->
+    <div id="orderModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:9999;align-items:center;justify-content:center;">
+        <div id="orderModal" style="background:#fff;border-radius:18px;box-shadow:0 8px 32px rgba(34,34,34,0.18);padding:28px;min-width:520px;max-width:96vw;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-size:1.2rem;font-weight:700;">Order Details</div>
+                <button onclick="closeOrderModal()" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:22px;height:22px;"></button>
+            </div>
+            <div style="height:1px;background:#eee;margin:14px 0;"></div>
+            <div style="display:flex;gap:18px;align-items:flex-start;">
+                <div style="flex:1;">
+                    <div id="orderModalId" style="font-weight:600;margin-bottom:6px;"></div>
+                    <div id="orderModalCustomer" style="margin-bottom:6px;font-weight:600;"></div>
+                    <div id="orderModalName" style="margin-bottom:6px;color:#444;"></div>
+                    <div id="orderModalEst" style="margin-bottom:6px;color:#444;"></div>
+                    <div id="orderModalPayment" style="margin-bottom:6px;color:#444;"></div>
+                    <div id="orderModalAddress" style="margin-bottom:6px;"></div>
+                    <!-- Revocation reasons (populated when an admin revokes a cancellation) -->
+                    <div id="orderModalRevocation" style="display:none;margin-top:6px;color:#b71c1c;font-weight:600;"></div>
+                </div>
+                <img id="orderModalImg" src="" alt="Product" style="width:160px;height:110px;object-fit:cover;border-radius:8px;">
+            </div>
+            <div style="margin-top:12px;font-weight:600;">Items</div>
+            <div id="orderModalItems" style="margin-top:8px;"></div>
+            <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <div id="orderModalStatus" style="font-weight:600;margin-bottom:6px;"></div>
+                    <div id="orderModalDelivery" style="color:#444;font-size:0.95rem;margin-top:6px;"></div>
+                </div>
+                <div id="orderModalTotal" style="font-weight:700;"></div>
+            </div>
+            <div id="orderModalTimeline" style="margin-top:14px;"></div>
+        </div>
+    </div>
+    
+            <!-- Refund Confirmation Modal -->
+            <div id="refundModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:10001;align-items:center;justify-content:center;">
+                <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                        <div style="font-weight:700;font-size:1.05rem;">Can you give a reason for your refund?</div>
+                        <button onclick="closeRefundModal()" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+                    </div>
+                    <div style="margin-bottom:8px;color:#444;">You may upload an image as proof of the issue (optional). Please provide a short explanation to continue.</div>
+                            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:8px;">
+                                <label style="display:flex;flex-direction:column;gap:6px;">
+                                    <span style="font-weight:600;">Reason</span>
+                                    <select id="refundReasonSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
+                                        <option value="">Select a reason</option>
+                                        <option value="Changed mind">Changed mind</option>
+                                        <option value="Wrong size">Wrong size</option>
+                                        <option value="Defective item">Defective item</option>
+                                        <option value="Others">Others</option>
+                                    </select>
+                                </label>
+                                <input id="refundReasonOtherText" type="text" placeholder="If Others, please specify" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;display:none;" />
+                                <label style="display:flex;flex-direction:column;gap:6px;">
+                                    <span style="font-weight:600;">Refund method</span>
+                                    <select id="refundMethodSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
+                                        <option value="">Select refund method</option>
+                                        <option value="Wallet">Wallet</option>
+                                        <option value="Original Payment">Original Payment</option>
+                                    </select>
+                                </label>
+                                <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+                                    <div id="refundUpload" style="width:100%;border:1px solid #eee;border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;min-height:48px;box-sizing:border-box;">
+                                        <div id="refundUploadInner" style="text-align:center;color:#444;font-family:'Poppins',Arial,sans-serif;width:100%;">
+                                            <img id="refundPreview" src="" alt="" style="max-width:100%;max-height:160px;display:none;border-radius:8px;margin-bottom:8px;object-fit:contain;" />
+                                            <div id="refundUploadPlaceholder" style="font-size:0.98rem;color:#444;padding:6px 8px;">+ Upload Photo (optional)</div>
+                                        </div>
+                                    </div>
+                                    <input id="refundProof" type="file" accept="image/*" style="display:none;" />
+                                </div>
+                            </div>
+                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                        <button onclick="closeRefundModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Cancel</button>
+                        <button id="confirmRefundBtn" onclick="confirmRefund()" disabled style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;">Submit Refund Request</button>
+                    </div>
+                </div>
+            </div>
+    
+    <!-- Cancel Confirmation Modal -->
+    <div id="cancelModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:10000;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:20px;max-width:560px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div style="font-weight:700;font-size:1.05rem;">Why are you cancelling this order?</div>
+                <button onclick="closeCancelModal()" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+            </div>
+            <div style="margin-bottom:8px;color:#444;">Select a reason (required). If you choose "Others" please provide details.</div>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:8px;">
+                <select id="cancelReasonSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
+                    <option value="">Select a reason</option>
+                    <option value="Changed mind">Changed mind</option>
+                    <option value="Wrong size">Wrong size</option>
+                    <option value="Defective item">Defective item</option>
+                    <option value="Others">Others</option>
+                </select>
+                <input id="cancelReasonOtherText" type="text" placeholder="If Others, please specify" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;display:none;" />
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button onclick="closeCancelModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Back</button>
+                <button id="confirmCancelBtn" onclick="confirmCancel()" disabled style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;">Confirm Cancellation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rating Modal Overlay (Order Received) -->
+    <div id="ratingModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:10002;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:20px;max-width:760px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div id="ratingModalTitle" style="font-weight:700;font-size:1.05rem;">Rate your order</div>
+                <button onclick="closeRatingModal()" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+            </div>
+            <div style="margin-bottom:10px;color:#444;">Select a star rating (1–5) and add an optional comment for each item.</div>
+            <div id="ratingItems" style="display:flex;flex-direction:column;gap:12px;max-height:54vh;overflow:auto;padding-right:4px;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button onclick="closeRatingModal()" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Cancel</button>
+                <button onclick="submitRatings()" style="background:#222;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;">Submit Rating</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="js/ratings-storage.js"></script>
+
+    <script>
+    // Render order cards from localStorage.cart (client-side orders page)
+    (function(){
+        // Require a signed-in profile for this page — don't allow anonymous viewing of all orders
+        try{
+            var __p_check = JSON.parse(localStorage.getItem('profile')||'null');
+            if(!__p_check || !__p_check.email){ window.location.href = 'login.html'; return; }
+        }catch(e){ window.location.href = 'login.html'; return; }
+        function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:0}); }
+        function toDateValue(value){
+            if(!value) return null;
+            try{
+                if(typeof value.toDate === 'function') return value.toDate();
+                if(typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+                if(typeof value._seconds === 'number') return new Date(value._seconds * 1000);
+            }catch(e){ /* ignore */ }
+            try{ return new Date(value); }catch(e){ return null; }
+        }
+        function formatOrderDateTime(value){
+            var d = toDateValue(value);
+            if(!d) return '';
+            try{ return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return d.toLocaleString(); }
+        }
+        function isWithinReturnWindow(order){
+            try{
+                var base = toDateValue(order.delivered_at || order.deliveredAt || order.created_at || order.date);
+                if(!base) return false;
+                var days = 7;
+                var limit = new Date(base.getTime() + (days * 24 * 60 * 60 * 1000));
+                return new Date() <= limit;
+            }catch(e){ return false; }
+        }
+        function titleCase(str){
+            if(!str && str !== 0) return '';
+            return String(str).split(/(\s+)/).map(token=>{
+                if(/\s+/.test(token)) return token;
+                if(!/[a-zA-Z]/.test(token.charAt(0))) return token;
+                return token.charAt(0).toUpperCase() + token.slice(1);
+            }).join('');
+        }
+
+        function normalizeDeliveryAddressFromAddressObject(addressObject){
+            if(!addressObject) return null;
+            return {
+                region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+                province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+                city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+                barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+                street: addressObject.street || addressObject.line1 || ''
+            };
+        }
+
+        function normalizeDeliveryAddressFromString(addressText){
+            if(!addressText) return null;
+            return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+        }
+
+        function formatDeliveryAddressText(addrObj){
+            if(!addrObj) return '';
+            var parts = [];
+            if(addrObj.street) parts.push(addrObj.street);
+            if(addrObj.barangay) parts.push(addrObj.barangay);
+            if(addrObj.city) parts.push(addrObj.city);
+            if(addrObj.province) parts.push(addrObj.province);
+            if(addrObj.region) parts.push(addrObj.region);
+            return parts.join(', ');
+        }
+
+        function getOrderDeliveryAddressText(order){
+            var deliveryObj = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+            return formatDeliveryAddressText(deliveryObj) || order.delivery_address || order.shippingAddress || '';
+        }
+
+        // Compute estimated delivery window based on customer's address region
+        function computeEstimatedDelivery(order){
+            try{
+                var addr = order.deliveryAddress || normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+                var token = '';
+                if(addr){ token = String((addr.province || addr.city || addr.region) || '').toLowerCase(); }
+                if(!token) token = String(order.shippingRegion || order.shipping_region || order.shipping || '').toLowerCase();
+                if(!token) return '';
+                // common Visayas provinces / tokens
+                var visayasTokens = ['cebu','leyte','samar','biliran','bohol','iloilo','capiz','antique','guimaras','negros','masbate','siquijor'];
+                var mindanaoTokens = ['davao','zamboanga','misamis','bukidnon','lanao','cotabato','sultan','agusan','surigao','dinagat','camiguin'];
+                for(var i=0;i<visayasTokens.length;i++){ if(token.indexOf(visayasTokens[i]) !== -1 || token.indexOf('visayas') !== -1) return '1–7 days'; }
+                for(var j=0;j<mindanaoTokens.length;j++){ if(token.indexOf(mindanaoTokens[j]) !== -1 || token.indexOf('mindanao') !== -1) return '1–7 days'; }
+                // default to Luzon window
+                return '1–3 days';
+            }catch(e){ return ''; }
+        }
+
+        // Determine whether a cancellation revocation message should be shown for this order
+        function isCancellationRevoked(order){
+            try{
+                if(!order || !order.cancellation) return false;
+                var c = order.cancellation;
+                if(c.adminRevoked !== true) return false;
+                // show only if there was an actual client cancellation request (clientConfirmed or reasons)
+                var clientRequested = (c.clientConfirmed === true) || (Array.isArray(c.reasons) && c.reasons.length > 0);
+                // or if the revocation payload itself contains reasons/timestamp
+                var revocationHasInfo = (c.revocation && ((Array.isArray(c.revocation.reasons) && c.revocation.reasons.length > 0) || c.revocation.timestamp));
+                return clientRequested || revocationHasInfo;
+            }catch(e){ return false; }
+        }
+
+        // Find the index of an order in the full orders array by its id
+        function findOrderIndexById(id){
+            try{ var orders = JSON.parse(localStorage.getItem('client_orders')||'[]'); return orders.findIndex(function(o){ return (o && (o.id||'')) === id; }); }catch(e){ return -1; }
+        }
+
+        // Wrapper helpers that operate by order id (safe when rendering filtered lists)
+        window.openOrderModalById = function(id){
+            if(!id) return;
+            try{
+                window.location.href = 'order-detail.html?orderId=' + encodeURIComponent(id);
+            }catch(e){ window.location.href = 'order-detail.html?orderId=' + encodeURIComponent(id); }
+        }
+        window.requestCancelOrderById = function(id){
+            var idx = findOrderIndexById(id);
+            if(idx === -1){ requestCancelOrder(-1, id); return; }
+            requestCancelOrder(idx, id);
+        }
+        window.requestRefundOrderById = function(id){
+            var idx = findOrderIndexById(id);
+            if(idx === -1){ requestRefundOrder(-1, id); return; }
+            requestRefundOrder(idx, id);
+        }
+
+        // Contact seller (Facebook page)
+        window.contactSeller = function(orderId){
+            try{
+                var fb = (window.SHOE_PAO_FACEBOOK_PAGE_URL || localStorage.getItem('shoePaoFacebookPageUrl') || '').trim();
+                if(!fb) fb = 'https://www.facebook.com/search/top/?q=' + encodeURIComponent('Shoe Pao');
+                window.open(fb, '_blank', 'noopener');
+            }catch(e){
+                try{ window.location.href = 'https://www.facebook.com/'; }catch(_){ }
+            }
+        };
+
+        // Rating modal flow (for delivered orders)
+        var _ratingModalOrderId = null;
+
+        function _getActiveProfile(){
+            try{ return JSON.parse(localStorage.getItem('profile')||'null'); }catch(e){ return null; }
+        }
+
+        var __productsCache = [];
+        var __productsCacheLoaded = false;
+        var __productsCacheLoading = false;
+
+        function _primeProductsCache(){
+            try{
+                if(__productsCacheLoaded || __productsCacheLoading) return;
+                if(typeof ensureFirebaseReady !== 'function') return;
+                __productsCacheLoading = true;
+                ensureFirebaseReady(function(err){
+                    if(err){ __productsCacheLoading = false; return; }
+                    try{
+                        var db = firebase.firestore();
+                        db.collection('products').get().then(function(snap){
+                            __productsCache = [];
+                            snap.forEach(function(doc){ __productsCache.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                            __productsCacheLoaded = true;
+                            __productsCacheLoading = false;
+                        }).catch(function(){ __productsCacheLoading = false; });
+                    }catch(e){ __productsCacheLoading = false; }
+                });
+            }catch(e){ __productsCacheLoading = false; }
+        }
+
+        function _normalizeText(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
+
+        function _resolveProductIdByName(brand, title){
+            try{
+                if(!title) return '';
+                var t = _normalizeText(title);
+                var b = _normalizeText(brand);
+                // Prefer in-memory firebase-primed cache when available
+                if(__productsCacheLoaded && Array.isArray(__productsCache) && __productsCache.length){
+                    var m = __productsCache.find(function(p){ if(!p) return false; var pn = _normalizeText(p.model || p.name || p.title); if(!pn || pn !== t) return false; if(!b) return true; return _normalizeText(p.brand||'') === b; });
+                    if(m && m.id) return String(m.id);
+                }
+                // fallback to localStorage 'products'
+                var products = JSON.parse(localStorage.getItem('products')||'[]');
+                if(Array.isArray(products)){
+                    var match = products.find(function(p){ if(!p) return false; var pn = _normalizeText(p.name || p.title); if(!pn || pn !== t) return false; if(!b) return true; return _normalizeText(p.brand||'') === b; });
+                    if(match && match.id) return String(match.id);
+                }
+            }catch(e){}
+            try{
+                var inv = JSON.parse(localStorage.getItem('inventory')||'[]');
+                if(Array.isArray(inv)){
+                    var match2 = inv.find(function(p){ if(!p) return false; var pn = _normalizeText(p.name || p.title); if(!pn || pn !== t) return false; if(!b) return true; return _normalizeText(p.brand||'') === b; });
+                    if(match2 && match2.id) return String(match2.id);
+                }
+            }catch(e){}
+            return '';
+        }
+
+        function _setStarsActive(wrapper, stars){
+            var s = Number(stars||0);
+            if(!isFinite(s)) s = 0;
+            wrapper.dataset.stars = String(s);
+            var btns = wrapper.querySelectorAll('.rating-star');
+            btns.forEach(function(b){
+                var n = Number(b.getAttribute('data-star')||0);
+                if(n && n <= s) b.classList.add('active');
+                else b.classList.remove('active');
+            });
+        }
+
+        function _escapeHtml(text){
+            return String(text||'')
+              .replace(/&/g,'&amp;')
+              .replace(/</g,'&lt;')
+              .replace(/>/g,'&gt;')
+              .replace(/"/g,'&quot;')
+              .replace(/'/g,'&#39;');
+        }
+
+        window.openRatingModalById = function(orderId){
+            try{
+                var api = window.ShoePaoRatings;
+                if(!api){ alert('Ratings system is not loaded.'); return; }
+
+                var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
+                var order = Array.isArray(orders) ? orders.find(function(o){ return (o && (o.id||'')) === orderId; }) : null;
+                if(!order) return;
+
+                var profile = _getActiveProfile() || {};
+                var userEmail = String(profile.email||'').trim().toLowerCase();
+
+                _ratingModalOrderId = orderId;
+                var overlay = document.getElementById('ratingModalOverlay');
+                var itemsEl = document.getElementById('ratingItems');
+                if(!overlay || !itemsEl) return;
+                itemsEl.innerHTML = '';
+
+                var rawItems = Array.isArray(order.items) ? order.items : [];
+                var byKey = {};
+                rawItems.forEach(function(it){
+                    if(!it) return;
+                    var title = (it.title || it.name || it.productName || it.itemName || '').trim();
+                    var brand = (it.brand || it.productBrand || '').trim();
+                    var productId = String(it.id || it.productId || it.variantId || it.sku || '').trim();
+                    if(!productId) productId = _resolveProductIdByName(brand, title);
+
+                    var key = api.getProductKey({ productId: productId, brand: brand, title: title });
+                    var qty = Number(it.quantity || it.qty || 1);
+                    if(!isFinite(qty) || qty <= 0) qty = 1;
+                    if(!byKey[key]){
+                        byKey[key] = {
+                            key: key,
+                            productId: productId,
+                            brand: brand,
+                            title: title,
+                            image: (it.image || it.img || it.productImg || '').trim(),
+                            qty: qty
+                        };
+                    } else {
+                        byKey[key].qty += qty;
+                        if(!byKey[key].image && (it.image || it.img || it.productImg)) byKey[key].image = (it.image || it.img || it.productImg);
+                    }
+                });
+
+                var keys = Object.keys(byKey);
+                if(keys.length === 0){
+                    itemsEl.innerHTML = '<div style="color:#666;">No items found for this order.</div>';
+                }
+
+                keys.forEach(function(k){
+                    var info = byKey[k];
+                    var existing = null;
+                    try{
+                        existing = api.getRatings(k).find(function(r){
+                            if(!r) return false;
+                            if(String(r.orderId||'') !== orderId) return false;
+                            if(userEmail && String(r.userEmail||'').toLowerCase() !== userEmail) return false;
+                            return true;
+                        }) || null;
+                    }catch(e){ existing = null; }
+
+                    var initialStars = existing ? Number(existing.stars||0) : 0;
+                    var initialComment = existing && existing.comment ? String(existing.comment) : '';
+
+                    var wrap = document.createElement('div');
+                    wrap.className = 'rating-item';
+                    wrap.dataset.productKey = info.key;
+                    wrap.dataset.productId = info.productId || '';
+                    wrap.dataset.brand = info.brand || '';
+                    wrap.dataset.title = info.title || '';
+                    wrap.dataset.stars = String(initialStars || 0);
+
+                    var displayTitle = _escapeHtml(info.title || 'Product');
+                    if(info.qty && info.qty > 1) displayTitle += ' <span style="color:#666;">(x' + info.qty + ')</span>';
+                    var img = info.image ? ('<img src="' + _escapeHtml(info.image) + '" alt="' + displayTitle + '">') : ('<div style="width:56px;height:56px;border-radius:10px;background:#eee;"></div>');
+
+                    wrap.innerHTML = ''
+                      + '<div>' + img + '</div>'
+                      + '<div style="flex:1;min-width:0;">'
+                      +   '<div style="font-weight:600;color:#222;">' + displayTitle + '</div>'
+                      +   '<div class="rating-stars" role="group" aria-label="Rating">'
+                      +     '<button type="button" class="rating-star" data-star="1" aria-label="1 star">★</button>'
+                      +     '<button type="button" class="rating-star" data-star="2" aria-label="2 stars">★</button>'
+                      +     '<button type="button" class="rating-star" data-star="3" aria-label="3 stars">★</button>'
+                      +     '<button type="button" class="rating-star" data-star="4" aria-label="4 stars">★</button>'
+                      +     '<button type="button" class="rating-star" data-star="5" aria-label="5 stars">★</button>'
+                      +   '</div>'
+                      +   '<textarea class="rating-comment" placeholder="Write a comment (optional)"></textarea>'
+                      + '</div>';
+
+                    var ta = wrap.querySelector('textarea');
+                    if(ta) ta.value = initialComment;
+
+                    wrap.querySelectorAll('.rating-star').forEach(function(btn){
+                        btn.addEventListener('click', function(){
+                            var n = Number(btn.getAttribute('data-star')||0);
+                            _setStarsActive(wrap, n);
+                        });
+                    });
+
+                    _setStarsActive(wrap, initialStars);
+                    itemsEl.appendChild(wrap);
+                });
+
+                overlay.style.display = 'flex';
+            }catch(e){ console.error(e); }
+        };
+
+        window.closeRatingModal = function(){
+            var overlay = document.getElementById('ratingModalOverlay');
+            if(overlay) overlay.style.display = 'none';
+            _ratingModalOrderId = null;
+            try{ var itemsEl = document.getElementById('ratingItems'); if(itemsEl) itemsEl.innerHTML = ''; }catch(e){}
+        };
+
+        window.submitRatings = function(){
+            try{
+                var api = window.ShoePaoRatings;
+                if(!api){ alert('Ratings system is not loaded.'); return; }
+                if(!_ratingModalOrderId){ window.closeRatingModal(); return; }
+
+                var profile = _getActiveProfile() || {};
+                var userEmail = String(profile.email||'').trim().toLowerCase();
+
+                var itemsEl = document.getElementById('ratingItems');
+                if(!itemsEl) return;
+                var rows = Array.prototype.slice.call(itemsEl.querySelectorAll('.rating-item'));
+                if(!rows.length){ window.closeRatingModal(); return; }
+
+                var wroteAny = false;
+                rows.forEach(function(row){
+                    var stars = Number(row.dataset.stars||0);
+                    if(!isFinite(stars) || stars <= 0) return;
+                    wroteAny = true;
+                    var commentEl = row.querySelector('textarea');
+                    var comment = commentEl ? String(commentEl.value||'').trim() : '';
+                    api.addOrUpdateRating({
+                        productKey: row.dataset.productKey,
+                        productId: row.dataset.productId,
+                        brand: row.dataset.brand,
+                        title: row.dataset.title,
+                        stars: stars,
+                        comment: comment,
+                        orderId: _ratingModalOrderId,
+                        userEmail: userEmail
+                    });
+                });
+
+                if(!wroteAny){ alert('Please select a star rating.'); return; }
+                window.closeRatingModal();
+                alert('Thanks! Your rating has been submitted.');
+            }catch(e){
+                console.error(e);
+                alert('Could not submit rating. Please try again.');
+            }
+        };
+
+        // Marking orders is handled server-side; client view is read-only.
+        window.markOrderReceivedById = function(){
+            alert('Order updates are handled by the courier.');
+        }
+
+        // Return a representative image URL from an order's items (first non-empty image), fallback to placeholder
+        function getOrderRepresentativeImage(order){
+            try{
+                if(!order || !Array.isArray(order.items)) return 'IMAGE/NIKE1.png';
+                for(var i=0;i<order.items.length;i++){
+                    var it = order.items[i];
+                    if(it && it.image && (''+it.image).trim().length) return it.image;
+                    if(it && it.image_url && (''+it.image_url).trim().length) return it.image_url;
+                }
+                return 'IMAGE/NIKE1.png';
+            }catch(e){ return 'IMAGE/NIKE1.png'; }
+        }
+
+        function ensureFirebaseReady(cb){
+            try{
+                if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('Firebase not configured')); return; }
+                var ready = function(){
+                    try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }
+                    catch(e){ if(cb) cb(e); }
+                };
+                if(window.firebase && firebase.firestore){ ready(); return; }
+                var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+                var scripts = [base + 'firebase-app-compat.js', base + 'firebase-firestore-compat.js'];
+                var i = 0;
+                function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+                loadNext();
+            }catch(e){ if(cb) cb(e); }
+        }
+
+        // Render orders from Firestore (client order history)
+        function renderOrders(){
+            const container = document.getElementById('ordersList');
+            container.innerHTML='';
+            const profile = JSON.parse(localStorage.getItem('profile')||'{}') || {};
+            const email = (profile && profile.email) ? profile.email : '';
+            const uid = (profile && profile.uid) ? profile.uid : '';
+
+            ensureFirebaseReady(function(err){
+                if(err){ container.innerHTML='<div style="color:#b71c1c">Firebase not configured.</div>'; return; }
+                try{
+                    var db = firebase.firestore();
+                    var orderRef = db.collection('orders');
+                    var promises = [];
+                    if(uid){
+                        promises.push(orderRef.where('user_id','==', uid).get());
+                    }
+                    if(email){
+                        promises.push(orderRef.where('customerEmail','==', email).get());
+                    }
+                    if(!promises.length){
+                        container.innerHTML = '<div style="color:#b71c1c">Please sign in to view orders.</div>';
+                        return;
+                    }
+                    Promise.all(promises).then(function(snaps){
+                        var orderMap = {};
+                        snaps.forEach(function(snapshot){
+                            snapshot.docs.forEach(function(d){
+                                var data = d.data() || {};
+                                data.__docId = d.id;
+                                var key = data.id || d.id;
+                                if(!orderMap[key]) orderMap[key] = data;
+                                else orderMap[key] = Object.assign({}, orderMap[key], data);
+                            });
+                        });
+                        var orders = Object.keys(orderMap).map(function(k){ return orderMap[k]; });
+                        if(!orders.length){ container.innerHTML='<div style="color:#666">You have no orders yet.</div>'; return; }
+                        orders.forEach(function(order){
+                            try{
+                                if(!order.deliveryAddress){
+                                    var computedAddr = normalizeDeliveryAddressFromAddressObject(order.addressObject) || normalizeDeliveryAddressFromString(order.delivery_address || order.shippingAddress || '');
+                                    if(computedAddr){
+                                        var targetId = order.id || order.__docId;
+                                        if(targetId){ db.collection('orders').doc(targetId).set({ deliveryAddress: computedAddr }, { merge: true }); }
+                                        order.deliveryAddress = computedAddr;
+                                    }
+                                }
+                            }catch(e){ /* ignore migration errors */ }
+                        });
+                        orders.sort(function(a,b){
+                            var da = toDateValue(a.created_at || a.date) || new Date(0);
+                            var dbv = toDateValue(b.created_at || b.date) || new Date(0);
+                            return dbv - da;
+                        });
+                        return Promise.all(orders.map(function(o){
+                            var orderId = o.id || o.__docId;
+                            return db.collection('orders').doc(orderId).collection('items').get().then(function(itemsSnap){
+                                o.items = itemsSnap.docs.map(function(it){ return it.data(); });
+                                return o;
+                            }).catch(function(){ o.items = []; return o; });
+                        })).then(function(fullOrders){
+                            try{ localStorage.setItem('client_orders', JSON.stringify(fullOrders)); }catch(e){}
+                            fullOrders.forEach(function(order){
+                                const itemCount = (order.items || []).reduce((s,it)=>s + (it.qty||it.quantity||1), 0);
+                                const firstImage = getOrderRepresentativeImage(order);
+                // derive a short shipping snippet for card display
+                var shortAddr = '';
+                var addrText = getOrderDeliveryAddressText(order);
+                if(addrText){
+                    shortAddr = addrText.replace(/\s+/g, ' ').trim();
+                    if(shortAddr.length > 60) shortAddr = shortAddr.substring(0,57) + '...';
+                } else if(order.courier_name){
+                    shortAddr = order.courier_name;
+                }
+                const card = document.createElement('div');
+                card.className='order-card';
+                card.setAttribute('role','button');
+                card.setAttribute('tabindex','0');
+                const statusNorm = String(order.status||'').toLowerCase().trim();
+                const hasCancelRequest = !!(order.cancelRequest && order.cancelRequest.requestedAt);
+                const hasReturnRequest = !!(order.returnRequest && order.returnRequest.requestedAt);
+                const canCancel = (statusNorm === 'confirmed') && !hasCancelRequest;
+                const canRefund = (statusNorm === 'delivered' || statusNorm === 'received') && !hasReturnRequest && isWithinReturnWindow(order);
+                const hideActions = statusNorm.indexOf('cancel') !== -1 || statusNorm.indexOf('refund') !== -1 || statusNorm.indexOf('return') !== -1;
+                var estText = computeEstimatedDelivery(order);
+                card.innerHTML = `
+                    <div class="order-status-box">
+                        <img src="IMAGE/PendingIcon.png" class="order-status-icon" alt="${titleCase(order.status)}">
+                        <div style="display:flex;flex-direction:column;"><span style="font-weight:600">${titleCase(order.status)}</span><span style="font-size:0.92rem;color:#666">${formatOrderDateTime(order.created_at || order.date) || ''}</span></div>
+                    </div>
+                    <img src="${firstImage}" class="order-card-img" alt="Order Image">
+                    <div class="order-card-divider"></div>
+                    <div class="order-card-info-row"><span>${itemCount} Item${itemCount>1?'s':''}</span><span style="font-weight:600">${formatPHP(order.total)}</span></div>
+                    <div class="order-card-code-row">Order ${order.id}</div>
+                    ${ shortAddr ? ('<div style="padding:6px 18px;color:#666;font-size:0.95rem;">Ship to: ' + shortAddr + '</div>') : '' }
+                    ${ estText ? ('<div style="padding:6px 18px;color:#444;font-size:0.95rem;font-weight:600;">Est. Delivery: ' + estText + '</div>') : '' }
+                        ${ isCancellationRevoked(order) ? ('<div style="padding:6px 18px;color:#b71c1c;font-weight:600;">Cancel Request Was Revoked</div>') : '' }
+                        ${ statusNorm === 'shipped' ? ('<div class="note-row">Have questions to this order? Contact us at <b>Shoe Pao Facebook Page</b>.</div>') : '' }
+                        <div class="order-card-btn-row">
+                        ${ (!hideActions && canCancel) ? (`<button class="order-card-btn cancel-btn" onclick="requestCancelOrderById('${order.id}')">Cancel Order</button>`) : '' }
+                        ${ (!hideActions && canRefund) ? (`<button class="order-card-btn refund-btn" onclick="requestRefundOrderById('${order.id}')">Return / Refund</button>`) : '' }
+                        ${ statusNorm === 'shipped' ? (`<button class="order-card-btn contact-btn" onclick="contactSeller('${order.id}')">Contact Seller</button>`) : '' }
+                        ${ statusNorm === 'delivered' ? (`<button class="order-card-btn contact-btn" onclick="contactSeller('${order.id}')">Contact Seller</button>`) : '' }
+                        ${ statusNorm === 'delivered' ? (`<button class="order-card-btn received-btn" onclick="openRatingModalById('${order.id}')">Rate Order</button>`) : '' }
+                    </div>
+                `;
+                card.addEventListener('click', function(e){
+                    try{ if(e && e.target && e.target.closest && e.target.closest('button')) return; }catch(ex){}
+                    openOrderModalById(order.id);
+                });
+                card.addEventListener('keydown', function(e){
+                    if(e.key === 'Enter' || e.key === ' '){
+                        e.preventDefault();
+                        openOrderModalById(order.id);
+                    }
+                });
+                                container.appendChild(card);
+                            });
+                        });
+                    }).catch(function(err){
+                        console.error('Orders query failed', err);
+                        container.innerHTML = '<div style="color:#b71c1c">Unable to load orders right now.</div>';
+                    });
+                }catch(e){
+                    container.innerHTML = '<div style="color:#b71c1c">Unable to load orders right now.</div>';
+                }
+            });
+        }
+
+        window.renderOrders = renderOrders;
+
+    window.addEventListener('DOMContentLoaded', _primeProductsCache);
+    window.addEventListener('DOMContentLoaded', renderOrders);
+        // If URL has ?open=<orderId>, open that order modal by finding its index
+        window.addEventListener('DOMContentLoaded', function(){
+            try{
+                var params = new URLSearchParams(window.location.search);
+                var openId = params.get('open');
+                if(openId){
+                    openOrderModalById(openId);
+                }
+            }catch(e){/* ignore */}
+        });
+
+        // Listen for admin broadcasts so this client can refresh affected orders without a full reload
+        try{
+            var CLIENT_API_BASE = (function(){ try{ var p = window.location.pathname.replace(/\/+$|^\/+/,''); var seg = p.split('/'); var root = seg.length > 0 ? '/' + seg[0] : ''; return root + '/server-proxy.php'; }catch(e){ return '/server-proxy.php'; } })();
+        }catch(e){ var CLIENT_API_BASE = '/server-proxy.php'; }
+        window.addEventListener('storage', function(e){
+            try{
+                if(e.key === 'orders_update'){
+                    var payload = null;
+                    try{ payload = JSON.parse(e.newValue || '{}'); }catch(err){}
+                    if(payload && payload.id){
+                        var id = payload.id;
+                        // Avoid noisy 404s for client-only orders by checking existence first
+                        fetch(CLIENT_API_BASE + '/api/orders/' + encodeURIComponent(id) + '/exists').then(function(r){ if(!r.ok) throw new Error('exists check failed'); return r.json(); }).then(function(ex){
+                            if(!ex || !ex.exists) return null;
+                            return fetch(CLIENT_API_BASE + '/api/orders/' + encodeURIComponent(id)).then(function(r2){ if(!r2.ok) throw new Error('no order'); return r2.json(); });
+                        }).then(function(j){
+                            var serverOrder = (j && j.order) ? j.order : (j && j.id ? j : null);
+                            if(!serverOrder) return;
+                            try{
+                                var clientOrders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
+                                var idx = clientOrders.findIndex(function(o){ return o && (o.id||'') === serverOrder.id; });
+                                if(idx === -1) clientOrders.unshift(serverOrder);
+                                else clientOrders[idx] = Object.assign({}, clientOrders[idx], serverOrder);
+                                localStorage.setItem('client_orders', JSON.stringify(clientOrders));
+                            }catch(e){/* ignore persist errors */}
+                            try{ renderOrders(); }catch(e){}
+                        }).catch(function(){ /* ignore fetch failures */ });
+                    }
+                }
+            }catch(e){}
+        });
+
+        // Orders are loaded from the server; no local storage sync needed.
+
+        window.removeOrder = function(idx){
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
+            if (!orders || !orders[idx]) return;
+            orders.splice(idx,1);
+            localStorage.setItem('client_orders', JSON.stringify(orders));
+            renderOrders(); closeOrderModal();
+        }
+
+    // Cancellation flow: request explanation before marking cancelled
+    var _pendingCancelIndex = null;
+    var _pendingCancelOrderId = null;
+    // Refund flow
+    var _pendingRefundIndex = null;
+    var _pendingRefundOrderId = null;
+        // Expose these helpers on `window` so inline onclick handlers can call them
+        window.requestCancelOrder = function(idx, orderId){
+            _pendingCancelIndex = idx;
+            _pendingCancelOrderId = orderId || null;
+            // reset cancel modal inputs
+            var sel = document.getElementById('cancelReasonSelect'); if(sel) sel.value = '';
+            var otherText = document.getElementById('cancelReasonOtherText'); if(otherText){ otherText.value = ''; otherText.style.display = 'none'; }
+            var btn = document.getElementById('confirmCancelBtn'); if(btn) btn.disabled = true;
+            var overlay = document.getElementById('cancelModalOverlay');
+            if(overlay) overlay.style.display = 'flex';
+            setTimeout(function(){ var el = document.getElementById('cancelReasonOtherText'); if(el) el.focus(); }, 120);
+        }
+
+        window.closeCancelModal = function(){
+            var overlay = document.getElementById('cancelModalOverlay');
+            if(overlay) overlay.style.display = 'none';
+            _pendingCancelIndex = null;
+            _pendingCancelOrderId = null;
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            // Cancel modal inputs
+            var cancelSel = document.getElementById('cancelReasonSelect');
+            var cancelOther = document.getElementById('cancelReasonOtherText');
+            function updateCancelBtn(){
+                var btn = document.getElementById('confirmCancelBtn');
+                if(!btn) return;
+                var val = cancelSel ? cancelSel.value : '';
+                if(!val){ btn.disabled = true; return; }
+                if(val === 'Others'){
+                    if(cancelOther) cancelOther.style.display = 'block';
+                    btn.disabled = !(cancelOther && cancelOther.value && cancelOther.value.trim().length > 2);
+                    return;
+                }
+                if(cancelOther) cancelOther.style.display = 'none';
+                btn.disabled = false;
+            }
+            if(cancelSel) cancelSel.addEventListener('change', updateCancelBtn);
+            if(cancelOther) cancelOther.addEventListener('input', updateCancelBtn);
+
+            var refundSel = document.getElementById('refundReasonSelect');
+            var refundOther = document.getElementById('refundReasonOtherText');
+            var refundMethod = document.getElementById('refundMethodSelect');
+            function updateRefundBtn(){
+                var btn = document.getElementById('confirmRefundBtn'); if(!btn) return;
+                var reason = refundSel ? refundSel.value : '';
+                var method = refundMethod ? refundMethod.value : '';
+                if(refundOther) refundOther.style.display = (reason === 'Others') ? 'block' : 'none';
+                if(!reason || !method){ btn.disabled = true; return; }
+                if(reason === 'Others'){
+                    btn.disabled = !(refundOther && refundOther.value && refundOther.value.trim().length > 2);
+                    return;
+                }
+                btn.disabled = false;
+            }
+            if(refundSel) refundSel.addEventListener('change', updateRefundBtn);
+            if(refundOther) refundOther.addEventListener('input', updateRefundBtn);
+            if(refundMethod) refundMethod.addEventListener('change', updateRefundBtn);
+            // Setup refund upload click / preview behavior
+            var refundUpload = document.getElementById('refundUpload');
+            var refundInput = document.getElementById('refundProof');
+            var refundPreview = document.getElementById('refundPreview');
+            var refundPlaceholder = document.getElementById('refundUploadPlaceholder');
+            if(refundUpload && refundInput){
+                refundUpload.addEventListener('click', function(){ refundInput.click(); });
+                refundInput.addEventListener('change', function(e){
+                    var file = (refundInput.files && refundInput.files[0]) || null;
+                    if(!file){ refundPreview.style.display = 'none'; refundPlaceholder.style.display = 'block'; return; }
+                    if(file.type && file.type.indexOf('image') === 0){
+                        var reader = new FileReader();
+                        reader.onload = function(ev){
+                            refundPreview.src = ev.target.result;
+                            refundPreview.style.display = 'block';
+                            refundPlaceholder.style.display = 'none';
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        // not image: just show filename
+                        refundPreview.style.display = 'none';
+                        refundPlaceholder.textContent = file.name || 'Selected file';
+                    }
+                });
+            }
+        });
+
+        function updateOrderInFirestore(orderId, payload){
+            if(!orderId || !payload) return;
+            ensureFirebaseReady(function(err){
+                if(err) return;
+                try{
+                    firebase.firestore().collection('orders').doc(orderId).set(payload, { merge: true }).then(function(){
+                        try{ renderOrders(); }catch(e){}
+                    }).catch(function(){ /* ignore */ });
+                }catch(e){ /* ignore */ }
+            });
+        }
+
+        window.confirmCancel = function(){
+            // gather selected reasons
+            var sel = document.getElementById('cancelReasonSelect');
+            var otherText = document.getElementById('cancelReasonOtherText');
+            var reason = sel ? sel.value : '';
+            if(!reason) return;
+            if(reason === 'Others'){
+                if(!otherText || !otherText.value || otherText.value.trim().length < 3) return;
+                reason = otherText.value.trim();
+            }
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
+            var idx = _pendingCancelIndex;
+            var order = (orders && orders[idx]) ? orders[idx] : null;
+            var orderId = _pendingCancelOrderId || (order && order.id) || null;
+            if(order && order.cancelRequest && order.cancelRequest.requestedAt){
+                alert('You already submitted a cancellation request for this order.');
+                return;
+            }
+            var prevStatus = (order && order.status) ? order.status : 'Pending';
+            var cancelPayload = {
+                previousStatus: prevStatus,
+                cancelRequest: {
+                    cancellationReason: reason,
+                    requestedAt: new Date().toISOString(),
+                    adminNote: ''
+                }
+            };
+                if(order){
+                    order.previousStatus = cancelPayload.previousStatus;
+                    order.cancelRequest = cancelPayload.cancelRequest;
+                    orders[idx] = order;
+                    localStorage.setItem('client_orders', JSON.stringify(orders));
+                }
+            updateOrderInFirestore(orderId, cancelPayload);
+            window.closeCancelModal && window.closeCancelModal();
+            renderOrders();
+            // If order modal is open for this order, close it
+            try{ var overlay = document.getElementById('orderModalOverlay'); if(overlay && overlay.style.display==='flex'){ closeOrderModal(); } }catch(e){}
+        }
+
+        // Refund modal helpers
+        window.requestRefundOrder = function(idx, orderId){
+            _pendingRefundIndex = idx;
+            _pendingRefundOrderId = orderId || null;
+            try{
+                var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
+                var order = (orders && orders[idx]) ? orders[idx] : null;
+                if(order && !isWithinReturnWindow(order)){
+                    alert('Return window has expired for this order.');
+                    return;
+                }
+            }catch(e){ /* ignore */ }
+            var proofEl = document.getElementById('refundProof'); if(proofEl) proofEl.value = '';
+            var btn = document.getElementById('confirmRefundBtn'); if(btn) btn.disabled = true;
+            var overlay = document.getElementById('refundModalOverlay'); if(overlay) overlay.style.display = 'flex';
+            setTimeout(function(){ var el = document.getElementById('refundReasonSelect'); if(el) el.focus(); }, 120);
+        }
+
+        window.closeRefundModal = function(){
+            var overlay = document.getElementById('refundModalOverlay'); if(overlay) overlay.style.display = 'none';
+            _pendingRefundIndex = null;
+            _pendingRefundOrderId = null;
+        }
+
+        window.confirmRefund = function(){
+            // gather selected reasons
+            var reasonSel = document.getElementById('refundReasonSelect');
+            var otherText = document.getElementById('refundReasonOtherText');
+            var methodSel = document.getElementById('refundMethodSelect');
+            var reason = reasonSel ? reasonSel.value : '';
+            var method = methodSel ? methodSel.value : '';
+            if(!reason || !method) return;
+            if(reason === 'Others'){
+                if(!otherText || !otherText.value || otherText.value.trim().length < 3) return;
+                reason = otherText.value.trim();
+            }
+
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
+            var idx = _pendingRefundIndex;
+            var order = (orders && orders[idx]) ? orders[idx] : null;
+            var orderId = _pendingRefundOrderId || (order && order.id) || null;
+            if(order && order.returnRequest && order.returnRequest.requestedAt){
+                alert('You already submitted a return/refund request for this order.');
+                return;
+            }
+            var prevStatus = (order && order.status) ? order.status : 'Pending';
+            var refundPayload = {
+                previousStatus: prevStatus,
+                returnRequest: {
+                    returnReason: reason,
+                    refundMethod: method,
+                    proofImages: [],
+                    requestedAt: new Date().toISOString(),
+                    refundStatus: 'Pending',
+                    adminNote: ''
+                }
+            };
+
+            // if file attached, read it as data URL and persist inside order.refund
+            var proofInput = document.getElementById('refundProof');
+            var file = (proofInput && proofInput.files && proofInput.files[0]) ? proofInput.files[0] : null;
+            function persistOrderWithProof(dataUrl, fileName){
+                if(dataUrl){ refundPayload.returnRequest.proofImages = [dataUrl]; refundPayload.returnRequest.proofName = fileName || ''; }
+                if(order){
+                    order.previousStatus = refundPayload.previousStatus;
+                    order.returnRequest = refundPayload.returnRequest;
+                    orders[idx] = order;
+                    localStorage.setItem('client_orders', JSON.stringify(orders));
+                }
+                updateOrderInFirestore(orderId, refundPayload);
+                window.closeRefundModal && window.closeRefundModal();
+                renderOrders();
+                try{ var overlay = document.getElementById('orderModalOverlay'); if(overlay && overlay.style.display==='flex'){ closeOrderModal(); } }catch(e){}
+            }
+            if(file){
+                var reader = new FileReader();
+                reader.onload = function(ev){ try{ persistOrderWithProof(ev.target.result, file.name); }catch(e){ persistOrderWithProof(null); } };
+                reader.readAsDataURL(file);
+            } else {
+                persistOrderWithProof(null);
+            }
+        }
+
+        window.openOrderModal = function(idx){
+            var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
+            var order = orders[idx];
+            if(!order) return;
+            document.getElementById('orderModalId').textContent = 'Order ID: ' + order.id;
+            // customer name: prefer currently logged-in profile.name, fall back to order snapshot or checkout fallback
+            var activeProfile = JSON.parse(localStorage.getItem('profile')||'{}') || {};
+            var customerName = (activeProfile && activeProfile.name) ? activeProfile.name : (order.customerName || localStorage.getItem('checkoutCustomerName') || '');
+            document.getElementById('orderModalCustomer').textContent = customerName ? ('Customer: ' + customerName) : '';
+            document.getElementById('orderModalName').textContent = 'Order Date: ' + (formatOrderDateTime(order.created_at || order.date) || '');
+            // Est. Delivery (computed by customer's region — overrides manual est field)
+            try{ var modalEst = computeEstimatedDelivery(order); document.getElementById('orderModalEst').textContent = modalEst ? ('Est. Delivery: ' + modalEst) : ''; }catch(e){ document.getElementById('orderModalEst').textContent = ''; }
+            // show payment method and tracking separately
+            // Payment: prefer paymentLabel, fall back to payment or mapping from code
+            var paymentLabel = order.paymentLabel || order.payment || '';
+            if(!paymentLabel && order.paymentCode){
+                if(order.paymentCode === 'qr_ph') paymentLabel = 'QR PH';
+                else if(order.paymentCode === 'bank_transfer') paymentLabel = 'Bank Transfer';
+                else if(order.paymentCode === 'cod') paymentLabel = 'Cash on Delivery';
+            }
+            document.getElementById('orderModalPayment').textContent = paymentLabel ? ('Payment: ' + paymentLabel) : '';
+            // show shipping address (if present) and tracking number
+            var addrTxt = '';
+            var addrText = getOrderDeliveryAddressText(order);
+            if(addrText){ addrTxt += 'Ship to: ' + addrText; }
+            if(order.shippingRegion){ addrTxt += (addrTxt ? ' — ' : '') + 'Region: ' + order.shippingRegion; }
+            if(order.tracking){ addrTxt += (addrTxt ? '\n' : '') + 'Tracking #: ' + order.tracking; }
+            document.getElementById('orderModalAddress').textContent = addrTxt;
+            // delivery method: prefer deliveryLabel, fall back to deliveryMethod or checkout value
+            var deliveryLabel = order.deliveryLabel || order.deliveryMethod || localStorage.getItem('checkoutDelivery') || '';
+            if(!deliveryLabel && order.deliveryCode){
+                if(order.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery';
+                else if(order.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove';
+                else if(order.deliveryCode === 'jnt') deliveryLabel = 'J&T Express';
+                else if(order.deliveryCode === 'jrs') deliveryLabel = 'JRS';
+            }
+            document.getElementById('orderModalDelivery').textContent = deliveryLabel ? ('Delivery: ' + deliveryLabel) : '';
+            document.getElementById('orderModalImg').src = getOrderRepresentativeImage(order);
+            // items list
+            var itemsHtml = '';
+            order.items.forEach(function(it){
+                var qty = it.quantity || it.qty || 1;
+                itemsHtml += '<div style="margin-bottom:6px;">' + qty + ' x ' + (it.title||'Product') + ' — ' + formatPHP((it.price||0) * qty) + '</div>';
+            });
+            document.getElementById('orderModalItems').innerHTML = itemsHtml;
+            document.getElementById('orderModalStatus').textContent = 'Status: ' + titleCase(order.status);
+            try{
+                var timeline = document.getElementById('orderModalTimeline');
+                if(timeline){
+                    var norm = String(order.status||'').toLowerCase();
+                    var isCancelled = norm.indexOf('cancel') !== -1 || (order.cancelRequest && order.cancelRequest.approvedAt);
+                    var prevStatus = String(order.previousStatus || (order.cancelRequest && order.cancelRequest.previousStatus) || '').toLowerCase();
+                    var steps = [
+                        { key: 'placed', label: 'Order Placed' },
+                        { key: 'shipped', label: 'Shipped' },
+                        { key: 'delivered', label: 'Delivered' },
+                        { key: 'return_requested', label: 'Return Requested' },
+                        { key: 'approved', label: 'Approved' },
+                        { key: 'refunded', label: 'Refunded' }
+                    ];
+                    if(isCancelled){
+                        if(prevStatus === 'confirmed' || norm === 'confirmed'){
+                            steps = [
+                                { key: 'placed', label: 'Order Placed' },
+                                { key: 'preparing', label: 'Preparing' },
+                                { key: 'cancelled', label: 'Order Cancelled' }
+                            ];
+                        } else {
+                            steps = [
+                                { key: 'placed', label: 'Order Placed' },
+                                { key: 'cancelled', label: 'Order Cancelled' }
+                            ];
+                        }
+                    }
+                    var requested = order.returnRequest && order.returnRequest.requestedAt;
+                    var approved = order.returnRequest && order.returnRequest.approvedAt;
+                    var refunded = (order.returnRequest && String(order.returnRequest.refundStatus||'').toLowerCase() === 'refunded') || norm === 'refunded';
+                    var activeIdx = 0;
+                    if(!isCancelled){
+                        if(norm.indexOf('shipped') !== -1) activeIdx = 1;
+                        if(norm.indexOf('delivered') !== -1) activeIdx = 2;
+                        if(requested) activeIdx = Math.max(activeIdx, 3);
+                        if(approved) activeIdx = Math.max(activeIdx, 4);
+                        if(refunded) activeIdx = Math.max(activeIdx, 5);
+                    } else {
+                        activeIdx = steps.length - 1;
+                    }
+                    timeline.innerHTML = '<div style="display:flex;flex-direction:column;gap:8px;">' + steps.map(function(s, i){
+                        var done = i <= activeIdx;
+                        return '<div style="display:flex;align-items:center;gap:10px;">'
+                            + '<div style="width:10px;height:10px;border-radius:50%;background:' + (done ? '#2e7d32' : '#ccc') + ';"></div>'
+                            + '<div style="font-size:0.95rem;color:' + (done ? '#222' : '#888') + ';">' + s.label + '</div>'
+                            + '</div>';
+                    }).join('') + '</div>';
+                }
+            }catch(e){ /* ignore */ }
+            // show shipping (if present) and total
+            var ship = Number(order.shipping || 0);
+            if(ship && ship > 0){
+                var shipLine = '<div style="margin-top:8px;color:#444;">Shipping: ' + formatPHP(ship) + '</div>';
+                document.getElementById('orderModalItems').insertAdjacentHTML('beforeend', shipLine);
+            }
+            document.getElementById('orderModalTotal').textContent = formatPHP(order.total || (order.subtotal + (order.shipping||0)));
+            // Show admin revocation reasons if admin revoked a cancellation
+            try{
+                var revDiv = document.getElementById('orderModalRevocation');
+                if(revDiv){
+                    if(isCancellationRevoked(order)){
+                        var rev = order.cancellation.revocation || {};
+                        var reasons = (rev.reasons && rev.reasons.length) ? rev.reasons : (order.cancellation.reasons || []);
+                        var ts = rev.timestamp || (order.cancellation.revocation && order.cancellation.revocation.timestamp) || '';
+                        var html = '<div style="font-weight:700;color:#b71c1c;margin-top:6px;">Cancel Request Was Revoked</div>';
+                        if(reasons && reasons.length){
+                            html += '<div style="color:#444;font-weight:600;margin-top:6px;">Reason(s):</div><ul style="margin:6px 0 0 18px;color:#444;">';
+                            reasons.forEach(function(r){ html += '<li>' + (r || '') + '</li>'; });
+                            html += '</ul>';
+                        }
+                        if(ts){
+                            try{ html += '<div style="margin-top:6px;color:#666;font-size:0.9rem;">Revoked on: ' + new Date(ts).toLocaleString() + '</div>'; }catch(e){ html += '<div style="margin-top:6px;color:#666;font-size:0.9rem;">Revoked on: ' + ts + '</div>'; }
+                        }
+                        revDiv.innerHTML = html; revDiv.style.display = 'block';
+                    } else {
+                        revDiv.innerHTML = ''; revDiv.style.display = 'none';
+                    }
+                }
+            }catch(e){ /* ignore if modal missing */ }
+            document.getElementById('orderModalOverlay').style.display = 'flex'; document.body.style.overflow='hidden';
+        }
+
+        window.closeOrderModal = function(){ document.getElementById('orderModalOverlay').style.display = 'none'; document.body.style.overflow=''; }
+    })();
+    </script>
+
+    <script>
+    // Navigation bar functions (from profile.html) to match profile header behavior
+    function goToHome() { window.location.href = 'home.html'; }
+    function goToProfile() {
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
+    }
+    function goToProductList() { window.location.href = 'product-list.html'; }
+    function goToOrders() { window.location.href = 'client-orders.html'; }
+    function goToWishlist() { window.location.href = 'wishlist.html'; }
+    function goToFAQ() { window.location.href = 'privacy.html'; }
+    function goToContact() { window.location.href = 'contact.html'; }
+    function goToUserPage() {
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
+    }
+    function goToCartPage() { window.location.href = 'cart.html'; }
+    function toggleSearchBox() {
+        var box = document.getElementById('searchBox');
+        box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+        if (box.style.display === 'block') {
+            document.getElementById('searchInput').focus();
+        }
+    }
+    function searchKeyDown(e) {
+        if (e.key === 'Enter') {
+            var val = document.getElementById('searchInput').value.trim();
+            if (val) {
+                window.location.href = 'product-list.html?search=' + encodeURIComponent(val);
+            }
+        }
+    }
+    </script>
+
+    <!-- ===== ADDED: Cart Overlay + Sidebar HTML (from product-list.html) ===== -->
+    <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
+    <aside id="cartSidebar" class="cart-sidebar" aria-hidden="true" role="complementary">
+        <div class="cart-header-row">
+            <div>
+                <span class="cart-header-title">Cart (<span id="cartCount">0</span>)</span>
+            </div>
+            <button id="closeCartBtn" class="cart-close" aria-label="Close cart"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+        </div>
+        <div class="cart-divider"></div>
+        <div id="cartItems" class="cart-items">
+            <div class="cart-empty">Your cart is empty</div>
+        </div>
+        <div class="cart-divider"></div>
+        <div class="cart-subtotal-row">
+            <span class="cart-subtotal-label">Subtotal</span>
+            <span id="cartSubtotal" class="cart-subtotal-value">₱0.00</span>
+        </div>
+        <button id="checkoutBtn" class="cart-checkout-btn">Checkout</button>
+    </aside>
+    <!-- ===== ADDED: Cart Sidebar Behavior (from product-list.html) ===== -->
+    <script>
+    (function(){
+        // cart data structure
+    let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        // helpers
+        function parsePriceToNumber(priceText) {
+            if (!priceText) return 0;
+            var v = priceText.replace(/[^0-9.]/g, '');
+            return parseFloat(v || 0);
+        }
+        function formatPHP(amount) {
+            try {
+                return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+            } catch (e) {
+                return '₱' + Number(amount).toFixed(2);
+            }
+        }
+        function saveCartToLocalStorage() {
+            localStorage.setItem('cart', JSON.stringify(cart));
+        }
+        // DOM refs
+        const cartOverlay = document.getElementById('cartOverlay');
+        const cartSidebar = document.getElementById('cartSidebar');
+        const cartItemsContainer = document.getElementById('cartItems');
+        const cartCountEl = document.getElementById('cartCount');
+        const cartSubtotalEl = document.getElementById('cartSubtotal');
+        const closeCartBtn = document.getElementById('closeCartBtn');
+        const checkoutBtn = document.getElementById('checkoutBtn');
+        // find nav cart button (the one with image alt="Cart")
+        function getNavCartButton() {
+            const img = document.querySelector('img[alt="Cart"]');
+            if (!img) return null;
+            return img.closest('button');
+        }
+        function openCartSidebar() {
+            cartOverlay.classList.add('show');
+            cartSidebar.classList.add('open');
+            document.body.style.overflow = 'hidden';
+            cartSidebar.setAttribute('aria-hidden', 'false');
+            cartOverlay.setAttribute('aria-hidden', 'false');
+        }
+        function closeCartSidebar() {
+            cartOverlay.classList.remove('show');
+            cartSidebar.classList.remove('open');
+            document.body.style.overflow = '';
+            cartSidebar.setAttribute('aria-hidden', 'true');
+            cartOverlay.setAttribute('aria-hidden', 'true');
+        }
+        function renderCart() {
+            cartItemsContainer.innerHTML = '';
+            if (cart.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'cart-empty';
+                empty.textContent = 'Your cart is empty';
+                cartItemsContainer.appendChild(empty);
+                cartCountEl.textContent = 0;
+                cartSubtotalEl.textContent = formatPHP(0);
+                saveCartToLocalStorage();
+                return;
+            }
+            let subtotal = 0;
+            let totalQty = 0;
+            cart.forEach((item, index) => {
+                const qty = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
+                subtotal += item.price * qty;
+                totalQty += qty;
+                const box = document.createElement('div');
+                box.className = 'cart-item-box';
+                const img = document.createElement('img');
+                img.className = 'cart-item-img';
+                img.src = item.image || 'IMAGE/NIKE1.png';
+                img.alt = item.title || 'Product';
+                const middle = document.createElement('div');
+                middle.className = 'cart-item-middle';
+                const title = document.createElement('div');
+                title.className = 'cart-item-title';
+                title.textContent = item.title;
+                const brand = document.createElement('div');
+                brand.className = 'cart-item-brand';
+                brand.textContent = item.brand;
+                const size = document.createElement('div');
+                size.className = 'cart-item-size';
+                size.textContent = 'Size: ' + (item.size || '');
+                const qtyControls = document.createElement('div');
+                qtyControls.className = 'cart-quantity-controls';
+                const lessenBtn = document.createElement('button');
+                lessenBtn.className = 'qty-btn decrease';
+                lessenBtn.setAttribute('data-index', index);
+                const lessenImg = document.createElement('img');
+                lessenImg.src = 'IMAGE/LessenBTN.png';
+                lessenImg.alt = '-';
+                lessenImg.style.width = '22px';
+                lessenImg.style.height = '22px';
+                lessenBtn.appendChild(lessenImg);
+                const qtyText = document.createElement('span');
+                qtyText.className = 'cart-item-qty';
+                qtyText.textContent = qty;
+                const addBtn = document.createElement('button');
+                addBtn.className = 'qty-btn increase';
+                addBtn.setAttribute('data-index', index);
+                const addImg = document.createElement('img');
+                addImg.src = 'IMAGE/AddBTN.png';
+                addImg.alt = '+';
+                addImg.style.width = '22px';
+                addImg.style.height = '22px';
+                addBtn.appendChild(addImg);
+                qtyControls.appendChild(lessenBtn);
+                qtyControls.appendChild(qtyText);
+                qtyControls.appendChild(addBtn);
+                middle.appendChild(title);
+                middle.appendChild(brand);
+                middle.appendChild(size);
+                middle.appendChild(qtyControls);
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'cart-item-remove';
+                removeBtn.setAttribute('data-index', index);
+                const trashImg = document.createElement('img');
+                trashImg.src = 'IMAGE/TrashIcon.png';
+                trashImg.alt = 'Remove';
+                trashImg.style.width = '18px';
+                trashImg.style.height = '18px';
+                removeBtn.appendChild(trashImg);
+                const priceEl = document.createElement('div');
+                priceEl.className = 'cart-item-price';
+                priceEl.textContent = formatPHP(item.price * qty);
+                box.appendChild(img);
+                box.appendChild(middle);
+                box.appendChild(removeBtn);
+                box.appendChild(priceEl);
+                cartItemsContainer.appendChild(box);
+            });
+            cartCountEl.textContent = totalQty;
+            cartSubtotalEl.textContent = formatPHP(subtotal);
+            attachCartEvents();
+        }
+        function attachCartEvents() {
+            // decrease
+            document.querySelectorAll('.qty-btn.decrease').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        if (window.tryDecrementCartItem) {
+                            window.tryDecrementCartItem(cart, idx);
+                        } else {
+                            // Use qty if present, else quantity
+                            if (typeof cart[idx].qty === 'number') {
+                                if (cart[idx].qty > 1) {
+                                    cart[idx].qty--;
+                                }
+                            } else if (typeof cart[idx].quantity === 'number') {
+                                if (cart[idx].quantity > 1) {
+                                    cart[idx].quantity--;
+                                }
+                            }
+                        }
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            // increase
+            document.querySelectorAll('.qty-btn.increase').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx) && cart[idx]) {
+                        if (window.tryIncrementCartItem) {
+                            var incRes = window.tryIncrementCartItem(cart, idx);
+                            if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                else alert('Maximum of 3 pairs of shoes per order.');
+                                return;
+                            }
+                        } else {
+                            if (typeof cart[idx].qty === 'number') {
+                                cart[idx].qty++;
+                            } else if (typeof cart[idx].quantity === 'number') {
+                                cart[idx].quantity++;
+                            }
+                        }
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+            // remove
+            document.querySelectorAll('.cart-item-remove').forEach(btn => {
+                btn.onclick = function(e) {
+                    const idx = parseInt(btn.getAttribute('data-index'), 10);
+                    if (!isNaN(idx)) {
+                        cart.splice(idx, 1);
+                        renderCart();
+                        saveCartToLocalStorage();
+                    }
+                };
+            });
+        }
+        // Hook nav cart button (remove its inline navigation and replace with open sidebar)
+        document.addEventListener('DOMContentLoaded', function() {
+            const navCartBtn = getNavCartButton();
+            if (navCartBtn) {
+                navCartBtn.removeAttribute('onclick');
+                navCartBtn.addEventListener('click', function(e){
+                    e.preventDefault();
+                    openCartSidebar();
+                });
+            }
+            // hook close buttons and overlay
+            if (closeCartBtn) closeCartBtn.addEventListener('click', closeCartSidebar);
+            if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
+            renderCart();
+            if (checkoutBtn) {
+                checkoutBtn.addEventListener('click', function(){
+                    window.location.href = 'checkout.html';
+                });
+            }
+        });
+    })();
+    </script>
+    <script src="cart-storage.js"></script>
+
+</body>
+</html>
