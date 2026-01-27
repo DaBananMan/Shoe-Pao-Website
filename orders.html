@@ -1501,6 +1501,7 @@
                             }catch(e){ /* ignore */ }
                         });
 
+                        var batch = db.batch();
                         var did = false;
                         var variantUpdates = new Map();
                         var productUpdates = new Map();
@@ -1680,61 +1681,19 @@
                             }
                         });
 
-                        var ops = [];
                         variantUpdates.forEach(function(state){
                             if(!state || !state.payload || !Object.keys(state.payload).length) return;
                             state.payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                            ops.push({ ref: state.ref, payload: state.payload });
+                            batch.update(state.ref, state.payload);
                         });
                         productUpdates.forEach(function(state){
                             if(!state || !state.payload || !Object.keys(state.payload).length) return;
                             state.payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                            ops.push({ ref: state.ref, payload: state.payload });
+                            batch.update(state.ref, state.payload);
                         });
 
-                        if(!did || !ops.length) return resolve(false);
-
-                        var MAX_RETRIES = 5;
-                        var BASE_DELAY = 300;
-                        var CHUNK_SIZE = 350;
-                        function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
-                        function shouldRetry(err){
-                            try{
-                                var code = (err && (err.code || err.status || err.message || ''));
-                                code = String(code || '').toLowerCase();
-                                return code.indexOf('resource-exhausted') !== -1 ||
-                                       code.indexOf('unavailable') !== -1 ||
-                                       code.indexOf('aborted') !== -1 ||
-                                       code.indexOf('deadline-exceeded') !== -1 ||
-                                       code.indexOf('quota') !== -1 ||
-                                       code.indexOf('rate') !== -1;
-                            }catch(e){ return false; }
-                        }
-                        function commitChunk(chunk, attempt){
-                            var batch = db.batch();
-                            chunk.forEach(function(op){ batch.update(op.ref, op.payload); });
-                            return batch.commit().catch(function(err){
-                                if(shouldRetry(err) && attempt < MAX_RETRIES){
-                                    var delay = BASE_DELAY * Math.pow(2, attempt) + Math.floor(Math.random() * 150);
-                                    return sleep(delay).then(function(){ return commitChunk(chunk, attempt + 1); });
-                                }
-                                throw err;
-                            });
-                        }
-                        function commitSequential(){
-                            var idx = 0;
-                            var seq = Promise.resolve(true);
-                            while(idx < ops.length){
-                                (function(start){
-                                    var chunk = ops.slice(start, start + CHUNK_SIZE);
-                                    seq = seq.then(function(){ return commitChunk(chunk, 0); });
-                                })(idx);
-                                idx += CHUNK_SIZE;
-                            }
-                            return seq;
-                        }
-
-                        commitSequential().then(function(){ resolve(true); }).catch(function(){ resolve(false); });
+                        if(!did) return resolve(false);
+                        batch.commit().then(function(){ resolve(true); }).catch(function(){ resolve(false); });
                     }).catch(function(){ resolve(false); });
                 }catch(e){ resolve(false); }
             });

@@ -82,13 +82,11 @@
         }
         .productview-center {
             display: flex;
-            flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
+            justify-content: center;
             min-width: 380px;
             min-height: 380px;
             position: relative;
-            padding-top: 8px;
         }
         .productview-main-img {
             width: 380px;
@@ -423,132 +421,47 @@
             max-width: 98vw;
             height: auto;
         }
-        .productview-reviews-section {
-            max-width: 1200px;
-            margin: 48px auto 32px auto;
-            padding: 0 24px;
-        }
         .productview-reviews-header {
             text-align: left;
-            font-size: 1.5rem;
-            font-weight: 700;
+            font-size: 1.3rem;
+            font-weight: 600;
             color: #222;
-            margin-bottom: 16px;
+            margin-bottom: 18px;
+            padding-left: 32px;
+            padding-right: 32px;
         }
         .productview-reviews-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 24px;
-            align-items: stretch;
-            justify-items: stretch;
+            display: flex;
+            gap: 48px;
+            align-items: flex-start;
+            margin-bottom: 32px;
+            padding-left: 32px;
+            padding-right: 32px;
         }
-        .productview-reviews-card {
-            background: #fff;
-            border: 1px solid #eee;
-            border-radius: 18px;
-            padding: 20px;
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.06);
+        .productview-reviews-left {
+            flex: 2;
             display: flex;
             flex-direction: column;
             gap: 12px;
         }
-        .reviews-card-title {
-            font-size: 1.02rem;
-            font-weight: 600;
-            color: #222;
+        .productview-reviews-divider {
+            width: 2px;
+            height: 120px;
+            background: #eee;
+            margin: 0 24px;
         }
-        .ratings-avg {
-            display: flex;
-            align-items: baseline;
-            gap: 10px;
-            color: #222;
-        }
-        .ratings-avg .rating-stars {
-            font-size: 1.3rem;
-            letter-spacing: 2px;
-        }
-        .ratings-avg .rating-score {
-            font-size: 1.45rem;
-            font-weight: 700;
-        }
-        .ratings-avg .rating-outof {
-            font-size: 0.95rem;
-            color: #666;
-        }
-        .ratings-based {
-            font-size: 0.98rem;
-            color: #555;
-        }
-        .ratings-recent {
+        .productview-reviews-center {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-        }
-        .review-snippet {
-            background: #fafafa;
-            border: 1px solid #eee;
-            border-radius: 12px;
-            padding: 10px 12px;
-        }
-        .review-snippet__stars {
-            font-size: 1.05rem;
-            color: #222;
-        }
-        .review-snippet__meta {
-            font-size: 0.92rem;
-            color: #666;
-            margin-top: 4px;
-        }
-        .review-snippet__comment {
-            font-size: 0.95rem;
-            color: #444;
-            margin-top: 6px;
-            line-height: 1.4;
-        }
-        .ratings-breakdown {
-            display: flex;
-            flex-direction: column;
+            align-items: center;
             gap: 8px;
         }
-        .ratings-breakdown-row {
-            display: grid;
-            grid-template-columns: 50px 1fr 32px;
-            gap: 10px;
-            align-items: center;
-            font-size: 0.95rem;
-            color: #222;
-        }
-        .ratings-breakdown-bar {
-            height: 12px;
-            background: #eee;
-            border-radius: 999px;
-            overflow: hidden;
-        }
-        .ratings-breakdown-bar span {
-            display: block;
-            height: 100%;
-            background: linear-gradient(90deg, #111, #b71c1c);
-        }
-        .ratings-breakdown-count {
-            text-align: right;
-            color: #555;
-        }
         .productview-reviews-right {
-            justify-content: center;
-            text-align: left;
-        }
-        .reviews-cta-footnote {
-            font-size: 0.9rem;
-            color: #777;
-        }
-        .productview-reviews-divider { display: none; }
-        @media (max-width: 980px) {
-            .productview-reviews-row {
-                grid-template-columns: 1fr;
-            }
-            .productview-reviews-header {
-                text-align: center;
-            }
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
         }
         .productview-review-btn {
             background: #111;
@@ -1524,10 +1437,6 @@
         <div class="productview-center">
             <img src="IMAGE/NIKE1.png" class="productview-main-img" id="mainShoeImg" alt="Main Shoe">
             <img src="IMAGE/NIKE1.png" class="productview-main-img" id="mainShoeImgOverlay" alt="Main Shoe Preview" style="position:absolute;opacity:0;pointer-events:none;">
-            <div class="productview-ar-caption">
-                Virtually try your preferred shoes to see<br>how it looks on you!
-            </div>
-            <button class="productview-ar-btn" onclick="openARModal()">AR Try-On Shoes</button>
         </div>
         <div class="productview-right">
             <div class="productview-brand" id="productBrand">Nike</div>
@@ -1623,20 +1532,22 @@
             
         </div>
     </div>
-    <div class="productview-reviews-section">
-        <div class="productview-reviews-header">Customer Reviews</div>
-        <div class="productview-reviews-row" id="productRatingsRow">
-            <div class="productview-reviews-left productview-reviews-card">
-                <div class="reviews-card-title">Overall rating</div>
-                <div id="ratingsAvgLine" class="ratings-avg"></div>
-                <div id="ratingsBasedOn" class="ratings-based"></div>
-                <div id="ratingsRecent" class="ratings-recent"></div>
-            </div>
-            <div class="productview-reviews-center productview-reviews-card">
-                <div class="reviews-card-title">Rating breakdown</div>
-                <div id="ratingsBreakdown" class="ratings-breakdown"></div>
-            </div>
+    <div class="productview-ar-caption">
+        Virtually try your preferred shoes to see<br>how it looks on you!
+    </div>
+    <button class="productview-ar-btn" onclick="openARModal()">AR Try-On Shoes</button>
+    
+    <div class="productview-reviews-header">Customer Reviews</div>
+    <div class="productview-reviews-row" id="productRatingsRow">
+        <div class="productview-reviews-left">
+            <div id="ratingsAvgLine" style="font-size:1.08rem;font-weight:600;color:#222;"></div>
+            <div id="ratingsBasedOn" style="font-size:0.98rem;color:#444;"></div>
+            <div id="ratingsRecent" style="margin-top:10px;"></div>
         </div>
+        <div class="productview-reviews-divider"></div>
+        <div class="productview-reviews-center" id="ratingsBreakdown"></div>
+        <div class="productview-reviews-divider"></div>
+        <div class="productview-reviews-right"></div>
     </div>
     <div class="productview-section-divider"></div>
     <div class="productview-recommend-header">You may also like</div>
@@ -1893,52 +1804,20 @@ On page.</div>
     try{ if(window.ALLOW_ANON_SIGNIN === undefined) window.ALLOW_ANON_SIGNIN = false; }catch(e){}
 
     var productViewReady = false;
-    var viewDomReady = false;
-    var viewDataReady = false;
-    var viewAssetsReady = false;
-    var viewErrorMessage = '';
-
-    function tryFinalizeView(){
-        if(productViewReady) return;
-        if(viewDomReady && viewDataReady && viewAssetsReady) markViewReady();
-    }
-
-    function markAssetsReady(){
-        if(viewAssetsReady) return;
-        viewAssetsReady = true;
-        tryFinalizeView();
-    }
-
-    if(document.readyState === 'complete'){
-        viewAssetsReady = true;
-    } else {
-        window.addEventListener('load', markAssetsReady, { once: true });
-    }
-
     function markViewReady(){
         if(productViewReady) return;
         productViewReady = true;
-        if(window.PageDataGate){
-            if(viewErrorMessage && PageDataGate.error) PageDataGate.error(viewErrorMessage);
-            else if(PageDataGate.ready) PageDataGate.ready();
-        }
+        if(window.PageDataGate && PageDataGate.ready) PageDataGate.ready();
         document.body.classList.remove('page-loading');
         document.body.classList.add('page-ready');
         var shell = document.getElementById('pageShell');
         if(shell) shell.removeAttribute('aria-hidden');
     }
     function markViewError(msg){
-        viewErrorMessage = msg || viewErrorMessage;
+        if(window.PageDataGate && PageDataGate.error) PageDataGate.error(msg);
         var t = document.getElementById('pageLoaderText');
         if(t && msg) t.textContent = msg;
-        viewDataReady = true;
-        tryFinalizeView();
-    }
-
-    function markViewDataReady(){
-        if(viewDataReady) return;
-        viewDataReady = true;
-        tryFinalizeView();
+        markViewReady();
     }
 
     function markProductUnavailableUI(){
@@ -2057,45 +1936,6 @@ On page.</div>
     }
     window.productAllowsPreOrder = productAllowsPreOrder;
 
-    function productHasTryOnTag(){
-        try{
-            var doc = _currentProductDoc || {};
-            var raw = (doc.tagsManual || doc.tags || doc.tagsList || doc.tags_list) || [];
-            var list = [];
-            if(Array.isArray(raw)) list = raw;
-            else if(typeof raw === 'string') list = raw.split(/[,\/|;]+/);
-            function normalizeTag(t){
-                try{
-                    if(t && typeof t === 'object'){
-                        t = t.name || t.label || t.value || t.tag || '';
-                    }
-                    return String(t||'')
-                        .trim()
-                        .toLowerCase()
-                        .replace(/[_\-]+/g,' ')
-                        .replace(/\s+/g,' ');
-                }catch(e){ return ''; }
-            }
-            var norm = list.map(normalizeTag).filter(Boolean);
-            if(norm.indexOf('try on') !== -1 || norm.indexOf('tryon') !== -1) return true;
-            if(norm.some(function(t){ return t.indexOf('try on') !== -1 || t.indexOf('tryon') !== -1; })) return true;
-        }catch(e){}
-        return false;
-    }
-
-    function updateArTryOnVisibility(){
-        try{
-            var caption = document.querySelector('.productview-ar-caption');
-            var btn = document.querySelector('.productview-ar-btn');
-            if(!caption && !btn) return;
-            var hasTag = productHasTryOnTag();
-            var hasLink = !!getProductArLink();
-            var show = hasTag || hasLink;
-            if(caption){ caption.style.display = show ? '' : 'none'; caption.setAttribute('aria-hidden', show ? 'false' : 'true'); }
-            if(btn){ btn.style.display = show ? '' : 'none'; btn.setAttribute('aria-hidden', show ? 'false' : 'true'); }
-        }catch(e){}
-    }
-
     function getSelectedVariantColor(){
         try{
             if(window._selectedVariantColor){
@@ -2153,7 +1993,7 @@ On page.</div>
         var s = String(raw || '').toLowerCase().trim();
         if(!s || s === 'active' || s === 'published') return 'published';
         if(s === 'archived' || s === 'archive') return 'archive';
-        if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden' || s === 'inactive' || s === 'disabled' || s === 'unavailable') return 'unpublished';
+        if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden') return 'unpublished';
         return s;
     }
 
@@ -2259,7 +2099,6 @@ On page.</div>
                     var statusNorm = normalizeStatus(prod && (prod.status || prod.state || prod.availability));
                     if(statusNorm && statusNorm !== 'published'){
                         _currentProductDoc = prod || null;
-                        try{ updateArTryOnVisibility(); }catch(e){}
                         markProductUnavailableUI();
                         markViewError('This product is unavailable.');
                         if(cb) cb(new Error('unavailable'));
@@ -2274,7 +2113,6 @@ On page.</div>
                         localStorage.setItem('productOriginalPrice', formatPeso(origP||0));
                     }catch(e){}
                     try{ renderInventoryDescription(_currentProductDoc); }catch(e){}
-                    try{ updateArTryOnVisibility(); }catch(e){}
                     var variantsSnap = res[1];
                     var sizesMap = null;
                     if(variantsSnap && variantsSnap.docs){
@@ -2298,7 +2136,7 @@ On page.</div>
                     // Re-render size buttons now that tags + stock are available.
                     try{ if(window.renderSizeButtons) window.renderSizeButtons(); }catch(e){}
 
-                    markViewDataReady();
+                    markViewReady();
                     if(cb) cb(null, _productStockMap);
                 }).catch(function(e){ if(cb) cb(e); markViewError('Unable to load product data.'); });
             }catch(e){ if(cb) cb(e); markViewError('Unable to load product data.'); }
@@ -2730,11 +2568,7 @@ On page.</div>
                 var avgStars = summary.count ? api.starsText(avg) : '☆☆☆☆☆';
 
                 var avgLine = document.getElementById('ratingsAvgLine');
-                if(avgLine){
-                    avgLine.innerHTML = '<span class="rating-stars">' + avgStars + '</span>'
-                        + '<span class="rating-score">' + avgFixed + '</span>'
-                        + '<span class="rating-outof">out of 5</span>';
-                }
+                if(avgLine) avgLine.textContent = avgStars + ' ' + avgFixed + ' out of 5';
 
                 var basedOn = document.getElementById('ratingsBasedOn');
                 if(basedOn){
@@ -2757,17 +2591,17 @@ On page.</div>
                         return clean.split(' ')[0];
                     }
                     if(!list.length){
-                        recent.innerHTML = '<div class="reviews-cta-footnote">Be the first to review this product.</div>';
+                        recent.innerHTML = '<div style="font-size:0.95rem;color:#666;">Be the first to review this product.</div>';
                     } else {
                         recent.innerHTML = list.map(function(r){
                             var s = api.starsText(r && r.stars);
                             var c = (r && r.comment) ? String(r.comment).trim() : '';
-                            var verified = (r && r.orderId) ? ' <span class="reviews-cta-footnote">Verified</span>' : '';
+                            var verified = (r && r.orderId) ? ' <span style="font-size:0.92rem;color:#888;">Verified</span>' : '';
                             var who = toFirstName((r && r.userName) ? String(r.userName) : ((r && r.userEmail) ? String(r.userEmail) : 'Customer'));
-                            return '<div class="review-snippet">'
-                                + '<div class="review-snippet__stars">' + s + '</div>'
-                                + '<div class="review-snippet__meta">' + who + verified + '</div>'
-                                + (c ? ('<div class="review-snippet__comment">' + c.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>') : '')
+                            return '<div style="margin-top:8px;">'
+                                + '<div style="font-size:1.02rem;color:#222;">' + s + '</div>'
+                                + '<div style="font-size:0.95rem;color:#444;">' + who + verified + '</div>'
+                                + (c ? ('<div style="font-size:0.95rem;color:#444;margin-top:4px;">' + c.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>') : '')
                                 + '</div>';
                         }).join('');
                     }
@@ -2782,10 +2616,12 @@ On page.</div>
                     breakdownEl.innerHTML = [5,4,3,2,1].map(function(st){
                         var count = Number(b[st]||0);
                         var pct = max ? Math.round((count / max) * 100) : 0;
-                        return '<div class="ratings-breakdown-row">'
-                            + '<div class="ratings-breakdown-label">' + st + '★</div>'
-                            + '<div class="ratings-breakdown-bar"><span style="width:' + pct + '%"></span></div>'
-                            + '<div class="ratings-breakdown-count">' + count + '</div>'
+                        return '<div style="display:flex;align-items:center;gap:10px;margin:6px 0;">'
+                            + '<div style="width:54px;font-size:0.98rem;color:#222;">' + st + '★</div>'
+                            + '<div style="flex:1;height:14px;background:#eee;border-radius:8px;overflow:hidden;">'
+                            + '<div style="width:' + pct + '%;height:100%;background:#222;"></div>'
+                            + '</div>'
+                            + '<div style="width:26px;text-align:right;font-size:0.95rem;color:#444;">' + count + '</div>'
                             + '</div>';
                     }).join('');
                 }
@@ -2805,7 +2641,6 @@ On page.</div>
         var originalPrice = ctx.originalPrice;
         var img = ctx.img;
         var badge = ctx.badge;
-        try{ updateArTryOnVisibility(); }catch(e){}
         if (brand) document.getElementById('productBrand').textContent = brand;
         if (title) document.getElementById('productTitle').textContent = title;
         if (price || originalPrice) {
@@ -3041,8 +2876,30 @@ On page.</div>
         // update ratings when other tabs add reviews
         try{ window.addEventListener('ratings:updated', function(){ try{ renderRatingsUI(); }catch(e){} }); }catch(e){}
 
-        viewDomReady = true;
-        tryFinalizeView();
+        // allow writing a review from the product page
+        try{
+            var writeBtn = document.getElementById('writeReviewBtn');
+            if(writeBtn){
+                writeBtn.addEventListener('click', function(){
+                    var api = window.ShoePaoRatings;
+                    if(!api){ alert('Ratings system is unavailable.'); return; }
+                    var stars = prompt('Rate this product (1-5):');
+                    if(stars === null) return;
+                    var s = Number(stars);
+                    if(!isFinite(s) || s < 1 || s > 5){ alert('Please enter a number from 1 to 5.'); return; }
+                    var comment = prompt('Add a comment (optional):') || '';
+                    api.addOrUpdateRating({
+                        productId: (localStorage.getItem('productId')||'').trim(),
+                        brand: (localStorage.getItem('productBrand')||'').trim(),
+                        title: (localStorage.getItem('productTitle')||'').trim(),
+                        stars: s,
+                        comment: comment
+                    });
+                    renderRatingsUI();
+                });
+            }
+        }catch(e){}
+        markViewReady();
     });
     // If page is opened with ?openAR=1 instruct the page to open the AR modal automatically
     (function(){

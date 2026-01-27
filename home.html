@@ -1267,7 +1267,7 @@
                         createdAt: p.createdAt || null,
                         gender: p.gender || '',
                         tags: dedupTags,
-                        status: normalizeStatus(p.status || p.state || p.availability || 'published')
+                        status: normalizeStatus(p.status || 'published')
                     });
                 });
             });
