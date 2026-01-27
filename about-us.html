@@ -85,13 +85,13 @@
             <h2>Visit Our Store</h2>
             <div class="about-kv">
                 <div class="k">Address</div>
-                <div class="v" id="storeAddress">TBD — Add full address</div>
+                <div class="v" id="storeAddress">BLK 15 LOT 25 PHASE 2 MV VILLAR AVENUE CAMELLA SPRINGVILLE CENTRAL, Bacoor, 4102 Cavite</div>
                 <div class="k">Hours</div>
-                <div class="v" id="storeHours">TBD — e.g., Mon–Sun, 10:00 AM – 8:00 PM</div>
+                <div class="v" id="storeHours">Mon–Sun, 10:00 AM – 8:00 PM</div>
                 <div class="k">Contact</div>
-                <div class="v" id="storeContact">TBD — Phone / Messenger</div>
+                <div class="v" id="storeContact">Facebook: Shoe Pao Special <br> Phone: 0976 187 2871 <br> Email: shoepaospecial@gmail.com</div>
             </div>
-            <a class="map-link" href="https://maps.google.com" target="_blank" rel="noopener">Get Directions <span style="display:inline-block;width:0;height:0;border-left:8px solid #fff;border-top:6px solid transparent;border-bottom:6px solid transparent;"></span></a>
+            <a class="map-link" href="https://maps.app.goo.gl/ncXJEr2q7d9F3mH69" target="_blank" rel="noopener">Get Directions <span style="display:inline-block;width:0;height:0;border-left:8px solid #fff;border-top:6px solid transparent;border-bottom:6px solid transparent;"></span></a>
         </aside>
     </main>
 
@@ -205,7 +205,7 @@
         }
         function attachCartEvents() {
             document.querySelectorAll('.qty-btn.decrease').forEach(btn => { btn.onclick = function(){ const idx = parseInt(btn.getAttribute('data-index'),10); if(!isNaN(idx) && cart[idx]){ if(window.tryDecrementCartItem){ window.tryDecrementCartItem(cart, idx); } else { if(cart[idx].quantity>1){ cart[idx].quantity--; } } renderCart(); saveCartToLocalStorage(); } }; });
-            document.querySelectorAll('.qty-btn.increase').forEach(btn => { btn.onclick = function(){ const idx = parseInt(btn.getAttribute('data-index'),10); if(!isNaN(idx) && cart[idx]){ if(window.tryIncrementCartItem){ var r=window.tryIncrementCartItem(cart, idx); if(r&&r.success===false&&r.reason==='max_pairs'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert('Maximum of 3 pairs of shoes per order.'); return; } } else { cart[idx].quantity++; } renderCart(); saveCartToLocalStorage(); } }; });
+            document.querySelectorAll('.qty-btn.increase').forEach(btn => { btn.onclick = function(){ const idx = parseInt(btn.getAttribute('data-index'),10); if(!isNaN(idx) && cart[idx]){ if(window.tryIncrementCartItem){ var r=window.tryIncrementCartItem(cart, idx); if(r&&r.success===false&&r.reason==='max_pairs'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert('Maximum of 3 items per order allowed.'); return; } } else { cart[idx].quantity++; } renderCart(); saveCartToLocalStorage(); } }; });
             document.querySelectorAll('.cart-item-remove').forEach(btn => { btn.onclick = function(){ const idx = parseInt(btn.getAttribute('data-index'),10); if(!isNaN(idx)){ cart.splice(idx,1); renderCart(); saveCartToLocalStorage(); } }; });
         }
         document.addEventListener('DOMContentLoaded', function(){

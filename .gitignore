@@ -25,3 +25,7 @@ service-account.json
 *.db-shm
 data/*.db-wal
 data/*.db-shm
+
+# local backups
+backups/
+data/*.db*

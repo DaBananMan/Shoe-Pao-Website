@@ -24,6 +24,15 @@
             --warning: #f5a623;
             --border: #e6e6e6;
         }
+            /* Report header layout: stack title and descriptor, left-aligned */
+            .tab-reports .reports-grid .card .header-line { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+            .tab-reports .reports-grid .card .card-desc { color: var(--muted); font-size:0.95rem; margin:0; }
+            /* Make report lists vertical and left-aligned under the descriptor */
+            .tab-reports .reports-grid .card .collapsible { margin:6px 0 0 0; padding-left:18px; list-style: disc inside; }
+            .tab-reports .reports-grid .card .summary { margin:6px 0 0 0; }
+            .tab-reports .reports-grid .card .card-values { margin:4px 0 0 0; padding-left:18px; list-style: disc inside; font-size:0.95rem; }
+            .tab-reports .reports-grid .card .card-values li { margin:2px 0; }
+            .tab-reports .reports-grid .card .collapsible .placeholder { color: var(--muted); font-style: italic; }
     </style>
 </head>
 <body>
@@ -41,11 +50,7 @@
                 <a class="nav-item" href="accounts.html">Accounts</a>
             </div>
         </div>
-        <div class="nav-right">
-            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
-                <img src="IMAGE/USERICON.png" alt="User">
-            </button>
-        </div>
+        <!-- profile removed for admin UI -->
     </header>
 
     <!-- New Inventory App -->
@@ -145,6 +150,7 @@
         <section id="tab-sales" class="tab">
             <div class="sales-log">
                 <h2>Sales Log</h2>
+                <div id="salesDebug" style="font-size:0.95rem;color:#666;margin-bottom:8px;">Loading sales...</div>
                 <table>
                     <thead>
                         <tr>
@@ -176,33 +182,33 @@
                 <div class="card">
                     <div class="header-line">
                         <h3>Low Stock</h3>
-                        <button class="link" data-report-toggle="low">Show details</button>
-                    </div>
-                    <p id="lowStockSummary" class="summary"></p>
+                        <span class="card-desc" aria-hidden="true"></span>
+                        </div>
+                    <ul class="card-values" id="lowStockValues" aria-hidden="true"></ul>
                     <ul id="lowStockList" class="collapsible"></ul>
                 </div>
                 <div class="card">
                     <div class="header-line">
                         <h3>Best-Selling Sizes</h3>
-                        <button class="link" data-report-toggle="sizes">Show details</button>
+                        <span class="card-desc" aria-hidden="true"></span>
                     </div>
-                    <p id="bestSizesSummary" class="summary"></p>
+                    <ul class="card-values" id="bestSizesValues" aria-hidden="true"></ul>
                     <ul id="bestSizesList" class="collapsible"></ul>
                 </div>
                 <div class="card">
                     <div class="header-line">
                         <h3>Best-Selling Brands</h3>
-                        <button class="link" data-report-toggle="brands">Show details</button>
+                        <span class="card-desc" aria-hidden="true"></span>
                     </div>
-                    <p id="bestBrandsSummary" class="summary"></p>
+                    <ul class="card-values" id="bestBrandsValues" aria-hidden="true"></ul>
                     <ul id="bestBrandsList" class="collapsible"></ul>
                 </div>
                 <div class="card">
                     <div class="header-line">
                         <h3>Dead Stock</h3>
-                        <button class="link" data-report-toggle="dead">Show details</button>
+                        <span class="card-desc" aria-hidden="true"></span>
                     </div>
-                    <p id="deadStockSummary" class="summary"></p>
+                    <ul class="card-values" id="deadStockValues" aria-hidden="true"></ul>
                     <ul id="deadStockList" class="collapsible"></ul>
                 </div>
             </div>
@@ -278,10 +284,6 @@
                     <input id="priceSale" type="number" min="0" step="0.01" placeholder="Sale Price" />
                 </label>
                 <label class="field">
-                    <div class="field-title">Cost</div>
-                    <input id="priceCost" type="number" min="0" step="0.01" placeholder="Cost" />
-                </label>
-                <label class="field">
                     <div class="field-title">Description</div>
                     <textarea id="prodDescription" placeholder="Description (optional)" rows="3"></textarea>
                 </label>
@@ -305,6 +307,7 @@
                     <label><input type="checkbox" id="tagSale" /> Sale</label>
                     <label><input type="checkbox" id="tagPreOrder" /> Pre-Order</label>
                     <label><input type="checkbox" id="tagBestSeller" /> Best Seller</label>
+                    <label><input type="checkbox" id="tagTryOn" /> Try On!</label>
                 </div>
                 <p class="muted" style="margin:0;">Manual tags are added on top of auto tags.</p>
             </div>
@@ -334,167 +337,321 @@
     </dialog>
 
     <!-- Variant Modal -->
-        <dialog id="variantModal" class="modal">
-            <style>
-                .variant-modal-grid {
-                    display: flex;
-                    min-width: 600px;
-                    min-height: 340px;
-                    gap: 0;
-                }
-                .variant-sidebar {
-                    width: 180px;
-                    background: #faf9f9;
-                    border-right: 1px solid #eee;
-                    padding: 18px 10px 10px 10px;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 18px;
-                }
-                .variant-controls {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                    margin-bottom: 8px;
-                }
-                .variant-controls input[type="color"] {
-                    width: 32px; height: 32px; border: none; background: none; padding: 0;
-                }
-                #variantColorsList {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 4px;
-                }
-                #variantColorsList .color-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    padding: 7px 10px;
-                    border-radius: 7px;
-                    cursor: pointer;
-                    transition: background 0.13s;
-                }
-                #variantColorsList .color-item.active {
-                    background: #ffeaea;
-                    font-weight: 600;
-                    border-left: 4px solid var(--primary, #b71c1c);
-                }
-                #variantColorsList .color-dot {
-                    width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #ddd; display: inline-block;
-                }
-                #variantColorsList .color-actions {
-                    margin-left: auto;
-                    display: flex;
-                    gap: 2px;
-                }
-                .variant-editor {
-                    flex: 1;
-                    padding: 24px 24px 12px 24px;
-                    background: #fff;
-                    min-width: 320px;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 12px;
-                }
-                .sizes-editor {
-                    width: 100%;
-                    max-width: 420px;
-                    margin: 0 auto;
-                }
-                .size-card {
-                    background: #f8f8f8;
-                    border-radius: 10px;
-                    box-shadow: 0 1px 2px #0001;
-                    padding: 18px 18px 12px 18px;
-                    margin-bottom: 0;
-                }
-                .fill-actions {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    margin-bottom: 10px;
-                }
-                .fill-actions strong {
-                    font-size: 1.1em;
-                    margin-right: 8px;
-                }
-                .size-grid {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 7px;
-                }
-                .size-row {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    padding: 4px 0;
-                }
-                .size-row label {
-                    min-width: 48px;
-                    font-weight: 500;
-                }
-                .size-row input[type="number"] {
-                    width: 60px;
-                    padding: 3px 6px;
-                    border-radius: 5px;
-                    border: 1px solid #ddd;
-                    font-size: 1em;
-                }
-                .qty-controls {
-                    display: flex;
-                    gap: 2px;
-                }
-                .qty-btn {
-                    background: #eee;
-                    border: none;
-                    border-radius: 4px;
-                    width: 26px; height: 26px;
-                    font-size: 1.1em;
-                    cursor: pointer;
-                    transition: background 0.13s;
-                }
-                .qty-btn:hover { background: #e0e0e0; }
-                .danger[data-action], .danger[data-action]:hover {
-                    background: var(--danger, #e14d4d);
-                    color: #fff;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 0 10px;
-                    font-size: 0.98em;
-                    cursor: pointer;
-                }
-                .sizes-editor .muted {
-                    color: #888;
-                    font-size: 1em;
-                    margin: 12px 0 0 0;
-                }
-                @media (max-width: 700px) {
-                    .variant-modal-grid { flex-direction: column; min-width: 0; }
-                    .variant-sidebar { width: 100%; border-right: none; border-bottom: 1px solid #eee; }
-                    .variant-editor { padding: 16px 8px; }
-                }
-            </style>
-            <form method="dialog" id="variantForm">
-                <h2 style="margin-bottom:10px;">Manage Variants</h2>
-                <div class="variant-modal-grid">
+    <dialog id="variantModal" class="modal variant-modal">
+        <style>
+            .variant-modal {
+                border: none;
+                padding: 0;
+                background: transparent;
+            }
+            .variant-modal::backdrop {
+                background: rgba(0, 0, 0, 0.35);
+            }
+            .variant-modal .variant-frame {
+                width: min(1120px, 96vw);
+                max-height: 90vh;
+                background: #ffffff;
+                border-radius: 20px;
+                box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+            .variant-modal .variant-topbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 20px;
+                padding: 22px 28px;
+                border-bottom: 1px solid #ededed;
+                background: linear-gradient(120deg, #fff7f7, #ffffff 60%);
+            }
+            .variant-modal .variant-eyebrow {
+                margin: 0;
+                font-size: 0.75rem;
+                letter-spacing: 0.16em;
+                text-transform: uppercase;
+                color: #b71c1c;
+                font-weight: 600;
+            }
+            .variant-modal .variant-title {
+                margin: 6px 0 0 0;
+                font-size: 1.45rem;
+            }
+            .variant-modal .variant-subtitle {
+                margin: 6px 0 0 0;
+                color: #6f6f6f;
+                font-size: 0.98rem;
+            }
+            .variant-modal .variant-top-actions {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .variant-modal .ghost {
+                background: transparent;
+                border: 1px solid #dedede;
+                color: #333;
+                border-radius: 10px;
+                padding: 8px 14px;
+                cursor: pointer;
+            }
+            .variant-modal .variant-layout {
+                display: grid;
+                grid-template-columns: 320px 1fr;
+                min-height: 520px;
+            }
+            .variant-modal .variant-sidebar {
+                border-right: 1px solid #efefef;
+                background: #fafafa;
+                padding: 18px 18px 22px 18px;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                overflow: hidden;
+            }
+            .variant-modal .variant-sidebar h3 {
+                margin: 0;
+                font-size: 1.05rem;
+            }
+            .variant-modal .variant-add-color {
+                background: #ffffff;
+                border: 1px solid #ededed;
+                border-radius: 14px;
+                padding: 14px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+            }
+            .variant-modal .variant-label {
+                font-size: 0.85rem;
+                color: #666;
+            }
+            .variant-modal .variant-input-row {
+                display: grid;
+                grid-template-columns: 1fr 48px;
+                gap: 10px;
+                align-items: center;
+            }
+            .variant-modal .variant-input-row input[type="color"] {
+                width: 48px;
+                height: 44px;
+                border: none;
+                padding: 0;
+                background: transparent;
+                border-radius: 12px;
+            }
+            .variant-modal .variant-color-list {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                overflow: auto;
+                padding-right: 4px;
+            }
+            .variant-modal .color-item {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 12px;
+                border-radius: 12px;
+                border: 1px solid transparent;
+                background: #ffffff;
+                cursor: pointer;
+                transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+            }
+            .variant-modal .color-item.active {
+                border-color: #f1b1b1;
+                background: #fff2f2;
+                box-shadow: 0 4px 14px rgba(183, 28, 28, 0.08);
+            }
+            .variant-modal .color-item-info {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .variant-modal .color-dot {
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                border: 1px solid #ddd;
+            }
+            .variant-modal .color-item-text {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            .variant-modal .color-actions {
+                display: inline-flex;
+                gap: 6px;
+                align-items: center;
+            }
+            .variant-modal .color-actions button {
+                height: 28px;
+                padding: 0 10px;
+                border-radius: 8px;
+                font-size: 0.85rem;
+            }
+            .variant-modal .variant-main {
+                padding: 22px 24px 28px 24px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                overflow: hidden;
+            }
+            .variant-modal .variant-main-header {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .variant-modal .variant-workspace {
+                background: #fcfcfc;
+                border-radius: 16px;
+                border: 1px solid #ededed;
+                padding: 18px;
+                overflow: auto;
+                flex: 1;
+            }
+            .variant-modal .sizes-editor {
+                display: flex;
+                flex-direction: column;
+                gap: 18px;
+            }
+            .variant-modal .size-card {
+                background: #ffffff;
+                border-radius: 16px;
+                border: 1px solid #efefef;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+            }
+            .variant-modal .fill-actions {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            .variant-modal .color-header {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            .variant-modal .size-grid {
+                display: grid;
+                gap: 10px;
+            }
+            .variant-modal .size-row {
+                display: grid;
+                grid-template-columns: 70px 90px 90px auto;
+                align-items: center;
+                gap: 10px;
+            }
+            .variant-modal .size-row input[type="number"] {
+                width: 90px;
+                padding: 6px 10px;
+                border-radius: 8px;
+                border: 1px solid #ddd;
+                font-size: 0.98rem;
+            }
+            .variant-modal .qty-controls {
+                display: inline-flex;
+                gap: 6px;
+            }
+            .variant-modal .qty-btn {
+                background: #f0f0f0;
+                border: none;
+                border-radius: 8px;
+                width: 32px;
+                height: 32px;
+                font-size: 1.05rem;
+                cursor: pointer;
+                transition: background 0.15s;
+            }
+            .variant-modal .qty-btn:hover {
+                background: #e2e2e2;
+            }
+            .variant-modal .sizes-editor .muted {
+                color: #8a8a8a;
+            }
+            .variant-modal .variant-images-section {
+                border: 1px solid #f0f0f0;
+                border-radius: 14px;
+                padding: 14px;
+                background: #fffdfd;
+            }
+            .variant-modal .variant-image-actions label.secondary.small-btn {
+                padding: 6px 10px;
+                border-radius: 8px;
+            }
+            .variant-modal .danger[data-action],
+            .variant-modal .danger[data-action]:hover {
+                background: var(--danger, #e14d4d);
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+                padding: 6px 12px;
+            }
+            @media (max-width: 960px) {
+                .variant-modal .variant-layout { grid-template-columns: 1fr; }
+                .variant-modal .variant-sidebar { border-right: none; border-bottom: 1px solid #efefef; }
+                .variant-modal .variant-topbar { flex-direction: column; align-items: flex-start; }
+            }
+            @media (max-width: 720px) {
+                .variant-modal .size-row { grid-template-columns: 1fr 1fr; grid-auto-rows: auto; }
+                .variant-modal .size-row .qty-controls { justify-content: flex-start; }
+            }
+        </style>
+        <form method="dialog" id="variantForm" class="variant-form">
+            <div class="variant-frame">
+                <header class="variant-topbar">
+                    <div>
+                        <p class="variant-eyebrow">Product Variants</p>
+                        <h2 class="variant-title">Manage Variants</h2>
+                        <p class="variant-subtitle">Create colors, upload images, and adjust size stock.</p>
+                    </div>
+                    <div class="variant-top-actions">
+                        <button value="cancel" class="ghost">Close</button>
+                        <button id="saveVariantsBtn" value="default" class="primary">Save changes</button>
+                    </div>
+                </header>
+                <div class="variant-layout">
                     <aside class="variant-sidebar">
-                        <div class="variant-controls">
-                            <input id="variantColorName" placeholder="Color name" />
-                            <input id="variantColorCode" type="color" />
-                            <button id="addColorBtn" class="secondary" type="button">Add Color</button>
+                        <div>
+                            <h3>Colors</h3>
+                            <p class="muted">Pick a color to edit sizes and images.</p>
                         </div>
-                        <div id="variantColorsList" class="colors-list"></div>
+                        <div class="variant-add-color">
+                            <span class="variant-label">New color</span>
+                            <div class="variant-input-row">
+                                <input id="variantColorName" placeholder="e.g., Triple Black" />
+                                <input id="variantColorCode" type="color" aria-label="Pick color" />
+                            </div>
+                            <button id="addColorBtn" class="secondary" type="button">Add color</button>
+                        </div>
+                        <div id="variantColorsList" class="variant-color-list"></div>
                     </aside>
-                    <section class="variant-editor">
-                        <div id="sizesEditor" class="sizes-editor"></div>
+                    <section class="variant-main">
+                        <div class="variant-main-header">
+                            <h3>Sizes & Images</h3>
+                            <p class="muted">Manage stock by size and upload 4 images per color.</p>
+                        </div>
+                        <div class="variant-tag-toggle" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+                            <label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;"><input type="checkbox" id="variantTagTryOn"> Try On!</label>
+                            <span class="muted" style="font-size:0.92rem;">Manual tag applies to the product.</span>
+                        </div>
+                        <div class="variant-workspace">
+                            <div id="sizesEditor" class="sizes-editor"></div>
+                        </div>
                     </section>
                 </div>
-                <div class="modal-actions" style="margin-top:10px;">
-                    <button value="cancel" class="secondary">Close</button>
-                    <button id="saveVariantsBtn" value="default" class="primary">Save</button>
-                </div>
-            </form>
-        </dialog>
+            </div>
+        </form>
+    </dialog>
 
     <!-- Bulk Price Modal -->
     <dialog id="bulkPriceModal" class="modal">
@@ -506,7 +663,6 @@
                     <select id="bulkPriceField">
                         <option value="original">Original</option>
                         <option value="sale">Sale</option>
-                        <option value="cost">Cost</option>
                     </select>
                 </label>
                 <label>
@@ -542,7 +698,7 @@
                         <option value="size">Specific size</option>
                     </select>
                 </label>
-                <input id="bulkRestockSize" type="number" min="35" max="45" step="1" placeholder="EU size (35–45)" />
+                <input id="bulkRestockSize" type="number" min="35" max="49" step="1" placeholder="EU size (35–49)" />
                 <input id="bulkRestockQty" type="number" min="0" step="1" placeholder="Quantity to add" />
             </div>
             <div class="modal-actions">
@@ -551,6 +707,372 @@
             </div>
         </form>
     </dialog>
+
+    <!-- Sales log renderer: populate #salesTbody from data/orders.json and update reports -->
+    <script>
+    (function(){
+        // Try multiple candidate paths so the app works when hosted under a subdirectory.
+        var candidates = (function(){
+            var path = window.location.pathname || '/';
+            // base path (folder) where this page lives
+            var base = path.replace(/\/[^/]*$/, '/');
+            var origin = window.location.origin || '';
+            return [
+                'data/orders.json',
+                './data/orders.json',
+                base + 'data/orders.json',
+                origin + base + 'data/orders.json',
+                '/data/orders.json'
+            ];
+        })();
+
+        function fetchWithTimeout(url, timeout){
+            var ctrl = new AbortController();
+            var id = setTimeout(function(){ ctrl.abort(); }, timeout||3000);
+            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; });
+        }
+
+        function getSalesDebugEl(){ try{ return document.getElementById('salesDebug'); }catch(e){ return null; } }
+
+        async function findOrdersJson(){
+            // Silent probe for candidate files. Only log to console; don't update UI text.
+            for(var i=0;i<candidates.length;i++){
+                var u = candidates[i];
+                try{
+                    console.debug('Trying orders.json at', u);
+                    var r = await fetchWithTimeout(u, 2500);
+                    if(r && r.ok){
+                        try{ var j = await r.json(); return { url: u, json: j }; }catch(e){ console.warn('Invalid JSON at', u); continue; }
+                    } else {
+                        // no-op, try next
+                    }
+                }catch(e){
+                    console.debug('fetch error for', u, e && e.message);
+                    /* try next */ }
+            }
+            return null;
+        }
+
+        function fmtDate(dstr){ try{ var d = new Date(dstr); if(isNaN(d)) return dstr; return d.toLocaleString(); }catch(e){ return dstr; } }
+        function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+        function formatPHP(n){ try{ return new Intl.NumberFormat('en-PH',{ style:'currency', currency:'PHP' }).format(Number(n)||0); }catch(e){ return '₱'+(Number(n)||0).toFixed(2); } }
+
+        // Compute reports (overview, best sizes & brands) from orders array and inventory table if present
+        function updateReportsFromOrders(orders){
+            try{
+                orders = Array.isArray(orders) ? orders : [];
+                var totalOrders = orders.length;
+                var itemsSold = 0;
+                var revenue = 0;
+                var sizeCounts = Object.create(null);
+                var brandCounts = Object.create(null);
+
+                orders.forEach(function(order){
+                    var items = Array.isArray(order.items) ? order.items : [];
+                    items.forEach(function(it){
+                        var qty = (typeof it.qty !== 'undefined') ? Number(it.qty) : ((typeof it.quantity !== 'undefined') ? Number(it.quantity) : 1);
+                        if(!isFinite(qty)) qty = 1;
+                        itemsSold += qty;
+                        var unit = Number(it.price || 0);
+                        revenue += unit * qty;
+                        var size = (it.size || it.eu || it.sizeLabel || '') + '';
+                        var brand = (it.brand || it.vendor || it.manufacturer || '') + '';
+                        if(size){ sizeCounts[size] = (sizeCounts[size] || 0) + qty; }
+                        if(brand){ brandCounts[brand] = (brandCounts[brand] || 0) + qty; }
+                    });
+                });
+
+                // Produce top lists
+                function topN(countMap, n){
+                    return Object.keys(countMap).map(function(k){ return { key:k, v: countMap[k] }; }).sort(function(a,b){ return b.v - a.v; }).slice(0,n);
+                }
+
+                var topSizes = topN(sizeCounts, 10);
+                var topBrands = topN(brandCounts, 10);
+
+                // Update overview
+                var overviewList = document.getElementById('overviewList');
+                if(overviewList){
+                    overviewList.innerHTML = '';
+                    var li1 = document.createElement('li'); li1.textContent = 'Total Orders: ' + totalOrders; overviewList.appendChild(li1);
+                    var li2 = document.createElement('li'); li2.textContent = 'Items Sold: ' + itemsSold; overviewList.appendChild(li2);
+                    var li3 = document.createElement('li'); li3.textContent = 'Revenue: ' + formatPHP(revenue); overviewList.appendChild(li3);
+                }
+
+                // Update best sizes
+                var bestSizesList = document.getElementById('bestSizesList');
+                if(bestSizesList){
+                    bestSizesList.innerHTML = '';
+                    if(topSizes.length === 0){
+                        var ph = document.createElement('li'); ph.textContent = 'No sales yet'; ph.className = 'placeholder'; bestSizesList.appendChild(ph);
+                    } else {
+                        topSizes.slice(0,5).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' — ' + it.v + ' sold'; bestSizesList.appendChild(li); });
+                    }
+                }
+                // populate the compact values list under the header (left-aligned)
+                try{
+                    var bestSizesValuesEl = bestSizesList && bestSizesList.closest('.card') && bestSizesList.closest('.card').querySelector('.card-values');
+                    if(bestSizesValuesEl){
+                        bestSizesValuesEl.innerHTML = '';
+                        if(topSizes.length === 0){ var phv = document.createElement('li'); phv.textContent = '—'; phv.className = 'placeholder'; bestSizesValuesEl.appendChild(phv); }
+                        else topSizes.slice(0,5).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' (' + it.v + ')'; bestSizesValuesEl.appendChild(li); });
+                    }
+                }catch(e){}
+
+                // Update best brands
+                var bestBrandsList = document.getElementById('bestBrandsList');
+                if(bestBrandsList){
+                    bestBrandsList.innerHTML = '';
+                    if(topBrands.length === 0){
+                        var phb = document.createElement('li'); phb.textContent = 'No sales yet'; phb.className = 'placeholder'; bestBrandsList.appendChild(phb);
+                    } else {
+                        topBrands.slice(0,3).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' — ' + it.v + ' sold'; bestBrandsList.appendChild(li); });
+                    }
+                }
+                // populate compact header values for brands
+                try{
+                    var bestBrandsValuesEl = bestBrandsList && bestBrandsList.closest('.card') && bestBrandsList.closest('.card').querySelector('.card-values');
+                    if(bestBrandsValuesEl){
+                        bestBrandsValuesEl.innerHTML = '';
+                        if(topBrands.length === 0){ var phbv = document.createElement('li'); phbv.textContent = '—'; phbv.className = 'placeholder'; bestBrandsValuesEl.appendChild(phbv); }
+                        else topBrands.slice(0,3).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' (' + it.v + ')'; bestBrandsValuesEl.appendChild(li); });
+                    }
+                }catch(e){}
+
+                // Low stock: attempt to read from inventory table if present
+                try{
+                    var thresholdInput = document.getElementById('lowStockThreshold');
+                    var threshold = thresholdInput ? (Number(thresholdInput.value) || 3) : 3;
+                    var lowStockSummary = document.getElementById('lowStockSummary');
+                    var lowStockList = document.getElementById('lowStockList');
+                    if(lowStockList){
+                        lowStockList.innerHTML = '';
+                        var tbody = document.getElementById('productsTbody');
+                        if(tbody){
+                            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+                            var lowCount = 0;
+                            rows.forEach(function(r){
+                                try{
+                                    var cells = r.children;
+                                    if(!cells || cells.length < 11) return;
+                                    var brand = cells[1] ? cells[1].textContent.trim() : '';
+                                    var model = cells[3] ? cells[3].textContent.trim() : '';
+                                    var stockText = cells[9] ? cells[9].textContent.trim() : '';
+                                    var stock = Number(stockText.replace(/[^0-9\-\.]/g,''));
+                                    if(!isFinite(stock)) return;
+                                    if(stock <= threshold){
+                                        lowCount++;
+                                        var sizesDesc = '';
+                                        try{
+                                            // Try common sources for variant/size info inside the product row
+                                            var dv = r.getAttribute('data-variants') || r.getAttribute('data-sizes') || r.dataset && (r.dataset.variants || r.dataset.sizes);
+                                            if(dv){
+                                                // if it's JSON, parse and format
+                                                try{
+                                                    var parsed = (typeof dv === 'string') ? JSON.parse(dv) : dv;
+                                                    if(Array.isArray(parsed)){
+                                                        sizesDesc = parsed.map(function(p){
+                                                            if(typeof p === 'object') return (p.size||p.s||p.label||'') + '(' + (p.qty||p.q||p.count||0) + ')';
+                                                            return String(p);
+                                                        }).filter(Boolean).join(', ');
+                                                    } else if(typeof parsed === 'object'){
+                                                        sizesDesc = Object.keys(parsed).map(function(k){ return k + '(' + parsed[k] + ')'; }).join(', ');
+                                                    }
+                                                }catch(e){ /* not JSON, fallback to text */ sizesDesc = String(dv); }
+                                            } else {
+                                                var sizesEl = r.querySelector('.sizes-list, .variants, .variant-sizes, .size-list, [data-sizes]');
+                                                if(sizesEl) sizesDesc = sizesEl.textContent.trim();
+                                            }
+                                        }catch(e){ sizesDesc = ''; }
+                                        var li = document.createElement('li');
+                                        li.textContent = brand + ' ' + model + ' — ' + stock + ' left' + (sizesDesc ? (' (' + sizesDesc + ')') : '');
+                                        lowStockList.appendChild(li);
+                                    }
+                                }catch(e){}
+                            });
+                            // populate compact header values for low stock (first 5 entries)
+                            try{
+                                var lowStockValuesEl = lowStockList && lowStockList.closest('.card') && lowStockList.closest('.card').querySelector('.card-values');
+                                if(lowStockValuesEl){
+                                    lowStockValuesEl.innerHTML = '';
+                                    if(lowStockList.children.length === 0){ var phls = document.createElement('li'); phls.textContent = '—'; phls.className = 'placeholder'; lowStockValuesEl.appendChild(phls); }
+                                    else {
+                                        Array.prototype.slice.call(lowStockList.children,0,5).forEach(function(li){
+                                            var copy = document.createElement('li'); copy.textContent = li.textContent; lowStockValuesEl.appendChild(copy);
+                                        });
+                                    }
+                                }
+                            }catch(e){}
+                        } else {
+                            if(lowStockSummary) lowStockSummary.textContent = 'Inventory not loaded';
+                            // don't overwrite header descriptor for inventory-not-loaded state; keep static descriptor
+                        }
+                    }
+                }catch(e){ /* ignore inventory read errors */ }
+
+                // Dead stock: compute products with no sales by comparing inventory vs orders
+                // Build a set of sold product signatures (brand|model) from orders
+                var soldSet = new Set();
+                try{
+                    orders.forEach(function(order){
+                        var items = Array.isArray(order.items) ? order.items : [];
+                        items.forEach(function(it){
+                            var b = (it.brand || it.vendor || it.manufacturer || '').toString().trim();
+                            var m = (it.title || it.model || it.name || '').toString().trim();
+                            if(b || m){ soldSet.add((b + '|' + m).toLowerCase()); }
+                        });
+                    });
+                }catch(e){}
+
+                // Dead stock: simple heuristic (products present in inventory with no sales)
+                try{
+                    var deadStockList = document.getElementById('deadStockList');
+                    var deadStockValuesEl = deadStockList && deadStockList.closest('.card') && deadStockList.closest('.card').querySelector('.card-values');
+                    if(deadStockList){
+                        deadStockList.innerHTML = '';
+                        // Heuristic: scan products table and show rows that have no matching sales
+                        var tbody = document.getElementById('productsTbody');
+                        if(tbody){
+                            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+                            var dead = [];
+                            rows.forEach(function(r){ try{
+                                var cells = r.children; if(!cells || cells.length < 4) return;
+                                var brand = cells[1] ? cells[1].textContent.trim() : '';
+                                var model = cells[3] ? cells[3].textContent.trim() : '';
+                                var sig = (brand + '|' + model).toLowerCase();
+                                // if signature not present in sold set, consider it dead (no recorded sales)
+                                if(!soldSet.has(sig)){
+                                    dead.push(brand + ' ' + model);
+                                }
+                            }catch(e){} });
+                            if(dead.length === 0){ var phd = document.createElement('li'); phd.textContent = 'None'; phd.className = 'placeholder'; deadStockList.appendChild(phd); }
+                            else dead.forEach(function(d){ var li = document.createElement('li'); li.textContent = d; deadStockList.appendChild(li); });
+                            // mirror into compact header values
+                            if(deadStockValuesEl){ deadStockValuesEl.innerHTML = ''; if(dead.length===0){ var phd2 = document.createElement('li'); phd2.textContent = '—'; phd2.className='placeholder'; deadStockValuesEl.appendChild(phd2);} else dead.slice(0,5).forEach(function(d){ var li=document.createElement('li'); li.textContent = d; deadStockValuesEl.appendChild(li); }); }
+                        } else {
+                            var phd = document.createElement('li'); phd.textContent = 'Inventory not loaded'; phd.className='placeholder'; deadStockList.appendChild(phd);
+                            if(deadStockValuesEl){ deadStockValuesEl.innerHTML = ''; var phd2 = document.createElement('li'); phd2.textContent='—'; phd2.className='placeholder'; deadStockValuesEl.appendChild(phd2); }
+                        }
+                    }
+                }catch(e){}
+
+            }catch(e){ console.error('updateReportsFromOrders failed', e); }
+        }
+
+        async function loadSalesLog(){
+            var dbg = getSalesDebugEl();
+            var found = await findOrdersJson();
+            var tbody = document.getElementById('salesTbody');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+            if(!found){
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="7" style="color:#888;padding:12px;">Could not find <code>data/orders.json</code>. Try loading the page through http://localhost/SHOEPAO/ or run <code>window.reloadSalesLog()</code> from console after ensuring the file exists.</td>';
+                tbody.appendChild(tr);
+                console.warn('orders.json not found at candidates', candidates);
+                if(dbg) dbg.textContent = 'Could not find orders.json — checked: ' + candidates.join(', ');
+                // also clear reports to indicate no data
+                updateReportsFromOrders([]);
+                return;
+            }
+
+            var orders = Array.isArray(found.json) ? found.json.slice() : [];
+            orders.sort(function(a,b){ return new Date(b.date || b.timestamp || 0) - new Date(a.date || a.timestamp || 0); });
+
+            if(orders.length === 0){
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="7" style="color:#888;padding:12px;">No orders found in data/orders.json</td>';
+                tbody.appendChild(tr);
+                if(dbg) dbg.textContent = 'orders.json loaded from ' + found.url + ' but contains 0 orders';
+                updateReportsFromOrders([]);
+                return;
+            }
+
+            // clear any previous debug message to avoid showing counts in the UI
+            if(getSalesDebugEl()) try{ getSalesDebugEl().textContent = ''; }catch(e){}
+
+            orders.forEach(function(order){
+                var date = fmtDate(order.date || order.timestamp || order.createdAt || '');
+                var items = Array.isArray(order.items) ? order.items : [];
+                items.forEach(function(item){
+                    var brand = item.brand || '';
+                    var model = item.title || '';
+                    var color = item.color || '';
+                    if(!color){
+                        var parts = (model||'').split(/\s+/);
+                        var candidatesColors = ['Red','Black','Blue','Aqua','White','Iron','Grey','Green','Camo','Brown','Pink','Silver','Gold','Navy','Orange','Beige','Maroon'];
+                        for(var k=0;k<candidatesColors.length;k++){ if(model.toLowerCase().indexOf(candidatesColors[k].toLowerCase()) !== -1){ color = candidatesColors[k]; break; } }
+                        if(!color && parts.length){ var token = parts[parts.length-1]; if(!/^\d+$/.test(token) && token.length<=16) color = token; }
+                    }
+                    var size = item.size || item.eu || '';
+                    var qty = (typeof item.qty !== 'undefined') ? item.qty : ((typeof item.quantity !== 'undefined') ? item.quantity : 1);
+                    var unitPrice = Number(item.price || 0);
+                    var lineTotal = unitPrice * Number(qty || 0);
+
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td>' + esc(date) + '</td>'
+                                 + '<td>' + esc(brand) + '</td>'
+                                 + '<td>' + esc(model) + '</td>'
+                                 + '<td>' + esc(color) + '</td>'
+                                 + '<td>' + esc(size) + '</td>'
+                                 + '<td>' + esc(String(qty)) + '</td>'
+                                 + '<td>' + formatPHP(lineTotal) + '</td>';
+                    tbody.appendChild(tr);
+                });
+            });
+
+            // Update the reports panel using parsed orders
+            try{ updateReportsFromOrders(orders); }catch(e){ console.error('reports update failed', e); }
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            // Reports are always visible; set static header descriptors so users
+            // see descriptive labels immediately (avoid temporary "No sales" text).
+            try{
+                var descMap = {
+                    'Best-Selling Sizes': 'Top 5 sizes',
+                    'Best-Selling Brands': 'Top 3 brands',
+                    'Low Stock': 'Model variants & sizes at or below threshold',
+                    'Dead Stock': 'Products with no sales',
+                    'Overview': 'Orders metrics'
+                };
+                document.querySelectorAll('.reports-grid .card').forEach(function(card){
+                    try{
+                        var title = (card.querySelector('.header-line h3')||{}).textContent || '';
+                        var desc = descMap[title] || '';
+                        var el = card.querySelector('.card-desc');
+                        if(el && desc) el.textContent = desc;
+                    }catch(e){}
+                });
+            }catch(e){}
+
+            // Initial load + polling so Sales updates continuously. The polling keeps
+            // the underlying report data fresh even when users toggle visibility.
+            loadSalesLog().catch(function(e){ console.error(e); });
+            try{ setInterval(function(){ loadSalesLog().catch(function(e){ console.error('reload sales', e); }); }, 5000); }catch(e){}
+        });
+        window.reloadSalesLog = loadSalesLog;
+        // Ensure the sales tab stays updated even if other scripts (inventory-app) later overwrite
+        // the table. Use a MutationObserver to detect changes and reapply our renderer.
+        (function(){
+            try{
+                var tbody = document.getElementById('salesTbody');
+                if(!tbody) return;
+                var __sales_log_writing = false;
+                var originalLoad = loadSalesLog;
+                // wrap original to set the writing flag so the observer ignores our writes
+                loadSalesLog = async function(){ __sales_log_writing = true; try{ await originalLoad(); }catch(e){} finally{ __sales_log_writing = false; } };
+
+                var mo = new MutationObserver(function(mutations){
+                    if(__sales_log_writing) return;
+                    // If something else changed the tbody, refresh after a short delay
+                    setTimeout(function(){ try{ loadSalesLog(); }catch(e){} }, 80);
+                });
+                mo.observe(tbody, { childList: true, subtree: true });
+            }catch(e){ /* no-op */ }
+        })();
+    })();
+    </script>
 
 </body>
 </html>

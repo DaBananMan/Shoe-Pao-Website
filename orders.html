@@ -334,6 +334,7 @@
         .badge-delivered { background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9; }
         .badge-refund-requested { background:#fff3e0; color:#ef6c00; border-color:#ffe0b2; }
         .badge-refunded { background:#e8f5e9; color:#2e7d32; border-color:#c8e6c9; }
+        .badge-refund-processing { background:#fff0f0; color:#b71c1c; border-color:#f8d7da; }
         .badge-cancelled { background:#f1f3f5; color:#495057; border-color:#dee2e6; }
         .badge-archived { background:#eceff1; color:#455a64; border-color:#cfd8dc; }
         .status-icon { font-size:0.95rem; line-height:1; }
@@ -399,6 +400,35 @@
             display:none;
             justify-content:flex-end;
         }
+
+        /* Full-screen loading overlay to block interactions during critical writes */
+        .orders-loading-overlay {
+            position:fixed;
+            inset:0;
+            background:rgba(34,34,34,0.45);
+            display:none;
+            align-items:center;
+            justify-content:center;
+            flex-direction:column;
+            gap:12px;
+            z-index:100020;
+        }
+        .orders-loading-spinner {
+            width:56px;
+            height:56px;
+            border-radius:50%;
+            border:6px solid #f5f5f5;
+            border-top-color:#b71c1c;
+            animation:ordersSpin 0.9s linear infinite;
+            box-shadow:0 4px 12px rgba(0,0,0,0.18);
+        }
+        .orders-loading-label {
+            color:#fff;
+            font-weight:600;
+            font-size:1rem;
+            text-shadow:0 1px 2px rgba(0,0,0,0.35);
+        }
+        @keyframes ordersSpin { to { transform:rotate(360deg); } }
         .orders-drawer {
             background:#fff;
             width:520px;
@@ -494,11 +524,7 @@
                 <a class="nav-item" href="accounts.html">Accounts</a>
             </div>
         </div>
-        <div class="nav-right">
-            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
-                <img src="IMAGE/USERICON.png" alt="User">
-            </button>
-        </div>
+        <!-- profile removed for admin UI -->
     </header>
     <div class="site-container">
     <div class="orders-page">
@@ -674,6 +700,15 @@
                     <div class="totals-row"><span>Discounts</span><span id="drawerDiscounts"></span></div>
                     <div class="totals-row total"><span>Total</span><span id="drawerTotal"></span></div>
                 </div>
+                <div class="drawer-section" id="drawerCancellationSection" style="display:none;">
+                    <h3>Cancellation</h3>
+                    <div class="drawer-label">Reason</div>
+                    <div id="drawerCancellationReason" class="drawer-value"></div>
+                    <div class="drawer-label" style="margin-top:6px;">Details</div>
+                    <div id="drawerCancellationNote" class="drawer-value"></div>
+                    <div class="drawer-label" style="margin-top:6px;">Payment Handling</div>
+                    <div id="drawerCancellationPayment" class="drawer-value"></div>
+                </div>
                 <div class="drawer-section">
                     <h3>Admin Notes</h3>
                     <textarea id="drawerAdminNotes" class="drawer-textarea" placeholder="Add internal notes..."></textarea>
@@ -684,6 +719,43 @@
             </div>
         </aside>
     </div>
+
+    <!-- Admin Cancellation Modal -->
+    <div id="adminCancelModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100000;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <div style="font-weight:700;font-size:1.05rem;">Cancel Order</div>
+                <button id="adminCancelCloseBtn" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
+            </div>
+            <div id="adminCancelTargetLabel" style="margin-bottom:10px;color:#444;font-weight:600;"></div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <label style="font-weight:600;color:#222;">Reason</label>
+                <select id="adminCancelReasonSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-family:'Poppins',Arial,sans-serif;">
+                    <option value="">Select a reason</option>
+                    <option value="fraud">Fraudulent order</option>
+                    <option value="spam">Spam or abusive order</option>
+                    <option value="invalid_proof">Invalid proof of payment</option>
+                    <option value="payment_dispute">Payment dispute / chargeback</option>
+                    <option value="customer_request">Customer requested cancellation</option>
+                    <option value="duplicate">Duplicate order</option>
+                    <option value="out_of_stock">Out of stock</option>
+                    <option value="other">Other</option>
+                </select>
+                <label style="font-weight:600;color:#222;">Admin note (visible to customer)</label>
+                <textarea id="adminCancelNoteInput" style="width:100%;min-height:90px;border:1px solid #ddd;border-radius:10px;padding:10px;font-family:'Poppins',Arial,sans-serif;resize:vertical;" placeholder="Add short details that explain this cancellation (shared with customer)"></textarea>
+                <div id="adminCancelPaymentHint" style="color:#666;font-size:0.92rem;line-height:1.45;background:#f8f9fa;border:1px solid #ececec;border-radius:10px;padding:10px;"></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap;">
+                <button id="adminCancelBackBtn" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;">Back</button>
+                <button id="adminCancelConfirmBtn" style="background:#b71c1c;color:#fff;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;" disabled>Confirm cancellation</button>
+            </div>
+        </div>
+    </div>
+        <!-- Global loading overlay -->
+        <div id="ordersLoadingOverlay" class="orders-loading-overlay" aria-hidden="true">
+            <div class="orders-loading-spinner" role="status" aria-live="polite"></div>
+            <div id="ordersLoadingLabel" class="orders-loading-label">Processing...</div>
+        </div>
 
     <!-- Cancellation Review Modal (admin) -->
     <div id="cancelReviewModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:100000;align-items:center;justify-content:center;">
@@ -730,8 +802,8 @@
     // Navigation bar functions
     function goToHome() { window.location.href = 'home.html'; }
     function goToProfile() {
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
+        // profile navigation removed for admin UI
+        return;
     }
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToOrders() { window.location.href = 'orders.html'; }
@@ -739,8 +811,8 @@
     function goToFAQ() { window.location.href = 'privacy.html'; }
     function goToContact() { window.location.href = 'contact.html'; }
     function goToUserPage() {
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
+        // profile/user navigation removed for admin UI
+        return;
     }
     function goToCartPage() { window.location.href = 'cart.html'; }
     function toggleSearchBox() {
@@ -807,6 +879,26 @@
     // Dev API base for Node backend. Change or make dynamic for production.
     // API base points to PHP proxy so browser requests go through Apache/PHP.
     const API_BASE = (function(){ try{ var p = window.location.pathname.replace(/\/+$|^\/+/, ''); var seg = p.split('/'); var root = seg.length > 0 ? '/' + seg[0] : ''; return root + '/server-proxy.php'; }catch(e){ return '/server-proxy.php'; } })();
+
+            function showOrdersLoading(label){
+                var overlay = document.getElementById('ordersLoadingOverlay');
+                var lbl = document.getElementById('ordersLoadingLabel');
+                if(!overlay) return;
+                if(lbl && label) lbl.textContent = label; else if(lbl && !label) lbl.textContent = 'Processing...';
+                overlay.style.display = 'flex';
+                overlay.setAttribute('aria-hidden','false');
+                overlay.dataset.prevOverflow = document.body.style.overflow || '';
+                document.body.style.overflow = 'hidden';
+            }
+
+            function hideOrdersLoading(){
+                var overlay = document.getElementById('ordersLoadingOverlay');
+                if(!overlay) return;
+                overlay.style.display = 'none';
+                overlay.setAttribute('aria-hidden','true');
+                var prev = overlay.dataset.prevOverflow || '';
+                document.body.style.overflow = prev;
+            }
 
         function formatPHP(n){ return 'PHP ' + Number(n).toLocaleString(undefined,{minimumFractionDigits:0}); }
 
@@ -918,6 +1010,8 @@
 
                 // Use server/authoritative data as the source of truth for rendering and cache it locally
                 ordersData = sortOrdersByNewest(mergeOrdersById([], fetched));
+                // Auto-cancel COD orders that are pending and have an awaiting cancel request
+                autoCancelCodPendingRequests(ordersData);
                 try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){/* ignore */}
             }catch(e){
                 console.error('Failed to initialize orders', e);
@@ -928,6 +1022,26 @@
             }
         }
 
+        function autoCancelCodPendingRequests(list){
+            var nowIso = new Date().toISOString();
+            (list || []).forEach(function(order){
+                try{
+                    if(!order || !order.id) return;
+                    var state = canonicalStatusFromOrder(order);
+                    if(state !== 'pending payment') return;
+                    if(getOrderPaymentCode(order) !== 'cod') return;
+                    var cr = order.cancelRequest;
+                    if(!cr || !cr.requestedAt) return;
+                    if(cr.approvedAt || cr.rejectedAt) return;
+                    updateOrder(order.id, {
+                        status: 'cancelled',
+                        previousStatus: order.previousStatus || order.status || 'pending payment',
+                        cancelRequest: Object.assign({}, cr, { approvedAt: nowIso, rejectedAt: null, autoApproved: true })
+                    });
+                }catch(e){ /* ignore */ }
+            });
+        }
+
         function statusBadge(label, type, icon){
             var cls = 'status-badge ' + (type ? ('badge-' + type) : '');
             var iconHtml = icon ? ('<span class="status-icon" aria-hidden="true">' + icon + '</span>') : '';
@@ -935,6 +1049,22 @@
         }
 
         function normalizeStatus(s){ return String(s||'').toLowerCase().trim(); }
+
+        const ADMIN_CANCEL_REASON_OPTIONS = [
+            { value:'fraud', label:'Fraudulent order' },
+            { value:'spam', label:'Spam or abusive order' },
+            { value:'invalid_proof', label:'Invalid proof of payment' },
+            { value:'payment_dispute', label:'Payment dispute / chargeback' },
+            { value:'customer_request', label:'Customer requested cancellation' },
+            { value:'duplicate', label:'Duplicate order' },
+            { value:'out_of_stock', label:'Out of stock' },
+            { value:'other', label:'Other' }
+        ];
+
+        function cancelReasonLabel(value){
+            var opt = ADMIN_CANCEL_REASON_OPTIONS.find(function(o){ return o.value === value; });
+            return (opt && opt.label) ? opt.label : titleCase(value || '');
+        }
 
         function normalizeDeliveryAddressFromAddressObject(addressObject){
             if(!addressObject) return null;
@@ -1094,6 +1224,121 @@
             }catch(e){ console.warn('updateDrawerVerification failed', e); }
         }
 
+        function updateDrawerCancellationInfo(row){
+            try{
+                var section = document.getElementById('drawerCancellationSection');
+                if(!section) return;
+                var info = row && row.adminCancellation ? row.adminCancellation : null;
+                var state = canonicalStatusFromOrder(row);
+                var shouldShow = info && (state === 'cancelled' || state === 'refund processing' || state === 'refunded');
+                if(!shouldShow){ section.style.display = 'none'; return; }
+                var reasonEl = document.getElementById('drawerCancellationReason');
+                var noteEl = document.getElementById('drawerCancellationNote');
+                var paymentEl = document.getElementById('drawerCancellationPayment');
+                if(reasonEl) reasonEl.textContent = info.reason || cancelReasonLabel(info.reasonCode) || 'Admin cancelled';
+                if(noteEl) noteEl.textContent = info.note || 'No additional details provided';
+                if(paymentEl){
+                    var handling = info.paymentHandling || (info.requiresRefund ? 'Refund processing' : 'Cancelled');
+                    paymentEl.textContent = handling;
+                }
+                section.style.display = '';
+            }catch(e){ console.warn('updateDrawerCancellationInfo failed', e); }
+        }
+
+        function deriveCancellationPayload(order, reasonCode, note){
+            var nowIso = new Date().toISOString();
+            var paymentCode = getOrderPaymentCode(order);
+            var isFraud = (reasonCode === 'fraud' || reasonCode === 'spam');
+            var status = (isFraud || paymentCode === 'cod') ? 'cancelled' : 'refund processing';
+            var reasonLabel = cancelReasonLabel(reasonCode) || 'Cancelled by admin';
+            var adminCancellation = Object.assign({}, order.adminCancellation || {}, {
+                reasonCode: reasonCode,
+                reason: reasonLabel,
+                note: note || '',
+                decidedAt: nowIso,
+                decidedBy: 'admin',
+                previousStatus: order.status || '',
+                paymentMethod: getOrderPaymentMethodLabel(order) || paymentCode || '',
+                requiresRefund: (status === 'refund processing'),
+                paymentHandling: isFraud ? 'Force-cancelled (fraud/spam)' : (paymentCode === 'cod' ? 'COD — immediate cancellation' : 'Refund processing before payout'),
+                visibleToCustomer: true
+            });
+            return {
+                status: status,
+                previousStatus: order.status || 'pending payment',
+                adminCancellation: adminCancellation,
+                cancelReason: reasonLabel,
+                cancelNote: note || ''
+            };
+        }
+
+        function summarizePaymentHandling(orders){
+            try{
+                if(!Array.isArray(orders) || !orders.length) return 'Fraudulent or spam reasons will force-cancel. COD orders cancel immediately; Bank/QR orders move to Refund Processing until marked refunded.';
+                var hasCOD = orders.some(function(o){ return getOrderPaymentCode(o) === 'cod'; });
+                var hasNonCOD = orders.some(function(o){ var c = getOrderPaymentCode(o); return c && c !== 'cod'; });
+                var parts = [];
+                if(hasCOD) parts.push('COD orders cancel immediately.');
+                if(hasNonCOD) parts.push('Bank/QR orders move to Refund Processing, then mark Refunded after payout.');
+                parts.push('Fraudulent or spam reasons always force-cancel.');
+                return parts.join(' ');
+            }catch(e){ return 'Fraudulent or spam reasons force-cancel. COD cancels immediately; Bank/QR goes to Refund Processing.'; }
+        }
+
+        function openAdminCancelModal(order, idList){
+            var overlay = document.getElementById('adminCancelModalOverlay');
+            var label = document.getElementById('adminCancelTargetLabel');
+            var reasonSel = document.getElementById('adminCancelReasonSelect');
+            var noteInput = document.getElementById('adminCancelNoteInput');
+            var confirmBtn = document.getElementById('adminCancelConfirmBtn');
+            pendingCancelTargets = Array.isArray(idList) && idList.length ? idList.slice() : (order ? [order.id] : []);
+            pendingCancelOrders = pendingCancelTargets.map(function(id){ return ordersData.find(function(o){ return String(o.id) === String(id); }); }).filter(Boolean);
+            if(order && pendingCancelOrders.length === 0 && order.id){ pendingCancelOrders = [order]; pendingCancelTargets = [order.id]; }
+            if(!overlay || !label || !reasonSel || !confirmBtn) return;
+            label.textContent = pendingCancelTargets.length > 1 ? ('Cancelling ' + pendingCancelTargets.length + ' orders') : ('Cancelling order ' + (pendingCancelTargets[0] || ''));
+            reasonSel.value = '';
+            if(noteInput) noteInput.value = '';
+            confirmBtn.disabled = true;
+            var hint = document.getElementById('adminCancelPaymentHint');
+            if(hint) hint.textContent = summarizePaymentHandling(pendingCancelOrders);
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeAdminCancelModal(){
+            var overlay = document.getElementById('adminCancelModalOverlay');
+            if(overlay) overlay.style.display = 'none';
+            try{
+                var drawerOverlay = document.getElementById('orderDrawerOverlay');
+                var drawerOpen = drawerOverlay && drawerOverlay.style.display === 'flex';
+                document.body.style.overflow = drawerOpen ? 'hidden' : '';
+            }catch(e){ document.body.style.overflow = ''; }
+            pendingCancelTargets = [];
+            pendingCancelOrders = [];
+        }
+
+        function confirmAdminCancellation(){
+            var reasonSel = document.getElementById('adminCancelReasonSelect');
+            var noteInput = document.getElementById('adminCancelNoteInput');
+            if(!reasonSel || !pendingCancelTargets.length) return;
+            var reason = reasonSel.value;
+            if(!reason) return;
+            var note = noteInput ? (noteInput.value || '') : '';
+            if(reason === 'other' && (!note || note.trim().length < 3)){
+                alert('Please enter a short explanation for Other.');
+                return;
+            }
+            pendingCancelTargets.forEach(function(id){
+                var ord = ordersData.find(function(o){ return String(o.id) === String(id); });
+                if(!ord) return;
+                var payload = deriveCancellationPayload(ord, reason, note);
+                updateOrder(id, payload);
+            });
+            selectedOrderIds.clear();
+            applySearch();
+            closeAdminCancelModal();
+        }
+
         function canonicalStatusFromOrder(order){
             var statusRaw = normalizeStatus(order && order.status);
             if(order && order.archived) return 'archived';
@@ -1104,11 +1349,17 @@
             if(statusRaw === 'processing') return 'processing';
             if(statusRaw === 'confirmed') return 'confirmed';
             if(statusRaw === 'approved') return 'confirmed';
-            if(statusRaw === 'refund processing') return 'refund requested';
+            if(statusRaw === 'return and refund requested') return 'return and refund requested';
+            if(statusRaw === 'refund requested') return 'refund requested';
+            if(statusRaw === 'awaiting return') return 'awaiting return';
+            if(statusRaw === 'refund processing' || statusRaw === 'processing refund') return 'refund processing';
             if(statusRaw === 'refunded') return 'refunded';
             if(order && order.returnRequest && order.returnRequest.requestedAt){
                 var refundStatus = normalizeStatus(order.returnRequest.refundStatus || '');
                 if(refundStatus === 'refunded') return 'refunded';
+                var reqCode = normalizeStatus(order.returnRequest.requestTypeCode || '');
+                var reqType = normalizeStatus(order.returnRequest.requestType || '');
+                if(reqCode === 'return_refund' || reqType.indexOf('return') !== -1) return 'return and refund requested';
                 return 'refund requested';
             }
             if(statusRaw === 'pending' || statusRaw === 'pending payment' || !statusRaw) return 'pending payment';
@@ -1122,6 +1373,9 @@
                 'processing': { label: 'Processing', type: 'processing', icon: '⚙️' },
                 'shipped': { label: 'Shipped', type: 'shipped', icon: '🚚' },
                 'delivered': { label: 'Delivered', type: 'delivered', icon: '📦' },
+                'return and refund requested': { label: 'Return and Refund Requested', type: 'refund-requested', icon: '🧾' },
+                'awaiting return': { label: 'Awaiting Return', type: 'processing', icon: '📦' },
+                'refund processing': { label: 'Refund Processing', type: 'refund-processing', icon: '💳' },
                 'refund requested': { label: 'Refund Requested', type: 'refund-requested', icon: '🧾' },
                 'refunded': { label: 'Refunded', type: 'refunded', icon: '💸' },
                 'cancelled': { label: 'Cancelled', type: 'cancelled', icon: '✖️' },
@@ -1131,12 +1385,15 @@
         }
 
         var ORDER_TRANSITIONS = {
-            'pending payment': ['confirmed','cancelled'],
-            'confirmed': ['processing','cancelled'],
-            'processing': ['shipped','cancelled'],
-            'shipped': ['delivered'],
-            'delivered': ['archived'],
-            'refund requested': ['refunded'],
+            'pending payment': ['confirmed','cancelled','refund processing'],
+            'confirmed': ['processing','cancelled','refund processing'],
+            'processing': ['shipped','cancelled','refund processing'],
+            'shipped': ['delivered','refund processing'],
+            'delivered': ['archived','refund processing','refund requested','return and refund requested'],
+            'return and refund requested': ['awaiting return','refund processing','refunded'],
+            'awaiting return': ['refund processing','refunded','archived'],
+            'refund requested': ['refund processing','refunded','archived'],
+            'refund processing': ['refunded','archived','cancelled'],
             'refunded': ['archived'],
             'cancelled': ['archived'],
             'archived': []
@@ -1159,7 +1416,7 @@
                 return list.filter(function(o){ return o.returnRequest && o.returnRequest.requestedAt; });
             }
             if(activeTab === 'cancelled'){
-                return list.filter(function(o){ return normalizeStatus(o.status) === 'cancelled'; });
+                return list.filter(function(o){ var s = normalizeStatus(o.status); return s === 'cancelled' || s === 'refund processing'; });
             }
             if(activeTab === 'archived'){
                 return list.filter(function(o){ return !!o.archived || normalizeStatus(o.status) === 'archived'; });
@@ -1192,70 +1449,422 @@
         }
 
         function adjustAdminInventoryStock(items, direction){
-            var updated = false;
-            try{
-                var adminProducts = JSON.parse(localStorage.getItem('shoeInventoryData')||'null');
-                if(!Array.isArray(adminProducts) || !adminProducts.length) return false;
-                items.forEach(function(it){
-                    var qty = Number(it.qty || it.quantity || 1) || 0;
-                    if(!qty) return;
-                    var size = (it.size || it.eu || it.size_eu || '').toString().trim();
-                    if(!size) return;
-                    var title = (it.name || it.title || it.productName || '').toString().trim();
-                    var itemId = (it.product_id || it.productId || it.id || '').toString().trim();
-                    adminProducts.forEach(function(p){
-                        var pId = (p && (p.id || p.sku)) ? String(p.id || p.sku) : '';
-                        var matchesProduct = itemId && pId && itemId === pId;
-                        var colors = Array.isArray(p.colors) ? p.colors : [];
-                        colors.forEach(function(c){
-                            var name = ((p.model||'') + (c && c.name ? (' ' + c.name) : '')).trim();
-                            if(!matchesProduct && title){
-                                if(String(name).toLowerCase() !== String(title).toLowerCase()) return;
-                            }
-                            if(!Array.isArray(c.sizes)) return;
-                            c.sizes.forEach(function(s){
-                                if(String(s.eu) === String(size)){
-                                    var cur = Number(s.stock || 0) || 0;
-                                    var next = cur + (direction * qty);
-                                    s.stock = Math.max(0, next);
-                                    updated = true;
-                                }
-                            });
-                        });
-                    });
-                });
-                if(updated){
-                    localStorage.setItem('shoeInventoryData', JSON.stringify(adminProducts));
-                }
-            }catch(e){ /* ignore */ }
-            return updated;
+            return false;
         }
 
         function adjustInventoryStock(items, direction){
-            var updated = false;
-            try{
-                var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
-                if(Array.isArray(inv) && inv.length){
-                    items.forEach(function(it){
-                        var qty = Number(it.qty || it.quantity || 1) || 0;
-                        if(!qty) return;
-                        var size = (it.size || it.eu || it.size_eu || '').toString().trim();
-                        if(!size) return;
-                        var idx = findInventoryIndexForItem(inv, it);
-                        if(idx === -1) return;
-                        if(!inv[idx].sizes) inv[idx].sizes = {};
-                        var cur = Number(inv[idx].sizes[size] || 0) || 0;
-                        var next = cur + (direction * qty);
-                        inv[idx].sizes[size] = Math.max(0, next);
-                        updated = true;
-                    });
-                    if(updated){
-                        localStorage.setItem('inventory', JSON.stringify(inv));
-                    }
+            try{ adjustInventoryStockFirestore(items, direction); }catch(e){ /* ignore */ }
+            return false;
+        }
+
+        function adjustInventoryStockFirestore(items, direction){
+            return new Promise(function(resolve){
+                try{
+                    if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return resolve(false);
+                    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                    var db = firebase.firestore();
+                    if(!Array.isArray(items) || !items.length) return resolve(false);
+
+                    var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+                    var getItemId = function(it){ return String(it.product_id || it.productId || it.id || '').trim(); };
+                    var getItemInventoryId = function(it){ return String(it.inventoryId || it.inventory_id || it.product_id || it.productId || it.id || '').trim(); };
+                    var getItemVariantId = function(it){ return String(it.variantId || it.variant_id || it.variant || '').trim(); };
+                    var getItemName = function(it){ return String(it.name || it.title || it.productName || '').trim(); };
+                    var getItemBrand = function(it){ return String(it.brand || it.productBrand || '').trim(); };
+                    var getItemColor = function(it){ return String(it.color || it.variant || it.colorName || '').trim(); };
+                    var getItemSize = function(it){ return String(it.size || it.eu || it.size_eu || '').trim(); };
+
+                    Promise.all([
+                        db.collection('variants').get(),
+                        db.collection('products').get()
+                    ]).then(function(res){
+                        var variantsSnap = res[0];
+                        var productsSnap = res[1];
+                        var variants = [];
+                        var products = [];
+                        variantsSnap.forEach(function(doc){ variants.push({ ref: doc.ref, id: doc.id, data: doc.data() || {} }); });
+                        productsSnap.forEach(function(doc){ products.push({ ref: doc.ref, id: doc.id, data: doc.data() || {} }); });
+
+                        var variantsByProductId = {};
+                        variants.forEach(function(v){
+                            try{
+                                var d = v.data || {};
+                                var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
+                                if(!pid) return;
+                                var key = String(pid);
+                                if(!variantsByProductId[key]) variantsByProductId[key] = [];
+                                variantsByProductId[key].push(v);
+                            }catch(e){ /* ignore */ }
+                        });
+
+                        var batch = db.batch();
+                        var did = false;
+                        var variantUpdates = new Map();
+                        var productUpdates = new Map();
+
+                        function getVariantState(match){
+                            var key = match && match.ref ? match.ref.path : (match && match.id ? String(match.id) : '');
+                            if(!key) return null;
+                            var state = variantUpdates.get(key);
+                            if(!state){
+                                var base = JSON.parse(JSON.stringify(match.data || {}));
+                                state = { ref: match.ref, data: base, payload: {} };
+                                variantUpdates.set(key, state);
+                            }
+                            return state;
+                        }
+
+                        function getProductState(match){
+                            var key = match && match.ref ? match.ref.path : (match && match.id ? String(match.id) : '');
+                            if(!key) return null;
+                            var state = productUpdates.get(key);
+                            if(!state){
+                                var base = JSON.parse(JSON.stringify(match.data || {}));
+                                state = { ref: match.ref, data: base, payload: {} };
+                                productUpdates.set(key, state);
+                            }
+                            return state;
+                        }
+
+                        items.forEach(function(it){
+                            var qty = Number(it.qty || it.quantity || 1) || 0;
+                            if(!qty) return;
+                            var size = getItemSize(it);
+                            if(!size) return;
+                            var itemId = getItemId(it);
+                            var itemInventoryId = getItemInventoryId(it);
+                            var itemVariantId = getItemVariantId(it);
+                            var itemName = getItemName(it);
+                            var itemBrand = getItemBrand(it);
+                            var itemColor = getItemColor(it);
+
+                            // Update variants collection
+                            var variantMatch = null;
+                            if(itemVariantId){
+                                variantMatch = variants.find(function(v){ return String(v.id) === itemVariantId; });
+                            }
+                            if(!variantMatch && itemId){
+                                variantMatch = variants.find(function(v){
+                                    var d = v.data || {};
+                                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
+                                    return pid && String(pid) === itemId;
+                                });
+                            }
+                            if(!variantMatch && itemInventoryId){
+                                variantMatch = variants.find(function(v){
+                                    var d = v.data || {};
+                                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
+                                    return pid && String(pid) === itemInventoryId;
+                                });
+                            }
+                            if(!variantMatch && itemColor){
+                                var cNorm = normalize(itemColor);
+                                variantMatch = variants.find(function(v){
+                                    var d = v.data || {};
+                                    var vColor = normalize(d.colorName || d.name || d.color || '');
+                                    if(!vColor) return false;
+                                    if(vColor !== cNorm) return false;
+                                    if(itemBrand){
+                                        var vBrand = normalize(d.brand || '');
+                                        if(vBrand && vBrand !== normalize(itemBrand)) return false;
+                                    }
+                                    return true;
+                                });
+                            }
+                            if(variantMatch){
+                                var vState = getVariantState(variantMatch);
+                                if(vState){
+                                    var vd = vState.data || {};
+                                    if(Array.isArray(vd.sizes)){
+                                        vd.sizes = vd.sizes.map(function(s){
+                                            if(String(s.eu) === String(size)){
+                                                var cur = Number(s.stock || 0) || 0;
+                                                var next = cur + (direction * qty);
+                                                return Object.assign({}, s, { stock: Math.max(0, next) });
+                                            }
+                                            return s;
+                                        });
+                                        vState.payload.sizes = vd.sizes;
+                                        did = true;
+                                    } else if (vd.sizeMap && typeof vd.sizeMap === 'object') {
+                                        var curMap = Object.assign({}, vd.sizeMap);
+                                        var curVal = Number(curMap[String(size)] || 0) || 0;
+                                        curMap[String(size)] = Math.max(0, curVal + (direction * qty));
+                                        vState.payload.sizeMap = curMap;
+                                        did = true;
+                                    } else if (vd.sizesMap && typeof vd.sizesMap === 'object') {
+                                        var curMap2 = Object.assign({}, vd.sizesMap);
+                                        var curVal2 = Number(curMap2[String(size)] || 0) || 0;
+                                        curMap2[String(size)] = Math.max(0, curVal2 + (direction * qty));
+                                        vState.payload.sizesMap = curMap2;
+                                        did = true;
+                                    } else {
+                                        var field = 'stock' + String(size);
+                                        var curVal3 = Number(vd[field] || 0) || 0;
+                                        var nextVal3 = Math.max(0, curVal3 + (direction * qty));
+                                        vState.payload[field] = nextVal3;
+                                        did = true;
+                                    }
+                                }
+                            }
+
+                            // Update products collection if sizes are embedded in colors
+                            var productMatch = null;
+                            if(itemInventoryId){
+                                productMatch = products.find(function(p){
+                                    var d = p.data || {};
+                                    return String(d.id || d.sku || p.id || '') === itemInventoryId;
+                                });
+                            }
+                            if(!productMatch && itemId){
+                                productMatch = products.find(function(p){
+                                    var d = p.data || {};
+                                    return String(d.id || d.sku || p.id || '') === itemId;
+                                });
+                            }
+                            if(!productMatch && itemName){
+                                var nName = normalize(itemName);
+                                productMatch = products.find(function(p){
+                                    var d = p.data || {};
+                                    var model = normalize(d.model || d.name || d.title || '');
+                                    if(!model) return false;
+                                    if(model !== nName && model.indexOf(nName) === -1 && nName.indexOf(model) === -1) return false;
+                                    if(itemBrand){
+                                        var b = normalize(d.brand || '');
+                                        if(b && b !== normalize(itemBrand)) return false;
+                                    }
+                                    return true;
+                                });
+                            }
+                            if(!variantMatch && productMatch){
+                                var pData = productMatch.data || {};
+                                var resolvedProductId = String(pData.id || pData.sku || productMatch.id || '');
+                                var list = resolvedProductId ? (variantsByProductId[resolvedProductId] || []) : [];
+                                if(list.length === 1){
+                                    variantMatch = list[0];
+                                }
+                            }
+                            if(productMatch){
+                                var pState = getProductState(productMatch);
+                                if(pState){
+                                    var pd = pState.data || {};
+                                    if(Array.isArray(pd.colors)){
+                                        var colorNameToUse = itemColor;
+                                        if(!colorNameToUse && pd.colors.length === 1){
+                                            colorNameToUse = pd.colors[0].name || '';
+                                        }
+                                        pd.colors = pd.colors.map(function(c){
+                                            if(colorNameToUse){
+                                                if(normalize(c.name || '') !== normalize(colorNameToUse)) return c;
+                                            }
+                                            if(Array.isArray(c.sizes)){
+                                                var sizes = c.sizes.map(function(s){
+                                                    if(String(s.eu) === String(size)){
+                                                        var cur = Number(s.stock || 0) || 0;
+                                                        var next = cur + (direction * qty);
+                                                        return Object.assign({}, s, { stock: Math.max(0, next) });
+                                                    }
+                                                    return s;
+                                                });
+                                                return Object.assign({}, c, { sizes: sizes });
+                                            }
+                                            return c;
+                                        });
+                                        pState.payload.colors = pd.colors;
+                                        did = true;
+                                    }
+                                }
+                            }
+                        });
+
+                        variantUpdates.forEach(function(state){
+                            if(!state || !state.payload || !Object.keys(state.payload).length) return;
+                            state.payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+                            batch.update(state.ref, state.payload);
+                        });
+                        productUpdates.forEach(function(state){
+                            if(!state || !state.payload || !Object.keys(state.payload).length) return;
+                            state.payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+                            batch.update(state.ref, state.payload);
+                        });
+
+                        if(!did) return resolve(false);
+                        batch.commit().then(function(){ resolve(true); }).catch(function(){ resolve(false); });
+                    }).catch(function(){ resolve(false); });
+                }catch(e){ resolve(false); }
+            });
+        }
+
+        // Lightweight inventory snapshot for stock validation (no writes)
+        function fetchInventorySnapshot(){
+            return new Promise(function(resolve){
+                try{
+                    if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return resolve(null);
+                    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+                    var db = firebase.firestore();
+                    Promise.all([
+                        db.collection('variants').get(),
+                        db.collection('products').get()
+                    ]).then(function(res){
+                        var variants = [];
+                        var products = [];
+                        res[0].forEach(function(doc){ variants.push({ id: doc.id, data: doc.data() || {} }); });
+                        res[1].forEach(function(doc){ products.push({ id: doc.id, data: doc.data() || {} }); });
+                        resolve({ variants: variants, products: products });
+                    }).catch(function(){ resolve(null); });
+                }catch(e){ resolve(null); }
+            });
+        }
+
+        function getVariantStockForSize(variantData, size){
+            if(!variantData || !size) return null;
+            var sKey = String(size);
+            if(Array.isArray(variantData.sizes)){
+                var s = variantData.sizes.find(function(x){ return String(x.eu) === sKey; });
+                if(s && typeof s.stock !== 'undefined') return Number(s.stock) || 0;
+            }
+            if(variantData.sizeMap && typeof variantData.sizeMap === 'object'){
+                if(Object.prototype.hasOwnProperty.call(variantData.sizeMap, sKey)) return Number(variantData.sizeMap[sKey]) || 0;
+            }
+            if(variantData.sizesMap && typeof variantData.sizesMap === 'object'){
+                if(Object.prototype.hasOwnProperty.call(variantData.sizesMap, sKey)) return Number(variantData.sizesMap[sKey]) || 0;
+            }
+            var field = 'stock' + sKey;
+            if(Object.prototype.hasOwnProperty.call(variantData, field)) return Number(variantData[field]) || 0;
+            return null;
+        }
+
+        function getProductStockForSize(productData, colorName, size){
+            if(!productData || !size) return null;
+            var sKey = String(size);
+            var normalize = function(v){ return String(v||'').toLowerCase().trim(); };
+            if(Array.isArray(productData.colors)){
+                var matchColor = productData.colors.find(function(c){
+                    if(!colorName) return true;
+                    return normalize(c.name||'') === normalize(colorName);
+                });
+                if(matchColor && Array.isArray(matchColor.sizes)){
+                    var s = matchColor.sizes.find(function(x){ return String(x.eu) === sKey; });
+                    if(s && typeof s.stock !== 'undefined') return Number(s.stock) || 0;
                 }
-            }catch(e){ /* ignore */ }
-            var adminUpdated = adjustAdminInventoryStock(items, direction);
-            return updated || adminUpdated;
+            }
+            return null;
+        }
+
+        function resolveItemStock(item, snapshot){
+            if(!snapshot || !item) return null;
+            var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+            var size = String(item.size || item.eu || item.size_eu || '').trim();
+            if(!size) return null;
+            var qty = Number(item.qty || item.quantity || 1) || 1;
+            var itemId = String(item.product_id || item.productId || item.id || '').trim();
+            var itemInventoryId = String(item.inventoryId || item.inventory_id || item.product_id || item.productId || item.id || '').trim();
+            var itemVariantId = String(item.variantId || item.variant_id || item.variant || '').trim();
+            var itemName = String(item.name || item.title || item.productName || '').trim();
+            var itemBrand = String(item.brand || item.productBrand || '').trim();
+            var itemColor = String(item.color || item.variant || item.colorName || '').trim();
+
+            var variantMatch = null;
+            if(itemVariantId){
+                variantMatch = snapshot.variants.find(function(v){ return String(v.id) === itemVariantId; });
+            }
+            if(!variantMatch && itemId){
+                variantMatch = snapshot.variants.find(function(v){
+                    var d = v.data || {};
+                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || null;
+                    return pid && String(pid) === itemId;
+                });
+            }
+            if(!variantMatch && itemInventoryId){
+                variantMatch = snapshot.variants.find(function(v){
+                    var d = v.data || {};
+                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || null;
+                    return pid && String(pid) === itemInventoryId;
+                });
+            }
+            if(!variantMatch && itemColor){
+                var cNorm = normalize(itemColor);
+                variantMatch = snapshot.variants.find(function(v){
+                    var d = v.data || {};
+                    var vColor = normalize(d.colorName || d.name || d.color || '');
+                    if(!vColor) return false;
+                    if(vColor !== cNorm) return false;
+                    if(itemBrand){
+                        var vBrand = normalize(d.brand || '');
+                        if(vBrand && vBrand !== normalize(itemBrand)) return false;
+                    }
+                    return true;
+                });
+            }
+
+            if(variantMatch){
+                var available = getVariantStockForSize(variantMatch.data, size);
+                if(available !== null) return { available: available, needed: qty, name: itemName || itemId || 'Item', size: size };
+            }
+
+            var productMatch = null;
+            if(itemInventoryId){
+                productMatch = snapshot.products.find(function(p){
+                    var d = p.data || {};
+                    return String(d.id || d.sku || p.id || '') === itemInventoryId;
+                });
+            }
+            if(!productMatch && itemId){
+                productMatch = snapshot.products.find(function(p){
+                    var d = p.data || {};
+                    return String(d.id || d.sku || p.id || '') === itemId;
+                });
+            }
+            if(!productMatch && itemName){
+                var nName = normalize(itemName);
+                productMatch = snapshot.products.find(function(p){
+                    var d = p.data || {};
+                    var model = normalize(d.model || d.name || d.title || '');
+                    if(!model) return false;
+                    if(model !== nName && model.indexOf(nName) === -1 && nName.indexOf(model) === -1) return false;
+                    if(itemBrand){
+                        var b = normalize(d.brand || '');
+                        if(b && b !== normalize(itemBrand)) return false;
+                    }
+                    return true;
+                });
+            }
+            if(productMatch){
+                var availableProd = getProductStockForSize(productMatch.data, itemColor, size);
+                if(availableProd !== null) return { available: availableProd, needed: qty, name: itemName || itemId || 'Item', size: size };
+            }
+
+            return null;
+        }
+
+        async function checkItemsStockAvailable(items, cachedSnapshot){
+            try{
+                if(!Array.isArray(items) || !items.length) return { ok: true, missing: [] };
+                var snapshot = cachedSnapshot || await fetchInventorySnapshot();
+                if(!snapshot) return { ok: true, missing: [] };
+                var missing = [];
+                items.forEach(function(it){
+                    var res = resolveItemStock(it, snapshot);
+                    if(res && res.available < res.needed){
+                        missing.push(res);
+                    }
+                });
+                return { ok: missing.length === 0, missing: missing };
+            }catch(e){ return { ok: true, missing: [] }; }
+        }
+
+        async function ensureOrderCanConfirm(order, cachedSnapshot){
+            if(!order) return false;
+            try{
+                var items = Array.isArray(order.items) && order.items.length ? order.items : await fetchOrderItemsFromFirestore(order.id);
+                var stock = await checkItemsStockAvailable(items, cachedSnapshot);
+                if(!stock.ok){
+                    var msg = 'Cannot confirm order ' + (order.id || '') + ' because these items are out of stock:\n' + stock.missing.map(function(m){ return '- ' + (m.name || 'Item') + ' (Size ' + m.size + '): need ' + m.needed + ', available ' + m.available; }).join('\n');
+                    alert(msg);
+                    return false;
+                }
+                return true;
+            }catch(e){ return true; }
         }
 
         function fetchOrderItemsFromFirestore(orderId){
@@ -1292,6 +1901,15 @@
             }).catch(function(){ return false; });
         }
 
+        function deductOrderItems(orderId, row){
+            var directItems = (row && Array.isArray(row.items) && row.items.length) ? row.items : null;
+            var promise = directItems ? Promise.resolve(directItems) : fetchOrderItemsFromFirestore(orderId);
+            return promise.then(function(items){
+                if(!items || !items.length) return false;
+                return adjustInventoryStock(items, -1);
+            }).catch(function(){ return false; });
+        }
+
         function titleCase(str){
             if(!str && str !== 0) return '';
             return String(str).split(/(\s+)/).map(token=>{
@@ -1322,7 +1940,13 @@
                 actions.push({ action:'cancel', label:'Cancel', style:'danger', icon:'✖️' });
             } else if(state === 'shipped'){
                 actions.push({ action:'mark-delivered', label:'Mark Delivered', style:'success', icon:'📦' });
+            } else if(state === 'return and refund requested'){
+                actions.push({ action:'mark-awaiting-return', label:'Confirm Return', style:'primary', icon:'📦' });
+            } else if(state === 'awaiting return'){
+                actions.push({ action:'refund-processing', label:'Processing Refund', style:'warning', icon:'💳' });
             } else if(state === 'refund requested'){
+                actions.push({ action:'refund-processing', label:'Refund Processing', style:'warning', icon:'💳' });
+            } else if(state === 'refund processing'){
                 actions.push({ action:'mark-refunded', label:'Mark Refunded', style:'success', icon:'💸' });
             }
 
@@ -1344,9 +1968,7 @@
             tbody.innerHTML = '';
             list.forEach((row) => {
                 const tr = document.createElement('tr');
-                var fallbackProfileName = '';
-                try{ fallbackProfileName = JSON.parse(localStorage.getItem('profile')||'{}').name || ''; }catch(e){}
-                var displayName = row.customerName || row.name || fallbackProfileName || '';
+                var displayName = getOrderRecipientName(row) || '';
                 var state = canonicalStatusFromOrder(row);
                 var meta = statusMetaForState(state);
                 var statusHtml = statusBadge(meta.label, meta.type, meta.icon);
@@ -1485,15 +2107,39 @@
             if(archiveBtn) archiveBtn.disabled = disabled;
         }
 
-        function applyBulkAction(action){
+        async function applyBulkAction(action){
             if(!selectedOrderIds.size) return;
-            if(action === 'cancel' && !confirm('Cancel selected orders?')) return;
+            if(action === 'cancel'){
+                openAdminCancelModal(null, Array.from(selectedOrderIds));
+                return;
+            }
             if(action === 'archive' && !confirm('Archive selected orders?')) return;
+            if(action === 'confirm'){
+                showOrdersLoading('Confirming selected orders...');
+                try{
+                    var snapshot = await fetchInventorySnapshot();
+                    var blocked = [];
+                    for (const id of Array.from(selectedOrderIds)){
+                        var order = ordersData.find(function(o){ return String(o.id) === String(id); });
+                        if(!order) continue;
+                        var ok = await ensureOrderCanConfirm(order, snapshot);
+                        if(ok){
+                            await updateOrder(id, { status: 'confirmed' });
+                        } else {
+                            blocked.push(id);
+                        }
+                    }
+                    if(blocked.length){ alert('Skipped confirming out-of-stock orders: ' + blocked.join(', ')); }
+                }finally{
+                    selectedOrderIds.clear();
+                    applySearch();
+                    hideOrdersLoading();
+                }
+                return;
+            }
             selectedOrderIds.forEach(function(id){
                 var order = ordersData.find(function(o){ return String(o.id) === String(id); });
                 if(!order) return;
-                if(action === 'confirm') updateOrder(id, { status: 'confirmed' });
-                if(action === 'cancel') updateOrder(id, { status: 'cancelled', previousStatus: order.status || 'pending payment' });
                 if(action === 'archive') updateOrder(id, { status: 'archived', archived: true, archivedAt: new Date().toISOString() });
             });
             selectedOrderIds.clear();
@@ -1501,6 +2147,8 @@
         }
 
         let activeDrawerOrderId = null;
+    let pendingCancelTargets = [];
+    let pendingCancelOrders = [];
 
         function openOrderDrawer(row){
             activeDrawerOrderId = row.id;
@@ -1608,6 +2256,7 @@
 
             // Payment verification (for pending orders) — use helper so we can refresh when server copy arrives
             try{ updateDrawerVerification(row); }catch(e){ console.warn('failed to init drawer verification', e); }
+            try{ updateDrawerCancellationInfo(row); }catch(e){ console.warn('failed to render cancellation info', e); }
 
             var trackingCarrierInput = document.getElementById('drawerTrackingCarrier');
             var trackingNumberInput = document.getElementById('drawerTrackingNumber');
@@ -1816,17 +2465,25 @@
                 return;
             }
             if(action === 'cancel'){
-                if(!confirm('Cancel this order?')) return;
-                updateOrder(order.id, { status: 'cancelled', previousStatus: order.status || 'pending payment' });
+                openAdminCancelModal(order);
                 return;
             }
             if(action === 'confirm'){
-                // TEMPORARY: allow confirming without proof to facilitate testing.
-                // This bypasses the previous proof requirement (we may re-enable later).
-                updateOrder(order.id, { status: 'confirmed' });
+                showOrdersLoading('Confirming order...');
+                ensureOrderCanConfirm(order).then(async function(ok){
+                    if(ok) await updateOrder(order.id, { status: 'confirmed' });
+                }).finally(function(){ hideOrdersLoading(); });
                 return;
             }
             if(action === 'start-processing'){ updateOrder(order.id, { status: 'processing' }); return; }
+            if(action === 'mark-awaiting-return'){
+                updateOrder(order.id, { status: 'awaiting return', returnRequest: Object.assign({}, order.returnRequest || {}, { approvedAt: new Date().toISOString(), refundStatus: 'Awaiting Return' }) });
+                return;
+            }
+            if(action === 'refund-processing'){
+                updateOrder(order.id, { status: 'refund processing', returnRequest: Object.assign({}, order.returnRequest || {}, { refundStatus: 'Refund Processing' }) });
+                return;
+            }
             if(action === 'mark-shipped'){
                 // Transition to 'shipped' and automatically start the server-side simulation
                 updateOrder(order.id, { status: 'shipped' });
@@ -1846,7 +2503,7 @@
         }
 
         // Update an order in ordersData (and persist to localStorage), then refresh the current view
-        function updateOrder(orderId, changes, options){
+        async function updateOrder(orderId, changes, options){
             options = options || {};
             try{
                 var idx = ordersData.findIndex(o => String(o.id) === String(orderId));
@@ -1887,16 +2544,34 @@
                     var updatedOrder = ordersData.find(o => String(o.id) === String(orderId));
                     if(updatedOrder) openOrderDrawer(updatedOrder);
                 }
-                if(!options.skipRestock){
+                if(!options.skipStockAdjust){
                     var prevNorm = String(prevStatus||'').toLowerCase();
                     var nextNorm = String(merged.status||'').toLowerCase();
-                    var shouldRestock = (prevNorm !== 'cancelled' && nextNorm === 'cancelled' && merged.stockAdjusted === true && !merged.stockRestocked);
-                    if(shouldRestock){
-                        restockOrderItems(orderId, merged).then(function(did){
-                            if(did){
-                                updateOrder(orderId, { stockRestocked: true, stockAdjusted: false }, { skipRestock: true });
+                    var alreadyAdjusted = (merged.stockAdjusted === true && merged.stockAdjustedSource === 'confirm');
+                    var shouldDeduct = (prevNorm !== 'confirmed' && nextNorm === 'confirmed' && !alreadyAdjusted);
+                    if(shouldDeduct){
+                        try{
+                            var didDeduct = await deductOrderItems(orderId, merged);
+                            if(didDeduct){
+                                await updateOrder(orderId, { stockAdjusted: true, stockAdjustedSource: 'confirm', stockAdjustedAt: new Date().toISOString(), stockRestocked: false }, { skipStockAdjust: true });
                             }
-                        });
+                        }catch(e){ console.warn('deductOrderItems failed', e); }
+                    }
+                }
+                if(!options.skipRestock){
+                    var prevNorm2 = String(prevStatus||'').toLowerCase();
+                    var nextNorm2 = String(merged.status||'').toLowerCase();
+                    var adjustedFlag = merged.stockAdjusted === true;
+                    var allowRestock = adjustedFlag || (merged.stockAdjustedSource === 'confirm') || ['confirmed','processing','shipped','delivered'].indexOf(prevNorm2) !== -1;
+                    var restockStatuses = ['cancelled','refund processing'];
+                    var shouldRestock = (restockStatuses.indexOf(nextNorm2) !== -1 && prevNorm2 !== nextNorm2 && !merged.stockRestocked && allowRestock);
+                    if(shouldRestock){
+                        try{
+                            var didRestock = await restockOrderItems(orderId, merged);
+                            if(didRestock){
+                                await updateOrder(orderId, { stockRestocked: true, stockRestockedAt: new Date().toISOString(), stockAdjusted: false }, { skipRestock: true });
+                            }
+                        }catch(e){ console.warn('restockOrderItems failed', e); }
                     }
                 }
                 try{
@@ -1933,13 +2608,31 @@
             updateOrder(orderId, payload);
         };
 
-        window.adminRejectCancel = function(orderId){
+        window.adminRejectCancel = function(orderId, options){
             var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
             if(!row || !row.cancelRequest) return;
-            var note = prompt('Add admin note (optional):', row.cancelRequest.adminNote || '') || '';
+            options = options || {};
+            var note = (typeof options.note === 'string') ? options.note : (prompt('Add admin note (optional):', row.cancelRequest.adminNote || '') || '');
+            var reasons = Array.isArray(options.reasons) ? options.reasons : [];
+            var nowIso = new Date().toISOString();
+            var cancelRequest = Object.assign({}, row.cancelRequest, {
+                rejectedAt: nowIso,
+                adminNote: note,
+                revocationReasons: reasons
+            });
+            var cancellation = Object.assign({}, row.cancellation || {}, {
+                adminRevoked: true,
+                reasons: reasons,
+                revocation: {
+                    reasons: reasons,
+                    note: note,
+                    timestamp: nowIso
+                },
+                revocationNote: note
+            });
             var payload = {
-                status: row.previousStatus || row.status || 'Pending',
-                cancelRequest: Object.assign({}, row.cancelRequest, { rejectedAt: new Date().toISOString(), adminNote: note })
+                cancelRequest: null,
+                cancellation: cancellation
             };
             updateOrder(orderId, payload);
         };
@@ -1947,10 +2640,14 @@
         window.adminApproveReturn = function(orderId){
             var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
             if(!row || !row.returnRequest) return;
+            var reqCode = normalizeStatus(row.returnRequest.requestTypeCode || '');
+            var reqType = normalizeStatus(row.returnRequest.requestType || '');
+            var isReturnRefund = (reqCode === 'return_refund') || (reqType.indexOf('return') !== -1);
+            var nextStatus = isReturnRefund ? 'awaiting return' : 'refund requested';
             var payload = {
-                status: 'refund requested',
+                status: nextStatus,
                 previousStatus: row.previousStatus || row.status || 'delivered',
-                returnRequest: Object.assign({}, row.returnRequest, { approvedAt: new Date().toISOString(), rejectedAt: null, refundStatus: 'Requested' })
+                returnRequest: Object.assign({}, row.returnRequest, { approvedAt: new Date().toISOString(), rejectedAt: null, refundStatus: (nextStatus === 'awaiting return' ? 'Awaiting Return' : 'Requested') })
             };
             updateOrder(orderId, payload);
         };
@@ -1994,6 +2691,32 @@
                 var notes = document.getElementById('drawerAdminNotes').value || '';
                 updateOrder(activeDrawerOrderId, { adminNotes: notes });
             });
+
+            // Admin cancellation modal wiring
+            var adminCancelOverlay = document.getElementById('adminCancelModalOverlay');
+            var adminCancelCloseBtn = document.getElementById('adminCancelCloseBtn');
+            var adminCancelBackBtn = document.getElementById('adminCancelBackBtn');
+            var adminCancelReasonSelect = document.getElementById('adminCancelReasonSelect');
+            var adminCancelNoteInput = document.getElementById('adminCancelNoteInput');
+            var adminCancelConfirmBtn = document.getElementById('adminCancelConfirmBtn');
+            var adminCancelHint = document.getElementById('adminCancelPaymentHint');
+            function refreshCancelHint(){ if(adminCancelHint) adminCancelHint.textContent = summarizePaymentHandling(pendingCancelOrders); }
+            if(adminCancelCloseBtn) adminCancelCloseBtn.addEventListener('click', closeAdminCancelModal);
+            if(adminCancelBackBtn) adminCancelBackBtn.addEventListener('click', closeAdminCancelModal);
+            if(adminCancelOverlay) adminCancelOverlay.addEventListener('click', function(e){ if(e.target === adminCancelOverlay) closeAdminCancelModal(); });
+            function updateAdminCancelConfirmState(){
+                var reason = adminCancelReasonSelect ? adminCancelReasonSelect.value : '';
+                var note = adminCancelNoteInput ? (adminCancelNoteInput.value || '').trim() : '';
+                var needsNote = reason === 'other';
+                var enable = !!reason && (!needsNote || note.length >= 3);
+                if(adminCancelConfirmBtn) adminCancelConfirmBtn.disabled = !enable;
+                if(reason === 'fraud' || reason === 'spam'){
+                    if(adminCancelHint) adminCancelHint.textContent = 'Fraudulent or spam orders are immediately cancelled regardless of payment method.';
+                } else { refreshCancelHint(); }
+            }
+            if(adminCancelReasonSelect){ adminCancelReasonSelect.addEventListener('change', updateAdminCancelConfirmState); }
+            if(adminCancelNoteInput){ adminCancelNoteInput.addEventListener('input', updateAdminCancelConfirmState); }
+            if(adminCancelConfirmBtn) adminCancelConfirmBtn.addEventListener('click', confirmAdminCancellation);
 
             var trackingCarrierInput = document.getElementById('drawerTrackingCarrier');
             var trackingNumberInput = document.getElementById('drawerTrackingNumber');
@@ -2257,7 +2980,7 @@
 
         function adminRevokeCancellation(){
             var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
-            if(typeof adminRejectCancel === 'function') adminRejectCancel(id);
+            openCancelRevokeForm(id);
         }
 
         // Render the admin revoke form for cancellations (checkbox reasons + Other textbox)
@@ -2278,6 +3001,10 @@
                     html += '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="adminCancelRevokeReason" data-reason="' + r.replace(/"/g,'&quot;') + '" /> ' + r + '</label>';
                 }
             });
+            html += '</div>';
+            html += '<div style="margin-top:10px;">';
+            html += '<div style="font-weight:600;margin-bottom:6px;">Admin note (shown to customer)</div>';
+            html += '<textarea id="adminCancelRevokeNote" style="width:100%;min-height:80px;border:1px solid #ddd;border-radius:10px;padding:10px;font-family:\'Poppins\',Arial,sans-serif;resize:vertical;" placeholder="Add a short note explaining why the cancellation was revoked."></textarea>';
             html += '</div>';
             html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:nowrap;">';
             html += '<button id="backToCancelBtn" style="background:#fff;border:1px solid #ccc;padding:8px 14px;border-radius:10px;cursor:pointer;display:inline-block;min-width:110px;">Go Back</button>';
@@ -2301,7 +3028,25 @@
         // Confirm the admin revoke for cancellation: collect reasons, validate, persist revocation metadata and restore previous status
         function adminConfirmRevokeCancellation(){
             var content = document.getElementById('cancelReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
-            if(typeof adminRejectCancel === 'function') adminRejectCancel(id);
+            var reasons = [];
+            try{
+                var boxes = content.querySelectorAll('.adminCancelRevokeReason');
+                boxes.forEach(function(b){
+                    if(b.checked && b.dataset && b.dataset.reason){ reasons.push(b.dataset.reason); }
+                });
+                var otherChk = document.getElementById('adminCancelOtherChk');
+                var otherText = document.getElementById('adminCancelOtherText');
+                if(otherChk && otherChk.checked){
+                    var otherVal = otherText ? (otherText.value || '').trim() : '';
+                    if(!otherVal){ alert('Please specify the other revocation reason.'); return; }
+                    reasons.push(otherVal);
+                }
+            }catch(e){ /* ignore */ }
+            if(!reasons.length){ alert('Please select at least one reason.'); return; }
+            var noteEl = document.getElementById('adminCancelRevokeNote');
+            var note = noteEl ? (noteEl.value || '').trim() : '';
+            if(!note || note.length < 3){ alert('Please add an admin note for the customer.'); return; }
+            if(typeof adminRejectCancel === 'function') adminRejectCancel(id, { note: note, reasons: reasons });
             closeCancelReviewModal();
         }
 
@@ -2310,11 +3055,39 @@
             var row = ordersData.find(function(o){ return String(o.id) === String(orderId); });
             if(!row) return;
             var content = document.getElementById('refundReviewContent'); if(!content) return;
+            function escHtml(val){
+                return String(val || '').replace(/[&<>\"]/g, function(ch){
+                    if(ch === '&') return '&amp;';
+                    if(ch === '<') return '&lt;';
+                    if(ch === '>') return '&gt;';
+                    return '&quot;';
+                });
+            }
             var html = '<div style="font-weight:600;margin-bottom:8px;">Order ID: ' + (row.id||'') + '</div>';
             html += '<div style="margin-bottom:8px;">Customer: ' + (row.name || '') + '</div>';
             if(row.returnRequest){
                 html += '<div style="margin-bottom:8px;"><strong>Reason:</strong> ' + (row.returnRequest.returnReason || '') + '</div>';
                 html += '<div style="margin-bottom:8px;"><strong>Refund method:</strong> ' + (row.returnRequest.refundMethod || '') + '</div>';
+                var reqItems = row.returnRequest.items || row.returnRequest.returnItems || row.returnRequest.products || [];
+                if(Array.isArray(reqItems) && reqItems.length){
+                    html += '<div style="margin-bottom:6px;"><strong>Requested items:</strong></div>';
+                    html += '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">'
+                        + reqItems.map(function(it){
+                            var name = escHtml(it.name || it.title || it.product_name || 'Item');
+                            var qty = Number(it.qty || it.quantity || 1) || 1;
+                            var size = escHtml(it.size || it.variantSize || '');
+                            var color = escHtml(it.color || it.variantColor || '');
+                            var metaParts = [];
+                            if(size) metaParts.push('Size: ' + size);
+                            if(color) metaParts.push('Color: ' + color);
+                            var meta = metaParts.length ? ('<div style="color:#666;font-size:0.9rem;">' + metaParts.join(' • ') + '</div>') : '';
+                            return '<div style="padding:6px 8px;border:1px solid #eee;border-radius:8px;">'
+                                + '<div style="font-weight:600;">' + name + ' <span style="color:#666;">×' + qty + '</span></div>'
+                                + meta
+                                + '</div>';
+                        }).join('')
+                        + '</div>';
+                }
                 if(row.returnRequest.requestedAt){ html += '<div style="color:#666;font-size:0.95rem;margin-bottom:6px;">Submitted: ' + new Date(row.returnRequest.requestedAt).toLocaleString() + '</div>'; }
                 if(Array.isArray(row.returnRequest.proofImages) && row.returnRequest.proofImages.length){
                     html += '<div style="margin-top:8px;margin-bottom:8px;"><strong>Uploaded proof:</strong><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
@@ -2337,7 +3110,7 @@
 
         function adminConfirmRefund(){
             var content = document.getElementById('refundReviewContent'); if(!content) return; var id = content.getAttribute('data-order-id'); if(!id) return;
-            if(typeof adminMarkRefunded === 'function') adminMarkRefunded(id);
+            if(typeof adminApproveReturn === 'function') adminApproveReturn(id);
             closeRefundReviewModal();
         }
 
@@ -2689,7 +3462,7 @@
                             var r = window.tryIncrementCartItem(cart, idx);
                             if (r && r.success === false && r.reason === 'max_pairs') {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 pairs of shoes per order.');
+                                else alert('Maximum of 3 items per order allowed.');
                                 return;
                             }
                         } else {

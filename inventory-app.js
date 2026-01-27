@@ -1,7 +1,7 @@
 // Footwear Inventory Manager
 // Data model and client-side storage
 (function() {
-  const EU_SIZES = Array.from({ length: 11 }, (_, i) => 35 + i); // 35..45
+  const EU_SIZES = Array.from({ length: 15 }, (_, i) => 35 + i); // 35..49
   const defaultSettings = { lowStockThreshold: 3 };
 
   const state = {
@@ -31,6 +31,30 @@
     const n = Number(v);
     return Number.isFinite(n) ? n : fallback;
   };
+
+  function normalizeVariantImages(images, fallback) {
+    let list = Array.isArray(images) ? images.slice() : [];
+    if ((!list.length || !list.some(x => x && String(x).trim())) && fallback) {
+      list = [fallback];
+    }
+    list = list.map(x => String(x || '').trim()).filter(Boolean);
+    if (list.length > 4) list = list.slice(0, 4);
+    while (list.length < 4) list.push('');
+    return list;
+  }
+
+  function applyColorImages(color) {
+    if (!color) return [];
+    const normalized = normalizeVariantImages(color.images, color.image);
+    color.images = normalized;
+    color.image = normalized.find(x => x && String(x).trim()) || '';
+    return normalized;
+  }
+
+  function countColorImages(color) {
+    const imgs = Array.isArray(color && color.images) ? color.images : [];
+    return imgs.filter(x => x && String(x).trim()).length;
+  }
 
   // Effective threshold for 'low stock' per product: per-product `criticalLevel` overrides
   // global settings.lowStockThreshold when present and valid.
@@ -229,7 +253,7 @@
               const p = out.pricing || {};
               const origCandidates = [p.original, p.orig, out.originalPrice, out.original_price, out.priceOriginal, out.price_original, out.price];
               const saleCandidates = [p.sale, p.salePrice, p.sale_price, out.salePrice, out.sale_price, out.price_sale];
-              const costCandidates = [p.cost, out.cost, out.priceCost, out.price_cost];
+              const costCandidates = [0];
               const pickNum = arr => {
                 for (const v of arr) {
                   if (v === undefined || v === null) continue;
@@ -290,10 +314,13 @@
           if (!pid) return;
           map[pid] = map[pid] || [];
           // normalize a variant doc into a color object the UI expects
+          const normalizedImages = normalizeVariantImages(v.images || [], v.image || '');
           const color = {
             id: v.id || uid('color'),
             name: v.colorName || v.name || v.color || 'Color',
             code: v.colorCode || v.code || '#ffffff',
+            images: normalizedImages,
+            image: normalizedImages.find(x => x && String(x).trim()) || '',
             sizes: []
           };
           // variant may store sizes as array of { eu, stock } or as an object map
@@ -337,13 +364,25 @@
     state.products = state.products.map(p => {
       const pid = p.id || p.productId || p.sku || null;
       const hasColors = Array.isArray(p.colors) && p.colors.length;
-      if (hasColors) {
-        return p;
-      }
       if (pid && map[pid]) {
+        if (hasColors) {
+          const np = Object.assign({}, p);
+          np.colors = (p.colors || []).map(c => {
+            const match = map[pid].find(v => v.id === c.id || (v.name && c.name && String(v.name).toLowerCase() === String(c.name).toLowerCase()));
+            if (!match) return c;
+            const merged = Object.assign({}, c);
+            if (!Array.isArray(merged.images) || merged.images.length === 0) merged.images = match.images || [];
+            if (!merged.image) merged.image = (match.images && match.images.find(x => x && String(x).trim())) || match.image || '';
+            if (!merged.code) merged.code = match.code || merged.code;
+            if (!merged.name) merged.name = match.name || merged.name;
+            if (!Array.isArray(merged.sizes) || merged.sizes.length === 0) merged.sizes = match.sizes || [];
+            return merged;
+          });
+          return np;
+        }
         // clone product and attach colors from variants
         const np = Object.assign({}, p);
-        np.colors = map[pid].map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes }));
+        np.colors = map[pid].map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes, images: c.images || [], image: c.image || '' }));
         return np;
       }
       return p;
@@ -358,7 +397,7 @@
     safe.pricing = safe.pricing || {};
     safe.pricing.original = parseNum(safe.pricing.original, 0);
     safe.pricing.sale = parseNum(safe.pricing.sale, safe.pricing.original || 0);
-    safe.pricing.cost = parseNum(safe.pricing.cost, 0);
+    safe.pricing.cost = 0;
     safe.tagsManual = Array.isArray(safe.tagsManual) ? safe.tagsManual : (Array.isArray(safe.tags) ? safe.tags : []);
     safe.category = safe.category || '';
     safe.status = safe.status || '';
@@ -390,11 +429,14 @@
   function upsertVariantToFirestore(productId, color) {
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
     const id = color.id || firebaseState.db.collection('variants').doc().id;
+    const normalizedImages = normalizeVariantImages(color.images || [], color.image || '');
     const payload = {
       id: id,
       productId: productId,
       colorName: color.name || '',
       colorCode: color.code || '',
+      image: normalizedImages.find(x => x && String(x).trim()) || '',
+      images: normalizedImages,
       // store sizes as an array of { eu, stock, sku }
       sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), sku: s.sku || '' })) : []
     };
@@ -477,11 +519,14 @@
         const pid = String(p.id);
         (Array.isArray(p.colors) ? p.colors : []).forEach(c => {
           const vid = c.id || `${pid}-${c.name || c.code || uid('color')}`;
+          const normalizedImages = normalizeVariantImages(c.images || [], c.image || '');
           const payload = {
             id: vid,
             productId: pid,
             colorName: c.name || '',
             colorCode: c.code || '',
+            image: normalizedImages.find(x => x && String(x).trim()) || '',
+            images: normalizedImages,
             sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock,0), sku: s.sku || '' })) : []
           };
           localVariantsMap.set(String(vid), payload);
@@ -600,7 +645,7 @@
   }
 
   function newColor(name, code) {
-    return { id: uid('color'), name, code: code || '#ffffff', sizes: ensureSizes() };
+    return { id: uid('color'), name, code: code || '#ffffff', sizes: ensureSizes(), images: normalizeVariantImages([], '') };
   }
 
   function newProduct({ brand, model, category, status = 'active', images = [], pricing = {}, description = '', sku = '', gender = 'Unisex' }) {
@@ -610,7 +655,7 @@
       images, pricing: {
         original: parseNum(pricing.original, 0),
         sale: parseNum(pricing.sale, 0),
-        cost: parseNum(pricing.cost, 0)
+        cost: 0
       },
       description,
       sku: sku || generateProductSKU(brand, model, category),
@@ -777,10 +822,12 @@
       const total = totalStockForProduct(p);
       const isPre = (total === 0) && p.status === 'active';
       const isBest = bestIds.has(p.id);
+      const hasAr = !!(p.arLink || p.ar_link || p.arUrl || p.ar_url);
       if (isNew) tags.push('New');
       if (isSale) tags.push('Sale');
       if (isPre) tags.push('Pre-Order');
       if (isBest) tags.push('Best Seller');
+      if (hasAr) tags.push('Try On!');
       const manual = Array.isArray(p.tagsManual) ? p.tagsManual : [];
       // Merge manual and auto tags, deduped
       return Array.from(new Set([ ...manual, ...tags ]));
@@ -849,7 +896,10 @@
       const bulkBox = state.ui.bulkMode ? `<input type="checkbox" class="bulkSel" data-id="${p.id}" ${state.ui.selectedProductIds.has(p.id) ? 'checked' : ''}/>` : '';
       const catDisplay = (p.category || '').trim();
   const tags = computeTags(p);
-  const tagsHtml = tags.length ? tags.map(t => `<span class="tag ${t.toLowerCase().replace(/\s+/g,'-')}">${t}</span>`).join(' ') : '';
+  const tagsHtml = tags.length ? tags.map(t => {
+    const cls = (t && typeof t === 'string') ? t.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') : '';
+    return `<span class="tag ${cls}">${t}</span>`;
+  }).join(' ') : '';
   // Gender: allow array or comma-separated string
   const gRaw = p.gender || [];
   const genderArr = Array.isArray(gRaw) ? gRaw : (typeof gRaw === 'string' ? gRaw.split(',').map(s => s.trim()) : []);
@@ -897,6 +947,8 @@
 
   // Product modal
   function openProductModal(productId) {
+    // Redirect to the dedicated Add Product page when creating a new item
+    if (!productId) { window.location.href = 'add-product.html'; return; }
     const dlg = qs('#productModal');
     const isEdit = !!productId;
     state.ui.editingProductId = productId || null;
@@ -910,7 +962,6 @@
     const statusSel = qs('#prodStatus');
     const pOrig = qs('#priceOriginal');
     const pSale = qs('#priceSale');
-    const pCost = qs('#priceCost');
     const skuEl = qs('#prodSKU');
     const descEl = qs('#prodDescription');
     // images handled via state.ui.productModalImages
@@ -962,7 +1013,7 @@
       }
       pOrig.value = (dom && Number.isFinite(dom.price) && dom.price > 0) ? dom.price : (p.pricing?.original || '');
       pSale.value = p.pricing?.sale || '';
-      pCost.value = p.pricing?.cost || '';
+      /* cost deprecated */
       if (skuEl) skuEl.value = (dom && dom.sku) ? dom.sku : (p.sku || '');
       if (descEl) descEl.value = p.description || '';
       // AR link: populate from product if present (support variants of naming)
@@ -987,11 +1038,13 @@
         if (domTags.includes('Sale')) manual.push('Sale');
         if (domTags.includes('Pre-Order')) manual.push('Pre-Order');
         if (domTags.includes('Best Seller')) manual.push('Best Seller');
+        if (domTags.includes('Try On!')) manual.push('Try On!');
       }
       const tagNew = qs('#tagNew'); if (tagNew) tagNew.checked = manual.includes('New');
       const tagSale = qs('#tagSale'); if (tagSale) tagSale.checked = manual.includes('Sale');
       const tagPre = qs('#tagPreOrder'); if (tagPre) tagPre.checked = manual.includes('Pre-Order');
       const tagBest = qs('#tagBestSeller'); if (tagBest) tagBest.checked = manual.includes('Best Seller');
+      const tagTryOn = qs('#tagTryOn'); if (tagTryOn) tagTryOn.checked = manual.includes('Try On!');
       state.ui.productModalImages = Array.isArray(p.images) ? p.images.map(it => {
         if (typeof it === 'string') return { url: it, name: displayNameFromUrl(it) };
         if (it && typeof it === 'object') {
@@ -1009,7 +1062,7 @@
   if (genderMen) genderMen.checked = false;
   if (genderWomen) genderWomen.checked = false;
   if (genderUnisex) genderUnisex.checked = true;
-  statusSel.value = 'active'; pOrig.value = ''; pSale.value = ''; pCost.value = '';
+  statusSel.value = 'active'; pOrig.value = ''; pSale.value = '';
       if (skuEl) skuEl.value = '';
       if (descEl) descEl.value = '';
   // clear AR inputs on Add
@@ -1021,6 +1074,7 @@
       const tagSale = qs('#tagSale'); if (tagSale) tagSale.checked = false;
       const tagPre = qs('#tagPreOrder'); if (tagPre) tagPre.checked = false;
       const tagBest = qs('#tagBestSeller'); if (tagBest) tagBest.checked = false;
+      const tagTryOn = qs('#tagTryOn'); if (tagTryOn) tagTryOn.checked = false;
       // Show initial variant builder on add
       const initSec = qs('#initialVariantSection'); if (initSec) initSec.style.display = 'block';
       state.ui.productModalColors = [];
@@ -1063,7 +1117,6 @@
     const statusSel = qs('#prodStatus').value;
     const pOrig = parseNum(qs('#priceOriginal').value, 0);
     const pSale = parseNum(qs('#priceSale').value, 0);
-    const pCost = parseNum(qs('#priceCost').value, 0);
     const skuPreview = (qs('#prodSKU')?.value || '').trim();
     const desc = (qs('#prodDescription')?.value || '').trim();
   const critVal = qs('#prodCriticalLevel') ? qs('#prodCriticalLevel').value : '';
@@ -1074,6 +1127,7 @@
     const tagSale = qs('#tagSale'); if (tagSale && tagSale.checked) manual.push('Sale');
     const tagPre = qs('#tagPreOrder'); if (tagPre && tagPre.checked) manual.push('Pre-Order');
     const tagBest = qs('#tagBestSeller'); if (tagBest && tagBest.checked) manual.push('Best Seller');
+    const tagTryOn = qs('#tagTryOn'); if (tagTryOn && tagTryOn.checked) manual.push('Try On!');
 
   if (!brand || !model) { alert('Brand and Model are required'); return; }
   if (pOrig <= 0) { alert('Original price is required'); return; }
@@ -1095,7 +1149,7 @@
       }
   p.brand = brand; p.model = model; p.category = cat; p.gender = Array.isArray(genderSel) ? genderSel : [genderSel]; p.status = statusSel;
   p.pricing = p.pricing || { original: 0, sale: 0, cost: 0 };
-  p.pricing.original = pOrig; p.pricing.sale = pSale; p.pricing.cost = pCost;
+  p.pricing.original = pOrig; p.pricing.sale = pSale; p.pricing.cost = 0;
       // per-product critical level: empty -> unset, numeric -> clamp & set
       try {
         if (critVal !== null && String(critVal).trim() !== '') {
@@ -1125,7 +1179,7 @@
         const ok = confirm('Create this product in archived state?');
         if (!ok) { return; }
       }
-  const newP = newProduct({ brand, model, category: cat, status: statusSel, images: [], pricing: { original: pOrig, sale: pSale, cost: pCost }, description: desc, gender: Array.isArray(genderSel) ? genderSel : [genderSel] });
+  const newP = newProduct({ brand, model, category: cat, status: statusSel, images: [], pricing: { original: pOrig, sale: pSale, cost: 0 }, description: desc, gender: Array.isArray(genderSel) ? genderSel : [genderSel] });
   newP.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       newP.tagsManual = manual;
   // AR link for new product
@@ -1137,7 +1191,17 @@
         }
       } catch(e) {}
       // Copy colors and sizes
-      newP.colors = colors.map(c => ({ id: c.id, name: c.name, code: c.code, sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), sku: s.sku || '' })) }));
+      newP.colors = colors.map(c => {
+        const normalizedImages = normalizeVariantImages(c.images || [], c.image || '');
+        return {
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          image: normalizedImages.find(x => x && String(x).trim()) || '',
+          images: normalizedImages,
+          sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), sku: s.sku || '' }))
+        };
+      });
       // Ensure size-level SKUs exist
       ensureSizeSkusForProduct(newP);
       state.products.push(newP);
@@ -1209,17 +1273,33 @@
     const dlg = qs('#variantModal');
     state.ui.editingVariantProductId = productId;
     const p = state.products.find(x => x.id === productId);
+    // Sync manual Try On tag checkbox with product
+    try {
+      const tagTry = qs('#variantTagTryOn');
+      const manual = Array.isArray(p && p.tagsManual) ? p.tagsManual : [];
+      if (tagTry) tagTry.checked = manual.some(t => String(t || '').toLowerCase() === 'try on!'.toLowerCase());
+    } catch (e) {}
     const list = qs('#variantColorsList');
     // Render color list (actions moved into each color's size card for proximity)
-    list.innerHTML = p.colors.map(c => `<div class="color-item" data-id="${c.id}">
-      <span class="color-dot" style="background:${c.code}"></span>
-      <strong>${c.name}</strong>
-      <span class="muted">(${totalStockForColor(c)})</span>
-      <div class="color-actions">
-        <button class="secondary" data-action="edit-color">Edit</button>
-        <button class="danger" data-action="delete-color">Delete</button>
-      </div>
-    </div>`).join('');
+    p.colors.forEach(c => applyColorImages(c));
+    list.innerHTML = p.colors.map(c => {
+      const stock = totalStockForColor(c);
+      const sizeCount = Array.isArray(c.sizes) ? c.sizes.length : 0;
+      const imageCount = countColorImages(c);
+      return `<div class="color-item" data-id="${c.id}">
+        <div class="color-item-info">
+          <span class="color-dot" style="background:${c.code}"></span>
+          <div class="color-item-text">
+            <strong>${c.name}</strong>
+            <span class="muted">${stock} in stock • ${sizeCount} sizes • ${imageCount}/4 images</span>
+          </div>
+        </div>
+        <div class="color-actions">
+          <button class="secondary" data-action="edit-color">Edit</button>
+          <button class="danger" data-action="delete-color">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
 
     bindColorActions(list);
 
@@ -1287,6 +1367,44 @@
         </div>`;
       card.appendChild(fill);
 
+      applyColorImages(color);
+      const imageCount = countColorImages(color);
+      const imageSection = document.createElement('div');
+      imageSection.className = 'variant-images-section';
+      imageSection.innerHTML = `
+        <div class="variant-images-header">
+          <div>
+            <strong>Variant Images</strong>
+            <div class="muted">Upload 4 images for this color (front, side, back, detail).</div>
+          </div>
+          <div class="variant-images-meta">
+            <span class="variant-images-count">${imageCount}/4 uploaded</span>
+            <button type="button" class="ghost" data-action="variant-images-clear" data-color="${color.id}">Clear images</button>
+          </div>
+        </div>
+        <div class="variant-images-grid">
+          ${color.images.map((img, idx) => {
+            const label = `Image ${idx + 1}`;
+            const preview = img
+              ? `<img src="${img}" alt="${color.name} ${label}">`
+              : `<div class="variant-image-placeholder">${label}</div>`;
+            return `
+              <div class="variant-image-slot" data-index="${idx}">
+                <div class="variant-image-preview">${preview}</div>
+                <div class="variant-image-actions">
+                  <label class="secondary small-btn">
+                    <input type="file" accept="image/*" data-action="variant-image-upload" data-color="${color.id}" data-index="${idx}">
+                    Upload
+                  </label>
+                  <button type="button" class="ghost danger-text small-btn" data-action="variant-image-remove" data-color="${color.id}" data-index="${idx}">Remove</button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+        ${imageCount < 4 ? '<div class="variant-images-warning">Upload all 4 images before saving.</div>' : ''}
+      `;
+      card.appendChild(imageSection);
+
       const grid = document.createElement('div'); grid.className = 'size-grid';
       if (!color.sizes.length) {
         const emptyRow = document.createElement('div');
@@ -1320,7 +1438,8 @@
       let eu = prompt('Enter EU size to add (e.g. 36):');
       if (!eu) return;
       eu = parseNum(eu, null);
-      if (!eu || c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
+      if (!eu || !EU_SIZES.includes(eu)) { alert('Size must be between 35 and 49 EU.'); return; }
+      if (c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
       c.sizes.push({ eu, stock: 0, sku: '' });
       saveAll(); openVariantModal(p.id);
     }));
@@ -1332,6 +1451,61 @@
       const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
       const c = p.colors.find(y => y.id === colorId);
       c.sizes = c.sizes.filter(z => z.eu !== eu);
+      saveAll(); openVariantModal(p.id);
+    }));
+
+    // Bind clear all sizes for color
+    editor.querySelectorAll('[data-action="clear-all"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.id;
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
+      if (!c) return;
+      c.sizes.forEach(s => { s.stock = 0; });
+      saveAll(); openVariantModal(p.id);
+    }));
+
+    // Bind image uploads
+    editor.querySelectorAll('[data-action="variant-image-upload"]').forEach(inp => inp.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const colorId = e.target.dataset.color;
+      const idx = parseNum(e.target.dataset.index, 0);
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
+      if (!c) return;
+      const fr = new FileReader();
+      fr.onload = () => {
+        applyColorImages(c);
+        c.images[idx] = fr.result;
+        applyColorImages(c);
+        saveAll();
+        openVariantModal(p.id);
+      };
+      fr.onerror = () => alert('Failed to read image file.');
+      fr.readAsDataURL(file);
+    }));
+
+    // Bind image remove
+    editor.querySelectorAll('[data-action="variant-image-remove"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const idx = parseNum(btn.dataset.index, 0);
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
+      if (!c) return;
+      applyColorImages(c);
+      c.images[idx] = '';
+      applyColorImages(c);
+      saveAll(); openVariantModal(p.id);
+    }));
+
+    // Bind clear all images
+    editor.querySelectorAll('[data-action="variant-images-clear"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
+      if (!c) return;
+      c.images = normalizeVariantImages([], '');
+      c.image = '';
       saveAll(); openVariantModal(p.id);
     }));
 
@@ -1457,7 +1631,8 @@
       let eu = prompt('Enter EU size to add (e.g. 36):');
       if (!eu) return;
       eu = parseNum(eu, null);
-      if (!eu || c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
+      if (!eu || !EU_SIZES.includes(eu)) { alert('Size must be between 35 and 49 EU.'); return; }
+      if (c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
       c.sizes.push({ eu, stock: 0, sku: '' });
       renderInitialVariants();
     }));
@@ -1468,6 +1643,15 @@
       const eu = parseNum(btn.dataset.size);
       const c = state.ui.productModalColors.find(y => y.id === colorId);
       c.sizes = c.sizes.filter(z => z.eu !== eu);
+      renderInitialVariants();
+    }));
+
+    // Bind clear all stocks in initial variant editor
+    editor.querySelectorAll('[data-action="clear-all-init"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.id;
+      const c = state.ui.productModalColors.find(y => y.id === colorId);
+      if (!c) return;
+      c.sizes.forEach(s => { s.stock = 0; });
       renderInitialVariants();
     }));
 
@@ -1486,6 +1670,30 @@
     // Persist variants to Firestore for the editing product (if enabled)
     const pid = state.ui.editingVariantProductId;
     const p = state.products.find(x => x.id === pid);
+    // Apply manual Try On tag from variants modal toggle
+    try {
+      const tagTry = qs('#variantTagTryOn');
+      if (p && tagTry) {
+        let manual = Array.isArray(p.tagsManual) ? p.tagsManual.filter(Boolean) : [];
+        const hasTry = manual.some(t => String(t || '').toLowerCase() === 'try on!'.toLowerCase() || String(t || '').toLowerCase() === 'try on');
+        if (tagTry.checked && !hasTry) manual.push('Try On!');
+        if (!tagTry.checked && hasTry) manual = manual.filter(t => {
+          const val = String(t || '').toLowerCase();
+          return val !== 'try on!' && val !== 'try on';
+        });
+        p.tagsManual = manual;
+      }
+    } catch (e) {}
+    if (p && Array.isArray(p.colors)) {
+      const missing = p.colors.filter(c => {
+        applyColorImages(c);
+        return countColorImages(c) < 4;
+      });
+      if (missing.length) {
+        alert('Please upload 4 images for each color variant before saving. Missing: ' + missing.map(c => c.name || 'Unnamed').join(', '));
+        return;
+      }
+    }
     if (p) {
       // attempt to sync variants; errors are logged inside syncVariantsForProduct
       syncVariantsForProduct(p).finally(() => {
@@ -1508,10 +1716,10 @@
   function applyBulkPrice() {
     const ids = Array.from(state.ui.selectedProductIds);
     if (!ids.length) { alert('Select products first'); return; }
-    const field = qs('#bulkPriceField').value; // original|sale|cost
+    const field = qs('#bulkPriceField').value; // original|sale
     const method = qs('#bulkPriceMethod').value; // set|inc_pct|dec_pct|inc_num|dec_num
     const value = parseNum(qs('#bulkPriceValue').value, NaN);
-    if (!['original','sale','cost'].includes(field)) { alert('Choose a field'); return; }
+    if (!['original','sale'].includes(field)) { alert('Choose a field'); return; }
     if (!['set','inc_pct','dec_pct','inc_num','dec_num'].includes(method)) { alert('Choose a method'); return; }
     if (!Number.isFinite(value)) { alert('Enter a value'); return; }
     if ((method === 'inc_pct' || method === 'dec_pct') && value < 0) { alert('Percent must be non-negative'); return; }
@@ -1541,8 +1749,8 @@
     if (qty === null || qty < 0) { alert('Enter a non-negative quantity'); return; }
     const qtyInt = Math.floor(clampNum(qty, 0, 9999));
     if (scope === 'size') {
-      if (!Number.isFinite(size)) { alert('Enter a size (EU 35–45)'); return; }
-      if (!EU_SIZES.includes(size)) { alert('Size must be between 35 and 45 EU'); return; }
+      if (!Number.isFinite(size)) { alert('Enter a size (EU 35–49)'); return; }
+      if (!EU_SIZES.includes(size)) { alert('Size must be between 35 and 49 EU'); return; }
     }
     const threshold = state.settings.lowStockThreshold;
     state.products.forEach(p => {
@@ -1822,7 +2030,7 @@
   function wireEvents() {
   qsa('.tabs button').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 
-  const addProductBtn = qs('#addProductBtn'); if (addProductBtn) addProductBtn.addEventListener('click', () => openProductModal(null));
+  const addProductBtn = qs('#addProductBtn'); if (addProductBtn) addProductBtn.addEventListener('click', () => { window.location.href = 'add-product.html'; });
   const saveProductBtn = qs('#saveProductBtn'); if (saveProductBtn) saveProductBtn.addEventListener('click', (e) => { e.preventDefault(); saveProductFromModal(); });
   const cancelBtn = qs('#cancelProductBtn'); if (cancelBtn) cancelBtn.addEventListener('click', (e) => { e.preventDefault(); qs('#productModal').close(); });
   const addInitBtn = qs('#addInitialColorBtn'); if (addInitBtn) addInitBtn.addEventListener('click', (e) => { e.preventDefault(); addInitialColorFromModal(); });

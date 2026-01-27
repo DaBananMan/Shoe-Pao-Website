@@ -90,6 +90,15 @@
             padding: 8px 16px;
             z-index: 101;
         }
+        /* Block the page until data is ready */
+        body.page-loading { overflow: hidden; }
+        #pageShell { opacity: 0; pointer-events: none; }
+        body.page-ready #pageShell { opacity: 1; pointer-events: auto; }
+        .page-loader { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px; background: #fff; z-index: 1300; }
+        .page-loader__spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: #b71c1c; border-radius: 50%; animation: page-spin 0.85s linear infinite; }
+        .page-loader__text { font-size: 1rem; color: #222; }
+        @keyframes page-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        body.page-ready .page-loader { display: none; }
         .search-input {
             font-family: 'Poppins', Arial, sans-serif;
             font-size: 1rem;
@@ -259,8 +268,9 @@
         @media (max-width: 700px) {
             section#sale { padding-top: 12px; }
         }
-        /* center headers for Sale and New Arrivals only */
+        /* center headers for Sale, Try On, and New Arrivals */
         section#sale .section-header,
+        section#try-on .section-header,
         section#new-arrivals .section-header {
             margin-left: 0;
             text-align: center;
@@ -271,6 +281,8 @@
             gap: 32px;
             justify-content: center;
             margin: 0 auto 48px auto;
+            flex-wrap: nowrap;
+            width: 100%;
         }
         .shoe-card {
             background: none;
@@ -297,15 +309,51 @@
             transform: scaleX(-1);
         }
         .badge-sale {
+            display: inline-flex;
+            align-items: center;
+            background: #fdeaec;
+            color: #b71c1c;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border-radius: 8px;
+            padding: 3px 10px;
+            border: 1px solid #f4c7cd;
+            box-shadow: none;
+        }
+        .tags-row {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .badge-tag {
+            display: inline-flex;
+            align-items: center;
+            background: #fff;
+            color: #444;
+            font-size: 0.78rem;
+            font-weight: 650;
+            border-radius: 999px;
+            padding: 3px 10px;
+            border: 1px solid #ddd;
+            box-shadow: none;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .badge-tryon {
             position: absolute;
-            top: 16px;
-            left: 16px;
-            background: #b71c1c;
-            color: #fff;
-            font-size: 0.98rem;
-            font-weight: 500;
-            border-radius: 12px;
-            padding: 4px 18px;
+            top: 14px;
+            right: 14px;
+            background: #e3f2fd;
+            color: #1565c0;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border-radius: 10px;
+            padding: 5px 11px;
+            border: 1px solid #bbdefb;
+            box-shadow: 0 4px 10px rgba(21,101,192,0.12);
             z-index: 2;
         }
         .badge-new {
@@ -349,6 +397,8 @@
             margin-right: 8px;
             font-size: 0.98rem;
         }
+        .shoe-price-block { display: inline-flex; align-items: baseline; gap: 6px; }
+        .price-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
         .shoe-info-bottom {
             font-size: 0.98rem;
             color: #444;
@@ -386,6 +436,20 @@
             gap: 32px;
             justify-content: center;
             margin: 0 auto 48px auto;
+            flex-wrap: nowrap;
+            width: 100%;
+        }
+        .sale-row.scrollable,
+        .arrival-row.scrollable {
+            justify-content: flex-start;
+            overflow-x: auto;
+            padding: 0 24px 12px 24px;
+            scroll-snap-type: x proximity;
+            -webkit-overflow-scrolling: touch;
+        }
+        .sale-row.scrollable .shoe-card,
+        .arrival-row.scrollable .shoe-card {
+            scroll-snap-align: start;
         }
         .brands-panel {
             display: flex;
@@ -561,7 +625,12 @@
         }
     </style>
 </head>
-<body>
+<body class="page-loading">
+    <div id="pageLoader" class="page-loader" role="status" aria-live="polite">
+        <div class="page-loader__spinner" aria-hidden="true"></div>
+        <div id="pageLoaderText" class="page-loader__text">Loading products...</div>
+    </div>
+    <div id="pageShell" aria-hidden="true">
     <!-- Header Navigation -->
     <nav class="homepage-header">
         <div class="site-container">
@@ -592,6 +661,355 @@
         </div>
     </nav>
     <script>
+    function formatHomePrice(amount) {
+        var num = Number(amount || 0);
+        if (!isFinite(num)) num = 0;
+        try {
+            return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(num);
+        } catch (e) {
+            return '₱' + num.toFixed(2);
+        }
+    }
+    var homePageReady = false;
+    function markHomeReady(){
+        if(homePageReady) return;
+        homePageReady = true;
+        if(window.PageDataGate && PageDataGate.ready) PageDataGate.ready();
+        document.body.classList.remove('page-loading');
+        document.body.classList.add('page-ready');
+        var shell = document.getElementById('pageShell');
+        if(shell) shell.removeAttribute('aria-hidden');
+    }
+    function markHomeError(msg){
+        if(window.PageDataGate && PageDataGate.error) PageDataGate.error(msg);
+        var t = document.getElementById('pageLoaderText');
+        if(t && msg) t.textContent = msg;
+        markHomeReady();
+    }
+    function normalizeTagValue(v){
+        return String(v || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '')
+            .trim();
+    }
+    function hasTag(item, tag) {
+        var list = Array.isArray(item && item.tags) ? item.tags : [];
+        var target = normalizeTagValue(tag);
+        if(!target) return false;
+        return list.some(function(t){ return normalizeTagValue(t) === target; });
+    }
+    function prettyTagLabel(tag){
+        var s = String(tag || '').trim();
+        if(!s) return '';
+        if (s === s.toLowerCase()) {
+            s = s.replace(/\b\w/g, function(ch){ return ch.toUpperCase(); });
+        }
+        return s;
+    }
+    function getExtraTags(item, maxCount){
+        var list = Array.isArray(item && item.tags) ? item.tags : [];
+        var out = [];
+        var seen = new Set();
+        var skip = new Set(['sale','new','tryon']);
+        for (var i = 0; i < list.length; i++) {
+            var raw = String(list[i] || '').trim();
+            if(!raw) continue;
+            var norm = normalizeTagValue(raw);
+            if(!norm || skip.has(norm) || seen.has(norm)) continue;
+            seen.add(norm);
+            out.push(prettyTagLabel(raw));
+            if (out.length >= (maxCount || 2)) break;
+        }
+        return out;
+    }
+    function renderSaleItems(rows) {
+        var container = document.getElementById('saleRow');
+        if (!container) return;
+        container.innerHTML = '';
+        container.classList.remove('scrollable');
+        var saleItems = (rows || []).filter(function(r){ return hasTag(r, 'Sale'); });
+        if (!saleItems.length) return;
+        saleItems.slice(0, 6).forEach(function(item){
+            var card = document.createElement('div');
+            card.className = 'shoe-card';
+            card.style.cursor = 'pointer';
+            card.onclick = function(){
+                viewProduct(
+                    item.brand || '',
+                    item.name || '',
+                    formatHomePrice(item.price || 0),
+                    item.image || 'IMAGE/NIKE1.png',
+                    'Sale',
+                    item.productId || '',
+                    item.color || ''
+                );
+            };
+            var imgBox = document.createElement('div');
+            imgBox.className = 'shoe-img-box';
+            var img = document.createElement('img');
+            img.className = 'shoe-img';
+            img.src = item.image || 'IMAGE/NIKE1.png';
+            img.alt = item.name || 'Sale Item';
+            imgBox.appendChild(img);
+            if (hasTag(item, 'Try On!')) {
+                var tryTag = document.createElement('span');
+                tryTag.className = 'badge-tryon';
+                tryTag.textContent = 'Try On!';
+                imgBox.appendChild(tryTag);
+            }
+            var infoBox = document.createElement('div');
+            infoBox.className = 'shoe-info-box';
+            var infoTop = document.createElement('div');
+            infoTop.className = 'shoe-info-top';
+            var brand = document.createElement('span');
+            brand.className = 'shoe-brand';
+            brand.textContent = item.brand || '';
+            var priceStack = document.createElement('span');
+            priceStack.className = 'price-stack';
+            var saleTag = document.createElement('span');
+            saleTag.className = 'badge-sale';
+            saleTag.textContent = 'Sale';
+            priceStack.appendChild(saleTag);
+            var priceWrap = document.createElement('span');
+            priceWrap.className = 'shoe-price-block';
+            var priceOld = document.createElement('span');
+            priceOld.className = 'shoe-price-old';
+            priceOld.textContent = formatHomePrice(item.originalPrice || item.price || 0);
+            var price = document.createElement('span');
+            price.className = 'shoe-price';
+            price.textContent = formatHomePrice(item.price || 0);
+            if (item.originalPrice && Number(item.originalPrice) > Number(item.price || 0)) {
+                priceWrap.appendChild(priceOld);
+            }
+            priceWrap.appendChild(price);
+            priceStack.appendChild(priceWrap);
+            infoTop.appendChild(brand);
+            infoTop.appendChild(priceStack);
+            var infoBottom = document.createElement('div');
+            infoBottom.className = 'shoe-info-bottom';
+            infoBottom.textContent = item.name || '';
+            infoBox.appendChild(infoTop);
+            infoBox.appendChild(infoBottom);
+            var extraTags = getExtraTags(item, 2);
+            if (extraTags.length) {
+                var tagRow = document.createElement('div');
+                tagRow.className = 'tags-row';
+                extraTags.forEach(function(t){
+                    var badge = document.createElement('span');
+                    badge.className = 'badge-tag';
+                    badge.textContent = t;
+                    tagRow.appendChild(badge);
+                });
+                infoBox.appendChild(tagRow);
+            }
+            card.appendChild(imgBox);
+            card.appendChild(infoBox);
+            container.appendChild(card);
+        });
+        if (saleItems.length > 5) container.classList.add('scrollable');
+    }
+
+    function renderTryOnItems(rows) {
+        var container = document.getElementById('tryOnRow');
+        if (!container) return;
+        container.innerHTML = '';
+        container.classList.remove('scrollable');
+
+        var tryOnItems = (rows || []).filter(function(r){
+            return hasTag(r, 'Try On') || hasTag(r, 'Try On!');
+        });
+        if (!tryOnItems.length) return;
+
+        tryOnItems.slice(0, 6).forEach(function(item){
+            var card = document.createElement('div');
+            card.className = 'shoe-card';
+            card.style.cursor = 'pointer';
+            card.onclick = function(){
+                viewProduct(
+                    item.brand || '',
+                    item.name || '',
+                    formatHomePrice(item.price || 0),
+                    item.image || 'IMAGE/NIKE1.png',
+                    'Try On!',
+                    item.productId || '',
+                    item.color || ''
+                );
+            };
+
+            var imgBox = document.createElement('div');
+            imgBox.className = 'shoe-img-box';
+            var img = document.createElement('img');
+            img.className = 'shoe-img';
+            img.src = item.image || 'IMAGE/NIKE1.png';
+            img.alt = item.name || 'Try On Item';
+            imgBox.appendChild(img);
+
+            // Always show Try On badge since this section is filtered.
+            var tryTag = document.createElement('span');
+            tryTag.className = 'badge-tryon';
+            tryTag.textContent = 'Try On!';
+            imgBox.appendChild(tryTag);
+
+            // Optional New badge if item is also tagged New.
+            if (hasTag(item, 'New')) {
+                var newBadge = document.createElement('span');
+                newBadge.className = 'badge-new';
+                newBadge.textContent = 'New';
+                imgBox.appendChild(newBadge);
+            }
+
+            var infoBox = document.createElement('div');
+            infoBox.className = 'shoe-info-box';
+            var infoTop = document.createElement('div');
+            infoTop.className = 'shoe-info-top';
+            var brand = document.createElement('span');
+            brand.className = 'shoe-brand';
+            brand.textContent = item.brand || '';
+
+            var right = document.createElement('span');
+            // Match Sale layout when applicable; otherwise just show price.
+            if (hasTag(item, 'Sale')) {
+                right.className = 'price-stack';
+                var saleTag = document.createElement('span');
+                saleTag.className = 'badge-sale';
+                saleTag.textContent = 'Sale';
+                right.appendChild(saleTag);
+
+                var priceWrap = document.createElement('span');
+                priceWrap.className = 'shoe-price-block';
+                var priceOld = document.createElement('span');
+                priceOld.className = 'shoe-price-old';
+                priceOld.textContent = formatHomePrice(item.originalPrice || item.price || 0);
+                var price = document.createElement('span');
+                price.className = 'shoe-price';
+                price.textContent = formatHomePrice(item.price || 0);
+                if (item.originalPrice && Number(item.originalPrice) > Number(item.price || 0)) {
+                    priceWrap.appendChild(priceOld);
+                }
+                priceWrap.appendChild(price);
+                right.appendChild(priceWrap);
+            } else {
+                right.className = 'shoe-price';
+                right.textContent = formatHomePrice(item.price || 0);
+            }
+
+            infoTop.appendChild(brand);
+            infoTop.appendChild(right);
+
+            var infoBottom = document.createElement('div');
+            infoBottom.className = 'shoe-info-bottom';
+            infoBottom.textContent = item.name || '';
+            infoBox.appendChild(infoTop);
+            infoBox.appendChild(infoBottom);
+
+            var extraTags = getExtraTags(item, 2);
+            if (extraTags.length) {
+                var tagRow = document.createElement('div');
+                tagRow.className = 'tags-row';
+                extraTags.forEach(function(t){
+                    var badge = document.createElement('span');
+                    badge.className = 'badge-tag';
+                    badge.textContent = t;
+                    tagRow.appendChild(badge);
+                });
+                infoBox.appendChild(tagRow);
+            }
+
+            card.appendChild(imgBox);
+            card.appendChild(infoBox);
+            container.appendChild(card);
+        });
+
+        if (tryOnItems.length > 5) container.classList.add('scrollable');
+    }
+    function renderNewArrivals(rows) {
+        var container = document.getElementById('arrivalRow');
+        if (!container) return;
+        container.innerHTML = '';
+        container.classList.remove('scrollable');
+        var newItems = (rows || []).filter(function(r){ return hasTag(r, 'New'); });
+        if (!newItems.length) return;
+        newItems.slice(0, 9).forEach(function(item){
+            var card = document.createElement('div');
+            card.className = 'shoe-card';
+            card.setAttribute('data-brand', item.brand || '');
+            card.style.cursor = 'pointer';
+            card.onclick = function(){
+                viewProduct(
+                    item.brand || '',
+                    item.name || '',
+                    formatHomePrice(item.price || 0),
+                    item.image || 'IMAGE/NIKE1.png',
+                    'New',
+                    item.productId || '',
+                    item.color || ''
+                );
+            };
+            var imgBox = document.createElement('div');
+            imgBox.className = 'shoe-img-box';
+            var img = document.createElement('img');
+            img.className = 'shoe-img';
+            img.src = item.image || 'IMAGE/NIKE1.png';
+            img.alt = item.name || 'New Item';
+            var badge = document.createElement('span');
+            badge.className = 'badge-new';
+            badge.textContent = 'New';
+            imgBox.appendChild(img);
+            imgBox.appendChild(badge);
+            if (hasTag(item, 'Try On!')) {
+                var tryTag = document.createElement('span');
+                tryTag.className = 'badge-tryon';
+                tryTag.textContent = 'Try On!';
+                imgBox.appendChild(tryTag);
+            }
+            var infoBox = document.createElement('div');
+            infoBox.className = 'shoe-info-box';
+            var infoTop = document.createElement('div');
+            infoTop.className = 'shoe-info-top';
+            var brand = document.createElement('span');
+            brand.className = 'shoe-brand';
+            brand.textContent = item.brand || '';
+            var price = document.createElement('span');
+            price.className = 'shoe-price';
+            price.textContent = formatHomePrice(item.price || 0);
+            infoTop.appendChild(brand);
+            infoTop.appendChild(price);
+            var infoBottom = document.createElement('div');
+            infoBottom.className = 'shoe-info-bottom';
+            infoBottom.textContent = item.name || '';
+            infoBox.appendChild(infoTop);
+            infoBox.appendChild(infoBottom);
+            var extraTags = getExtraTags(item, 2);
+            if (extraTags.length) {
+                var tagRow = document.createElement('div');
+                tagRow.className = 'tags-row';
+                extraTags.forEach(function(t){
+                    var badge = document.createElement('span');
+                    badge.className = 'badge-tag';
+                    badge.textContent = t;
+                    tagRow.appendChild(badge);
+                });
+                infoBox.appendChild(tagRow);
+            }
+            card.appendChild(imgBox);
+            card.appendChild(infoBox);
+            container.appendChild(card);
+        });
+        if (newItems.length > 5) container.classList.add('scrollable');
+    }
+    function renderHomeTaggedSections(){
+        if (!window.getInventoryRows) { markHomeError('Products are unavailable right now.'); return; }
+        window.getInventoryRows(function(err, rows){
+            if (err) { markHomeError('Unable to load products.'); return; }
+            try {
+                renderSaleItems(rows || []);
+                renderTryOnItems(rows || []);
+                renderNewArrivals(rows || []);
+                initBrandFilters();
+            } catch(e){ console.error(e); }
+            markHomeReady();
+        });
+    }
     // Keep stored profile so auth persists across pages.
 
     // Header nav helpers (home)
@@ -677,147 +1095,171 @@
     </script>
     <script src="js/firebase-config.js"></script>
     <script>
-    (function(){
-        var rowsCache = [];
-        var loaded = false;
-        var loading = false;
-        window.__inventoryRowsCache = rowsCache;
+        // Inventory loader (aligned with product-list)
+        var inventoryRows = [];
+        var inventoryLoaded = false;
+        var inventoryLoading = false;
 
         function ensureFirebaseReady(cb){
             try{
-                if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('no firebase config')); return; }
-                var ready = function(){ try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }catch(e){ if(cb) cb(e); } };
-                if(window.firebase && firebase.firestore){ ready(); return; }
-                var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
-                var scripts = [base + 'firebase-app-compat.js', base + 'firebase-firestore-compat.js'];
-                var i = 0;
-                function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
-                loadNext();
+                var loadFirebaseConfig = function(next){
+                    if(window.FIREBASE_CONFIG){ next(); return; }
+                    var cfg = document.createElement('script');
+                    cfg.src = 'js/firebase-config.js';
+                    cfg.onload = next;
+                    cfg.onerror = function(){ if(cb) cb(new Error('firebase config load failed')); };
+                    document.head.appendChild(cfg);
+                };
+                loadFirebaseConfig(function(){
+                    if(!window.FIREBASE_CONFIG) { if(cb) cb(new Error('no firebase config')); return; }
+                    var ready = function(){ try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG); if(cb) cb(); }catch(e){ if(cb) cb(e); } };
+                    if(window.firebase && firebase.firestore){ ready(); return; }
+                    var base = 'https://www.gstatic.com/firebasejs/9.23.0/';
+                    var scripts = [base + 'firebase-app-compat.js', base + 'firebase-firestore-compat.js'];
+                    var i = 0;
+                    function loadNext(){ if(i >= scripts.length){ ready(); return; } var s = document.createElement('script'); s.src = scripts[i++]; s.onload = loadNext; s.onerror = function(){ if(cb) cb(new Error('failed to load firebase script: '+s.src)); }; document.head.appendChild(s); }
+                    loadNext();
+                });
             }catch(e){ if(cb) cb(e); }
         }
 
-        function normalizeProduct(p){
-            var out = Object.assign({}, p || {});
-            out.category = out.category || out.categoryName || out.cat || '';
-            out.status = out.status || out.state || out.availability || '';
-            var tags = Array.isArray(out.tagsManual) ? out.tagsManual : (Array.isArray(out.tags) ? out.tags : (out.tagsList || out.tags_list || []));
-            out.tagsManual = Array.isArray(tags) ? tags : [];
-            var pricing = out.pricing || {};
-            var pickNum = function(arr){ for(var i=0;i<arr.length;i++){ var v = arr[i]; if(v === undefined || v === null) continue; var n = Number(v); if(isFinite(n)) return n; } return 0; };
-            out.pricing = {
-                original: pickNum([pricing.original, pricing.orig, out.originalPrice, out.original_price, out.priceOriginal, out.price_original, out.price]),
-                sale: pickNum([pricing.sale, pricing.salePrice, pricing.sale_price, out.salePrice, out.sale_price, out.price_sale, out.price]) || pickNum([pricing.original, out.originalPrice, out.priceOriginal, out.price_original, out.price]),
-                cost: pickNum([pricing.cost, out.cost, out.priceCost, out.price_cost])
-            };
-            out.images = Array.isArray(out.images) ? out.images : (out.image ? [out.image] : []);
-            out.model = out.model || out.name || out.title || '';
-            return out;
-        }
+        function buildInventoryRows(products, variants){
+            function collectTags(src, bucket){
+                if(!src || !bucket) return;
+                function add(val){
+                    if(val === undefined || val === null) return;
+                    if(Array.isArray(val)) { val.forEach(add); return; }
+                    if(typeof val === 'string'){
+                        val.split(/[,/|;]+/).forEach(function(part){ var t = String(part||'').trim(); if(t) bucket.push(t); });
+                        return;
+                    }
+                    if(typeof val === 'object'){
+                        Object.keys(val).forEach(function(k){ if(/tag/i.test(k)) add(val[k]); });
+                    }
+                }
+                ['tagsManual','tags','tagsList','tags_list','tagList','tag','labels'].forEach(function(key){ add(src[key]); });
+            }
 
-        function buildVariantsMap(variantDocs){
             var map = {};
-            (variantDocs || []).forEach(function(v){
-                var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || (v.product && typeof v.product === 'string' ? (v.product.split('/').pop()) : null) || (v.productPath && typeof v.productPath === 'string' ? v.productPath.split('/').pop() : null) || null;
+            (variants || []).forEach(function(v){
+                var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || null;
                 if(!pid) return;
                 map[pid] = map[pid] || [];
-                var color = {
+                var images = Array.isArray(v.images) ? v.images : (v.image ? [v.image] : []);
+                map[pid].push({
                     id: v.id || ('color-' + Math.random().toString(36).slice(2,9)),
                     name: v.colorName || v.name || v.color || 'Color',
-                    code: v.colorCode || v.code || '#ffffff',
-                    sizes: []
-                };
-                if(Array.isArray(v.sizes)){
-                    color.sizes = v.sizes.map(function(s){ return { eu: s.eu, stock: Number(s.stock||0)||0, sku: s.sku||'' }; });
-                } else if (v.sizeMap && typeof v.sizeMap === 'object') {
-                    color.sizes = Object.keys(v.sizeMap).map(function(k){ return { eu: k, stock: Number(v.sizeMap[k]||0)||0, sku: '' }; });
-                } else if (v.sizesMap && typeof v.sizesMap === 'object') {
-                    color.sizes = Object.keys(v.sizesMap).map(function(k){ return { eu: k, stock: Number(v.sizesMap[k]||0)||0, sku: '' }; });
-                }
-                map[pid].push(color);
+                    images: images,
+                    image: (images && images.length) ? images[0] : (v.image || ''),
+                    sizes: Array.isArray(v.sizes) ? v.sizes : []
+                });
             });
-            return map;
-        }
 
-        function buildInventoryRows(products, variantsMap){
             var out = [];
             (products || []).forEach(function(p){
                 var pid = p.id || p.productId || p.sku || '';
-                var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors : (variantsMap && pid && variantsMap[pid] ? variantsMap[pid] : []);
-                if(!Array.isArray(colorsArr)) colorsArr = [];
-                var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : '';
-                colorsArr.forEach(function(c){
+                var variantColors = map[pid] || [];
+                var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors.map(function(c){
+                    var match = variantColors.find(function(v){
+                        return (v.id && c.id && String(v.id) === String(c.id)) || (v.name && c.name && String(v.name).toLowerCase() === String(c.name).toLowerCase());
+                    });
+                    if(match){
+                        if(!Array.isArray(c.images) || !c.images.length) c.images = match.images || [];
+                        if(!c.image) c.image = match.image || '';
+                    }
+                    return c;
+                }) : variantColors;
+
+                var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : (p.image || '');
+                (colorsArr || []).forEach(function(c){
+                    var colorImages = Array.isArray(c.images) ? c.images.filter(Boolean) : [];
+                    var colorImg = colorImages.length ? colorImages[0] : (c.image || baseImg);
                     var sizesMap = {};
                     (Array.isArray(c.sizes) ? c.sizes : []).forEach(function(s){ if(s && s.eu !== undefined){ sizesMap[String(s.eu)] = Number(s.stock||0)||0; } });
+
+                    var salePrice = Number((p.pricing && (p.pricing.sale||p.pricing.original)) || p.price || 0);
+                    var originalPrice = Number((p.pricing && p.pricing.original) || p.originalPrice || 0);
+                    var tags = [];
+                    collectTags(p, tags);
+                    collectTags(c, tags);
+                    if(originalPrice && salePrice && salePrice < originalPrice) tags.push('Sale');
+                    if(p.isNew || p.newArrival || p.new_arrival || p.isNewArrival || p.status === 'new') tags.push('New');
+                    var tagLabelByNorm = {};
+                    var tagSet = new Set();
+                    tags.map(function(t){ return String(t||'').trim(); }).filter(Boolean).forEach(function(raw){
+                        var norm = String(raw).toLowerCase();
+                        if(!tagLabelByNorm[norm]) tagLabelByNorm[norm] = raw;
+                        tagSet.add(norm);
+                    });
+                    if(Array.from(tagSet).some(function(t){ return t.indexOf('new') !== -1; })) tagSet.add('new');
+                    if(Array.from(tagSet).some(function(t){ return t.indexOf('sale') !== -1; })) tagSet.add('sale');
+                    var dedupTags = Array.from(tagSet).map(function(t){
+                        if (t === 'new') return 'New';
+                        if (t === 'sale') return 'Sale';
+                        return tagLabelByNorm[t] || t;
+                    });
+
                     out.push({
                         id: (p.sku || p.id || '') + ':' + (c.id || c.name || ''),
-                        name: (p.model || '') + (c.name ? (' ' + c.name) : ''),
+                        name: (p.model || p.name || '') + (c.name ? (' ' + c.name) : ''),
                         brand: p.brand || '',
                         color: c.name || '',
-                        image: baseImg || 'IMAGE/NIKE1.png',
+                        image: colorImg || baseImg || 'IMAGE/NIKE1.png',
+                        images: colorImages,
                         sizes: sizesMap,
-                        price: Number((p.pricing && (p.pricing.sale || p.pricing.original)) || 0),
-                        originalPrice: Number((p.pricing && p.pricing.original) || 0),
+                        price: salePrice,
+                        originalPrice: originalPrice,
                         productId: p.id || '',
                         colorId: c.id || '',
                         createdAt: p.createdAt || null,
                         gender: p.gender || '',
-                        tags: Array.isArray(p.tagsManual) ? p.tagsManual : [],
-                        criticalLevel: (p.criticalLevel !== undefined && p.criticalLevel !== null) ? Number(p.criticalLevel) : null
+                        tags: dedupTags,
+                        status: p.status || 'active'
                     });
                 });
             });
             return out;
         }
 
-        function loadInventoryRowsFromFirestore(cb){
-            if(loaded || loading){ if(cb) cb(null, rowsCache); return; }
-            loading = true;
+        function loadInventoryRows(cb){
+            if(inventoryLoaded || inventoryLoading){ if(cb) cb(null, inventoryRows); return; }
+            if(window.PageDataGate && PageDataGate.block){ PageDataGate.block('Loading products...'); }
+            inventoryLoading = true;
             ensureFirebaseReady(function(err){
-                if(err){ loading = false; if(cb) cb(err); return; }
+                if(err){ inventoryLoading = false; if(cb) cb(err); return; }
                 try{
                     var db = firebase.firestore();
-                    Promise.all([db.collection('products').get(), db.collection('variants').get()])
-                        .then(function(res){
-                            var products = [];
-                            res[0].forEach(function(doc){ products.push(normalizeProduct(Object.assign({ id: doc.id }, doc.data() || {}))); });
-                            var variants = [];
-                            res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
-                            var variantsMap = buildVariantsMap(variants);
-                            rowsCache.length = 0;
-                            buildInventoryRows(products, variantsMap).forEach(function(r){ rowsCache.push(r); });
-                            loaded = true;
-                            if(cb) cb(null, rowsCache);
-                        })
-                        .catch(function(e){ loading = false; if(cb) cb(e); });
-                }catch(e){ loading = false; if(cb) cb(e); }
+                    Promise.all([db.collection('products').get(), db.collection('variants').get()]).then(function(res){
+                        var products = [];
+                        res[0].forEach(function(doc){ products.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                        var variants = [];
+                        res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                        inventoryRows = buildInventoryRows(products, variants);
+                        inventoryLoaded = true;
+                        inventoryLoading = false;
+                        if(cb) cb(null, inventoryRows);
+                    }).catch(function(e){ inventoryLoading = false; if(cb) cb(e); });
+                }catch(e){ inventoryLoading = false; if(cb) cb(e); }
             });
         }
 
-        window.getInventoryRows = function(cb){
-            loadInventoryRowsFromFirestore(function(err, rows){ if(cb) cb(err, rows || []); });
-        };
+        window.getInventoryRows = function(cb){ loadInventoryRows(function(err, rows){ if(cb) cb(err, rows || []); }); };
 
-        document.addEventListener('DOMContentLoaded', function(){
-            loadInventoryRowsFromFirestore(function(){});
-        });
-    })();
-
-    // Helper: base model name (strip trailing color from title)
-    function baseModelFromTitle(title){
-        try{
-            var name = String(title||'');
-            var inv = window.__inventoryRowsCache || [];
-            if(Array.isArray(inv) && inv.length){
-                var parts = name.split(/\s+/);
-                if(parts.length > 1){
-                    var last = parts[parts.length-1];
-                    var hasColor = inv.some(function(i){ return (i && i.color) && String(i.color).toLowerCase() === String(last).toLowerCase(); });
-                    if(hasColor){ parts.pop(); name = parts.join(' '); }
+        function baseModelFromTitle(title){
+            try{
+                var name = String(title||'');
+                var inv = Array.isArray(inventoryRows) ? inventoryRows : [];
+                if(inv.length){
+                    var parts = name.split(/\s+/);
+                    if(parts.length > 1){
+                        var last = parts[parts.length-1];
+                        var hasColor = inv.some(function(i){ return (i && i.color) && String(i.color).toLowerCase() === String(last).toLowerCase(); });
+                        if(hasColor){ parts.pop(); name = parts.join(' '); }
+                    }
                 }
-            }
-            return name.trim();
-        }catch(e){ return String(title||''); }
-    }
+                return name.trim();
+            }catch(e){ return String(title||''); }
+        }
     </script>
     <!-- Banner 1: New Arrivals (Carousel) -->
     <section class="banner-section" id="newArrivalsCarousel">
@@ -825,7 +1267,7 @@
             <div class="carousel-track">
                 <!-- Slide 1 -->
                 <div class="carousel-slide" data-img="IMAGE/SHOEPAOBG1.png">
-                    <div class="banner-content">
+                        <div class="banner-content">
                         <div class="banner-header">Fresh Drops Weekly</div>
                         <div class="banner-subheader">Newest styles just landed — grab yours before they go.</div>
                         <button id="shopBrandsBtn" class="banner-btn" onclick="goToNewArrivals()">Shop New Arrivals <span class="arrow"></span></button>
@@ -839,7 +1281,6 @@
                         <button class="banner-btn" onclick="goToProductList()">Browse Collection <span class="arrow"></span></button>
                     </div>
                 </div>
-                <!-- Slide 3: Onitsuka (new) -->
                 <div class="carousel-slide slide-onitsuka" data-img="IMAGE/res/onitsuka.jpg;IMAGE/res/onitsuka.jpeg;IMAGE/res/onitsuka.png;IMAGE/res/onitsuka.webp">
                     <div class="banner-content">
                         <div class="banner-header">Bold Heritage, Everyday Comfort</div>
@@ -875,34 +1316,13 @@
     <!-- Sale Section -->
     <section id="sale">
         <div class="section-header">Sale</div>
-        <div class="sale-row">
-            <div class="shoe-card" style="cursor:pointer;" onclick="viewProduct('Cloudtilt','Cloudtilt Iron Dew Womens','P1,299.00','IMAGE/SALESSHOE1.png','Sale','#P006')">
-                <div class="shoe-img-box">
-                    <img src="IMAGE/SALESSHOE1.png" class="shoe-img" alt="Cloudtilt Iron Dew Womens">
-                    <span class="badge-sale">Sale</span>
-                </div>
-                <div class="shoe-info-box">
-                    <div class="shoe-info-top">
-                        <span class="shoe-brand">Cloudtilt</span>
-                        <span><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span>
-                    </div>
-                    <div class="shoe-info-bottom">Cloudtilt Iron Dew Womens</div>
-                </div>
-            </div>
-            <div class="shoe-card" style="cursor:pointer;" onclick="viewProduct('New Balance','New Balance 530','P1,299.00','IMAGE/SALESSHOE2.png','Sale','#P007')">
-                <div class="shoe-img-box">
-                    <img src="IMAGE/SALESSHOE2.png" class="shoe-img" alt="New Balance 530">
-                    <span class="badge-sale">Sale</span>
-                </div>
-                <div class="shoe-info-box">
-                    <div class="shoe-info-top">
-                        <span class="shoe-brand">New Balance</span>
-                        <span><span class="shoe-price-old">P2,295.00</span><span class="shoe-price">P1,299.00</span></span>
-                    </div>
-                    <div class="shoe-info-bottom">New Balance 530</div>
-                </div>
-            </div>
-        </div>
+        <div class="sale-row" id="saleRow"></div>
+    </section>
+
+    <!-- Try On Section -->
+    <section id="try-on">
+        <div class="section-header">Try On</div>
+        <div class="sale-row" id="tryOnRow"></div>
     </section>
 
     <!-- New Arrival Section -->
@@ -915,47 +1335,7 @@
             <button class="brand-filter-btn" data-brand="Onitsuka Tiger" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">Onitsuka Tiger</button>
             <button class="brand-filter-btn" data-brand="Adidas" onclick="toggleBrandFilter(this)"><img src="IMAGE/STARICON.png" alt="Star">Adidas</button>
         </div>
-        <div class="arrival-row" id="arrivalRow">
-            <div class="shoe-card" data-brand="Nike" style="cursor:pointer;" onclick="viewProduct('Nike','Nike Airmax TN Aqua Blue','P1,299.00','IMAGE/NARRIVAL1.png','New')">
-                <div class="shoe-img-box">
-                    <img src="IMAGE/NARRIVAL1.png" class="shoe-img" alt="Nike Airmax TN Aqua Blue">
-                    <span class="badge-new">New</span>
-                </div>
-                <div class="shoe-info-box">
-                    <div class="shoe-info-top">
-                        <span class="shoe-brand">Nike</span>
-                        <span class="shoe-price">P1,299.00</span>
-                    </div>
-                    <div class="shoe-info-bottom">Nike Airmax TN Aqua Blue</div>
-                </div>
-            </div>
-            <div class="shoe-card" data-brand="Nike" style="cursor:pointer;" onclick="viewProduct('Nike','Nike Airmax Black','P2,395.00','IMAGE/NARRIVAL2.png','New')">
-                <div class="shoe-img-box">
-                    <img src="IMAGE/NARRIVAL2.png" class="shoe-img" alt="Nike Airmax Black">
-                    <span class="badge-new">New</span>
-                </div>
-                <div class="shoe-info-box">
-                    <div class="shoe-info-top">
-                        <span class="shoe-brand">Nike</span>
-                        <span class="shoe-price">P2,395.00</span>
-                    </div>
-                    <div class="shoe-info-bottom">Nike Airmax Black</div>
-                </div>
-            </div>
-            <div class="shoe-card" data-brand="Nike" style="cursor:pointer;" onclick="viewProduct('Nike','Nike GT CUT 2 LEAP HIGH','P2,395.00','IMAGE/NARRIVAL3.png','New')">
-                <div class="shoe-img-box">
-                    <img src="IMAGE/NARRIVAL3.png" class="shoe-img" alt="Nike GT CUT 2 LEAP HIGH">
-                    <span class="badge-new">New</span>
-                </div>
-                <div class="shoe-info-box">
-                    <div class="shoe-info-top">
-                        <span class="shoe-brand">Nike</span>
-                        <span class="shoe-price">P2,395.00</span>
-                    </div>
-                    <div class="shoe-info-bottom">Nike GT CUT 2 LEAP HIGH</div>
-                </div>
-            </div>
-        </div>
+        <div class="arrival-row" id="arrivalRow"></div>
     </section>
 
     <!-- Brands Section -->
@@ -1002,30 +1382,56 @@
     </footer>
 
     <script>
-    function viewProduct(brand, name, price, img, badge) {
-        var params = new URLSearchParams();
-        if(brand) params.set('brand', brand);
-        if(name) params.set('name', name);
-        if(price) params.set('price', price);
-        if(img) params.set('img', img);
-        if(badge) params.set('badge', badge);
-
-        try{
-            var inv = window.__inventoryRowsCache || [];
-            var base = baseModelFromTitle(name);
-            if(Array.isArray(inv) && inv.length){
-                var match = inv.find(function(i){
-                    if(!i) return false;
-                    return String(i.brand||'').toLowerCase() === String(brand||'').toLowerCase()
-                        && String(baseModelFromTitle(i.name||'')).toLowerCase() === String(base||'').toLowerCase();
-                });
-                if(match){
-                    if(match.productId) params.set('pid', match.productId);
-                    if(match.color) params.set('color', match.color);
-                }
+    function viewProduct(brand, name, price, img, badge, productId, color) {
+        // Build model data similar to product-list so product-view can hydrate consistently
+        try {
+            var inv = Array.isArray(inventoryRows) ? inventoryRows : [];
+            var variants = [];
+            if (productId) {
+                variants = inv.filter(function(v){ return String(v.productId||'') === String(productId||''); });
             }
-        }catch(e){ /* ignore */ }
+            if (!variants.length && inv.length) {
+                var base = baseModelFromTitle(name);
+                variants = inv.filter(function(v){
+                    if(!v) return false;
+                    var brandMatch = String(v.brand||'').toLowerCase() === String(brand||'').toLowerCase();
+                    var nameMatch = String(baseModelFromTitle(v.name||'')).toLowerCase() === String(base||'').toLowerCase();
+                    return brandMatch && nameMatch;
+                });
+            }
+            var selected = variants.find(function(v){ return color && String(v.color||'').toLowerCase() === String(color||'').toLowerCase(); }) || variants[0] || null;
+            var modelData = {
+                brand: (selected && selected.brand) || brand || '',
+                baseName: baseModelFromTitle((selected && selected.name) || name || ''),
+                variants: variants.map(function(v){
+                    return {
+                        id: v.id || '',
+                        productId: v.productId || '',
+                        name: v.name || '',
+                        color: v.color || '',
+                        image: v.image || '',
+                        images: Array.isArray(v.images) ? v.images : [],
+                        price: Number(v.price||0),
+                        sizes: v.sizes || {},
+                        gender: v.gender || ''
+                    };
+                })
+            };
+            if(selected){
+                localStorage.setItem('modelData', JSON.stringify(modelData));
+                localStorage.setItem('productBrand', modelData.brand || '');
+                localStorage.setItem('productTitle', selected.name || modelData.baseName || '');
+                localStorage.setItem('productPrice', price || '');
+                localStorage.setItem('productImg', selected.image || img || '');
+                localStorage.setItem('productBadge', badge || '');
+                localStorage.setItem('productId', selected.productId || selected.id || productId || '');
+                localStorage.setItem('productColor', selected.color || color || '');
+            }
+        } catch(e) { /* ignore */ }
 
+        var params = new URLSearchParams();
+        if(productId) params.set('pid', productId);
+        if(color) params.set('color', color);
         window.location.href = 'product-view.html' + (params.toString() ? ('?' + params.toString()) : '');
     }
     // Scroll to top
@@ -1044,10 +1450,7 @@
         window.location.href = 'product-list.html';
     }
     // User page
-    function goToUserPage() {
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
-    }
+    function goToUserPage() { window.location.href = 'profile.html'; }
     // Cart page
     function goToCartPage() {
         window.location.href = 'cart.html';
@@ -1122,27 +1525,39 @@
         btn.classList.toggle('active');
         var activeBrands = Array.from(document.querySelectorAll('.brand-filter-btn.active')).map(b => b.getAttribute('data-brand'));
         var cards = document.querySelectorAll('#arrivalRow .shoe-card');
+        var visibleCount = 0;
         cards.forEach(card => {
             if (activeBrands.length === 0 || activeBrands.includes(card.getAttribute('data-brand'))) {
                 card.style.display = '';
+                visibleCount++;
             } else {
                 card.style.display = 'none';
             }
         });
+        var container = document.getElementById('arrivalRow');
+        if (container) {
+            if (visibleCount > 5) container.classList.add('scrollable');
+            else container.classList.remove('scrollable');
+        }
     }
-    // Initial filter: show only Nike
-    window.addEventListener('DOMContentLoaded', function() {
+    function initBrandFilters(){
         var btns = document.querySelectorAll('.brand-filter-btn');
-        btns.forEach(btn => {
+        if (!btns.length) return;
+        btns.forEach(function(btn){
             if (btn.getAttribute('data-brand') !== 'Nike') {
                 btn.classList.remove('active');
+            } else {
+                btn.classList.add('active');
             }
         });
-        toggleBrandFilter(document.querySelector('.brand-filter-btn.active'));
+        var activeBtn = document.querySelector('.brand-filter-btn.active');
+        if (activeBtn) toggleBrandFilter(activeBtn);
+    }
+    window.addEventListener('DOMContentLoaded', function() {
+        renderHomeTaggedSections();
     });
     </script>
     <script src="cart-storage.js"></script>
-</body>
 
     <!-- ===== Cart Overlay + Sidebar HTML (universal) ===== -->
     <div id="cartOverlay" class="cart-overlay" aria-hidden="true"></div>
@@ -1167,7 +1582,7 @@
     <!-- ===== Cart Sidebar Behavior (universal) ===== -->
     <script>
     (function(){
-        let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        let cart = [];
         function parsePriceToNumber(priceText) {
             if (!priceText) return 0;
             var v = priceText.replace(/[^0-9.]/g, '');
@@ -1180,9 +1595,7 @@
                 return '₱' + Number(amount).toFixed(2);
             }
         }
-        function saveCartToLocalStorage() {
-            localStorage.setItem('cart', JSON.stringify(cart));
-        }
+        function saveCartToLocalStorage() { /* local storage disabled on home */ }
         const cartOverlay = document.getElementById('cartOverlay');
         const cartSidebar = document.getElementById('cartSidebar');
         const cartItemsContainer = document.getElementById('cartItems');
@@ -1322,7 +1735,7 @@
                             var incRes = window.tryIncrementCartItem(cart, idx);
                             if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 pairs of shoes per order.');
+                                else alert('Maximum of 3 items per order allowed.');
                                 return;
                             }
                         } else {
@@ -1364,4 +1777,6 @@
         });
     })();
     </script>
+    </div>
+</body>
 </html>

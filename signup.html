@@ -708,10 +708,36 @@
                 if (!email) { alert('Please enter an email address'); return false; }
                 if (!password || password.length < 6) { alert('Please choose a password (6+ characters).'); return false; }
 
+                // Prevent duplicate signups: check whether this email already has sign-in methods
+                try{
+                    if (window.firebase && firebase.auth && firebase.auth().fetchSignInMethodsForEmail) {
+                        const methods = await firebase.auth().fetchSignInMethodsForEmail(email);
+                        if (methods && methods.length > 0) {
+                            alert('An account with this email already exists. Please sign in or reset your password.');
+                            return false;
+                        }
+                    }
+                }catch(e){ /* continue if check fails */ }
+
                 if (!(window.FIREBASE_CONFIG && window.firebase && window.firebase.auth)) { alert('Firebase is not configured. Signup unavailable.'); return false; }
                 try{
                     if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
-                    const created = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    // If the client has an anonymous user active, link the new email credential
+                    // to that anonymous user to convert it into a permanent account instead
+                    // of creating a separate user. This prevents orphan anonymous accounts.
+                    const auth = firebase.auth();
+                    let created = null;
+                    if (auth.currentUser && auth.currentUser.isAnonymous) {
+                        try{
+                            const cred = firebase.auth.EmailAuthProvider.credential(email, password);
+                            created = await auth.currentUser.linkWithCredential(cred);
+                        }catch(linkErr){
+                            console.warn('linkWithCredential failed, falling back to createUserWithEmailAndPassword', linkErr);
+                            created = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                        }
+                    } else {
+                        created = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    }
                     const u = created && created.user ? created.user : null;
                     if (u && (firstName || lastName)) {
                         try{ await u.updateProfile({ displayName: fullName }); }catch(e){}
@@ -722,8 +748,9 @@
                     try{ localStorage.setItem('pendingSignup', JSON.stringify(pending)); }catch(e){}
 
                     // Save profile data locally + Firestore for default address
+                    let profilePayload = null;
                     try{
-                        const profilePayload = {
+                        profilePayload = {
                             email: email,
                             name: fullName,
                             phone: phone || '',
@@ -751,35 +778,35 @@
                     }catch(e){}
 
                     try{
-                        if (window.firebase && firebase.firestore && u && u.uid) {
-                            const userDoc = firebase.firestore().doc('users/' + u.uid);
-                            const payload = {
-                                email: u.email || email,
-                                displayName: u.displayName || fullName,
-                                name: fullName,
-                                phone: phone || '',
-                                addressMain: addressMain || '',
-                                addressDetails: addressDetails || '',
-                                deliveryAddress: {
-                                    fullName: fullName,
-                                    phone: phone || '',
-                                    street: addressMain || '',
-                                    postalCode: addressObj.postalCode || '',
-                                    region: addressObj.region || '',
-                                    province: addressObj.province || '',
-                                    city: addressObj.city || '',
-                                    barangay: addressObj.barangay || ''
-                                },
-                                addresses: [entry],
-                                defaultAddressId: defaultAddressId,
-                                emailVerified: !!u.emailVerified,
-                                role: 'user',
-                                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                                lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
-                            };
-                            userDoc.set(payload, { merge: true }).catch(()=>{});
+                        // Instead of attempting client-side Firestore writes (which are blocked by rules),
+                        // call the server endpoint which uses the Admin SDK to create `accounts` and `users` docs.
+                        if (u && u.uid && u.getIdToken) {
+                            try{
+                                // Force refresh token to avoid stale/invalid token causing accounts:lookup 400
+                                let idToken = null;
+                                try{ idToken = await u.getIdToken(true); }catch(e){ console.warn('getIdToken(true) failed', e); }
+                                console.log('signup: idToken length =', idToken ? idToken.length : 0);
+                                if (!idToken) { console.warn('No idToken available after refresh; skipping server create-account-doc'); }
+                                else {
+                                    const body = { idToken: idToken, profile: profilePayload };
+                                    let resp = null;
+                                    // Try direct Node endpoint first (bypass PHP) for faster local dev
+                                    try{
+                                        resp = await fetch('http://127.0.0.1:3000/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                        if (!resp.ok) {
+                                            console.warn('Direct node create-account-doc returned non-ok', resp.status);
+                                            // fall back to PHP proxy relative path
+                                            resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                        }
+                                    }catch(e){
+                                        console.warn('Direct node call failed, falling back to proxy', e);
+                                        try{ resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }catch(e2){ console.warn('Proxy create-account-doc failed', e2); }
+                                    }
+                                    if (resp && !resp.ok) console.warn('Server create-account-doc returned non-ok', resp.status);
+                                }
+                            }catch(e){ console.warn('Server create-account-doc failed', e); }
                         }
-                    }catch(e){ console.warn('Failed to upsert user doc', e); }
+                    }catch(e){ console.warn('Failed to notify server to create account doc', e); }
 
                     // Primary: use client-side Firebase SDK so verification works without SMTP/server
                     try{
@@ -788,7 +815,7 @@
                         } else {
                             // Client SDK not available for some reason — try server-side send as a fallback
                             try{
-                                const resp = await fetch('/server-proxy.php/api/send-verification-email', {
+                                const resp = await fetch('server-proxy.php/api/send-verification-email', {
                                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ email: email, displayName: fullName, returnUrl: window.location.origin })
                                 });
@@ -798,7 +825,7 @@
                     }catch(e){
                         console.warn('client sendEmailVerification failed, attempting server-side send', e);
                         try{
-                            const resp = await fetch('/server-proxy.php/api/send-verification-email', {
+                            const resp = await fetch('server-proxy.php/api/send-verification-email', {
                                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ email: email, displayName: fullName, returnUrl: window.location.origin })
                             });
@@ -820,15 +847,49 @@
                 let provider = null;
                 if (name === 'google') provider = new firebase.auth.GoogleAuthProvider();
                 else { alert('Unknown provider'); return; }
-                firebase.auth().signInWithPopup(provider).then(result => {
+                // If there's an anonymous user, link the social provider to it to avoid creating
+                // an extra account. Otherwise, perform a regular sign-in.
+                const auth = firebase.auth();
+                const signInAction = (auth.currentUser && auth.currentUser.isAnonymous)
+                    ? auth.currentUser.linkWithPopup.bind(auth.currentUser)
+                    : firebase.auth().signInWithPopup.bind(firebase.auth());
+
+                signInAction(provider).then(async result => {
                     const user = result.user;
                     try{
-                        if (window.firebase && firebase.firestore && user && user.uid) {
-                            const userDoc = firebase.firestore().doc('users/' + user.uid);
-                            const payload = { email: user.email, displayName: user.displayName || '', emailVerified: !!user.emailVerified, role: 'user', lastLoginAt: firebase.firestore.FieldValue.serverTimestamp() };
-                            userDoc.set(payload, { merge: true }).catch(()=>{});
+                        // Notify server to create accounts + users docs using Admin SDK.
+                        if (user && user.uid && user.getIdToken) {
+                            try{
+                                let idToken = null;
+                                try{ idToken = await user.getIdToken(true); }catch(e){ console.warn('social getIdToken(true) failed', e); }
+                                console.log('social sign-in: idToken length =', idToken ? idToken.length : 0);
+                                if (!idToken) { console.warn('No idToken available for social sign-in; skipping server create-account-doc'); }
+                                else {
+                                    const profile = {
+                                        email: user.email,
+                                        displayName: user.displayName || '',
+                                        emailVerified: !!user.emailVerified,
+                                        role: 'user',
+                                        phone: user.phoneNumber || '',
+                                        address: { street: '', city: '', state: '', postalCode: '', country: '' }
+                                    };
+                                    const body = { idToken: idToken, profile: profile };
+                                    let resp = null;
+                                    try{
+                                        resp = await fetch('http://127.0.0.1:3000/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                        if (!resp.ok) {
+                                            console.warn('Direct node create-account-doc (social) returned non-ok', resp.status);
+                                            resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                        }
+                                    }catch(e){
+                                        console.warn('Direct node call failed (social), falling back to proxy', e);
+                                        try{ resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }catch(e2){ console.warn('Proxy create-account-doc (social) failed', e2); }
+                                    }
+                                    if (resp && !resp.ok) console.warn('Server create-account-doc returned non-ok (social)', resp.status);
+                                }
+                            }catch(e){ console.warn('Server create-account-doc failed (social)', e); }
                         }
-                    }catch(e){ console.warn('Failed to upsert social sign-in user doc', e); }
+                    }catch(e){ console.warn('Failed to notify server for social sign-in', e); }
                     try{ localStorage.setItem('profile', JSON.stringify({ email: user.email, name: user.displayName||'', uid: user.uid })); }catch(e){}
                     // Route
                     const role = (user && user.email && user.email.toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
