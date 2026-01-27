@@ -19,19 +19,6 @@
             flex-direction:row;
             max-width:1200px;
             margin:0 auto;
-            var unavailable = (currentItems || []).some(function(it){
-                var s = String(it && (it.status || it.state || it.availability) || '').toLowerCase().trim();
-                if(!s) return false;
-                if(s === 'active') s = 'published';
-                if(s === 'archived') s = 'archive';
-                return s !== 'published';
-            });
-            if(unavailable){
-                alert('Some items in your cart are unavailable. Please remove them before checkout.');
-                if(btn) btn.disabled = false;
-                window._placingOrder = false;
-                return;
-            }
             padding:32px 16px 0 16px; /* add spacing from left/right edges */
             box-sizing:border-box;
             /* allow the main container to grow so the footer is pushed to the bottom on short pages */
@@ -534,16 +521,23 @@
 
     function normalizeDeliveryAddressFromAddressObject(addressObject){
         if(!addressObject) return null;
-            } else {
-                var totalQty = 0;
-                (currentItems || []).forEach(function(it){
-                    var q = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
-                    totalQty += Number(q) || 0;
-                });
-                overLimit = totalQty > 3;
-            }
-            if(overLimit){
-                alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
+        return {
+            fullName: addressObject.fullName || '',
+            phone: addressObject.phone || '',
+            postalCode: addressObject.postalCode || '',
+            region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
+            province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
+            city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
+            barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
+            street: addressObject.street || addressObject.line1 || ''
+        };
+    }
+
+    function normalizeDeliveryAddressFromString(addressText){
+        if(!addressText) return null;
+        return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
+    }
+
     function formatDeliveryAddressText(addrObj){
         if(!addrObj) return '';
         var parts = [];
@@ -1352,6 +1346,22 @@
     document.addEventListener('DOMContentLoaded', function(){
         var btn = document.getElementById('placeOrderBtn');
         if (btn) btn.addEventListener('click', placeOrder);
+
+        // Failsafe: if Firebase or checkout listeners hang, show whatever we have and hide loader.
+        setTimeout(function(){
+            try{
+                if(paymentDataReady) return;
+                var localSnap = getLocalCheckoutSnapshot();
+                if(localSnap && localSnap.items && localSnap.items.length){
+                    usingLocalCheckoutFallback = true;
+                    currentCheckout = localSnap.checkout || null;
+                    currentItems = localSnap.items || [];
+                    renderPaymentFromCheckout();
+                } else {
+                    markPaymentDataReady('timeout');
+                }
+            }catch(e){ markPaymentDataReady('timeout'); }
+        }, 4500);
 
         ensureFirebaseReady(function(err){
             if(err){
