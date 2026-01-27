@@ -645,7 +645,11 @@ app.post('/api/admin/get-admin-custom-token', async (req, res) => {
 
     // Create a custom token for this admin UID. The client can sign in with this token.
     try{
-      const customToken = await admin.auth().createCustomToken(userRecord.uid);
+  // Include an explicit developer claim so the signed-in ID token contains
+  // `admin: true` immediately — helpful in development when custom claims
+  // propagation may be delayed. This is safe for dev convenience and does
+  // not replace persistent custom claims set via setCustomUserClaims().
+  const customToken = await admin.auth().createCustomToken(userRecord.uid, { admin: true });
       return res.json({ ok: true, token: customToken, uid: userRecord.uid, email: adminEmail });
     }catch(e){ console.error('get-admin-custom-token failed', e); return res.status(500).json({ error: 'token_creation_failed', detail: String(e && e.message ? e.message : e) }); }
   }catch(err){ console.error('api/admin/get-admin-custom-token error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
