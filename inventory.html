@@ -808,27 +808,56 @@
             ];
         })();
 
-        function fetchWithTimeout(url, timeout){
-            var ctrl = new AbortController();
-            var id = setTimeout(function(){ ctrl.abort(); }, timeout||3000);
-            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; });
+        // Allow passing an external AbortController to enable aborting in-flight probes.
+        function fetchWithTimeout(url, timeout, externalController){
+            var ctrl = externalController || new AbortController();
+            var id = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, timeout||3000);
+            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; }).catch(function(err){ clearTimeout(id); throw err; });
         }
 
         function getSalesDebugEl(){ try{ return document.getElementById('salesDebug'); }catch(e){ return null; } }
 
+        // Cache the discovered orders.json URL in sessionStorage so we don't probe repeatedly.
+        var __cachedOrdersJsonUrl = null;
+        try{ __cachedOrdersJsonUrl = sessionStorage.getItem('ordersJsonUrl') || null; }catch(e){ __cachedOrdersJsonUrl = null; }
+        var __ordersJsonAbortController = null;
+
         async function findOrdersJson(){
+            // Abort any previously-running probes before starting a new one
+            try{ if(__ordersJsonAbortController){ try{ __ordersJsonAbortController.abort(); }catch(e){} } }catch(e){}
+            __ordersJsonAbortController = new AbortController();
+
+            // If we have a cached URL from a previous successful probe, try it first.
+            if(__cachedOrdersJsonUrl){
+                try{
+                    console.debug('Trying cached orders.json at', __cachedOrdersJsonUrl);
+                    var rCached = await fetchWithTimeout(__cachedOrdersJsonUrl, 3000, __ordersJsonAbortController);
+                    if(rCached && rCached.ok){ try{ var j = await rCached.json(); return { url: __cachedOrdersJsonUrl, json: j }; }catch(e){ console.warn('Invalid JSON at cached url', __cachedOrdersJsonUrl); /* fallthrough to full probe */ } }
+                    // if cached url failed, clear cache and continue probing
+                    try{ sessionStorage.removeItem('ordersJsonUrl'); }catch(e){}
+                    __cachedOrdersJsonUrl = null;
+                }catch(e){ console.debug('Cached orders.json probe failed', e && e.message); try{ sessionStorage.removeItem('ordersJsonUrl'); }catch(err){} __cachedOrdersJsonUrl = null; }
+            }
             // Silent probe for candidate files. Only log to console; don't update UI text.
             for(var i=0;i<candidates.length;i++){
                 var u = candidates[i];
                 try{
                     console.debug('Trying orders.json at', u);
-                    var r = await fetchWithTimeout(u, 2500);
+                    var r = await fetchWithTimeout(u, 2500, __ordersJsonAbortController);
                     if(r && r.ok){
-                        try{ var j = await r.json(); return { url: u, json: j }; }catch(e){ console.warn('Invalid JSON at', u); continue; }
+                        try{ var j = await r.json();
+                            // cache the successful URL for future loads
+                            __cachedOrdersJsonUrl = u; try{ sessionStorage.setItem('ordersJsonUrl', u); }catch(e){}
+                            return { url: u, json: j };
+                        }catch(e){ console.warn('Invalid JSON at', u); continue; }
                     } else {
                         // no-op, try next
                     }
                 }catch(e){
+                    if(e && e.name === 'AbortError'){
+                        console.debug('orders.json probe aborted for', u);
+                        return null; // aborted by a newer request
+                    }
                     console.debug('fetch error for', u, e && e.message);
                     /* try next */ }
             }
@@ -1152,10 +1181,13 @@
                 // wrap original to set the writing flag so the observer ignores our writes
                 loadSalesLog = async function(){ __sales_log_writing = true; try{ await originalLoad(); }catch(e){} finally{ __sales_log_writing = false; } };
 
+                // Debounce rapid external changes so we don't trigger many probes in quick succession.
+                var __sales_reload_timer = null;
                 var mo = new MutationObserver(function(mutations){
                     if(__sales_log_writing) return;
-                    // If something else changed the tbody, refresh after a short delay
-                    setTimeout(function(){ try{ loadSalesLog(); }catch(e){} }, 80);
+                    // Debounce: wait 400ms after the last mutation before reloading
+                    try{ clearTimeout(__sales_reload_timer); }catch(e){}
+                    __sales_reload_timer = setTimeout(function(){ try{ loadSalesLog(); }catch(e){} }, 400);
                 });
                 mo.observe(tbody, { childList: true, subtree: true });
             }catch(e){ /* no-op */ }

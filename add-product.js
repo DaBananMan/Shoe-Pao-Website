@@ -43,7 +43,25 @@
   function normalizeVariantImages(images) {
     const arr = Array.isArray(images) ? images.slice(0, 4) : [];
     while (arr.length < 4) arr.push('');
-    return arr.map(x => (x || '').trim());
+    // Validate data URIs; non-data URLs are returned unchanged.
+    return arr.map(x => (x || '').trim()).map(src => normalizeDataUri(src)).filter(Boolean).slice(0,4).concat(Array(4).fill('')).slice(0,4);
+  }
+
+  function normalizeDataUri(src) {
+    try {
+      if (!src) return '';
+      src = String(src).trim();
+      if (!src.startsWith('data:')) return src;
+      src = src.replace(/\s+/g, '');
+      if (src.indexOf(';base64,') === -1 && src.indexOf(';base64') !== -1) src = src.replace(/;base64(?!,)/, ';base64,');
+      if (src.indexOf(',') === -1) return '';
+      if (src.indexOf(';base64,') !== -1) {
+        const b64 = src.split(',')[1] || '';
+        if (!/^[A-Za-z0-9+/=]+$/.test(b64.replace(/=+$/,''))) return '';
+      }
+      if (src.length > 900 * 1024) return '';
+      return src;
+    } catch (e) { return ''; }
   }
 
   function qrImageUrlFor(data, size) {
@@ -215,7 +233,9 @@
       const idx = parseNum(e.target.dataset.index, 0);
       const fr = new FileReader();
       fr.onload = () => {
-        color.images[idx] = fr.result;
+        const clean = normalizeDataUri(fr.result);
+        if (!clean) { alert('Uploaded image appears invalid. Please choose a different file.'); return; }
+        color.images[idx] = clean;
         renderColors();
       };
       fr.onerror = () => alert('Failed to read image file.');
@@ -394,6 +414,24 @@
     const db = firebaseState.db;
     const pid = product.id || db.collection('products').doc().id;
     product.id = pid;
+    // Validate inline images in product and colors before writing
+    if (product.images && Array.isArray(product.images)) {
+      for (const im of product.images) {
+        if (im && im.indexOf && im.indexOf('data:') === 0) {
+          if (!normalizeDataUri(im)) { alert('One or more product images are invalid. Please re-upload and try again.'); return; }
+        }
+      }
+    }
+    if (product.colors && Array.isArray(product.colors)) {
+      for (const color of product.colors) {
+        const imgs = Array.isArray(color.images) ? color.images : [];
+        for (const im of imgs) {
+          if (im && im.indexOf && im.indexOf('data:') === 0) {
+            if (!normalizeDataUri(im)) { alert('One or more variant images are invalid. Please re-upload and try again.'); return; }
+          }
+        }
+      }
+    }
     await db.collection('products').doc(String(pid)).set(product, { merge: true });
     await Promise.all(product.colors.map(color => {
       const normalized = normalizeVariantImages(color.images);

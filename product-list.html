@@ -785,11 +785,44 @@
                 grid.innerHTML = '';
                 var bestSet = new Set();
 
+                // Normalize image srcs (defensive): clean base64 data URIs, remove whitespace/newlines,
+                // ensure `;base64,` is present, and fall back to a placeholder when clearly invalid.
+                function normalizeImageSrc(src){
+                    try{
+                        if(!src) return 'IMAGE/NIKE1.png';
+                        src = String(src).trim();
+                        if(src.indexOf('data:') === 0){
+                            // remove any whitespace/newlines that may have been introduced
+                            src = src.replace(/\s+/g, '');
+                            // ensure the common ';base64,' token exists (fix missing comma mistakes)
+                            if(src.indexOf(';base64,') === -1 && src.indexOf(';base64') !== -1){
+                                src = src.replace(/;base64(?!,)/, ';base64,');
+                            }
+                            // if the data URI still doesn't contain a comma, it's malformed; fallback
+                            if(src.indexOf(',') === -1) return 'IMAGE/NIKE1.png';
+                            // If it's a base64 data URI, validate base64 characters (quick sanity check)
+                            if(src.indexOf(';base64,') !== -1){
+                                var parts = src.split(',');
+                                var b64 = parts[1] || '';
+                                // very small samples may be OK; reject obviously invalid characters
+                                if(!/^[A-Za-z0-9+/=]+$/.test(b64.replace(/=+$/,''))){
+                                    return 'IMAGE/NIKE1.png';
+                                }
+                            }
+                            // guard against absurdly large inline images
+                            if(src.length > 800000) return 'IMAGE/NIKE1.png';
+                            return src;
+                        }
+                        // allow http(s) and relative paths
+                        return src;
+                    }catch(e){ return 'IMAGE/NIKE1.png'; }
+                }
+
                 Object.keys(groups).forEach(function(key){
                     var g = groups[key];
                     if(!g || !g.variants || g.variants.length === 0) return;
                     var primary = g.variants.find(function(v){ return v && v.image; }) || g.variants[0];
-                    var imgSrc = (primary && primary.image) ? primary.image : 'IMAGE/NIKE1.png';
+                    var imgSrc = normalizeImageSrc((primary && primary.image) ? primary.image : 'IMAGE/NIKE1.png');
 
                     var prices = g.variants.map(function(v){ return Number(v.price||0); });
                     var minP = Math.min.apply(null, prices);
@@ -866,7 +899,7 @@
 
                     var flipClass = (g.brand && g.brand.toString().toLowerCase().indexOf('nike')!==-1) ? ' flip-horizontal' : '';
                     var swHTML = '';
-                    g.variants.slice(0,8).forEach(function(v){ var src = v.image || imgSrc; swHTML += '<button type="button" class="variant-swatch" title="'+(v.color||g.baseName||'Color')+'"><img src="'+src+'" alt="'+(v.color||'color')+'"></button>'; });
+                    g.variants.slice(0,8).forEach(function(v){ var src = normalizeImageSrc(v.image || imgSrc); swHTML += '<button type="button" class="variant-swatch" title="'+(v.color||g.baseName||'Color')+'"><img src="'+src+'" alt="'+(v.color||'color')+'"></button>'; });
                     var inner = '' +
                         '<div class="shoe-img-box">' +
                         '  <img src="'+imgSrc+'" class="shoe-img shoe-img-base'+flipClass+'" alt="'+(g.baseName||'Product')+'">' +
@@ -922,7 +955,7 @@
                         var baseImg = card.querySelector('.shoe-img-base');
                         var overlayImg = card.querySelector('.shoe-img-overlay');
                         var primarySrc = imgSrc;
-                        var variantSrcs = g.variants.map(function(v){ return v && v.image ? v.image : primarySrc; }).filter(Boolean);
+                        var variantSrcs = g.variants.map(function(v){ return normalizeImageSrc(v && v.image ? v.image : primarySrc); }).filter(Boolean);
                         variantSrcs = variantSrcs.filter(function(src, i, a){ return i===0 || src !== a[i-1]; });
 
                         function crossfadeTo(src){
@@ -930,13 +963,13 @@
                             try{
                                 overlayImg.style.transition = 'none';
                                 overlayImg.style.opacity = '0';
-                                overlayImg.src = src;
+                                overlayImg.src = normalizeImageSrc(src);
                                 overlayImg.onload = function(){
                                     overlayImg.onload = null;
                                     requestAnimationFrame(function(){ overlayImg.style.transition = 'opacity 0.25s ease'; overlayImg.style.opacity = '1'; });
                                     setTimeout(function(){ baseImg.src = src; overlayImg.style.opacity = '0'; }, 280);
                                 };
-                            }catch(_){ baseImg.src = src; }
+                            }catch(_){ baseImg.src = normalizeImageSrc(src); }
                         }
 
                         card.querySelectorAll('.variant-swatch img').forEach(function(s){

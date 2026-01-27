@@ -55,9 +55,39 @@
       list = [fallback];
     }
     list = list.map(x => String(x || '').trim()).filter(Boolean);
+    // Validate data URIs and reject malformed inline images. Non-data URLs (http/relative)
+    // are passed through unchanged. Keep only valid image sources.
+    list = list.map(src => normalizeDataUri(src)).filter(Boolean);
     if (list.length > 4) list = list.slice(0, 4);
     while (list.length < 4) list.push('');
     return list;
+  }
+
+  // Validate and normalize a data URI or return null when invalid.
+  function normalizeDataUri(src) {
+    try {
+      if (!src) return null;
+      src = String(src).trim();
+      // allow normal URLs and relative paths
+      if (!src.startsWith('data:')) return src;
+      // collapse whitespace/newlines which sometimes appear in pasted base64
+      src = src.replace(/\s+/g, '');
+      // ensure ;base64, token exists when base64 is intended
+      if (src.indexOf(';base64,') === -1 && src.indexOf(';base64') !== -1) {
+        src = src.replace(/;base64(?!,)/, ';base64,');
+      }
+      if (src.indexOf(',') === -1) return null;
+      // If base64, quick character sanity check
+      if (src.indexOf(';base64,') !== -1) {
+        var parts = src.split(',');
+        var b64 = parts[1] || '';
+        // reject when non-base64 characters are present (after removing padding)
+        if (!/^[A-Za-z0-9+/=]+$/.test(b64.replace(/=+$/,''))) return null;
+      }
+      // guard against very large inline images (keep under ~900KB)
+      if (src.length > 900 * 1024) return null;
+      return src;
+    } catch (e) { return null; }
   }
 
   function applyColorImages(color) {
@@ -484,6 +514,47 @@
       .catch(err => console.error('upsertProductToFirestore', err));
   }
 
+  // Compute a shallow diff between two objects; used to build minimal update payloads.
+  function computeShallowDiff(oldObj, newObj) {
+    const out = {};
+    try {
+      const keys = new Set([].concat(Object.keys(oldObj || {}), Object.keys(newObj || {})));
+      keys.forEach(k => {
+        try {
+          const o = (oldObj || {})[k];
+          const n = (newObj || {})[k];
+          if (JSON.stringify(o) !== JSON.stringify(n)) {
+            out[k] = (typeof n === 'undefined') ? null : n;
+          }
+        } catch (e) {}
+      });
+    } catch (e) {}
+    return out;
+  }
+
+  // Update only changed fields of a product document in Firestore. Falls back to set({merge:true})
+  // if update fails (e.g., doc doesn't exist).
+  function updateProductFieldsToFirestore(id, changes) {
+    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
+    try {
+      const cleaned = JSON.parse(JSON.stringify(changes || {}));
+      // sanitize product-level nested objects if present
+      if (cleaned.pricing || cleaned.images || cleaned.tagsManual || cleaned.colors || cleaned.description) {
+        // build a temp object to sanitize with existing helper
+        const tmp = Object.assign({}, cleaned);
+        try { tmp.pricing = tmp.pricing || {}; } catch(e){}
+        const payload = JSON.parse(JSON.stringify(sanitizeProductForFirestore(tmp)));
+        // copy back only the fields we intended to update
+        Object.keys(cleaned).forEach(k => { cleaned[k] = payload[k]; });
+      }
+      const ref = firebaseState.db.collection('products').doc(String(id));
+      return ref.update(cleaned).then(() => console.info('updateProductFieldsToFirestore: updated', id)).catch(err => {
+        console.warn('updateProductFieldsToFirestore.update failed, falling back to set merge', err);
+        return ref.set(cleaned, { merge: true }).then(() => console.info('updateProductFieldsToFirestore: set(merge) applied', id)).catch(e2 => console.error('updateProductFieldsToFirestore: fallback set failed', e2));
+      });
+    } catch (e) { console.error('updateProductFieldsToFirestore failed', e); return Promise.resolve(); }
+  }
+
   function deleteProductFromFirestore(id) {
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
     return firebaseState.db.collection('products').doc(String(id)).delete()
@@ -575,12 +646,39 @@
       });
       const localProductIds = new Set(localProducts.map(p => String(p.id)));
 
+      // Helper: aggressively prune very large fields to avoid exceeding Firestore RPC size limits
+      function deepPruneLargeFields(obj){
+        try{
+          if(!obj || typeof obj !== 'object') return obj;
+          // remove obvious heavy fields
+          ['imageData','dataUri','data_uri','base64','rawImage'].forEach(k => { if(obj[k]) delete obj[k]; });
+          // remove or replace big image arrays
+          if(Array.isArray(obj.images)){
+            // keep only URLs/paths and cap length
+            const cleaned = obj.images.filter(x => x && (typeof x === 'string' || (x.pathfile)) ).slice(0,10);
+            obj.images = cleaned;
+            obj.images_count = cleaned.length;
+          }
+          // prune any very large string fields
+          Object.keys(obj).forEach(k => {
+            try{
+              const v = obj[k];
+              if(typeof v === 'string' && v.length > 20000){ obj[k] = v.slice(0,20000) + '...[truncated]'; }
+              else if(typeof v === 'object' && v !== null){ deepPruneLargeFields(v); }
+            }catch(e){}
+          });
+        }catch(e){}
+        return obj;
+      }
+
       // Prepare operations: upsert local products (set), delete remote products not in local
       const ops = [];
       localProducts.forEach(p => {
         const docRef = db.collection('products').doc(String(p.id));
         // Sanitize product to avoid sending data URIs or oversized arrays
         const sanitized = sanitizeProductForFirestore(p);
+        // Aggressively prune remaining large fields (extra safety)
+        deepPruneLargeFields(sanitized);
         // write the sanitized product document to reflect UI (overwrite)
         ops.push({ type: 'set', ref: docRef, payload: sanitized });
       });
@@ -608,16 +706,19 @@
         });
       });
 
-      // Upsert local variants
+      // Upsert local variants (prune images and large fields)
       localVariantsMap.forEach((payload, id) => {
         const ref = db.collection('variants').doc(String(id));
+        try{ deepPruneLargeFields(payload); }catch(e){}
+        // avoid sending long nested objects
+        if(Array.isArray(payload.images)) payload.images = payload.images.slice(0,6);
         ops.push({ type: 'set', ref, payload });
       });
       // Delete remote variants not in local map
       remoteVariants.forEach((d, id) => { if (!localVariantsMap.has(String(id))) ops.push({ type: 'delete', ref: db.collection('variants').doc(String(id)) }); });
 
-      // Commit operations in batches (max 400 per batch to be safe)
-      const chunkSize = 400;
+      // Commit operations in batches. Use smaller chunks to avoid large single-RPC payloads.
+      const chunkSize = 100;
       for (let i = 0; i < ops.length; i += chunkSize) {
         const chunk = ops.slice(i, i + chunkSize);
         const batch = db.batch();
@@ -625,13 +726,32 @@
           if (op.type === 'set') batch.set(op.ref, op.payload);
           else if (op.type === 'delete') batch.delete(op.ref);
         });
-        await batch.commit();
+        try{
+          await batch.commit();
+        }catch(err){
+          // If we hit a payload size limit, fall back to merge-only per-document updates to avoid large RPCs.
+          console.error('fullSyncToFirestore batch.commit failed — attempting fallback per-doc upserts', err);
+          for(const op of chunk){
+            try{
+              if(op.type === 'set') await op.ref.set(op.payload, { merge: true });
+              else if(op.type === 'delete') await op.ref.delete();
+            }catch(e2){ console.error('fallback per-doc operation failed', e2); }
+          }
+        }
       }
 
       console.info('fullSyncToFirestore: sync completed (products:', localProducts.length, 'variants:', localVariantsMap.size, ')');
       return true;
     } catch (e) {
       console.error('fullSyncToFirestore failed', e);
+      // If the error indicates request payload size exceeded, try a safer merge-only sync
+      try{
+        if(e && String(e.message || '').toLowerCase().indexOf('payload size') !== -1){
+          console.warn('fullSyncToFirestore: payload too large — falling back to mergeOnlySyncToFirestore()');
+          await mergeOnlySyncToFirestore();
+          return true;
+        }
+      }catch(ff){ console.error('fallback mergeOnlySyncToFirestore failed', ff); }
       throw e;
     }
   }
@@ -1574,6 +1694,8 @@
 
     if (pid) {
       const p = state.products.find(x => x.id === pid);
+      // capture original snapshot so we can compute minimal changes to persist
+      const originalSnapshot = JSON.parse(JSON.stringify(p || {}));
       // Confirm archiving when changing status to archive
       if (statusSel === 'archive' && normalizeStatus(p.status) !== 'archive') {
         const ok = confirm(`Archive ${p.brand} ${p.model}?\nArchived products are hidden from active listings.`);
@@ -1593,15 +1715,39 @@
       // Keep existing SKU unless empty; regenerate if missing
       if (!p.sku) p.sku = generateProductSKU(brand, model, cat);
       p.description = desc;
-  p.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
+  // Validate images before assigning; abort save if any inline data URI is malformed.
+  const incomingImages = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
+  for (const imgSrc of incomingImages) {
+    if (imgSrc && imgSrc.indexOf('data:') === 0) {
+      const ok = normalizeDataUri(imgSrc);
+      if (!ok) { alert('One or more product images are invalid. Please re-upload the affected images before saving.'); return; }
+    }
+  }
+  p.images = incomingImages;
       p.tagsManual = manual;
   // AR link handling
   try { const arVal = (qs('#prodARLink') && qs('#prodARLink').value) ? String(qs('#prodARLink').value).trim() : ''; if (arVal) { p.arLink = arVal; p.arQr = qrImageUrlFor(arVal, 300); } else { delete p.arLink; delete p.arQr; } } catch(e){}
       // Ensure size-level SKUs exist
       ensureSizeSkusForProduct(p);
-      // Sync to Firestore when available
+      // Sync to Firestore when available. Compute shallow diff and update only changed fields.
       if (firebaseState.enabled) {
-        upsertProductToFirestore(p).then(() => syncVariantsForProduct(p));
+        try {
+          const diff = computeShallowDiff(originalSnapshot, p);
+          // If colors changed (complex nested), ensure we include the full colors array in diff
+          const colorsChanged = (typeof diff.colors !== 'undefined') && JSON.stringify(diff.colors) !== JSON.stringify(undefined);
+          if (Object.keys(diff).length === 0) {
+            console.info('saveProductFromModal: no changes detected for', pid);
+          } else {
+            updateProductFieldsToFirestore(pid, diff).then(() => {
+              if (colorsChanged) {
+                // ensure variants collection matches product colors
+                try { syncVariantsForProduct(p); } catch(e){ console.warn('syncVariantsForProduct failed', e); }
+              }
+            }).catch(err => {
+              console.error('saveProductFromModal: updateProductFieldsToFirestore failed', err);
+            });
+          }
+        } catch(e) { console.error('saveProductFromModal firestore update failed', e); }
       }
     } else {
       // Require at least one color with sizes when adding
@@ -1612,7 +1758,15 @@
         if (!ok) { return; }
       }
   const newP = newProduct({ brand, model, category: cat, status: statusSel, images: [], pricing: { original: pOrig, sale: pSale, cost: 0 }, description: desc, gender: Array.isArray(genderSel) ? genderSel : [genderSel] });
-  newP.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
+  // Validate images for new product as well
+  const incomingImagesNew = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
+  for (const imgSrc of incomingImagesNew) {
+    if (imgSrc && imgSrc.indexOf('data:') === 0) {
+      const ok = normalizeDataUri(imgSrc);
+      if (!ok) { alert('One or more product images are invalid. Please re-upload the affected images before saving.'); return; }
+    }
+  }
+  newP.images = incomingImagesNew;
       newP.tagsManual = manual;
   // AR link for new product
   try { const arVal = (qs('#prodARLink') && qs('#prodARLink').value) ? String(qs('#prodARLink').value).trim() : ''; if (arVal) { newP.arLink = arVal; newP.arQr = qrImageUrlFor(arVal, 300); } } catch(e){}
@@ -1649,9 +1803,70 @@
 
   function deleteProduct(id) {
     if (!confirm('Delete this product?')) return;
+    // Remove from in-memory state
+    const removed = state.products.filter(p => p.id === id);
     state.products = state.products.filter(p => p.id !== id);
+
+    // Clear UI cache entries that may hold the product
+    try { if (displayedProductCache && displayedProductCache[id]) delete displayedProductCache[id]; } catch (e) {}
+
+    // Remove product references from common localStorage keys (cart, wishlist, modelData, productId, etc.)
+    try {
+      // cart
+      try{
+        const cart = JSON.parse(localStorage.getItem('cart') || '[]') || [];
+        const filteredCart = cart.filter(it => { const pid = it.productId || it.id || it.sku || ''; return String(pid) !== String(id); });
+        if (filteredCart.length !== cart.length) localStorage.setItem('cart', JSON.stringify(filteredCart));
+      }catch(e){}
+      // wishlist
+      try{
+        const wish = JSON.parse(localStorage.getItem('wishlist') || '[]') || [];
+        const filteredWish = wish.filter(it => { const pid = it.productId || it.id || it.sku || ''; return String(pid) !== String(id); });
+        if (filteredWish.length !== wish.length) localStorage.setItem('wishlist', JSON.stringify(filteredWish));
+      }catch(e){}
+      // product view quick keys
+      try{
+        const pidKey = localStorage.getItem('productId'); if (pidKey && String(pidKey) === String(id)) { localStorage.removeItem('productId'); localStorage.removeItem('productImg'); localStorage.removeItem('productTitle'); localStorage.removeItem('productBrand'); localStorage.removeItem('productPrice'); }
+      }catch(e){}
+      // modelData may contain references
+      try{
+        const md = JSON.parse(localStorage.getItem('modelData') || 'null'); if (md && (md.productId === id || md.id === id)) { localStorage.removeItem('modelData'); }
+      }catch(e){}
+      // orders and client_orders: remove any line items referencing this product (non-destructive best-effort)
+      try{
+        const ordKeys = ['orders','client_orders'];
+        ordKeys.forEach(k => {
+          try{
+            const arr = JSON.parse(localStorage.getItem(k) || '[]') || [];
+            let changed = false;
+            const cleaned = arr.map(o => {
+              if (!o || !Array.isArray(o.items)) return o;
+              const newItems = o.items.filter(it => { const pid = it.productId || it.id || it.sku || ''; return String(pid) !== String(id); });
+              if (newItems.length !== o.items.length) { changed = true; const copy = Object.assign({}, o); copy.items = newItems; return copy; }
+              return o;
+            });
+            if (changed) localStorage.setItem(k, JSON.stringify(cleaned));
+          }catch(e){}
+        });
+      }catch(e){}
+    } catch(e) { console.error('deleteProduct: localStorage cleanup failed', e); }
+
+    // Persist state and re-render
     saveAll();
     renderAll();
+
+    // Remove variants associated with this product (local cache + remote)
+    try {
+      const vidList = (firebaseState.variantsByProductId && firebaseState.variantsByProductId[id]) ? firebaseState.variantsByProductId[id].map(v => v.id).filter(Boolean) : [];
+      // delete remote variants if firebase enabled
+      if (firebaseState.enabled && firebaseState.db) {
+        vidList.forEach(vid => { try { deleteVariantFromFirestore(vid); } catch(e){} });
+      }
+      // remove local variantsByProductId entry
+      try { if (firebaseState.variantsByProductId && firebaseState.variantsByProductId[id]) delete firebaseState.variantsByProductId[id]; } catch(e){}
+    } catch(e) { console.error('deleteProduct: variant cleanup failed', e); }
+
+    // Delete product document remotely
     if (firebaseState.enabled) deleteProductFromFirestore(id);
   }
 
@@ -1704,12 +1919,20 @@
     if (!files.length) { alert('Choose image files'); return; }
     const readers = files.map(file => new Promise((resolve, reject) => {
       const fr = new FileReader();
-      fr.onload = () => resolve({ url: fr.result, name: file.name });
+      fr.onload = () => {
+        const clean = normalizeDataUri(fr.result);
+        if (!clean) {
+          alert('One of the selected images appears invalid. Please re-check the file and try again.');
+          resolve({ url: null, name: file.name });
+          return;
+        }
+        resolve({ url: clean, name: file.name });
+      };
       fr.onerror = reject;
       fr.readAsDataURL(file);
     }));
     Promise.all(readers)
-      .then(items => { state.ui.productModalImages.push(...items); renderImagesList(); inp.value = ''; })
+      .then(items => { state.ui.productModalImages.push(...items.filter(i => i && i.url)); renderImagesList(); inp.value = ''; })
       .catch(() => alert('Failed to import one or more images'));
   }
 
@@ -1927,8 +2150,13 @@
       if (!c) return;
       const fr = new FileReader();
       fr.onload = () => {
+        const clean = normalizeDataUri(fr.result);
+        if (!clean) {
+          alert('Uploaded image appears invalid. Please choose a different file.');
+          return;
+        }
         applyColorImages(c);
-        c.images[idx] = fr.result;
+        c.images[idx] = clean;
         applyColorImages(c);
         saveAll();
         openVariantModal(p.id);

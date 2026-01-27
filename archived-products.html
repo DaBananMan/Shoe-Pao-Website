@@ -769,24 +769,43 @@
             ];
         })();
 
-        function fetchWithTimeout(url, timeout){
-            var ctrl = new AbortController();
-            var id = setTimeout(function(){ ctrl.abort(); }, timeout||3000);
-            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; });
+        // Allow passing an external AbortController to enable aborting in-flight probes.
+        function fetchWithTimeout(url, timeout, externalController){
+            var ctrl = externalController || new AbortController();
+            var id = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, timeout||3000);
+            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; }).catch(function(err){ clearTimeout(id); throw err; });
         }
 
         function getSalesDebugEl(){ try{ return document.getElementById('salesDebug'); }catch(e){ return null; } }
 
+        // Cache discovered orders.json URL and support aborting in-flight probes
+        var __cachedOrdersJsonUrl = null;
+        try{ __cachedOrdersJsonUrl = sessionStorage.getItem('ordersJsonUrl') || null; }catch(e){ __cachedOrdersJsonUrl = null; }
+        var __ordersJsonAbortController = null;
+
         async function findOrdersJson(){
+            try{ if(__ordersJsonAbortController){ try{ __ordersJsonAbortController.abort(); }catch(e){} } }catch(e){}
+            __ordersJsonAbortController = new AbortController();
+
+            if(__cachedOrdersJsonUrl){
+                try{
+                    console.debug('Trying cached orders.json at', __cachedOrdersJsonUrl);
+                    var rCached = await fetchWithTimeout(__cachedOrdersJsonUrl, 3000, __ordersJsonAbortController);
+                    if(rCached && rCached.ok){ try{ var j = await rCached.json(); return { url: __cachedOrdersJsonUrl, json: j }; }catch(e){ console.warn('Invalid JSON at cached url', __cachedOrdersJsonUrl); } }
+                    try{ sessionStorage.removeItem('ordersJsonUrl'); }catch(e){}
+                    __cachedOrdersJsonUrl = null;
+                }catch(e){ console.debug('Cached orders.json probe failed', e && e.message); try{ sessionStorage.removeItem('ordersJsonUrl'); }catch(err){} __cachedOrdersJsonUrl = null; }
+            }
+
             for(var i=0;i<candidates.length;i++){
                 var u = candidates[i];
                 try{
                     console.debug('Trying orders.json at', u);
-                    var r = await fetchWithTimeout(u, 2500);
+                    var r = await fetchWithTimeout(u, 2500, __ordersJsonAbortController);
                     if(r && r.ok){
-                        try{ var j = await r.json(); return { url: u, json: j }; }catch(e){ console.warn('Invalid JSON at', u); continue; }
+                        try{ var j = await r.json(); __cachedOrdersJsonUrl = u; try{ sessionStorage.setItem('ordersJsonUrl', u); }catch(e){}; return { url: u, json: j }; }catch(e){ console.warn('Invalid JSON at', u); continue; }
                     }
-                }catch(e){ console.debug('fetch error for', u, e && e.message); }
+                }catch(e){ if(e && e.name === 'AbortError'){ console.debug('orders.json probe aborted for', u); return null; } console.debug('fetch error for', u, e && e.message); }
             }
             return null;
         }
