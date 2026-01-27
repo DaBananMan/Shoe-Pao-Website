@@ -162,6 +162,30 @@
             font-weight: 600;
         }
         .productview-disclaimer { font-size: 0.95rem; color: #b71c1c; font-weight: 600; margin-top: 6px; }
+        .product-unavailable-banner {
+            display: none;
+            background: #b71c1c;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            margin: 6px 0 8px 0;
+        }
+        body.product-unavailable .product-unavailable-banner { display: block; }
+        body.product-unavailable .productview-action-row,
+        body.product-unavailable .productview-size-row,
+        body.product-unavailable .productview-size-dropdown,
+        body.product-unavailable .productview-size-btn,
+        body.product-unavailable .productview-color-row,
+        body.product-unavailable .productview-color-swatch,
+        body.product-unavailable .productview-cart-btn,
+        body.product-unavailable .productview-wishlist,
+        body.product-unavailable .productview-review-btn,
+        body.product-unavailable .productview-ar-btn {
+            pointer-events: none;
+            opacity: 0.55;
+        }
         .productview-caption {
             font-size: 0.98rem;
             color: #444;
@@ -1425,6 +1449,7 @@
                 </div>
                 <span class="productview-availability">Availability: <b>In Stock</b></span>
             </div>
+            <div id="productUnavailableBanner" class="product-unavailable-banner">This product is unavailable.</div>
             <div class="productview-disclaimer">Note: Premium replica pairs, not original brand-manufactured products.</div>
             <div class="productview-caption">Delivery/shipping calculated at checkout.</div>
                 <div class="productview-color-row" id="colorOptionsRow" style="display:none;align-items:center;">
@@ -1795,6 +1820,29 @@ On page.</div>
         markViewReady();
     }
 
+    function markProductUnavailableUI(){
+        try{
+            document.body.classList.add('product-unavailable');
+            var banner = document.getElementById('productUnavailableBanner');
+            if(banner) banner.style.display = 'block';
+            var selectors = [
+                '.productview-cart-btn',
+                '#wishlistBtn',
+                '.productview-review-btn',
+                '.productview-ar-btn',
+                '.productview-size-btn',
+                '.productview-size-dropdown',
+                '.productview-color-swatch'
+            ];
+            selectors.forEach(function(sel){
+                document.querySelectorAll(sel).forEach(function(el){
+                    try{ el.setAttribute('disabled','disabled'); }catch(e){}
+                    try{ el.setAttribute('aria-disabled','true'); }catch(e){}
+                });
+            });
+        }catch(e){}
+    }
+
     var _productStockMap = null;
     var _currentProductDoc = null;
 
@@ -1941,6 +1989,14 @@ On page.</div>
         return sizesMap;
     }
 
+    function normalizeStatus(raw){
+        var s = String(raw || '').toLowerCase().trim();
+        if(!s || s === 'active' || s === 'published') return 'published';
+        if(s === 'archived' || s === 'archive') return 'archive';
+        if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden') return 'unpublished';
+        return s;
+    }
+
     function loadProductStockFromFirestore(cb){
         if(window.PageDataGate && PageDataGate.block) PageDataGate.block('Loading product...');
         ensureFirebaseReady(function(err){
@@ -2040,6 +2096,14 @@ On page.</div>
                     return Promise.all([Promise.resolve(prod), resolvedPid ? db.collection('variants').where('productId','==',resolvedPid).get() : Promise.resolve(null)]);
                 }).then(function(res){
                     var prod = res[0];
+                    var statusNorm = normalizeStatus(prod && (prod.status || prod.state || prod.availability));
+                    if(statusNorm && statusNorm !== 'published'){
+                        _currentProductDoc = prod || null;
+                        markProductUnavailableUI();
+                        markViewError('This product is unavailable.');
+                        if(cb) cb(new Error('unavailable'));
+                        return;
+                    }
                     _currentProductDoc = prod || null;
                     try{
                         var saleP = Number((prod && prod.pricing && (prod.pricing.sale || prod.pricing.original)) || (prod && prod.price) || 0);
@@ -3195,9 +3259,10 @@ On page.</div>
                         } else {
                             // show inline message when add failed
                             var msg = 'Unable to add to cart.';
-                            if (res && res.reason === 'out_of_stock') msg = 'This size is out of stock.';
+                            if (res && res.reason === 'unavailable') msg = 'This product is currently unavailable.';
+                            else if (res && res.reason === 'out_of_stock') msg = 'This size is out of stock.';
                             else if (res && res.reason === 'max_reached') msg = 'You can only add up to ' + (res.maxAllowed || 1) + ' of this size.';
-                            else if (res && res.reason === 'max_pairs') msg = 'Maximum of 3 items per order allowed.';
+                            else if (res && res.reason === 'max_pairs') msg = 'Maximum of 3 items per product allowed.';
                             if (elStock) { elStock.style.color = '#b71c1c'; elStock.textContent = msg; }
                             else alert(msg);
                         }
@@ -3206,8 +3271,9 @@ On page.</div>
             }
 
             if (checkoutBtn) {
-                checkoutBtn.addEventListener('click', function(){
-                    window.location.href = 'checkout.html';
+                checkoutBtn.addEventListener('click', function(e){
+                    if(window.handleCheckoutFromCart){ window.handleCheckoutFromCart(e); }
+                    else { window.location.href = 'checkout.html'; }
                 });
             }
         });

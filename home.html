@@ -722,6 +722,46 @@
         }
         return out;
     }
+    function getHomeBaseName(item){
+        try{
+            var name = (item && item.name) ? String(item.name) : '';
+            var color = (item && item.color) ? String(item.color) : '';
+            if(!name) return '';
+            if(color){
+                var esc = color.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                var re = new RegExp('\\s*' + esc + '\\s*$', 'i');
+                name = name.replace(re, '').trim();
+            }
+            return name.trim();
+        }catch(e){ return (item && item.name) ? String(item.name) : ''; }
+    }
+    function groupHomeRows(rows){
+        try{
+            var map = {};
+            (rows || []).forEach(function(r){
+                if(!r) return;
+                var brand = (r.brand || '').toString().trim();
+                var base = getHomeBaseName(r);
+                var key = (brand + '|||'+ base).toLowerCase();
+                if(!map[key]) map[key] = { brand: brand, base: base, items: [] };
+                map[key].items.push(r);
+            });
+            return Object.keys(map).map(function(k){
+                var items = map[k].items || [];
+                if(!items.length) return null;
+                var rep = items[0];
+                items.forEach(function(it){
+                    if(Number(it.price || 0) < Number(rep.price || 0)) rep = it;
+                });
+                var tagSet = new Set();
+                items.forEach(function(it){ (Array.isArray(it.tags) ? it.tags : []).forEach(function(t){ if(t) tagSet.add(t); }); });
+                return Object.assign({}, rep, {
+                    name: map[k].base || rep.name || '',
+                    tags: Array.from(tagSet)
+                });
+            }).filter(Boolean);
+        }catch(e){ return rows || []; }
+    }
     function renderSaleItems(rows) {
         var container = document.getElementById('saleRow');
         if (!container) return;
@@ -1002,14 +1042,27 @@
         window.getInventoryRows(function(err, rows){
             if (err) { markHomeError('Unable to load products.'); return; }
             try {
-                renderSaleItems(rows || []);
-                renderTryOnItems(rows || []);
-                renderNewArrivals(rows || []);
+                    var activeRows = (rows || []).filter(function(item){
+                        var s = normalizeStatus(item && item.status);
+                        return s === 'published';
+                });
+                var groupedRows = groupHomeRows(activeRows);
+                renderSaleItems(groupedRows);
+                renderTryOnItems(groupedRows);
+                renderNewArrivals(groupedRows);
                 initBrandFilters();
             } catch(e){ console.error(e); }
             markHomeReady();
         });
     }
+
+        function normalizeStatus(raw){
+            var s = String(raw || '').toLowerCase().trim();
+            if(!s || s === 'active' || s === 'published') return 'published';
+            if(s === 'archived' || s === 'archive') return 'archive';
+            if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden') return 'unpublished';
+            return s;
+        }
     // Keep stored profile so auth persists across pages.
 
     // Header nav helpers (home)
@@ -1214,7 +1267,7 @@
                         createdAt: p.createdAt || null,
                         gender: p.gender || '',
                         tags: dedupTags,
-                        status: p.status || 'active'
+                        status: normalizeStatus(p.status || 'published')
                     });
                 });
             });
@@ -1770,8 +1823,9 @@
             if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
             renderCart();
             if (checkoutBtn) {
-                checkoutBtn.addEventListener('click', function(){
-                    window.location.href = 'checkout.html';
+                checkoutBtn.addEventListener('click', function(e){
+                    if(window.handleCheckoutFromCart){ window.handleCheckoutFromCart(e); }
+                    else { window.location.href = 'checkout.html'; }
                 });
             }
         });

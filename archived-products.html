@@ -4,44 +4,38 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="shoepao-dev-admin" content="true">
-    <title>Shoe Pao — Inventory</title>
+    <title>Shoe Pao — Archived Products</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="inventory-app.css" />
     <style>
         :root{ --accent:#b71c1c; --page-bg:#ffffff; }
-        /* Match site font and light theme */
         body{ font-family:'Poppins',Arial,sans-serif; background:var(--page-bg); color:#000; }
-        /* Override inventory app theme to fit site colors */
         :root {
             --bg: var(--page-bg);
             --panel: #ffffff;
             --muted: #666666;
             --text: #000000;
-            --primary: #b71c1c; /* site accent */
+            --primary: #b71c1c;
             --primary-700: #8e1515;
             --danger: #e14d4d;
             --ok: #2ecc71;
             --warning: #f5a623;
             --border: #e6e6e6;
         }
-            /* Report header layout: stack title and descriptor, left-aligned */
-                #tab-reports .reports-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-                #tab-reports .reports-grid .card { padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
-                #tab-reports .reports-grid .card .header-line { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
-                #tab-reports .reports-grid .card .header-line h3 { margin: 0; font-size: 1.05rem; }
-                /* Descriptor (e.g. "Top 5 sizes") should be left-aligned and sit between the header and the values */
-                #tab-reports .reports-grid .card .card-desc { color: var(--muted); font-size:0.92rem; margin:0 0 8px 0; text-align:left; display:block; }
-                /* Make report lists vertical and left-aligned under the descriptor */
-                #tab-reports .reports-grid .card .collapsible { margin:6px 0 0 0; padding-left:18px; list-style: disc inside; }
-                #tab-reports .reports-grid .card .summary { margin:6px 0 0 0; }
-                #tab-reports .reports-grid .card .card-values { margin:4px 0 0 0; padding-left:18px; list-style: disc inside; font-size:0.95rem; }
-                #tab-reports .reports-grid .card .card-values li { margin:2px 0; }
-                #tab-reports .reports-grid .card .collapsible .placeholder { color: var(--muted); font-style: italic; }
+        #tab-reports .reports-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        #tab-reports .reports-grid .card { padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+        #tab-reports .reports-grid .card .header-line { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+        #tab-reports .reports-grid .card .header-line h3 { margin: 0; font-size: 1.05rem; }
+        #tab-reports .reports-grid .card .card-desc { color: var(--muted); font-size:0.92rem; margin:0 0 8px 0; text-align:left; display:block; }
+        #tab-reports .reports-grid .card .collapsible { margin:6px 0 0 0; padding-left:18px; list-style: disc inside; }
+        #tab-reports .reports-grid .card .summary { margin:6px 0 0 0; }
+        #tab-reports .reports-grid .card .card-values { margin:4px 0 0 0; padding-left:18px; list-style: disc inside; font-size:0.95rem; }
+        #tab-reports .reports-grid .card .card-values li { margin:2px 0; }
+        #tab-reports .reports-grid .card .collapsible .placeholder { color: var(--muted); font-style: italic; }
     </style>
 </head>
 <body>
-    <!-- Keep the site navigation bar  --> 
     <header class="topbar">
         <div class="nav-left">
             <div class="nav-left-inner">
@@ -55,15 +49,14 @@
                 <a class="nav-item" href="accounts.html">Accounts</a>
             </div>
         </div>
-        <!-- profile removed for admin UI -->
     </header>
 
-    <!-- New Inventory App -->
     <header class="app-header">
-        <h1>Footwear Inventory Manager</h1>
+        <h1>Archived Products</h1>
         <div class="header-actions">
             <button id="addProductBtn" class="primary">Add Product</button>
             <button id="exportInventoryBtn" class="secondary" title="Export inventory table to a Word document">Export to Word</button>
+            <a class="secondary" href="inventory.html">Back to Inventory</a>
             <div class="searchbar">
                 <input id="searchInput" type="text" placeholder="Search brand, model, color, size" />
                 <select id="filterBrand"><option value="">All Brands</option></select>
@@ -75,7 +68,6 @@
         </div>
         <nav class="tabs">
             <button data-tab="inventory" class="active">Inventory</button>
-            <button id="archivedPageBtn" class="secondary" type="button" onclick="window.location.href='archived-products.html'">Archived Page</button>
             <button data-tab="sales">Sales</button>
             <button data-tab="reports">Reports</button>
             <button data-tab="alerts">Alerts</button>
@@ -100,17 +92,17 @@
             <table class="products-table">
                 <colgroup>
                     <col style="width:36px" />
-                    <col style="width:9%" /> <!-- Brand -->
-                    <col style="width:7%" />  <!-- SKU -->
-                    <col style="width:17%" /> <!-- Model -->
-                    <col style="width:11%" /> <!-- Category -->
-                    <col style="width:5%" />  <!-- Status -->
-                    <col style="width:6%" />  <!-- Gender Fit -->
-                    <col style="width:7%" />  <!-- Tags -->
-                    <col style="width:12%" /> <!-- Colors -->
-                    <col style="width:6%" />  <!-- Total Stock -->
-                    <col style="width:6%" />  <!-- Price -->
-                    <col style="width:160px" />  <!-- Actions (fixed) -->
+                    <col style="width:9%" />
+                    <col style="width:7%" />
+                    <col style="width:17%" />
+                    <col style="width:11%" />
+                    <col style="width:5%" />
+                    <col style="width:6%" />
+                    <col style="width:7%" />
+                    <col style="width:12%" />
+                    <col style="width:6%" />
+                    <col style="width:6%" />
+                    <col style="width:160px" />
                 </colgroup>
                 <thead>
                     <tr>
@@ -188,16 +180,14 @@
         appId: "1:590509920226:web:9daf77b2841e3d699633bb",
         measurementId: "G-JD4WGCKFQC"
       };
-            // Don't auto enable anonymous sign-in; set to true explicitly when needed.
-            window.ALLOW_ANON_SIGNIN = false;
+      window.ALLOW_ANON_SIGNIN = false;
+      window.INVENTORY_ARCHIVED_ONLY = true;
     </script>
 
-    <!-- Firebase CDN (compat) - light and simple for this static site -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-    <!-- App script -->
     <script src="inventory-app.js"></script>
         </section>
 
@@ -325,6 +315,10 @@
                         <option value="unpublished">Unpublished</option>
                         <option value="archive">Archive</option>
                     </select>
+                </label>
+                <label class="field">
+                    <div class="field-title">Critical Level</div>
+                    <input id="prodCriticalLevel" type="number" min="1" placeholder="Low Stock Threshold" />
                 </label>
                 <label class="field">
                     <div class="field-title">Original Price</div>
@@ -598,7 +592,7 @@
             }
             .variant-modal .size-row {
                 display: grid;
-                grid-template-columns: 70px 90px 90px 90px auto;
+                grid-template-columns: 70px 90px 90px auto;
                 align-items: center;
                 gap: 10px;
             }
@@ -608,16 +602,6 @@
                 border-radius: 8px;
                 border: 1px solid #ddd;
                 font-size: 0.98rem;
-            }
-            .variant-modal .size-row.header {
-                color: #666;
-                font-size: 12px;
-                text-transform: uppercase;
-                letter-spacing: 0.08em;
-                padding: 4px 2px 0;
-            }
-            .variant-modal .size-row.header strong {
-                font-weight: 600;
             }
             .variant-modal .qty-controls {
                 display: inline-flex;
@@ -769,13 +753,11 @@
         </form>
     </dialog>
 
-    <!-- Sales log renderer: populate #salesTbody from data/orders.json and update reports -->
+    <!-- Sales log renderer (same as inventory.html) -->
     <script>
     (function(){
-        // Try multiple candidate paths so the app works when hosted under a subdirectory.
         var candidates = (function(){
             var path = window.location.pathname || '/';
-            // base path (folder) where this page lives
             var base = path.replace(/\/[^/]*$/, '/');
             var origin = window.location.origin || '';
             return [
@@ -796,7 +778,6 @@
         function getSalesDebugEl(){ try{ return document.getElementById('salesDebug'); }catch(e){ return null; } }
 
         async function findOrdersJson(){
-            // Silent probe for candidate files. Only log to console; don't update UI text.
             for(var i=0;i<candidates.length;i++){
                 var u = candidates[i];
                 try{
@@ -804,12 +785,8 @@
                     var r = await fetchWithTimeout(u, 2500);
                     if(r && r.ok){
                         try{ var j = await r.json(); return { url: u, json: j }; }catch(e){ console.warn('Invalid JSON at', u); continue; }
-                    } else {
-                        // no-op, try next
                     }
-                }catch(e){
-                    console.debug('fetch error for', u, e && e.message);
-                    /* try next */ }
+                }catch(e){ console.debug('fetch error for', u, e && e.message); }
             }
             return null;
         }
@@ -818,7 +795,6 @@
         function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
         function formatPHP(n){ try{ return new Intl.NumberFormat('en-PH',{ style:'currency', currency:'PHP' }).format(Number(n)||0); }catch(e){ return '₱'+(Number(n)||0).toFixed(2); } }
 
-        // Compute reports (overview, best sizes & brands) from orders array and inventory table if present
         function updateReportsFromOrders(orders){
             try{
                 orders = Array.isArray(orders) ? orders : [];
@@ -843,7 +819,6 @@
                     });
                 });
 
-                // Produce top lists
                 function topN(countMap, n){
                     return Object.keys(countMap).map(function(k){ return { key:k, v: countMap[k] }; }).sort(function(a,b){ return b.v - a.v; }).slice(0,n);
                 }
@@ -851,7 +826,6 @@
                 var topSizes = topN(sizeCounts, 10);
                 var topBrands = topN(brandCounts, 10);
 
-                // Update overview
                 var overviewList = document.getElementById('overviewList');
                 if(overviewList){
                     overviewList.innerHTML = '';
@@ -860,7 +834,6 @@
                     var li3 = document.createElement('li'); li3.textContent = 'Revenue: ' + formatPHP(revenue); overviewList.appendChild(li3);
                 }
 
-                // Update best sizes
                 var bestSizesList = document.getElementById('bestSizesList');
                 if(bestSizesList){
                     bestSizesList.innerHTML = '';
@@ -870,7 +843,6 @@
                         topSizes.slice(0,5).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' — ' + it.v + ' sold'; bestSizesList.appendChild(li); });
                     }
                 }
-                // populate the compact values list under the header (left-aligned)
                 try{
                     var bestSizesValuesEl = bestSizesList && bestSizesList.closest('.card') && bestSizesList.closest('.card').querySelector('.card-values');
                     if(bestSizesValuesEl){
@@ -880,7 +852,6 @@
                     }
                 }catch(e){}
 
-                // Update best brands
                 var bestBrandsList = document.getElementById('bestBrandsList');
                 if(bestBrandsList){
                     bestBrandsList.innerHTML = '';
@@ -890,7 +861,6 @@
                         topBrands.slice(0,3).forEach(function(it){ var li = document.createElement('li'); li.textContent = it.key + ' — ' + it.v + ' sold'; bestBrandsList.appendChild(li); });
                     }
                 }
-                // populate compact header values for brands
                 try{
                     var bestBrandsValuesEl = bestBrandsList && bestBrandsList.closest('.card') && bestBrandsList.closest('.card').querySelector('.card-values');
                     if(bestBrandsValuesEl){
@@ -900,7 +870,6 @@
                     }
                 }catch(e){}
 
-                // Low stock: attempt to read from inventory table if present
                 try{
                     var thresholdInput = document.getElementById('lowStockThreshold');
                     var threshold = thresholdInput ? (Number(thresholdInput.value) || 3) : 3;
@@ -911,7 +880,6 @@
                         var tbody = document.getElementById('productsTbody');
                         if(tbody){
                             var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
-                            var lowCount = 0;
                             rows.forEach(function(r){
                                 try{
                                     var cells = r.children;
@@ -922,97 +890,14 @@
                                     var stock = Number(stockText.replace(/[^0-9\-\.]/g,''));
                                     if(!isFinite(stock)) return;
                                     if(stock <= threshold){
-                                        lowCount++;
-                                        var sizesDesc = '';
-                                        try{
-                                            // Try common sources for variant/size info inside the product row
-                                            var dv = r.getAttribute('data-variants') || r.getAttribute('data-sizes') || r.dataset && (r.dataset.variants || r.dataset.sizes);
-                                            if(dv){
-                                                // if it's JSON, parse and format
-                                                try{
-                                                    var parsed = (typeof dv === 'string') ? JSON.parse(dv) : dv;
-                                                    if(Array.isArray(parsed)){
-                                                        sizesDesc = parsed.map(function(p){
-                                                            if(typeof p === 'object') return (p.size||p.s||p.label||'') + '(' + (p.qty||p.q||p.count||0) + ')';
-                                                            return String(p);
-                                                        }).filter(Boolean).join(', ');
-                                                    } else if(typeof parsed === 'object'){
-                                                        sizesDesc = Object.keys(parsed).map(function(k){ return k + '(' + parsed[k] + ')'; }).join(', ');
-                                                    }
-                                                }catch(e){ /* not JSON, fallback to text */ sizesDesc = String(dv); }
-                                            } else {
-                                                var sizesEl = r.querySelector('.sizes-list, .variants, .variant-sizes, .size-list, [data-sizes]');
-                                                if(sizesEl) sizesDesc = sizesEl.textContent.trim();
-                                            }
-                                        }catch(e){ sizesDesc = ''; }
                                         var li = document.createElement('li');
-                                        li.textContent = brand + ' ' + model + ' — ' + stock + ' left' + (sizesDesc ? (' (' + sizesDesc + ')') : '');
+                                        li.textContent = brand + ' ' + model + ' — ' + stock + ' left';
                                         lowStockList.appendChild(li);
                                     }
                                 }catch(e){}
                             });
-                            // populate compact header values for low stock (first 5 entries)
-                            try{
-                                var lowStockValuesEl = lowStockList && lowStockList.closest('.card') && lowStockList.closest('.card').querySelector('.card-values');
-                                if(lowStockValuesEl){
-                                    lowStockValuesEl.innerHTML = '';
-                                    if(lowStockList.children.length === 0){ var phls = document.createElement('li'); phls.textContent = '—'; phls.className = 'placeholder'; lowStockValuesEl.appendChild(phls); }
-                                    else {
-                                        Array.prototype.slice.call(lowStockList.children,0,5).forEach(function(li){
-                                            var copy = document.createElement('li'); copy.textContent = li.textContent; lowStockValuesEl.appendChild(copy);
-                                        });
-                                    }
-                                }
-                            }catch(e){}
                         } else {
                             if(lowStockSummary) lowStockSummary.textContent = 'Inventory not loaded';
-                            // don't overwrite header descriptor for inventory-not-loaded state; keep static descriptor
-                        }
-                    }
-                }catch(e){ /* ignore inventory read errors */ }
-
-                // Dead stock: compute products with no sales by comparing inventory vs orders
-                // Build a set of sold product signatures (brand|model) from orders
-                var soldSet = new Set();
-                try{
-                    orders.forEach(function(order){
-                        var items = Array.isArray(order.items) ? order.items : [];
-                        items.forEach(function(it){
-                            var b = (it.brand || it.vendor || it.manufacturer || '').toString().trim();
-                            var m = (it.title || it.model || it.name || '').toString().trim();
-                            if(b || m){ soldSet.add((b + '|' + m).toLowerCase()); }
-                        });
-                    });
-                }catch(e){}
-
-                // Dead stock: simple heuristic (products present in inventory with no sales)
-                try{
-                    var deadStockList = document.getElementById('deadStockList');
-                    var deadStockValuesEl = deadStockList && deadStockList.closest('.card') && deadStockList.closest('.card').querySelector('.card-values');
-                    if(deadStockList){
-                        deadStockList.innerHTML = '';
-                        // Heuristic: scan products table and show rows that have no matching sales
-                        var tbody = document.getElementById('productsTbody');
-                        if(tbody){
-                            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
-                            var dead = [];
-                            rows.forEach(function(r){ try{
-                                var cells = r.children; if(!cells || cells.length < 4) return;
-                                var brand = cells[1] ? cells[1].textContent.trim() : '';
-                                var model = cells[3] ? cells[3].textContent.trim() : '';
-                                var sig = (brand + '|' + model).toLowerCase();
-                                // if signature not present in sold set, consider it dead (no recorded sales)
-                                if(!soldSet.has(sig)){
-                                    dead.push(brand + ' ' + model);
-                                }
-                            }catch(e){} });
-                            if(dead.length === 0){ var phd = document.createElement('li'); phd.textContent = 'None'; phd.className = 'placeholder'; deadStockList.appendChild(phd); }
-                            else dead.forEach(function(d){ var li = document.createElement('li'); li.textContent = d; deadStockList.appendChild(li); });
-                            // mirror into compact header values
-                            if(deadStockValuesEl){ deadStockValuesEl.innerHTML = ''; if(dead.length===0){ var phd2 = document.createElement('li'); phd2.textContent = '—'; phd2.className='placeholder'; deadStockValuesEl.appendChild(phd2);} else dead.slice(0,5).forEach(function(d){ var li=document.createElement('li'); li.textContent = d; deadStockValuesEl.appendChild(li); }); }
-                        } else {
-                            var phd = document.createElement('li'); phd.textContent = 'Inventory not loaded'; phd.className='placeholder'; deadStockList.appendChild(phd);
-                            if(deadStockValuesEl){ deadStockValuesEl.innerHTML = ''; var phd2 = document.createElement('li'); phd2.textContent='—'; phd2.className='placeholder'; deadStockValuesEl.appendChild(phd2); }
                         }
                     }
                 }catch(e){}
@@ -1028,11 +913,9 @@
             tbody.innerHTML = '';
             if(!found){
                 var tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="7" style="color:#888;padding:12px;">Could not find <code>data/orders.json</code>. Try loading the page through http://localhost/SHOEPAO/ or run <code>window.reloadSalesLog()</code> from console after ensuring the file exists.</td>';
+                tr.innerHTML = '<td colspan="7" style="color:#888;padding:12px;">Could not find <code>data/orders.json</code>.</td>';
                 tbody.appendChild(tr);
-                console.warn('orders.json not found at candidates', candidates);
                 if(dbg) dbg.textContent = 'Could not find orders.json — checked: ' + candidates.join(', ');
-                // also clear reports to indicate no data
                 updateReportsFromOrders([]);
                 return;
             }
@@ -1049,7 +932,6 @@
                 return;
             }
 
-            // clear any previous debug message to avoid showing counts in the UI
             if(getSalesDebugEl()) try{ getSalesDebugEl().textContent = ''; }catch(e){}
 
             orders.forEach(function(order){
@@ -1059,12 +941,6 @@
                     var brand = item.brand || '';
                     var model = item.title || '';
                     var color = item.color || '';
-                    if(!color){
-                        var parts = (model||'').split(/\s+/);
-                        var candidatesColors = ['Red','Black','Blue','Aqua','White','Iron','Grey','Green','Camo','Brown','Pink','Silver','Gold','Navy','Orange','Beige','Maroon'];
-                        for(var k=0;k<candidatesColors.length;k++){ if(model.toLowerCase().indexOf(candidatesColors[k].toLowerCase()) !== -1){ color = candidatesColors[k]; break; } }
-                        if(!color && parts.length){ var token = parts[parts.length-1]; if(!/^\d+$/.test(token) && token.length<=16) color = token; }
-                    }
                     var size = item.size || item.eu || '';
                     var qty = (typeof item.qty !== 'undefined') ? item.qty : ((typeof item.quantity !== 'undefined') ? item.quantity : 1);
                     var unitPrice = Number(item.price || 0);
@@ -1082,61 +958,16 @@
                 });
             });
 
-            // Update the reports panel using parsed orders
             try{ updateReportsFromOrders(orders); }catch(e){ console.error('reports update failed', e); }
         }
 
-    document.addEventListener('DOMContentLoaded', async function(){
-            // Reports are always visible; set static header descriptors so users
-            // see descriptive labels immediately (avoid temporary "No sales" text).
-            try{
-                var descMap = {
-                    'Best-Selling Sizes': 'Top 5 sizes',
-                    'Best-Selling Brands': 'Top 3 brands',
-                    'Low Stock': 'Model variants & sizes at or below threshold',
-                    'Dead Stock': 'Products with no sales',
-                    'Overview': 'Orders metrics'
-                };
-                document.querySelectorAll('.reports-grid .card').forEach(function(card){
-                    try{
-                        var title = (card.querySelector('.header-line h3')||{}).textContent || '';
-                        var desc = descMap[title] || '';
-                        var el = card.querySelector('.card-desc');
-                        if(el && desc) el.textContent = desc;
-                    }catch(e){}
-                });
-            }catch(e){}
-
-            // Initial load + polling so Sales updates continuously. Use PageDataGate
-            // to buffer the UI until the reports data is ready so we don't show
-            // stale/default values while loading.
-            try{ if(window.PageDataGate && PageDataGate.block) PageDataGate.block('Loading reports...'); }catch(e){}
+        document.addEventListener('DOMContentLoaded', async function(){
             try{
                 await loadSalesLog();
-            }catch(e){ console.error(e); try{ if(window.PageDataGate && PageDataGate.error) PageDataGate.error('Unable to load reports.'); }catch(_){} }
-            try{ if(window.PageDataGate && PageDataGate.ready) PageDataGate.ready(); }catch(e){}
+            }catch(e){ console.error(e); }
             try{ setInterval(function(){ loadSalesLog().catch(function(e){ console.error('reload sales', e); }); }, 5000); }catch(e){}
         });
         window.reloadSalesLog = loadSalesLog;
-        // Ensure the sales tab stays updated even if other scripts (inventory-app) later overwrite
-        // the table. Use a MutationObserver to detect changes and reapply our renderer.
-        (function(){
-            try{
-                var tbody = document.getElementById('salesTbody');
-                if(!tbody) return;
-                var __sales_log_writing = false;
-                var originalLoad = loadSalesLog;
-                // wrap original to set the writing flag so the observer ignores our writes
-                loadSalesLog = async function(){ __sales_log_writing = true; try{ await originalLoad(); }catch(e){} finally{ __sales_log_writing = false; } };
-
-                var mo = new MutationObserver(function(mutations){
-                    if(__sales_log_writing) return;
-                    // If something else changed the tbody, refresh after a short delay
-                    setTimeout(function(){ try{ loadSalesLog(); }catch(e){} }, 80);
-                });
-                mo.observe(tbody, { childList: true, subtree: true });
-            }catch(e){ /* no-op */ }
-        })();
     })();
     </script>
 

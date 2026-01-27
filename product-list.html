@@ -610,7 +610,7 @@
                         createdAt: p.createdAt || null,
                         gender: p.gender || '',
                         tags: dedupTags,
-                        status: p.status || 'active'
+                        status: normalizeStatus(p.status || 'published')
                     });
                 });
             });
@@ -752,6 +752,14 @@
             document.addEventListener('click', function(){ dd.style.display = 'none'; });
         });
 
+        function normalizeStatus(raw){
+            var s = String(raw || '').toLowerCase().trim();
+            if(!s || s === 'active' || s === 'published') return 'published';
+            if(s === 'archived' || s === 'archive') return 'archive';
+            if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden') return 'unpublished';
+            return s;
+        }
+
         // ===== Render inventory items as grouped models =====
         function renderInventoryCards(){
             try{
@@ -760,8 +768,8 @@
                 function formatPrice(n){ return 'P' + Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2}); }
                 var inv = Array.isArray(inventoryRows) ? inventoryRows : [];
                 inv = inv.filter(function(item){
-                    var s = (item && item.status) ? String(item.status).toLowerCase() : 'active';
-                    return s === 'active';
+                    var s = normalizeStatus(item && item.status);
+                    return s === 'published';
                 });
 
                 var groups = {};
@@ -1415,8 +1423,9 @@
             if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
             renderCart();
             if (checkoutBtn) {
-                checkoutBtn.addEventListener('click', function(){
-                    window.location.href = 'checkout.html';
+                checkoutBtn.addEventListener('click', function(e){
+                    if(window.handleCheckoutFromCart){ window.handleCheckoutFromCart(e); }
+                    else { window.location.href = 'checkout.html'; }
                 });
             }
         });

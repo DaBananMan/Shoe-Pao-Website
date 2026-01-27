@@ -9,6 +9,37 @@
   const clampNum = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(Number(n)) ? Number(n) : min));
   const parseNum = (v, fallback = 0) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; };
 
+  let cachedDefaultCritical = null;
+  function getDefaultCriticalLevel() {
+    if (Number.isFinite(cachedDefaultCritical)) return cachedDefaultCritical;
+    try {
+      const raw = localStorage.getItem('inventory_app_settings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const val = parseNum(parsed && parsed.lowStockThreshold, NaN);
+        if (Number.isFinite(val) && val >= 1) {
+          cachedDefaultCritical = clampNum(Math.floor(val), 1, 999);
+          return cachedDefaultCritical;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    cachedDefaultCritical = 3;
+    return cachedDefaultCritical;
+  }
+
+  function criticalLevelForSize(s) {
+    const cand = s && (s.criticalLevel || s.critical_level || s.critical || s.minStock || s.reorderLevel);
+    const n = parseNum(cand, NaN);
+    if (Number.isFinite(n) && n >= 1) return clampNum(Math.floor(n), 1, 999);
+    return getDefaultCriticalLevel();
+  }
+
+  function isSizeCritical(s) {
+    const stock = parseNum(s && s.stock, 0);
+    const crit = criticalLevelForSize(s);
+    return Number.isFinite(crit) ? stock <= crit : false;
+  }
+
   function normalizeVariantImages(images) {
     const arr = Array.isArray(images) ? images.slice(0, 4) : [];
     while (arr.length < 4) arr.push('');
@@ -151,13 +182,22 @@
             ${availableSizes.map(s => `<option value="${s}">${s} EU</option>`).join('')}
           </select>
           <input id="sizeStock" type="number" min="0" step="1" placeholder="Stock" style="width:120px; padding:8px 10px; border:1px solid #ddd; border-radius:10px;" />
+          <input id="sizeCritical" type="number" min="1" step="1" placeholder="Critical" aria-label="Critical level" style="width:120px; padding:8px 10px; border:1px solid #ddd; border-radius:10px;" />
           <button id="addSizeBtn" class="secondary" type="button">Add size</button>
         </div>
         <div class="size-list">
+          <div class="size-row header" aria-hidden="true">
+            <strong>Size</strong>
+            <strong>Stock</strong>
+            <strong>Critical</strong>
+            <span></span>
+            <span></span>
+          </div>
           ${color.sizes.length ? color.sizes.map(s => `
-            <div class="size-row" data-size="${s.eu}">
+            <div class="size-row ${isSizeCritical(s) ? 'is-critical' : ''}" data-size="${s.eu}">
               <strong>${s.eu} EU</strong>
               <input type="number" min="0" step="1" value="${parseNum(s.stock, 0)}" data-action="stock" data-size="${s.eu}" />
+              <input type="number" min="1" step="1" value="${criticalLevelForSize(s)}" data-action="critical" data-size="${s.eu}" class="critical-input" aria-label="Critical level" />
               <div class="qty-controls">
                 <button type="button" class="qty-btn" data-action="decr" data-size="${s.eu}">−</button>
                 <button type="button" class="qty-btn" data-action="incr" data-size="${s.eu}">+</button>
@@ -194,13 +234,16 @@
     if (addBtn) addBtn.addEventListener('click', () => {
       const sizeSel = qs('#sizeSelect');
       const stockEl = qs('#sizeStock');
+      const critEl = qs('#sizeCritical');
       const eu = parseNum(sizeSel.value, null);
       const stock = clampNum(parseNum(stockEl.value, 0), 0, 9999);
+      const criticalLevel = clampNum(parseNum(critEl && critEl.value, getDefaultCriticalLevel()), 1, 999);
       if (!eu || !EU_SIZES.includes(eu)) { alert('Pick a size between EU 35 and 49.'); return; }
       if (color.sizes.some(s => Number(s.eu) === eu)) { alert('Size already added for this color.'); return; }
-      color.sizes.push({ eu, stock, sku: '' });
+      color.sizes.push({ eu, stock, criticalLevel, sku: '' });
       sizeSel.value = '';
       stockEl.value = '';
+      if (critEl) critEl.value = '';
       renderColors();
     });
 
@@ -209,7 +252,20 @@
       const eu = parseNum(e.target.dataset.size);
       const qty = clampNum(parseNum(e.target.value, 0), 0, 9999);
       const target = color.sizes.find(s => Number(s.eu) === eu);
-      if (target) target.stock = qty;
+      if (target) {
+        target.stock = qty;
+        const row = e.target.closest('.size-row');
+        if (row) row.classList.toggle('is-critical', isSizeCritical(target));
+      }
+    }));
+    wrap.querySelectorAll('[data-action="critical"]').forEach(inp => inp.addEventListener('change', (e) => {
+      const eu = parseNum(e.target.dataset.size);
+      const target = color.sizes.find(s => Number(s.eu) === eu);
+      if (target) {
+        target.criticalLevel = clampNum(parseNum(e.target.value, getDefaultCriticalLevel()), 1, 999);
+        const row = e.target.closest('.size-row');
+        if (row) row.classList.toggle('is-critical', isSizeCritical(target));
+      }
     }));
     wrap.querySelectorAll('[data-action="remove-size"]').forEach(btn => btn.addEventListener('click', () => {
       const eu = parseNum(btn.dataset.size);
@@ -224,6 +280,8 @@
       const target = color.sizes.find(s => Number(s.eu) === eu);
       if (!target) return;
       target.stock = clampNum((Number(target.stock) || 0) + delta, 0, 9999);
+      const row = btn.closest('.size-row');
+      if (row) row.classList.toggle('is-critical', isSizeCritical(target));
       renderColors();
     }));
   }
@@ -232,11 +290,10 @@
     const brand = (qs('#prodBrand')?.value || '').trim();
     const model = (qs('#prodModel')?.value || '').trim();
     const category = (qs('#prodCategory')?.value || '').trim();
-    const status = (qs('#prodStatus')?.value || 'active').trim();
+    const status = (qs('#prodStatus')?.value || 'published').trim();
     const pOrig = parseNum(qs('#priceOriginal')?.value, 0);
     const pSale = parseNum(qs('#priceSale')?.value, 0);
     const desc = (qs('#prodDescription')?.value || '').trim();
-    const critVal = qs('#prodCriticalLevel')?.value || '';
     const skuInput = (qs('#prodSKU')?.value || '').trim();
     const arLink = (qs('#prodARLink')?.value || '').trim();
 
@@ -270,9 +327,6 @@
       createdAt: new Date().toISOString()
     };
 
-    if (critVal && String(critVal).trim() !== '') {
-      product.criticalLevel = clampNum(Math.floor(parseNum(critVal, 0)), 1, 999);
-    }
     if (arLink) {
       product.arLink = arLink;
       product.arQr = qrImageUrlFor(arLink, 300);
@@ -287,7 +341,8 @@
         const eu = parseNum(s.eu, null);
         if (!eu || !EU_SIZES.includes(eu)) throw new Error(`Size ${s.eu} for ${c.name} must be between 35 and 49 EU.`);
         const stock = clampNum(parseNum(s.stock, 0), 0, 9999);
-        return { eu, stock, sku: '' };
+        const criticalLevel = clampNum(parseNum(s.criticalLevel, getDefaultCriticalLevel()), 1, 999);
+        return { eu, stock, criticalLevel, sku: '' };
       });
       const color = {
         id: c.id || uid('color'),
@@ -350,7 +405,7 @@
         colorCode: color.code || '',
         image: normalized.find(x => x) || '',
         images: normalized,
-        sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), sku: s.sku || '' })) : []
+        sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), criticalLevel: clampNum(parseNum(s.criticalLevel, getDefaultCriticalLevel()), 1, 999), sku: s.sku || '' })) : []
       };
       return db.collection('variants').doc(String(vid)).set(payload, { merge: true });
     }));

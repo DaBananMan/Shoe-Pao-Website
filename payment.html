@@ -19,6 +19,19 @@
             flex-direction:row;
             max-width:1200px;
             margin:0 auto;
+            var unavailable = (currentItems || []).some(function(it){
+                var s = String(it && (it.status || it.state || it.availability) || '').toLowerCase().trim();
+                if(!s) return false;
+                if(s === 'active') s = 'published';
+                if(s === 'archived') s = 'archive';
+                return s !== 'published';
+            });
+            if(unavailable){
+                alert('Some items in your cart are unavailable. Please remove them before checkout.');
+                if(btn) btn.disabled = false;
+                window._placingOrder = false;
+                return;
+            }
             padding:32px 16px 0 16px; /* add spacing from left/right edges */
             box-sizing:border-box;
             /* allow the main container to grow so the footer is pushed to the bottom on short pages */
@@ -1164,13 +1177,23 @@
             return;
         }
         try{
-            var totalQty = 0;
-            (currentItems || []).forEach(function(it){
-                var q = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
-                totalQty += Number(q) || 0;
-            });
-            if(totalQty > 3){
-                alert('Maximum of 3 items per order allowed.');
+            var overLimit = false;
+            if(window.hasProductOverLimit && typeof window.hasProductOverLimit === 'function'){
+                overLimit = window.hasProductOverLimit(currentItems || []);
+            } else {
+                var totals = {};
+                (currentItems || []).forEach(function(it){
+                    var q = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
+                    var key = it.productId || it.product_id || it.id || it.sku || '';
+                    if(!key && it.inventoryId){ key = String(it.inventoryId).split(':')[0] || it.inventoryId; }
+                    if(!key){ key = ((it.brand||'') + '|' + (it.title||'')).toLowerCase(); }
+                    key = String(key || 'unknown');
+                    totals[key] = (totals[key] || 0) + (Number(q) || 0);
+                });
+                overLimit = Object.keys(totals).some(function(k){ return (totals[k] || 0) > 3; });
+            }
+            if(overLimit){
+                alert('Maximum of 3 items per product allowed.');
                 if(btn) btn.disabled = false;
                 window._placingOrder = false;
                 return;
