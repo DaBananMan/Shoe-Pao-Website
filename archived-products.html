@@ -56,7 +56,6 @@
         <div class="header-actions">
             <button id="addProductBtn" class="primary">Add Product</button>
             <button id="exportInventoryBtn" class="secondary" title="Export inventory table to a Word document">Export to Word</button>
-            <a class="secondary" href="inventory.html">Back to Inventory</a>
             <div class="searchbar">
                 <input id="searchInput" type="text" placeholder="Search brand, model, color, size" />
                 <select id="filterBrand"><option value="">All Brands</option></select>
@@ -68,6 +67,7 @@
         </div>
         <nav class="tabs">
             <button data-tab="inventory" class="active">Inventory</button>
+            <button id="archivedPageBtn" class="secondary" type="button" onclick="window.location.href='archived-products.html'">Archived Page</button>
             <button data-tab="sales">Sales</button>
             <button data-tab="reports">Reports</button>
             <button data-tab="alerts">Alerts</button>
@@ -886,9 +886,7 @@
                                     if(!cells || cells.length < 11) return;
                                     var brand = cells[1] ? cells[1].textContent.trim() : '';
                                     var model = cells[3] ? cells[3].textContent.trim() : '';
-                                    // After moving Colors & Total Stock between Model and Category,
-                                    // Total Stock is now at cell index 5 (0-based)
-                                    var stockText = cells[5] ? cells[5].textContent.trim() : '';
+                                    var stockText = cells[9] ? cells[9].textContent.trim() : '';
                                     var stock = Number(stockText.replace(/[^0-9\-\.]/g,''));
                                     if(!isFinite(stock)) return;
                                     if(stock <= threshold){

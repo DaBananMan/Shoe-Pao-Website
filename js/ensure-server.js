@@ -71,19 +71,11 @@
       // execution to Windows and local requests by default.
       try{
         if(window.location && window.location.hostname === 'localhost'){
-          // Prefer probing the Node API health endpoint when available (avoids 404s
-          // from missing PHP helper). window.API_BASE is set to http://localhost:3000
-          // earlier for localhost pages; fall back to the PHP helper only if API_BASE
-          // is not present.
-          try{
-            var probeBase = String(window.API_BASE || '').replace(/\/+$/,'');
-            var probeUrl = probeBase ? (probeBase + '/api/health') : '/tools/ensure-node.php';
-            fetch(probeUrl, { method: 'GET', credentials: 'same-origin' }).then(function(r){
-              return r.json().catch(function(){ return null; });
-            }).then(function(json){
-              try{ if(json) console.debug('ensure-node probe:', probeUrl, json); }catch(e){}
-            }).catch(function(err){ /* ignore */ });
-          }catch(e){}
+          fetch('/tools/ensure-node.php', { method: 'GET', credentials: 'same-origin' }).then(function(r){
+            return r.json().catch(function(){ return null; });
+          }).then(function(json){
+            try{ if(json) console.debug('ensure-node:', json); }catch(e){}
+          }).catch(function(err){ /* ignore */ });
         }
       }catch(e){}
 
@@ -99,25 +91,6 @@
           if(typeof url === 'string'){
             var trimmed = url.trim();
             var lower = trimmed.toLowerCase();
-            // If the URL contains a server-proxy.php path (absolute or relative),
-            // rewrite it to the preferred API_BASE. This covers pages that build
-            // explicit proxy paths like '/project-root/server-proxy.php/api/...'.
-            try{
-              var proxyIndex = lower.indexOf('/server-proxy.php');
-              if(proxyIndex !== -1){
-                var pathPart = trimmed.substring(proxyIndex + '/server-proxy.php'.length);
-                pathPart = pathPart.replace(/^\/+/, '');
-                var base = String(window.API_BASE || '/server-proxy.php').replace(/\/+$/, '');
-                var newUrl = base + '/' + pathPart;
-                // For writes to orders, preserve outbox behaviour
-                var method = (opts && opts.method) ? String(opts.method).toUpperCase() : (isRequest && origRequest && origRequest.method ? String(origRequest.method).toUpperCase() : 'GET');
-                var shouldQueue = (method === 'POST' || method === 'PUT') && (pathPart.indexOf('api/orders') === 0 || pathPart.indexOf('orders') !== -1);
-                if(shouldQueue){
-                  return origFetch(newUrl, opts).catch(function(err){ try{ enqueueOutbox({ requestId: 'rq_' + Date.now() + '_' + Math.floor(Math.random()*10000), path: '/' + pathPart, method: method, headers: (opts && opts.headers) || {}, body: opts && opts.body ? opts.body : null }); }catch(e){ console.warn('order-outbox: enqueue error', e); } return Promise.reject(err); });
-                }
-                return origFetch(newUrl, opts);
-              }
-            }catch(e){}
             // skip absolute URLs (http(s)://) and protocol-relative (//)
             if(!(lower.indexOf('http://') === 0 || lower.indexOf('https://') === 0 || lower.indexOf('//') === 0)){
               // If the request targets an API path like '/api/...' or 'api/...', rewrite to API_BASE
@@ -162,89 +135,6 @@
         return origFetch(input, init);
       };
     }
-  }catch(e){}
-
-  // Pre-init hook: when the firebase SDK attaches to window, ensure Firestore
-  // is configured to use long-polling before it starts network activity. We
-  // install a setter that patches initializeApp to set `{ experimentalForceLongPolling: true }`
-  // immediately after initialization. This helps avoid initial 10s backend
-  // timeouts on restricted networks.
-  try{
-    if(typeof window !== 'undefined'){
-      (function(){
-        var installed = false;
-        function patchFirebase(obj){
-          try{
-            if(!obj || installed) return; installed = true;
-            try{
-              var origInit = obj.initializeApp;
-              if(typeof origInit === 'function'){
-                obj.initializeApp = function(){
-                  var res = origInit.apply(obj, arguments);
-                  try{
-                    // Avoid calling settings() more than once. enableLongPolling also
-                    // sets the same option later; calling settings twice can surface
-                    // a host-override warning in the SDK even when using { merge: true }.
-                    try{
-                      if(!window.__shoepao_fp_set){
-                        if(obj && obj.firestore && typeof obj.firestore === 'function'){
-                          try{
-                            obj.firestore().settings({ experimentalForceLongPolling: true }, { merge: true });
-                            window.__shoepao_fp_set = true;
-                            console.info('ensure-server: pre-init enabled Firestore long-polling');
-                          }catch(e){ console.warn('ensure-server: pre-init settings call failed', e); }
-                        }
-                      } else {
-                        // already set by enableLongPolling or previous init — skip
-                        console.debug && console.debug('ensure-server: pre-init skipping settings; already set');
-                      }
-                    }catch(e){}
-                  }catch(e){}
-                  return res;
-                };
-              }
-            }catch(e){}
-          }catch(e){}
-        }
-        if(window.firebase){ patchFirebase(window.firebase); }
-        Object.defineProperty(window, 'firebase', {
-          configurable: true,
-          enumerable: true,
-          get: function(){ return window.__shoepao_firebase_ref; },
-          set: function(v){ window.__shoepao_firebase_ref = v; try{ patchFirebase(v); }catch(e){} }
-        });
-      })();
-    }
-  }catch(e){}
-})();
-
-// Ensure Firestore uses long-polling in environments where WebChannel/GRPC
-// transport may be blocked (corporate networks, restrictive proxies). We poll
-// for firebase availability and set the setting once.
-(function(){
-  try{
-    if(typeof window === 'undefined') return;
-    var attempts = 0;
-    function enableLongPolling(){
-      try{
-        attempts++;
-        if(window.__shoepao_fp_set) return;
-        if(window.firebase && firebase.firestore && typeof firebase.firestore === 'function'){
-          try{
-            var db = firebase.firestore();
-            if(db && db.settings){
-              try{ db.settings({ experimentalForceLongPolling: true }, { merge: true }); }catch(e){}
-              window.__shoepao_fp_set = true;
-              console.info('ensure-server: enabled Firestore long-polling');
-              return;
-            }
-          }catch(e){}
-        }
-        if(attempts < 20) setTimeout(enableLongPolling, 500);
-      }catch(e){}
-    }
-    // Kick off after a short delay to allow firebase scripts to load
-    setTimeout(enableLongPolling, 600);
   }catch(e){}
 })();
 
@@ -306,21 +196,10 @@
               firebase.auth().signInWithCustomToken(json.token).then(function(){
                   try{ sessionStorage.setItem('shoepao_admin_session', '1'); }catch(e){}
                   console.info('admin auto-signin: signed in as', json.email || json.uid);
-                      try{
-                        // Ensure we only mark auto-signed-in once. Previously we triggered a
-                        // page reload here which could lead to reload loops during development
-                        // when auth state or network was unstable. Instead of reloading the
-                        // page automatically, set a session marker and dispatch an event so
-                        // calling pages can react (for example, re-run Firestore reads) if
-                        // they need to. This avoids forcing a navigation which the user
-                        // reported caused continuous reloads.
-                        if(!window.__shoepao_auto_admin_signedin){
-                          window.__shoepao_auto_admin_signedin = true;
-                          try{ sessionStorage.setItem('shoepao_admin_session','1'); }catch(_){ }
-                          try{ console.info('admin auto-signin: signed in (no reload)'); }catch(_){ }
-                          try{ window.dispatchEvent(new CustomEvent('shoepao:admin-signedin')); }catch(_){ }
-                        }
-                      }catch(e){ /* ignore */ }
+                  try{
+                    // Ensure we only trigger a reload once after an automatic sign-in to avoid reload storms
+                    if(!window.__shoepao_auto_admin_signedin){ window.__shoepao_auto_admin_signedin = true; setTimeout(function(){ try{ location.reload(); }catch(e){} }, 800); }
+                  }catch(e){ /* ignore */ }
                 }).catch(function(err){ console.warn('admin auto-signin: signInWithCustomToken failed', err); });
             }catch(e){ console.warn('admin auto-signin: error signing in', e); }
           }).catch(function(e){ console.warn('admin auto-signin: failed to parse token response', e); });
