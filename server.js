@@ -883,6 +883,42 @@ app.post('/api/admin/delete-user', async (req, res) => {
   }catch(err){ console.error('api/admin/delete-user error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
 });
 
+// Admin: register a deleted product so server-side tooling won't re-import it
+app.post('/api/admin/register-deleted-product', async (req, res) => {
+  try{
+    if(!admin){ try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ admin = null; } }
+    if(!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
+
+    // verify caller is admin
+    let idToken = null;
+    const auth = (req.headers && req.headers.authorization) ? req.headers.authorization : null;
+    if(auth && typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ')) idToken = auth.slice(7).trim();
+    if(!idToken) return res.status(401).json({ error: 'id_token_required' });
+
+    let decoded;
+    try{ decoded = await admin.auth().verifyIdToken(idToken); }catch(e){ return res.status(401).json({ error: 'invalid_id_token', detail: String(e && e.message ? e.message : e) }); }
+    if(!(decoded && decoded.admin === true)) return res.status(403).json({ error: 'forbidden' });
+
+    const body = req.body || {};
+    const prodId = body.id ? String(body.id) : null;
+    if(!prodId) return res.status(400).json({ error: 'missing_product_id' });
+
+    const dataDir = path.join(__dirname, 'data');
+    if(!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    const delPath = path.join(dataDir, 'deleted-products.json');
+    let list = [];
+    try{ list = JSON.parse(fs.readFileSync(delPath, 'utf8') || '[]'); }catch(e){ list = []; }
+    const exists = list.find(x => String(x && x.id) === String(prodId));
+    if(!exists){
+      const entry = { id: String(prodId), deletedAt: new Date().toISOString(), deletedBy: (decoded && decoded.email) ? String(decoded.email).toLowerCase() : (decoded && decoded.uid) ? String(decoded.uid) : null };
+      list.push(entry);
+      try{ fs.writeFileSync(delPath, JSON.stringify(list, null, 2), 'utf8'); }catch(e){ console.warn('failed to write deleted-products.json', e); }
+      return res.json({ ok: true, registered: true, entry: entry });
+    }
+    return res.json({ ok: true, registered: false, message: 'already_registered' });
+  }catch(err){ console.error('register-deleted-product failed', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
 // Record that a password reset was completed for an email (client informs server).
 // This is intentionally lightweight: it simply stores an event the client page can poll
 // to detect cross-device password resets. No auth required, but entries should be

@@ -483,7 +483,24 @@
   function deleteProductFromFirestore(id) {
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
     return firebaseState.db.collection('products').doc(String(id)).delete()
-      .then(() => console.info('deleteProductFromFirestore: deleted product', String(id)))
+      .then(() => {
+        console.info('deleteProductFromFirestore: deleted product', String(id));
+        // register deletion with server so server-side tooling won't re-import the product
+        try{
+          const user = (firebase && firebase.auth) ? firebase.auth().currentUser : null;
+          if(user && typeof user.getIdToken === 'function'){
+            user.getIdToken(true).then(token => {
+              try{
+                fetch('/api/admin/register-deleted-product', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                  body: JSON.stringify({ id: String(id) })
+                }).then(resp => resp.json().catch(()=>{})).catch(e => console.warn('register-deleted-product fetch failed', e));
+              }catch(e){ console.warn('register-deleted-product post failed', e); }
+            }).catch(e => { /* token fetch failed - best-effort only */ console.warn('getIdToken failed', e); });
+          }
+        }catch(e){ /* ignore */ }
+      })
       .catch(err => console.error('deleteProductFromFirestore', err));
   }
 

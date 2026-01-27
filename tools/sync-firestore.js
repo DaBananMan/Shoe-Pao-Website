@@ -24,6 +24,11 @@ function emailKey(email){
 async function main(){
   console.log('Starting sync to Firestore...');
   const dataDir = path.resolve(__dirname, '..', 'data');
+  // read the deleted-products blacklist (if present) so we avoid re-importing removed items
+  const deletedPath = path.join(dataDir, 'deleted-products.json');
+  let deletedList = [];
+  try{ deletedList = readJson(deletedPath) || []; }catch(e){ deletedList = []; }
+  const deletedIds = new Set((deletedList||[]).map(d => String(d && d.id)));
 
   // 1) seed users
   const usersFile = path.join(dataDir, 'users.json');
@@ -85,6 +90,9 @@ async function main(){
       }
     }catch(e){ console.error('Wishlist write failed', e); }
   }
+
+  // NOTE: product import logic would respect `deletedIds` - if you add a product sync step later,
+  // check deletedIds.has(productId) before writing that product to Firestore.
 
   console.log('Sync complete.');
   process.exit(0);
