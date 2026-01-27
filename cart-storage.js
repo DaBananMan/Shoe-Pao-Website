@@ -14,6 +14,8 @@ function getCart() {
 }
 
 var MAX_PAIRS_PER_ORDER = 3;
+var MAX_ITEMS_PER_ORDER = 3;
+var CART_LIMIT_MESSAGE = 'Maximum order limit is 3 items only, cannot exceed stock.';
 
 function getItemQty(item){
     return (typeof item.qty === 'number') ? item.qty : ((typeof item.quantity === 'number') ? item.quantity : 1);
@@ -76,8 +78,7 @@ function getProductTotalsMap(cart){
 
 function hasProductOverLimit(cart){
     try{
-        var totals = getProductTotalsMap(cart);
-        return Object.keys(totals).some(function(k){ return (totals[k] || 0) > MAX_PAIRS_PER_ORDER; });
+        return getCartTotalPairs(cart) > MAX_ITEMS_PER_ORDER;
     }catch(e){ return false; }
 }
 
@@ -291,6 +292,12 @@ function validateCartItemsForCheckout(items){
     var result = { ok: true, messages: [] };
     try{
         if(!Array.isArray(items)) return result;
+        var totalQty = getCartTotalPairs(items);
+        if(totalQty > MAX_ITEMS_PER_ORDER){
+            result.ok = false;
+            result.messages.push(CART_LIMIT_MESSAGE);
+            return result;
+        }
         // If inventory is available but not yet loaded, block checkout so we can validate properly.
         if(!isInventoryCacheReady()){
             result.ok = false;
@@ -329,17 +336,13 @@ function validateCartItemsForCheckout(items){
                 }
                 var stock = Number(invItem.sizes[size]);
                 if(!isFinite(stock) || stock <= 0){
-                    if(item && item.preOrder === true){
-                        // allow pre-order items even when stock is 0
-                    } else {
-                        result.ok = false;
-                        result.messages.push(label + ' is out of stock.');
-                        return;
-                    }
-                }
-                if(item && item.preOrder !== true && isFinite(stock) && qty > stock){
                     result.ok = false;
-                    result.messages.push(label + ' only has ' + stock + ' in stock.');
+                    result.messages.push(CART_LIMIT_MESSAGE);
+                    return;
+                }
+                if(isFinite(stock) && qty > stock){
+                    result.ok = false;
+                    result.messages.push(CART_LIMIT_MESSAGE);
                     return;
                 }
                 return;
@@ -348,14 +351,14 @@ function validateCartItemsForCheckout(items){
             // Fallback stock hints on cart item
             var stockHint = getItemStockHint(item);
             if(stockHint !== null && isFinite(stockHint)){
-                if(stockHint <= 0 && item.preOrder !== true){
+                if(stockHint <= 0){
                     result.ok = false;
-                    result.messages.push(label + ' is out of stock.');
+                    result.messages.push(CART_LIMIT_MESSAGE);
                     return;
                 }
-                if(item.preOrder !== true && qty > stockHint){
+                if(qty > stockHint){
                     result.ok = false;
-                    result.messages.push(label + ' only has ' + stockHint + ' in stock.');
+                    result.messages.push(CART_LIMIT_MESSAGE);
                     return;
                 }
             }
@@ -366,6 +369,11 @@ function validateCartItemsForCheckout(items){
 
 async function handleCheckoutFromCart(ev){
     try{ if(ev){ ev.preventDefault(); ev.stopPropagation(); } }catch(_){ }
+    try{
+        if(typeof window.ensureSignedInOrRedirect === 'function'){
+            if(!window.ensureSignedInOrRedirect('checkout.html')) return false;
+        }
+    }catch(e){ return false; }
     var cart = getCart();
     var selected = getSelectedCartItems(cart);
     if(!Array.isArray(selected) || selected.length === 0){
@@ -401,15 +409,80 @@ function getCartTotalPairs(cart){
 }
 
 function showMaxPairsMessage(){
-    try{ alert('Maximum of 3 pairs per product (all sizes combined).'); }catch(e){}
+    try{ alert(CART_LIMIT_MESSAGE); }catch(e){}
 }
 
 function canAddPairsForProduct(cart, product, addQty){
     try{
-        var total = getProductTotalQty(cart, product);
+        cart = Array.isArray(cart) ? cart : getCart();
+        var total = getCartTotalPairs(cart);
         var inc = Number(addQty || 0) || 0;
-        return (total + inc) <= MAX_PAIRS_PER_ORDER;
+        return (total + inc) <= MAX_ITEMS_PER_ORDER;
     }catch(e){ return false; }
+}
+
+function getAvailableStockForCartItem(item){
+    try{
+        if(!item) return null;
+        var size = (item.size === undefined || item.size === null) ? '' : String(item.size).trim();
+        var invItem = null; try{ invItem = getInventoryItemForCheckout(item); }catch(e){ invItem = null; }
+        if(invItem && invItem.sizes && typeof invItem.sizes === 'object' && size){
+            if(invItem.sizes[size] !== undefined) return Number(invItem.sizes[size]);
+        }
+    }catch(e){ /* ignore */ }
+    try{
+        var hint = getItemStockHint(item);
+        if(hint !== null && isFinite(hint)) return Number(hint);
+    }catch(e){ /* ignore */ }
+    return null;
+}
+
+var __cartLimitAlertShown = false;
+
+function normalizeCartToLimits(cart){
+    try{
+        cart = Array.isArray(cart) ? cart : getCart();
+        var remaining = MAX_ITEMS_PER_ORDER;
+        var normalized = [];
+        var changed = false;
+        cart.forEach(function(item){
+            if(!item) return;
+            var qty = Number(getItemQty(item)) || 0;
+            if(qty <= 0){ changed = true; return; }
+            var stockAllowed = getAvailableStockForCartItem(item);
+            if(isFinite(stockAllowed) && stockAllowed >= 0 && qty > stockAllowed){
+                qty = stockAllowed;
+                changed = true;
+            }
+            if(remaining <= 0){ changed = true; return; }
+            if(qty > remaining){
+                qty = remaining;
+                changed = true;
+            }
+            if(qty <= 0){ changed = true; return; }
+            if(typeof item.qty === 'number') item.qty = qty;
+            else if(typeof item.quantity === 'number') item.quantity = qty;
+            else item.qty = qty;
+            remaining -= qty;
+            normalized.push(item);
+        });
+        return { cart: normalized, changed: changed };
+    }catch(e){ return { cart: Array.isArray(cart) ? cart : [], changed: false }; }
+}
+
+function enforceCartLimitsOnLoad(){
+    try{
+        var cart = getCart();
+        if(!Array.isArray(cart) || cart.length === 0) return;
+        var normalized = normalizeCartToLimits(cart);
+        if(normalized.changed){
+            saveCart(normalized.cart);
+            if(!__cartLimitAlertShown){
+                __cartLimitAlertShown = true;
+                showMaxPairsMessage();
+            }
+        }
+    }catch(e){ /* ignore */ }
 }
 
 function tryIncrementCartItem(cart, idx){
@@ -417,14 +490,22 @@ function tryIncrementCartItem(cart, idx){
         cart = Array.isArray(cart) ? cart : getCart();
         if(!cart[idx]) return { success:false, reason:'invalid_index' };
         try{
+            var total = getCartTotalPairs(cart);
+            if((total + 1) > MAX_ITEMS_PER_ORDER){
+                return { success:false, reason:'max_pairs', maxPairs: MAX_ITEMS_PER_ORDER };
+            }
+        }catch(e){}
+        try{
             var item = cart[idx];
             var current = (typeof item.qty === 'number') ? item.qty : (typeof item.quantity === 'number' ? item.quantity : 1);
             var maxAllowed = (window.getMaxAllowedForProduct && typeof window.getMaxAllowedForProduct === 'function') ? window.getMaxAllowedForProduct(item) : Number.POSITIVE_INFINITY;
+            var stockAllowed = getAvailableStockForCartItem(item);
+            if(isFinite(stockAllowed)) maxAllowed = Math.min(maxAllowed, stockAllowed);
             if(Number.isFinite(maxAllowed) && current >= maxAllowed){
                 return { success:false, reason:'max_reached', maxAllowed: maxAllowed };
             }
         }catch(e){}
-        if(!canAddPairsForProduct(cart, cart[idx], 1)) return { success:false, reason:'max_pairs' };
+        if(!canAddPairsForProduct(cart, cart[idx], 1)) return { success:false, reason:'max_pairs', maxPairs: MAX_ITEMS_PER_ORDER };
         if(typeof cart[idx].qty === 'number') cart[idx].qty++;
         else if(typeof cart[idx].quantity === 'number') cart[idx].quantity++;
         else cart[idx].qty = (cart[idx].qty || cart[idx].quantity || 1) + 1;
@@ -496,6 +577,10 @@ function addToCart(product) {
     try {
         var cart = getCart();
         var maxAllowed = getMaxAllowedForProduct(product);
+        try{
+            var stockHintAllowed = getAvailableStockForCartItem(product);
+            if(isFinite(stockHintAllowed)) maxAllowed = Math.min(maxAllowed, stockHintAllowed);
+        }catch(e){}
         var invItem = null;
         try{ invItem = findInventoryItemForProduct(product); }catch(e){ invItem = null; }
         if(invItem && !isPublishedStatus(invItem.status)){
@@ -506,11 +591,11 @@ function addToCart(product) {
         }
         var incomingQty = product.qty || product.quantity || 1;
         if (!canAddPairsForProduct(cart, product, incomingQty)) {
-            return { success: false, reason: 'max_pairs', maxPairs: MAX_PAIRS_PER_ORDER };
+            return { success: false, reason: 'max_pairs', maxPairs: MAX_ITEMS_PER_ORDER };
         }
         // If product stock is 0 and not marked pre-order, don't add
-        if (maxAllowed === 0 && !product.preOrder) {
-            return { success: false, reason: 'out_of_stock' };
+        if (maxAllowed === 0) {
+            return { success: false, reason: 'max_reached', maxAllowed: 0 };
         }
         // Default to selected for checkout unless explicitly set
         if(product && typeof product.selected === 'undefined') product.selected = true;
@@ -540,14 +625,12 @@ function addToCart(product) {
             var current = (found.qty || found.quantity || 1);
             var incoming = incomingQty;
             var newQty = current + incoming;
-            var totalPairs = getProductTotalQty(cart, product);
+            var totalPairs = getCartTotalPairs(cart);
             var totalIfAdded = totalPairs - current + newQty;
-            if (totalIfAdded > MAX_PAIRS_PER_ORDER) {
-                return { success: false, reason: 'max_pairs', maxPairs: MAX_PAIRS_PER_ORDER };
+            if (totalIfAdded > MAX_ITEMS_PER_ORDER) {
+                return { success: false, reason: 'max_pairs', maxPairs: MAX_ITEMS_PER_ORDER };
             }
             if (newQty > maxAllowed) {
-                found.qty = maxAllowed;
-                saveCart(cart);
                 return { success: false, reason: 'max_reached', maxAllowed: maxAllowed };
             } else {
                 found.qty = newQty;
@@ -560,9 +643,11 @@ function addToCart(product) {
             }
         } else {
             var incoming = incomingQty;
-            if (incoming > maxAllowed) product.qty = maxAllowed;
+            if (incoming > maxAllowed) {
+                return { success: false, reason: 'max_reached', maxAllowed: maxAllowed };
+            }
             if (!canAddPairsForProduct(cart, product, product.qty || incoming || 1)) {
-                return { success: false, reason: 'max_pairs', maxPairs: MAX_PAIRS_PER_ORDER };
+                return { success: false, reason: 'max_pairs', maxPairs: MAX_ITEMS_PER_ORDER };
             }
             // Ensure new cart item carries the inventoryId when available
             try{ if(!product.inventoryId){ var _m = findInventoryItemForProduct(product); if(_m && _m.id) product.inventoryId = _m.id; } }catch(e){}
@@ -616,14 +701,8 @@ function getMaxAllowedForProduct(product) {
         // If inventory is missing for this product, allow adding without an artificial cap
         // (the live site may not seed inventory for all visitors). When inventory exists,
         // enforce per-product cap of 3 and available stock per size.
-        if (product && product.preOrder === true) {
-            // Allow pre-orders up to 3 items by default (can be tuned)
-            var cap = Number(product.preOrderMax || MAX_PAIRS_PER_ORDER);
-            if(!(isFinite(cap) && cap > 0)) cap = MAX_PAIRS_PER_ORDER;
-            return Math.min(cap, MAX_PAIRS_PER_ORDER);
-        }
         if (!invItem) {
-            return MAX_PAIRS_PER_ORDER; // default per-product cap
+            return MAX_ITEMS_PER_ORDER; // default cap when no inventory is available
         }
         var status = normalizeProductStatus(invItem.status || '');
         if (!isPublishedStatus(status)) {
@@ -632,10 +711,10 @@ function getMaxAllowedForProduct(product) {
         var size = (product.size || '').toString();
         var stock = (invItem.sizes && (invItem.sizes[size] !== undefined)) ? Number(invItem.sizes[size]) : 0;
         if (isNaN(stock) || stock <= 0) return 0;
-        // allow up to the available stock but never exceed per-product cap
-        return Math.min(stock, MAX_PAIRS_PER_ORDER);
+        // allow up to the available stock but never exceed per-order cap
+        return Math.min(stock, MAX_ITEMS_PER_ORDER);
     } catch (e) {
-        return MAX_PAIRS_PER_ORDER;
+        return MAX_ITEMS_PER_ORDER;
     }
 }
 
@@ -686,6 +765,8 @@ window.tryIncrementCartItem = tryIncrementCartItem;
 window.tryDecrementCartItem = tryDecrementCartItem;
 window.showMaxPairsMessage = showMaxPairsMessage;
 window.MAX_PAIRS_PER_ORDER = MAX_PAIRS_PER_ORDER;
+window.MAX_ITEMS_PER_ORDER = MAX_ITEMS_PER_ORDER;
+window.CART_LIMIT_MESSAGE = CART_LIMIT_MESSAGE;
 
 // Update any cart sidebar UI elements if present on the page.
 function renderCartSidebarUI(){
@@ -766,7 +847,14 @@ function renderCartSidebarUI(){
 // Keep cart UI in sync when cart changes in other tabs/windows
 window.addEventListener('storage', function(e){ if(e.key === 'cart' || e.key === null) renderCartSidebarUI(); });
 // Also try to update when DOM is ready
-document.addEventListener('DOMContentLoaded', function(){ renderCartSidebarUI(); });
+document.addEventListener('DOMContentLoaded', function(){
+    renderCartSidebarUI();
+    try{ enforceCartLimitsOnLoad(); }catch(e){}
+    try{
+        forceRefreshInventoryRowsCache();
+        waitForInventoryCacheReady(2500).then(function(){ enforceCartLimitsOnLoad(); });
+    }catch(e){}
+});
 // Re-render after other inline cart scripts to ensure selection UI remains
 window.addEventListener('DOMContentLoaded', function(){
     try{ setTimeout(function(){ try{ renderCartSidebarItems(); renderCartSidebarUI(); }catch(e){} }, 60); }catch(e){}
@@ -828,11 +916,30 @@ document.addEventListener('DOMContentLoaded', function(){
 // --- Session integrity helpers -------------------------------------------------
 // Ensure pages restored from bfcache or visited via back/forward validate the active session
 function getActiveProfile(){ try{ return JSON.parse(localStorage.getItem('profile') || 'null'); }catch(e){ return null; } }
+function getSignedOutAt(){ try{ return Number(localStorage.getItem('signed_out_at') || 0) || 0; }catch(e){ return 0; } }
+function isSessionSignedOut(){
+    try{
+        var signedOutAt = getSignedOutAt();
+        if(!signedOutAt) return false;
+        var profileUpdatedAt = Number(localStorage.getItem('profile_updated_at') || 0) || 0;
+        var authUpdatedAt = Number(localStorage.getItem('authTokenUpdatedAt') || 0) || 0;
+        var newestSessionAt = Math.max(profileUpdatedAt, authUpdatedAt);
+        return signedOutAt >= newestSessionAt;
+    }catch(e){ return false; }
+}
 
 // Public helper pages can call to ensure an interactive action has an authenticated Firebase user.
 // If Firebase is available we prefer it; otherwise fall back to legacy localStorage profile check.
 window.ensureSignedInOrRedirect = function(returnUrl){
     try{
+        if(isSessionSignedOut()){
+            try{ localStorage.removeItem('profile'); localStorage.removeItem('profile_updated_at'); }catch(e){}
+            try{ localStorage.removeItem('authToken'); localStorage.removeItem('authTokenUpdatedAt'); }catch(e){}
+            try{ if(window.firebase && firebase.auth){ firebase.auth().signOut().catch(function(){}); } }catch(e){}
+            var redirectSignedOut = 'login.html'; if(returnUrl) redirectSignedOut += '?return=' + encodeURIComponent(returnUrl);
+            window.location.href = redirectSignedOut;
+            return false;
+        }
         if(window.firebase && firebase.auth){
             var u = firebase.auth().currentUser;
             if(!u){
@@ -927,6 +1034,7 @@ if(window.firebase && firebase.auth){
 window.signOut = function(){
     try{ localStorage.removeItem('profile'); localStorage.removeItem('profile_updated_at'); }catch(e){}
     try{ localStorage.removeItem('authToken'); localStorage.removeItem('authTokenUpdatedAt'); }catch(e){}
+    try{ localStorage.setItem('signed_out_at', String(Date.now())); }catch(e){}
     // Replace current location so back won't return to a page that assumes the previous profile
     try{ window.location.replace('login.html'); }catch(e){ window.location.href = 'login.html'; }
 };
@@ -1060,7 +1168,7 @@ function renderCartSidebarItems(){
         });
         // attach basic handlers (increase/decrease/remove/edit)
         container.querySelectorAll('.qty-btn.decrease').forEach(function(btn){ btn.onclick = function(){ var idx = Number(btn.getAttribute('data-index')); var cart = getCart(); if(!cart[idx]) return; if((cart[idx].quantity||cart[idx].qty||1) > 1){ cart[idx].quantity = (cart[idx].quantity||cart[idx].qty||1) - 1; saveCart(cart); renderCartSidebarItems(); renderCartSidebarUI(); } }; });
-        container.querySelectorAll('.qty-btn.increase').forEach(function(btn){ btn.onclick = function(){ var idx = Number(btn.getAttribute('data-index')); var cart = getCart(); if(!cart[idx]) return; var r = (window.tryIncrementCartItem && typeof window.tryIncrementCartItem === 'function') ? window.tryIncrementCartItem(cart, idx) : null; if(r && r.success === false){ if(r.reason === 'max_pairs'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert('Maximum of 3 pairs per product.'); return; } if(r.reason === 'max_reached'){ try{ alert('You can only add up to ' + (r.maxAllowed || 1) + ' of this size.'); }catch(e){} return; } }
+        container.querySelectorAll('.qty-btn.increase').forEach(function(btn){ btn.onclick = function(){ var idx = Number(btn.getAttribute('data-index')); var cart = getCart(); if(!cart[idx]) return; var r = (window.tryIncrementCartItem && typeof window.tryIncrementCartItem === 'function') ? window.tryIncrementCartItem(cart, idx) : null; if(r && r.success === false){ if(r.reason === 'max_pairs' || r.reason === 'max_reached'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert(CART_LIMIT_MESSAGE); return; } }
             // Fallback if helper not available
             if(!r){ cart[idx].quantity = (cart[idx].quantity||cart[idx].qty||1) + 1; var max = getMaxAllowedForProduct(cart[idx]); if(cart[idx].quantity > max) cart[idx].quantity = max; }
             saveCart(cart); renderCartSidebarItems(); renderCartSidebarUI(); }; });

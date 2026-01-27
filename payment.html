@@ -534,20 +534,16 @@
 
     function normalizeDeliveryAddressFromAddressObject(addressObject){
         if(!addressObject) return null;
-        return {
-            region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
-            province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
-            city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
-            barangay: (addressObject.barangay && addressObject.barangay.name) ? addressObject.barangay.name : (addressObject.barangay || ''),
-            street: addressObject.street || addressObject.line1 || ''
-        };
-    }
-
-    function normalizeDeliveryAddressFromString(addressText){
-        if(!addressText) return null;
-        return { region: '', province: '', city: '', barangay: '', street: String(addressText || '').trim() };
-    }
-
+            } else {
+                var totalQty = 0;
+                (currentItems || []).forEach(function(it){
+                    var q = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
+                    totalQty += Number(q) || 0;
+                });
+                overLimit = totalQty > 3;
+            }
+            if(overLimit){
+                alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
     function formatDeliveryAddressText(addrObj){
         if(!addrObj) return '';
         var parts = [];
@@ -1181,19 +1177,15 @@
             if(window.hasProductOverLimit && typeof window.hasProductOverLimit === 'function'){
                 overLimit = window.hasProductOverLimit(currentItems || []);
             } else {
-                var totals = {};
+                var totalQty = 0;
                 (currentItems || []).forEach(function(it){
                     var q = (typeof it.qty === 'number') ? it.qty : ((typeof it.quantity === 'number') ? it.quantity : 1);
-                    var key = it.productId || it.product_id || it.id || it.sku || '';
-                    if(!key && it.inventoryId){ key = String(it.inventoryId).split(':')[0] || it.inventoryId; }
-                    if(!key){ key = ((it.brand||'') + '|' + (it.title||'')).toLowerCase(); }
-                    key = String(key || 'unknown');
-                    totals[key] = (totals[key] || 0) + (Number(q) || 0);
+                    totalQty += Number(q) || 0;
                 });
-                overLimit = Object.keys(totals).some(function(k){ return (totals[k] || 0) > 3; });
+                overLimit = totalQty > 3;
             }
             if(overLimit){
-                alert('Maximum of 3 items per product allowed.');
+                alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
                 if(btn) btn.disabled = false;
                 window._placingOrder = false;
                 return;
