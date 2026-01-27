@@ -366,6 +366,11 @@ function validateCartItemsForCheckout(items){
 
 async function handleCheckoutFromCart(ev){
     try{ if(ev){ ev.preventDefault(); ev.stopPropagation(); } }catch(_){ }
+    try{
+        if(typeof window.ensureSignedInOrRedirect === 'function'){
+            if(!window.ensureSignedInOrRedirect('checkout.html')) return false;
+        }
+    }catch(e){ return false; }
     var cart = getCart();
     var selected = getSelectedCartItems(cart);
     if(!Array.isArray(selected) || selected.length === 0){
@@ -828,11 +833,30 @@ document.addEventListener('DOMContentLoaded', function(){
 // --- Session integrity helpers -------------------------------------------------
 // Ensure pages restored from bfcache or visited via back/forward validate the active session
 function getActiveProfile(){ try{ return JSON.parse(localStorage.getItem('profile') || 'null'); }catch(e){ return null; } }
+function getSignedOutAt(){ try{ return Number(localStorage.getItem('signed_out_at') || 0) || 0; }catch(e){ return 0; } }
+function isSessionSignedOut(){
+    try{
+        var signedOutAt = getSignedOutAt();
+        if(!signedOutAt) return false;
+        var profileUpdatedAt = Number(localStorage.getItem('profile_updated_at') || 0) || 0;
+        var authUpdatedAt = Number(localStorage.getItem('authTokenUpdatedAt') || 0) || 0;
+        var newestSessionAt = Math.max(profileUpdatedAt, authUpdatedAt);
+        return signedOutAt >= newestSessionAt;
+    }catch(e){ return false; }
+}
 
 // Public helper pages can call to ensure an interactive action has an authenticated Firebase user.
 // If Firebase is available we prefer it; otherwise fall back to legacy localStorage profile check.
 window.ensureSignedInOrRedirect = function(returnUrl){
     try{
+        if(isSessionSignedOut()){
+            try{ localStorage.removeItem('profile'); localStorage.removeItem('profile_updated_at'); }catch(e){}
+            try{ localStorage.removeItem('authToken'); localStorage.removeItem('authTokenUpdatedAt'); }catch(e){}
+            try{ if(window.firebase && firebase.auth){ firebase.auth().signOut().catch(function(){}); } }catch(e){}
+            var redirectSignedOut = 'login.html'; if(returnUrl) redirectSignedOut += '?return=' + encodeURIComponent(returnUrl);
+            window.location.href = redirectSignedOut;
+            return false;
+        }
         if(window.firebase && firebase.auth){
             var u = firebase.auth().currentUser;
             if(!u){
@@ -927,6 +951,7 @@ if(window.firebase && firebase.auth){
 window.signOut = function(){
     try{ localStorage.removeItem('profile'); localStorage.removeItem('profile_updated_at'); }catch(e){}
     try{ localStorage.removeItem('authToken'); localStorage.removeItem('authTokenUpdatedAt'); }catch(e){}
+    try{ localStorage.setItem('signed_out_at', String(Date.now())); }catch(e){}
     // Replace current location so back won't return to a page that assumes the previous profile
     try{ window.location.replace('login.html'); }catch(e){ window.location.href = 'login.html'; }
 };

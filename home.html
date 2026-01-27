@@ -856,7 +856,9 @@
         container.classList.remove('scrollable');
 
         var tryOnItems = (rows || []).filter(function(r){
-            return hasTag(r, 'Try On') || hasTag(r, 'Try On!');
+            var tagged = hasTag(r, 'Try On') || hasTag(r, 'Try On!') || hasTag(r, 'TryOn') || hasTag(r, 'Try-On');
+            var hasAr = !!(r && r.arLink);
+            return tagged || hasAr;
         });
         if (!tryOnItems.length) return;
 
@@ -1199,12 +1201,17 @@
                 if(!pid) return;
                 map[pid] = map[pid] || [];
                 var images = Array.isArray(v.images) ? v.images : (v.image ? [v.image] : []);
+                var vTags = [];
+                try{ collectTags(v, vTags); }catch(e){ vTags = []; }
+                var vArLink = v.arLink || v.ar_link || v.arUrl || v.arURL || v.arFilter || v.ar_filter || v.ar || '';
                 map[pid].push({
                     id: v.id || ('color-' + Math.random().toString(36).slice(2,9)),
                     name: v.colorName || v.name || v.color || 'Color',
                     images: images,
                     image: (images && images.length) ? images[0] : (v.image || ''),
-                    sizes: Array.isArray(v.sizes) ? v.sizes : []
+                    sizes: Array.isArray(v.sizes) ? v.sizes : [],
+                    tags: vTags,
+                    arLink: vArLink
                 });
             });
 
@@ -1219,6 +1226,10 @@
                     if(match){
                         if(!Array.isArray(c.images) || !c.images.length) c.images = match.images || [];
                         if(!c.image) c.image = match.image || '';
+                        if(Array.isArray(match.tags) && match.tags.length){
+                            c.tags = (Array.isArray(c.tags) ? c.tags : []).concat(match.tags);
+                        }
+                        if(!c.arLink && match.arLink) c.arLink = match.arLink;
                     }
                     return c;
                 }) : variantColors;
@@ -1267,6 +1278,7 @@
                         createdAt: p.createdAt || null,
                         gender: p.gender || '',
                         tags: dedupTags,
+                        arLink: c.arLink || p.arLink || p.ar_link || p.arUrl || p.arURL || p.arFilter || p.ar_filter || p.ar || '',
                         status: normalizeStatus(p.status || 'published')
                     });
                 });

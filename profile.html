@@ -229,6 +229,16 @@
             display: block;
         }
         .profile-signout-btn:hover { background: #b71c1c; color: #fff; }
+        .profile-guest-note {
+            background: #f7f7f7;
+            border: 1px solid #eee;
+            color: #333;
+            border-radius: 10px;
+            padding: 14px 16px;
+            font-size: 1.02rem;
+            margin: 18px 0 24px 0;
+            display: none;
+        }
         @media (max-width: 900px) {
             .profile-main {
                 max-width: 98vw;
@@ -265,6 +275,8 @@
     <div class="profile-main">
         <div class="profile-header">Profile</div>
         <div class="profile-divider"></div>
+        <div id="profileGuestNote" class="profile-guest-note" style="display:block;">Guest: Please sign in to view your profile details.</div>
+        <div id="profileContent" style="display:none;">
         <div class="profile-label">Name</div>
         <input type="text" id="profileName" class="profile-input" value="Jemar Eden">
         <div class="profile-divider"></div>
@@ -348,6 +360,7 @@
         </div>
     <button class="profile-save-btn" onclick="saveProfile()">Save</button>
     <button class="profile-signout-btn" id="signOutBtn" onclick="signOut()">Sign Out</button>
+        </div>
                 </div>
             </div>
             <footer class="footer-section">
@@ -795,6 +808,24 @@
             });
         }catch(e){ /* ignore */ }
     }
+
+    function isUserLoggedIn(){
+        try{
+            var token = localStorage.getItem('authToken');
+            if(token) return true;
+            if(window.firebase && firebase.auth && firebase.auth().currentUser) return true;
+        }catch(e){ /* ignore */ }
+        return false;
+    }
+
+    function setProfileVisibility(){
+        var note = document.getElementById('profileGuestNote');
+        var content = document.getElementById('profileContent');
+        var loggedIn = isUserLoggedIn();
+        if(content) content.style.display = loggedIn ? 'block' : 'none';
+        if(note) note.style.display = loggedIn ? 'none' : 'block';
+        return loggedIn;
+    }
     // Save profile (persist to localStorage)
     function saveProfile() {
         var name = document.getElementById('profileName').value.trim();
@@ -894,6 +925,7 @@
     }
     // Populate profile inputs from localStorage if available and auto-save on change
     document.addEventListener('DOMContentLoaded', function(){
+        var loggedIn = setProfileVisibility();
         try{
             var p = JSON.parse(localStorage.getItem('profile') || 'null');
             if(p){
@@ -950,6 +982,7 @@
         window.addEventListener('storage', function(e){
             try{
                 if(e.key === 'profile' || e.key === 'profile_updated_at'){
+                    setProfileVisibility();
                     var np = JSON.parse(localStorage.getItem('profile') || 'null');
                     if(np){
                         if(document.getElementById('profileName')) document.getElementById('profileName').value = np.name || '';
@@ -965,6 +998,12 @@
                 }
             }catch(ex){/* ignore */}
         });
+
+        // Ensure profile remains hidden if not logged in
+        if(!loggedIn){
+            var content = document.getElementById('profileContent');
+            if(content) content.style.display = 'none';
+        }
     });
     // Add address (stub)
     function addAddress() {
