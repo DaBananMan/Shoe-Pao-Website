@@ -518,13 +518,15 @@
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
     const id = color.id || firebaseState.db.collection('variants').doc().id;
     const normalizedImages = normalizeVariantImages(color.images || [], color.image || '');
+    // Sanitize images: prefer URLs when present, otherwise allow small data URIs
+    const safeImages = sanitizeVariantImagesForFirestore(normalizedImages);
     const payload = {
       id: id,
       productId: productId,
       colorName: color.name || '',
       colorCode: color.code || '',
-      image: normalizedImages.find(x => x && String(x).trim()) || '',
-      images: normalizedImages,
+  image: safeImages.find(x => x && String(x).trim()) || '',
+  images: safeImages,
       // store sizes as an array of { eu, stock, sku }
       sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), criticalLevel: clampNum(parseNum(s.criticalLevel, defaultCriticalLevel()), 1, 999), sku: s.sku || '' })) : []
     };
@@ -617,8 +619,9 @@
             productId: pid,
             colorName: c.name || '',
             colorCode: c.code || '',
-            image: normalizedImages.find(x => x && String(x).trim()) || '',
-            images: normalizedImages,
+            // sanitize images to strip embedded data URIs before batching to Firestore
+            image: (Array.isArray(normalizedImages) ? sanitizeVariantImagesForFirestore(normalizedImages).find(x => x && String(x).trim()) : '') || '',
+            images: (Array.isArray(normalizedImages) ? sanitizeVariantImagesForFirestore(normalizedImages) : []),
             sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock,0), criticalLevel: clampNum(parseNum(s.criticalLevel, defaultCriticalLevel()), 1, 999), sku: s.sku || '' })) : []
           };
           localVariantsMap.set(String(vid), payload);
@@ -735,6 +738,35 @@
       return { id: out.id || out.sku || uid('prod'), brand: out.brand || '', model: out.model || '', sku: out.sku || '' };
     }
     return out;
+  }
+
+  // Prepare variant images for Firestore: prefer URL-like values when present.
+  // If any URL is present in the array, keep only URL-like entries and strip data URIs.
+  // If no URLs are present, keep small data URIs (<=100KB) to allow inline use in dev,
+  // otherwise strip to avoid oversized documents.
+  function sanitizeVariantImagesForFirestore(arr) {
+    if (!Array.isArray(arr)) return [];
+    const isUrl = v => typeof v === 'string' && /^(https?:)?\/\//i.test(v) || (typeof v === 'string' && v.startsWith('/'));
+    const isData = v => typeof v === 'string' && v.startsWith && v.startsWith('data:');
+    const containsUrl = arr.some(isUrl);
+    const maxDataUri = 100 * 1024; // 100 KB
+    return arr.map(v => {
+      try {
+        if (containsUrl) {
+          return isUrl(v) ? v : '';
+        } else {
+          if (isUrl(v)) return v;
+          if (isData(v)) {
+            // keep only reasonably sized data URIs in dev
+            if (v.length <= maxDataUri) return v;
+            return '';
+          }
+          // treat other strings as potential relative paths or short keys
+          if (typeof v === 'string' && v.trim()) return v;
+          return '';
+        }
+      } catch (e) { return ''; }
+    });
   }
 
   function newColor(name, code) {
@@ -1853,13 +1885,15 @@
               ? `<img src="${img}" alt="${color.name} ${label}">`
               : `<div class="variant-image-placeholder">${label}</div>`;
             return `
-              <div class="variant-image-slot" data-index="${idx}">
+              <div class="variant-image-row" data-index="${idx}">
                 <div class="variant-image-preview">${preview}</div>
-                <div class="variant-image-actions">
+                <div class="variant-image-controls">
                   <label class="secondary small-btn">
                     <input type="file" accept="image/*" data-action="variant-image-upload" data-color="${color.id}" data-index="${idx}">
                     Upload
                   </label>
+                  <input type="text" class="variant-image-url" placeholder="Image URL" data-color="${color.id}" data-index="${idx}" value="${img || ''}">
+                  <button type="button" class="secondary small-btn" data-action="variant-image-seturl" data-color="${color.id}" data-index="${idx}">Set URL</button>
                   <button type="button" class="ghost danger-text small-btn" data-action="variant-image-remove" data-color="${color.id}" data-index="${idx}">Remove</button>
                 </div>
               </div>`;
@@ -1967,6 +2001,30 @@
       c.images[idx] = '';
       applyColorImages(c);
       saveAll(); openVariantModal(p.id);
+    }));
+
+    // Bind set URL buttons
+    editor.querySelectorAll('[data-action="variant-image-seturl"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const idx = parseNum(btn.dataset.index, 0);
+      const input = editor.querySelector(`.variant-image-url[data-color="${colorId}"][data-index="${idx}"]`);
+      const url = input && String(input.value || '').trim();
+      if (!url) { alert('Enter an image URL'); return; }
+      const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
+      const c = p.colors.find(y => y.id === colorId);
+      if (!c) return;
+      c.images[idx] = url;
+      applyColorImages(c);
+      saveAll(); openVariantModal(p.id);
+    }));
+
+    // Bind Enter key on URL inputs to set the URL
+    editor.querySelectorAll('.variant-image-url').forEach(inp => inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const btn = editor.querySelector(`[data-action="variant-image-seturl"][data-color="${inp.dataset.color}"][data-index="${inp.dataset.index}"]`);
+        if (btn) btn.click();
+      }
     }));
 
     // Bind clear all images
