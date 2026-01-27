@@ -667,7 +667,7 @@
                 <span>Total</span>
                 <span id="checkoutTotal">₱0.00</span>
             </div>
-            <div id="orderLimitMsg" style="display:none;color:#b71c1c;font-size:0.95rem;margin-top:8px;">Maximum of 3 pairs per product (all sizes combined).</div>
+            <div id="orderLimitMsg" style="display:none;color:#b71c1c;font-size:0.95rem;margin-top:8px;">Maximum order limit is 3 items only, cannot exceed stock.</div>
         </div>
     </div>
     <!-- Address book modal -->
@@ -1957,7 +1957,7 @@
             if(overLimit){
                 var limitEl = document.getElementById('orderLimitMsg');
                 if(limitEl) limitEl.style.display = 'block';
-                alert('Maximum of 3 pairs per product (all sizes combined).');
+                alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
                 return;
             }
             localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartNow));
@@ -2434,9 +2434,9 @@
                     if (!isNaN(idx) && cart[idx]) {
                         if (window.tryIncrementCartItem) {
                             var incRes = window.tryIncrementCartItem(cart, idx);
-                            if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                            if (incRes && incRes.success === false && (incRes.reason === 'max_pairs' || incRes.reason === 'max_reached')) {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 pairs per product (all sizes combined).');
+                                else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
                                 return;
                             }
                         } else {

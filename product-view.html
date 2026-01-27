@@ -3350,14 +3350,15 @@ On page.</div>
                                 var incRes = window.tryIncrementCartItem(cart, idx);
                                 if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                     if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                    else alert('Maximum of 3 items per order allowed.');
+                                    else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
                                     return;
                                 }
                                 if (incRes && incRes.success === false && incRes.reason === 'max_reached') {
                                     var cStockEl = document.getElementById('sizeStock');
-                                    var maxAllowed = incRes.maxAllowed || 1;
-                                    if (cStockEl) { cStockEl.style.color = '#b71c1c'; cStockEl.textContent = 'Limit reached: you can only buy up to ' + maxAllowed + ' of this size.'; }
-                                    else alert('Limit reached: you can only buy up to ' + maxAllowed + ' of this size.');
+                                    var limitMsg = (window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
+                                    if (cStockEl) { cStockEl.style.color = '#b71c1c'; cStockEl.textContent = limitMsg; }
+                                    else if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                    else alert(limitMsg);
                                     return;
                                 }
                             } else {
@@ -3479,9 +3480,7 @@ On page.</div>
                             // show inline message when add failed
                             var msg = 'Unable to add to cart.';
                             if (res && res.reason === 'unavailable') msg = 'This product is currently unavailable.';
-                            else if (res && res.reason === 'out_of_stock') msg = 'This size is out of stock.';
-                            else if (res && res.reason === 'max_reached') msg = 'You can only add up to ' + (res.maxAllowed || 1) + ' of this size.';
-                            else if (res && res.reason === 'max_pairs') msg = 'Maximum of 3 items per product allowed.';
+                            else if (res && (res.reason === 'out_of_stock' || res.reason === 'max_reached' || res.reason === 'max_pairs')) msg = (window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
                             if (elStock) { elStock.style.color = '#b71c1c'; elStock.textContent = msg; }
                             else alert(msg);
                         }

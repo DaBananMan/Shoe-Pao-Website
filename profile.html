@@ -1262,9 +1262,9 @@
                     if (!isNaN(idx) && cart[idx]) {
                         if (window.tryIncrementCartItem) {
                             var incRes = window.tryIncrementCartItem(cart, idx);
-                            if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
+                            if (incRes && incRes.success === false && (incRes.reason === 'max_pairs' || incRes.reason === 'max_reached')) {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 pairs of shoes per order.');
+                                else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
                                 return;
                             }
                         } else {
