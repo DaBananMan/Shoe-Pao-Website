@@ -40,10 +40,26 @@
     return Number.isFinite(crit) ? stock <= crit : false;
   }
 
+  function normalizeDataUri(src) {
+    if (typeof src !== 'string') return '';
+    const trimmed = src.trim();
+    if (!trimmed) return '';
+    if (!trimmed.toLowerCase().startsWith('data:')) return trimmed;
+    const match = trimmed.match(/^data:([^;,]+)(;base64)?,(.*)$/i);
+    if (!match) return '';
+    const mime = (match[1] || '').toLowerCase();
+    const isBase64 = !!match[2];
+    const payload = match[3] || '';
+    if (!mime.startsWith('image/')) return '';
+    if (!isBase64) return '';
+    if (!payload || !/^[A-Za-z0-9+/=\s]+$/.test(payload)) return '';
+    return trimmed;
+  }
+
   function normalizeVariantImages(images) {
     const arr = Array.isArray(images) ? images.slice(0, 4) : [];
     while (arr.length < 4) arr.push('');
-    return arr.map(x => (x || '').trim());
+    return arr.map(x => normalizeDataUri((x || '').trim()));
   }
 
   function qrImageUrlFor(data, size) {
@@ -215,7 +231,9 @@
       const idx = parseNum(e.target.dataset.index, 0);
       const fr = new FileReader();
       fr.onload = () => {
-        color.images[idx] = fr.result;
+        const normalized = normalizeDataUri(fr.result);
+        if (!normalized) { alert('Invalid image file. Please choose a different image.'); return; }
+        color.images[idx] = normalized;
         renderColors();
       };
       fr.onerror = () => alert('Failed to read image file.');
@@ -388,6 +406,18 @@
   async function persistProduct(product) {
     if (!firebaseState.enabled || !firebaseState.db) {
       alert('Firebase is not available, so the product cannot be saved.');
+      return;
+    }
+    const hasInvalidInline = (arr) => Array.isArray(arr) && arr.some(src => {
+      const val = String(src || '').trim();
+      return val.toLowerCase().startsWith('data:') && !normalizeDataUri(val);
+    });
+    if (hasInvalidInline(product.images)) {
+      alert('Product images contain invalid data. Please remove and re-upload those images.');
+      return;
+    }
+    if (Array.isArray(product.colors) && product.colors.some(c => hasInvalidInline(c.images))) {
+      alert('Variant images contain invalid data. Please remove and re-upload those images.');
       return;
     }
     await ensureAuth();
