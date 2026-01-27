@@ -7,7 +7,7 @@
     try{ sa = require(saPath); }catch(e){ console.error('service-account.json not found or invalid', e); process.exit(2); }
     if(!admin.apps || !admin.apps.length) admin.initializeApp({ credential: admin.credential.cert(sa) });
 
-    const email = process.env.ADMIN_DEFAULT_EMAIL || 'admin@localhost';
+  const email = process.env.ADMIN_DEFAULT_EMAIL || 'admin@gmail.com';
     const password = process.env.ADMIN_DEFAULT_PASSWORD || 'password';
     const disable = String(process.env.ADMIN_DISABLE_AUTO_CREATE || '').toLowerCase() === 'true';
     if(disable){ console.log('Auto-create disabled via ADMIN_DISABLE_AUTO_CREATE'); process.exit(0); }
