@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="shoepao-dev-admin" content="true">
     <title>Shoe Pao — Inventory</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -25,14 +26,18 @@
             --border: #e6e6e6;
         }
             /* Report header layout: stack title and descriptor, left-aligned */
-            .tab-reports .reports-grid .card .header-line { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
-            .tab-reports .reports-grid .card .card-desc { color: var(--muted); font-size:0.95rem; margin:0; }
-            /* Make report lists vertical and left-aligned under the descriptor */
-            .tab-reports .reports-grid .card .collapsible { margin:6px 0 0 0; padding-left:18px; list-style: disc inside; }
-            .tab-reports .reports-grid .card .summary { margin:6px 0 0 0; }
-            .tab-reports .reports-grid .card .card-values { margin:4px 0 0 0; padding-left:18px; list-style: disc inside; font-size:0.95rem; }
-            .tab-reports .reports-grid .card .card-values li { margin:2px 0; }
-            .tab-reports .reports-grid .card .collapsible .placeholder { color: var(--muted); font-style: italic; }
+                #tab-reports .reports-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+                #tab-reports .reports-grid .card { padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+                #tab-reports .reports-grid .card .header-line { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+                #tab-reports .reports-grid .card .header-line h3 { margin: 0; font-size: 1.05rem; }
+                /* Descriptor (e.g. "Top 5 sizes") should be left-aligned and sit between the header and the values */
+                #tab-reports .reports-grid .card .card-desc { color: var(--muted); font-size:0.92rem; margin:0 0 8px 0; text-align:left; display:block; }
+                /* Make report lists vertical and left-aligned under the descriptor */
+                #tab-reports .reports-grid .card .collapsible { margin:6px 0 0 0; padding-left:18px; list-style: disc inside; }
+                #tab-reports .reports-grid .card .summary { margin:6px 0 0 0; }
+                #tab-reports .reports-grid .card .card-values { margin:4px 0 0 0; padding-left:18px; list-style: disc inside; font-size:0.95rem; }
+                #tab-reports .reports-grid .card .card-values li { margin:2px 0; }
+                #tab-reports .reports-grid .card .collapsible .placeholder { color: var(--muted); font-style: italic; }
     </style>
 </head>
 <body>
@@ -135,7 +140,8 @@
         appId: "1:590509920226:web:9daf77b2841e3d699633bb",
         measurementId: "G-JD4WGCKFQC"
       };
-            window.ALLOW_ANON_SIGNIN = true;
+            // Don't auto enable anonymous sign-in; set to true explicitly when needed.
+            window.ALLOW_ANON_SIGNIN = false;
     </script>
 
     <!-- Firebase CDN (compat) - light and simple for this static site -->
@@ -1025,7 +1031,7 @@
             try{ updateReportsFromOrders(orders); }catch(e){ console.error('reports update failed', e); }
         }
 
-        document.addEventListener('DOMContentLoaded', function(){
+    document.addEventListener('DOMContentLoaded', async function(){
             // Reports are always visible; set static header descriptors so users
             // see descriptive labels immediately (avoid temporary "No sales" text).
             try{
@@ -1046,9 +1052,14 @@
                 });
             }catch(e){}
 
-            // Initial load + polling so Sales updates continuously. The polling keeps
-            // the underlying report data fresh even when users toggle visibility.
-            loadSalesLog().catch(function(e){ console.error(e); });
+            // Initial load + polling so Sales updates continuously. Use PageDataGate
+            // to buffer the UI until the reports data is ready so we don't show
+            // stale/default values while loading.
+            try{ if(window.PageDataGate && PageDataGate.block) PageDataGate.block('Loading reports...'); }catch(e){}
+            try{
+                await loadSalesLog();
+            }catch(e){ console.error(e); try{ if(window.PageDataGate && PageDataGate.error) PageDataGate.error('Unable to load reports.'); }catch(_){} }
+            try{ if(window.PageDataGate && PageDataGate.ready) PageDataGate.ready(); }catch(e){}
             try{ setInterval(function(){ loadSalesLog().catch(function(e){ console.error('reload sales', e); }); }, 5000); }catch(e){}
         });
         window.reloadSalesLog = loadSalesLog;

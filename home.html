@@ -1450,7 +1450,7 @@
         window.location.href = 'product-list.html';
     }
     // User page
-    function goToUserPage() { window.location.href = 'profile.html'; }
+    function goToUserPage() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { window.location.href = 'profile.html'; } }catch(e){ window.location.href = 'profile.html'; } }
     // Cart page
     function goToCartPage() {
         window.location.href = 'cart.html';

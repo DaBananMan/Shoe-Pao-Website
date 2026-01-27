@@ -112,7 +112,7 @@
   <script>
     function goToFAQ(){ window.location.href='privacy.html'; }
     function goToProductList(){ window.location.href='product-list.html'; }
-    function goToUserPage(){ try{ var p=JSON.parse(localStorage.getItem('profile')||'null'); if(!p||!p.email){ window.location.href='login.html'; return;} }catch(e){ window.location.href='login.html'; return;} window.location.href='profile.html'; }
+  function goToUserPage(){ try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { try{ var p=JSON.parse(localStorage.getItem('profile')||'null'); if(!p||!p.email){ window.location.href='login.html'; return;} }catch(e){ window.location.href='login.html'; return;} window.location.href='profile.html'; } }catch(e){ window.location.href='login.html'; } }
     function toggleSearchBox(){ var box=document.getElementById('searchBox'); box.style.display=(box.style.display==='block')?'none':'block'; if(box.style.display==='block'){ document.getElementById('searchInput').focus(); } }
     function searchKeyDown(e){ if(e.key==='Enter'){ var v=document.getElementById('searchInput').value.trim(); if(v){ window.location.href='product-list.html?search='+encodeURIComponent(v); } } }
   </script>

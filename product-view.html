@@ -1774,7 +1774,9 @@ On page.</div>
         }catch(e){ if(cb) cb(e); }
     }
     // Allow anonymous sign-in to read stock when rules require auth
-    try{ if(window.ALLOW_ANON_SIGNIN === undefined) window.ALLOW_ANON_SIGNIN = true; }catch(e){}
+    // Default to disabled to avoid accidental anonymous accounts; set
+    // window.ALLOW_ANON_SIGNIN = true explicitly on pages that need it.
+    try{ if(window.ALLOW_ANON_SIGNIN === undefined) window.ALLOW_ANON_SIGNIN = false; }catch(e){}
 
     var productViewReady = false;
     function markViewReady(){
@@ -2151,10 +2153,7 @@ On page.</div>
     function goToProductList() {
         window.location.href = 'product-list.html';
     }
-    function goToUserPage() {
-    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
-    }
+    function goToUserPage() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } }catch(e){ window.location.href = 'login.html'; } }
     function goToCartPage() {
         window.location.href = 'cart.html';
     }

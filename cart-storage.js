@@ -282,7 +282,7 @@ function addToCart(product) {
             if(!fbUser){
                 try{ var returnUrl = window.location.pathname + window.location.search; }catch(e){ var returnUrl = '' }
                 var redirect = 'login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl);
-                try{ alert('Please sign in to add items to your cart. You will be redirected to the login page.'); }catch(e){}
+                try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){}
                 window.location.href = redirect;
                 return { success: false, reason: 'login_required' };
             }
@@ -292,7 +292,7 @@ function addToCart(product) {
             if(!profile || !profile.email){
                 try{ var returnUrl = window.location.pathname + window.location.search; }catch(e){ var returnUrl = '' }
                 var redirect = 'login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl);
-                try{ alert('Please sign in to add items to your cart. You will be redirected to the login page.'); }catch(e){}
+                try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){}
                 window.location.href = redirect;
                 return { success: false, reason: 'login_required' };
             }
@@ -605,16 +605,42 @@ window.ensureSignedInOrRedirect = function(returnUrl){
             var u = firebase.auth().currentUser;
             if(!u){
                 var redirect = 'login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl);
-                try{ alert('Please sign in to continue. Redirecting to login.'); }catch(e){}
+                try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){}
                 window.location.href = redirect;
                 return false;
             }
             return true;
         }
-        // No firebase available — fall back to localStorage profile
-        try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ var redirect='login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl); window.location.href = redirect; return false; } }catch(e){ window.location.href = 'login.html'; return false; }
+    // No firebase available — fall back to localStorage profile
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ var redirect='login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl); try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){} window.location.href = redirect; return false; } }catch(e){ window.location.href = 'login.html'; return false; }
         return true;
     }catch(e){ return false; }
+};
+
+// Robust profile navigation helper used by header/profile icon logic.
+// Ensures the user is signed in before navigating to profile.html. If not signed in,
+// redirects to login.html with an optional return parameter.
+window.handleGoToProfile = function(returnUrl){
+    try{
+        // Prefer Firebase auth when available
+        if(window.firebase && firebase.auth){
+            var u = firebase.auth().currentUser;
+            if(u && u.uid){
+                window.location.href = 'profile.html';
+                return true;
+            }
+            // Not signed in according to Firebase — force login
+            var redirect = 'login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl);
+            try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){}
+            window.location.href = redirect;
+            return false;
+        }
+
+    // No Firebase available — fall back to localStorage `profile`
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ var redirect='login.html'; if(returnUrl) redirect += '?return=' + encodeURIComponent(returnUrl); try{ alert('Please sign in first to continue. Redirecting to login.'); }catch(e){} window.location.href = redirect; return false; } }catch(e){ window.location.href = 'login.html'; return false; }
+        window.location.href = 'profile.html';
+        return true;
+    }catch(e){ try{ window.location.href = 'login.html'; }catch(_){ } return false; }
 };
 
 // Remove all locally-stored data associated with a given email (orders, profile, cart, wishlist)

@@ -2309,8 +2309,14 @@
           }
           if(odRate){
             try{
-              var showRateBtn = (s === 'delivered' || String(displayStatus||'').toLowerCase() === 'delivered');
+              var displayLower = String(displayStatus||'').toLowerCase();
+              // Show the client-facing "Order received" / rate button when the order
+              // has reached Out for delivery (including simulated timeline) or when
+              // it is delivered. This allows the client to acknowledge receipt while
+              // the courier is performing the final delivery step.
+              var showRateBtn = (s === 'delivered' || displayLower === 'delivered' || s === 'out for delivery' || displayLower === 'out for delivery' || hasOutForDelivery);
               odRate.style.display = (showRateBtn ? '' : 'none');
+              try{ odRate.textContent = (s === 'out for delivery' || displayLower === 'out for delivery' || hasOutForDelivery) ? 'Order received' : 'Rate Order'; }catch(e){}
               odRate.onclick = function(){ try{ rateOrder(); }catch(e){ console.warn('rateOrder click failed', e); } };
             }catch(e){ odRate.style.display = 'none'; }
           }

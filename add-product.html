@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="shoepao-dev-admin" content="true">
   <title>Shoe Pao — Add Product</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -197,7 +198,9 @@
       appId: "1:590509920226:web:9daf77b2841e3d699633bb",
       measurementId: "G-JD4WGCKFQC"
     };
-    window.ALLOW_ANON_SIGNIN = true;
+  // Keep anonymous sign-in off by default to avoid creating accidental anon users.
+  // Set window.ALLOW_ANON_SIGNIN = true explicitly if you understand the tradeoffs.
+  window.ALLOW_ANON_SIGNIN = false;
   </script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
