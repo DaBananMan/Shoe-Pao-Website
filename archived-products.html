@@ -56,7 +56,6 @@
         <div class="header-actions">
             <button id="addProductBtn" class="primary">Add Product</button>
             <button id="exportInventoryBtn" class="secondary" title="Export inventory table to a Word document">Export to Word</button>
-            <a class="secondary" href="inventory.html">Back to Inventory</a>
             <div class="searchbar">
                 <input id="searchInput" type="text" placeholder="Search brand, model, color, size" />
                 <select id="filterBrand"><option value="">All Brands</option></select>
@@ -68,6 +67,7 @@
         </div>
         <nav class="tabs">
             <button data-tab="inventory" class="active">Inventory</button>
+            <button id="archivedPageBtn" class="secondary" type="button" onclick="window.location.href='archived-products.html'">Archived Page</button>
             <button data-tab="sales">Sales</button>
             <button data-tab="reports">Reports</button>
             <button data-tab="alerts">Alerts</button>

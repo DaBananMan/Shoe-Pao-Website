@@ -13,6 +13,29 @@ function getCart() {
     return JSON.parse(localStorage.getItem('cart') || '[]');
 }
 
+function getStoredProfile(){
+    try{ return JSON.parse(localStorage.getItem('profile') || 'null'); }catch(e){ return null; }
+}
+
+function hasValidEmail(profile){
+    if(!profile || !profile.email) return false;
+    return String(profile.email || '').trim().length > 0;
+}
+
+function hasAuthToken(){
+    try{ return String(localStorage.getItem('authToken') || '').trim().length > 0; }catch(e){ return false; }
+}
+
+function hasAuthMarker(profile){
+    if(!profile) return false;
+    return !!(profile.uid || profile.provider || profile.loggedAt || profile.role);
+}
+
+function isLoggedInUser(){
+    var p = getStoredProfile();
+    return hasValidEmail(p) && hasAuthToken() && hasAuthMarker(p);
+}
+
 var MAX_PAIRS_PER_ORDER = 3;
 
 function getItemQty(item){
@@ -23,7 +46,7 @@ function normalizeProductStatus(raw){
     var s = String(raw || '').toLowerCase().trim();
     if(!s || s === 'active' || s === 'published') return 'published';
     if(s === 'archived' || s === 'archive') return 'archive';
-    if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden') return 'unpublished';
+    if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden' || s === 'inactive' || s === 'disabled' || s === 'unavailable') return 'unpublished';
     return s;
 }
 
@@ -366,6 +389,11 @@ function validateCartItemsForCheckout(items){
 
 async function handleCheckoutFromCart(ev){
     try{ if(ev){ ev.preventDefault(); ev.stopPropagation(); } }catch(_){ }
+    if(!isLoggedInUser()){
+        try{ localStorage.setItem('postLoginRedirect', 'checkout.html'); }catch(e){}
+        try{ window.location.href = 'login.html?return=' + encodeURIComponent('checkout.html'); }catch(e){ window.location.href = 'login.html'; }
+        return false;
+    }
     var cart = getCart();
     var selected = getSelectedCartItems(cart);
     if(!Array.isArray(selected) || selected.length === 0){

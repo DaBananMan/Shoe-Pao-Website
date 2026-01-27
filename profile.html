@@ -229,6 +229,25 @@
             display: block;
         }
         .profile-signout-btn:hover { background: #b71c1c; color: #fff; }
+        .guest-banner {
+            background: #fff8f0;
+            border: 1px solid #f1d5b5;
+            color: #7a4b1f;
+            border-radius: 12px;
+            padding: 16px 18px;
+            margin: 14px 0 22px 0;
+            box-shadow: 0 1px 6px rgba(122,75,31,0.08);
+        }
+        .guest-title {
+            font-size: 1.08rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .guest-text {
+            font-size: 0.98rem;
+            color: #6b3f19;
+            line-height: 1.5;
+        }
         @media (max-width: 900px) {
             .profile-main {
                 max-width: 98vw;
@@ -265,89 +284,95 @@
     <div class="profile-main">
         <div class="profile-header">Profile</div>
         <div class="profile-divider"></div>
-        <div class="profile-label">Name</div>
-        <input type="text" id="profileName" class="profile-input" value="Jemar Eden">
-        <div class="profile-divider"></div>
-        <div class="profile-label">Email</div>
-        <input type="email" id="profileEmail" class="profile-input" value="useraccount@gmail.com">
-        <div class="profile-label">Address</div>
-        <div class="profile-address-box">
-            <div class="profile-address-main" id="profileAddressMain">Jemar Eden, BLK 69 LOT 18 Fairview</div>
-            <div class="profile-address-details" id="profileAddressDetails">QUEZON CITY, 1118, PH</div>
+        <div id="guestNotice" class="guest-banner" style="display:none;">
+            <div class="guest-title">Guest Mode</div>
+            <div class="guest-text">Please sign in to view and manage your profile information. Profile details are available only to authenticated users.</div>
         </div>
-        <div class="profile-address-plus" onclick="addAddress()"><img src="IMAGE/Plus.png" alt="Plus">Use a different address</div>
-        <div id="profileAddressEditor" class="profile-address-editor" style="display:none;margin-top:10px"> 
-            <div class="profile-label">Edit address</div>
-            <div class="address-grid">
-                <label class="address-field address-field-full">
-                    <span class="address-label">Full name</span>
-                    <input id="profileFullNameInput" type="text" placeholder="Recipient full name" />
-                </label>
-                <label class="address-field address-field-full">
-                    <span class="address-label">Region</span>
-                    <select id="profileRegionSelect" aria-label="Region">
-                        <option value="">Select region</option>
-                    </select>
-                </label>
-                <label class="address-field">
-                    <span class="address-label">Province</span>
-                    <select id="profileProvinceSelect" aria-label="Province" disabled>
-                        <option value="">Select province</option>
-                    </select>
-                </label>
-                <label class="address-field">
-                    <span class="address-label">City / Municipality</span>
-                    <select id="profileCitySelect" aria-label="City or municipality" disabled>
-                        <option value="">Select city/municipality</option>
-                    </select>
-                </label>
-                <label class="address-field">
-                    <span class="address-label">Barangay</span>
-                    <select id="profileBarangaySelect" aria-label="Barangay" disabled>
-                        <option value="">Select barangay</option>
-                    </select>
-                </label>
-                <label class="address-field address-field-full">
-                    <span class="address-label">Street / Building / House No.</span>
-                    <input id="profileStreetInput" type="text" placeholder="House no., Street, Subdivision" />
-                </label>
-                <label class="address-field">
-                    <span class="address-label">Postal code</span>
-                    <input id="profilePostalInput" type="text" placeholder="e.g. 1118" maxlength="4" inputmode="numeric" pattern="\d{4}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)" />
-                </label>
+        <div id="profileContent">
+            <div class="profile-label">Name</div>
+            <input type="text" id="profileName" class="profile-input" value="Jemar Eden">
+            <div class="profile-divider"></div>
+            <div class="profile-label">Email</div>
+            <input type="email" id="profileEmail" class="profile-input" value="useraccount@gmail.com">
+            <div class="profile-label">Address</div>
+            <div class="profile-address-box">
+                <div class="profile-address-main" id="profileAddressMain">Jemar Eden, BLK 69 LOT 18 Fairview</div>
+                <div class="profile-address-details" id="profileAddressDetails">QUEZON CITY, 1118, PH</div>
             </div>
-            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-                <button id="profileAddressCancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer">Cancel</button>
-                <button id="profileAddressSave" style="padding:8px 12px;border-radius:8px;border:0;background:#000;color:#fff;cursor:pointer">Save</button>
+            <div class="profile-address-plus" onclick="addAddress()"><img src="IMAGE/Plus.png" alt="Plus">Use a different address</div>
+            <div id="profileAddressEditor" class="profile-address-editor" style="display:none;margin-top:10px"> 
+                <div class="profile-label">Edit address</div>
+                <div class="address-grid">
+                    <label class="address-field address-field-full">
+                        <span class="address-label">Full name</span>
+                        <input id="profileFullNameInput" type="text" placeholder="Recipient full name" />
+                    </label>
+                    <label class="address-field address-field-full">
+                        <span class="address-label">Region</span>
+                        <select id="profileRegionSelect" aria-label="Region">
+                            <option value="">Select region</option>
+                        </select>
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Province</span>
+                        <select id="profileProvinceSelect" aria-label="Province" disabled>
+                            <option value="">Select province</option>
+                        </select>
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">City / Municipality</span>
+                        <select id="profileCitySelect" aria-label="City or municipality" disabled>
+                            <option value="">Select city/municipality</option>
+                        </select>
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Barangay</span>
+                        <select id="profileBarangaySelect" aria-label="Barangay" disabled>
+                            <option value="">Select barangay</option>
+                        </select>
+                    </label>
+                    <label class="address-field address-field-full">
+                        <span class="address-label">Street / Building / House No.</span>
+                        <input id="profileStreetInput" type="text" placeholder="House no., Street, Subdivision" />
+                    </label>
+                    <label class="address-field">
+                        <span class="address-label">Postal code</span>
+                        <input id="profilePostalInput" type="text" placeholder="e.g. 1118" maxlength="4" inputmode="numeric" pattern="\d{4}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)" />
+                    </label>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+                    <button id="profileAddressCancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer">Cancel</button>
+                    <button id="profileAddressSave" style="padding:8px 12px;border-radius:8px;border:0;background:#000;color:#fff;cursor:pointer">Save</button>
+                </div>
+                <div id="profileAddressHint" class="address-hint">Select region to load PSGC provinces and cities.</div>
             </div>
-            <div id="profileAddressHint" class="address-hint">Select region to load PSGC provinces and cities.</div>
+            <div class="profile-section-divider"></div>
+            <div class="profile-label">Contact Number</div>
+            <div class="profile-phone-row">
+                <span class="profile-phone-prefix">+63</span>
+                <input type="text" id="profilePhone" class="profile-phone-input" maxlength="12" pattern="[0-9]{3} [0-9]{3} [0-9]{4}" placeholder="xxx xxx xxxx" value="917 265 5421" oninput="formatPhone(this)">
+            </div>
+            <div class="profile-section-divider"></div>
+            <div class="profile-security-header">Security</div>
+            <div class="profile-password-label">Change password</div>
+            <div class="profile-password-label" style="font-size:0.98rem;font-weight:400;">Current Password</div>
+            <div class="profile-password-row">
+                <input type="password" id="currentPassword" class="profile-password-input">
+                <span class="profile-password-toggle" onclick="togglePassword('currentPassword', this)"><img src="IMAGE/ToggleHideButton.png" alt="Hide"> Hide</span>
+            </div>
+            <div class="profile-password-label" style="font-size:0.98rem;font-weight:400;">New Password</div>
+            <div class="profile-password-row">
+                <input type="password" id="newPassword" class="profile-password-input">
+                <span class="profile-password-toggle" onclick="togglePassword('newPassword', this)"><img src="IMAGE/ToggleHideButton.png" alt="Hide"> Hide</span>
+            </div>
+            <div class="profile-password-label" style="font-size:0.98rem;font-weight:400;">Confirm Password</div>
+            <div class="profile-password-row">
+                <input type="password" id="confirmPassword" class="profile-password-input">
+                <span class="profile-password-toggle" onclick="togglePassword('confirmPassword', this)"><img src="IMAGE/ToggleHideButton.png" alt="Hide"> Hide</span>
+            </div>
+            <button class="profile-save-btn" onclick="saveProfile()">Save</button>
+            <button class="profile-signout-btn" id="signOutBtn" onclick="signOut()">Sign Out</button>
         </div>
-        <div class="profile-section-divider"></div>
-        <div class="profile-label">Contact Number</div>
-        <div class="profile-phone-row">
-            <span class="profile-phone-prefix">+63</span>
-            <input type="text" id="profilePhone" class="profile-phone-input" maxlength="12" pattern="[0-9]{3} [0-9]{3} [0-9]{4}" placeholder="xxx xxx xxxx" value="917 265 5421" oninput="formatPhone(this)">
-        </div>
-        <div class="profile-section-divider"></div>
-        <div class="profile-security-header">Security</div>
-        <div class="profile-password-label">Change password</div>
-        <div class="profile-password-label" style="font-size:0.98rem;font-weight:400;">Current Password</div>
-        <div class="profile-password-row">
-            <input type="password" id="currentPassword" class="profile-password-input">
-            <span class="profile-password-toggle" onclick="togglePassword('currentPassword', this)"><img src="IMAGE/ToggleHideButton.png" alt="Hide"> Hide</span>
-        </div>
-        <div class="profile-password-label" style="font-size:0.98rem;font-weight:400;">New Password</div>
-        <div class="profile-password-row">
-            <input type="password" id="newPassword" class="profile-password-input">
-            <span class="profile-password-toggle" onclick="togglePassword('newPassword', this)"><img src="IMAGE/ToggleHideButton.png" alt="Hide"> Hide</span>
-        </div>
-        <div class="profile-password-label" style="font-size:0.98rem;font-weight:400;">Confirm Password</div>
-        <div class="profile-password-row">
-            <input type="password" id="confirmPassword" class="profile-password-input">
-            <span class="profile-password-toggle" onclick="togglePassword('confirmPassword', this)"><img src="IMAGE/ToggleHideButton.png" alt="Hide"> Hide</span>
-        </div>
-    <button class="profile-save-btn" onclick="saveProfile()">Save</button>
-    <button class="profile-signout-btn" id="signOutBtn" onclick="signOut()">Sign Out</button>
                 </div>
             </div>
             <footer class="footer-section">
@@ -467,6 +492,119 @@
         return { main: main, details: details };
     }
 
+    function generateAddressId(){ return 'addr_' + Date.now() + '_' + Math.floor(Math.random() * 1000000); }
+
+    function normalizeAddressEntry(entry){
+        if(!entry) return entry;
+        var line2Parts = [];
+        var brgyName = entry.barangay && entry.barangay.name ? entry.barangay.name : entry.barangay;
+        var cityName = entry.city && entry.city.name ? entry.city.name : entry.city;
+        var provName = entry.province && entry.province.name ? entry.province.name : entry.province;
+        var regName = entry.region && entry.region.name ? entry.region.name : entry.region;
+        if(brgyName) line2Parts.push(brgyName);
+        if(cityName) line2Parts.push(cityName);
+        if(provName) line2Parts.push(provName);
+        if(regName) line2Parts.push(regName);
+        if(entry.postalCode) line2Parts.push(entry.postalCode);
+        entry.line1 = entry.line1 || ((entry.fullName ? entry.fullName + ', ' : '') + (entry.street || ''));
+        entry.line2 = entry.line2 || line2Parts.join(', ');
+        return entry;
+    }
+
+    function ensureProfileAddresses(profile){
+        profile = profile || {};
+        var addresses = Array.isArray(profile.addresses) ? profile.addresses.slice() : [];
+        var defaultId = profile.defaultAddressId || '';
+        if(!addresses.length){
+            if(profile && (profile.deliveryAddress || profile.addressMain)){
+                var legacyAddr = profile.deliveryAddress || normalizeDeliveryAddressFromString(profile.addressMain || '');
+                var entry = {
+                    id: generateAddressId(),
+                    fullName: legacyAddr.fullName || profile.name || '',
+                    phone: profile.phone || '',
+                    street: legacyAddr.street || profile.addressMain || '',
+                    postalCode: legacyAddr.postalCode || '',
+                    notes: '',
+                    region: legacyAddr.region || '',
+                    province: legacyAddr.province || '',
+                    city: legacyAddr.city || '',
+                    barangay: legacyAddr.barangay || ''
+                };
+                normalizeAddressEntry(entry);
+                addresses.push(entry);
+                defaultId = entry.id;
+            }
+        }
+        if(addresses.length && !defaultId){
+            defaultId = addresses[0].id;
+        }
+        profile.addresses = addresses;
+        profile.defaultAddressId = defaultId;
+        if(defaultId){
+            for(var i=0;i<addresses.length;i++){
+                addresses[i].isDefault = (addresses[i].id === defaultId);
+            }
+        }
+        return { profile: profile, addresses: addresses, defaultId: defaultId };
+    }
+
+    function getDefaultAddressEntry(profile){
+        if(!profile) return null;
+        var addresses = Array.isArray(profile.addresses) ? profile.addresses.slice() : [];
+        if(!addresses.length) return null;
+        var defaultId = profile.defaultAddressId || '';
+        var entry = null;
+        if(defaultId){
+            for(var i=0;i<addresses.length;i++){
+                if(addresses[i].id === defaultId){ entry = addresses[i]; break; }
+            }
+        }
+        if(!entry) entry = addresses[0];
+        return normalizeAddressEntry(entry);
+    }
+
+    function buildDeliveryAddressFromEntry(entry, profile){
+        if(!entry) return null;
+        var brgyName = entry.barangay && entry.barangay.name ? entry.barangay.name : entry.barangay;
+        var cityName = entry.city && entry.city.name ? entry.city.name : entry.city;
+        var provName = entry.province && entry.province.name ? entry.province.name : entry.province;
+        var regName = entry.region && entry.region.name ? entry.region.name : entry.region;
+        var streetValue = entry.street || '';
+        if(!streetValue && entry.line1){
+            streetValue = entry.line1;
+            if(entry.fullName && entry.line1.indexOf(entry.fullName) === 0){
+                streetValue = entry.line1.replace(entry.fullName, '').replace(/^,\s*/,'').trim();
+            }
+        }
+        return {
+            fullName: entry.fullName || (profile && profile.name) || '',
+            street: streetValue || '',
+            barangay: brgyName || '',
+            city: cityName || '',
+            province: provName || '',
+            region: regName || '',
+            postalCode: entry.postalCode || ''
+        };
+    }
+
+    function applyProfileAddressDisplay(profile){
+        var mainEl = document.getElementById('profileAddressMain');
+        var detEl = document.getElementById('profileAddressDetails');
+        if(!mainEl || !detEl) return;
+        var entry = getDefaultAddressEntry(profile);
+        if(entry){
+            var delivery = buildDeliveryAddressFromEntry(entry, profile);
+            renderProfileAddressFromObject(delivery);
+            return;
+        }
+        if(profile && profile.deliveryAddress){
+            renderProfileAddressFromObject(profile.deliveryAddress);
+            return;
+        }
+        mainEl.textContent = profile && profile.addressMain ? profile.addressMain : '';
+        detEl.textContent = profile && profile.addressDetails ? profile.addressDetails : '';
+    }
+
     function getProfileDeliveryAddressFromFields(){
         var mainEl = document.getElementById('profileAddressMain');
         var detEl = document.getElementById('profileAddressDetails');
@@ -562,7 +700,13 @@
 
         var storedProfile = null;
         try{ storedProfile = JSON.parse(localStorage.getItem('profile') || 'null'); }catch(e){ storedProfile = null; }
-        var storedAddr = storedProfile && storedProfile.deliveryAddress ? storedProfile.deliveryAddress : null;
+        var storedAddr = null;
+        if(storedProfile && storedProfile.deliveryAddress){
+            storedAddr = storedProfile.deliveryAddress;
+        } else if(storedProfile){
+            var entry = getDefaultAddressEntry(storedProfile);
+            if(entry) storedAddr = buildDeliveryAddressFromEntry(entry, storedProfile);
+        }
         if(storedAddr){
             var fullNameEl = document.getElementById('profileFullNameInput');
             if(fullNameEl) fullNameEl.value = storedAddr.fullName || storedProfile.name || '';
@@ -746,6 +890,8 @@
                             addressMain: profile.addressMain || '',
                             addressDetails: profile.addressDetails || '',
                             deliveryAddress: profile.deliveryAddress || null,
+                            addresses: profile.addresses || [],
+                            defaultAddressId: profile.defaultAddressId || '',
                             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                         };
                         userDoc.set(payload, { merge: true }).catch(function(){});
@@ -775,18 +921,18 @@
                                 phone: data.phone || local.phone || '',
                                 addressMain: data.addressMain || local.addressMain || '',
                                 addressDetails: data.addressDetails || local.addressDetails || '',
-                                deliveryAddress: data.deliveryAddress || local.deliveryAddress || null
+                                deliveryAddress: data.deliveryAddress || local.deliveryAddress || null,
+                                addresses: Array.isArray(data.addresses) && data.addresses.length ? data.addresses : (Array.isArray(local.addresses) ? local.addresses : []),
+                                defaultAddressId: data.defaultAddressId || local.defaultAddressId || ''
                             };
+                            var ensured = ensureProfileAddresses(merged);
+                            merged = ensured.profile;
                             localStorage.setItem('profile', JSON.stringify(merged));
                             localStorage.setItem('profile_updated_at', String(Date.now()));
+                            try{ setGuestMode(!isProfileAuthenticated(merged)); }catch(e){}
                             if(document.getElementById('profileName')) document.getElementById('profileName').value = merged.name || '';
                             if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = merged.email || '';
-                            if(merged.deliveryAddress){
-                                renderProfileAddressFromObject(merged.deliveryAddress);
-                            } else {
-                                if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = merged.addressMain || '';
-                                if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = merged.addressDetails || '';
-                            }
+                            applyProfileAddressDisplay(merged);
                             if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = merged.phone || '';
                             try{ initProfileAddressEditor(); }catch(e){}
                         }).catch(function(){});
@@ -797,6 +943,8 @@
     }
     // Save profile (persist to localStorage)
     function saveProfile() {
+        var existingProfile = {};
+        try{ existingProfile = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ existingProfile = {}; }
         var name = document.getElementById('profileName').value.trim();
         var email = document.getElementById('profileEmail').value.trim();
         var addressMain = document.getElementById('profileAddressMain') ? document.getElementById('profileAddressMain').textContent.trim() : '';
@@ -824,7 +972,9 @@
             addressMain: addressMain,
             addressDetails: addressDetails,
             phone: phone,
-            deliveryAddress: deliveryAddress
+            deliveryAddress: deliveryAddress,
+            addresses: Array.isArray(existingProfile.addresses) ? existingProfile.addresses : [],
+            defaultAddressId: existingProfile.defaultAddressId || ''
         };
         try {
             localStorage.setItem('profile', JSON.stringify(profile));
@@ -892,22 +1042,66 @@
         // localStorage.removeItem('checkoutPackaging');
         window.location.href = 'login.html';
     }
+    function setGuestMode(isGuest){
+        var guestNotice = document.getElementById('guestNotice');
+        var content = document.getElementById('profileContent');
+        var header = document.querySelector('.profile-header');
+        if(guestNotice) guestNotice.style.display = isGuest ? 'block' : 'none';
+        if(content) content.style.display = isGuest ? 'none' : 'block';
+        if(header) header.textContent = isGuest ? 'Profile (Guest)' : 'Profile';
+        if(isGuest){
+            var nameEl = document.getElementById('profileName');
+            var emailEl = document.getElementById('profileEmail');
+            var phoneEl = document.getElementById('profilePhone');
+            var addrMainEl = document.getElementById('profileAddressMain');
+            var addrDetEl = document.getElementById('profileAddressDetails');
+            var editor = document.getElementById('profileAddressEditor');
+            if(nameEl) nameEl.value = '';
+            if(emailEl) emailEl.value = '';
+            if(phoneEl) phoneEl.value = '';
+            if(addrMainEl) addrMainEl.textContent = '';
+            if(addrDetEl) addrDetEl.textContent = '';
+            if(editor) editor.style.display = 'none';
+        }
+    }
+
+    function hasValidEmail(profile){
+        if(!profile || !profile.email) return false;
+        return String(profile.email || '').trim().length > 0;
+    }
+
+    function hasAuthToken(){
+        try{ return String(localStorage.getItem('authToken') || '').trim().length > 0; }catch(e){ return false; }
+    }
+
+    function hasAuthMarker(profile){
+        if(!profile) return false;
+        return !!(profile.uid || profile.provider || profile.loggedAt || profile.role);
+    }
+
+    function isProfileAuthenticated(profile){
+        return hasValidEmail(profile) && hasAuthToken() && hasAuthMarker(profile);
+    }
+
     // Populate profile inputs from localStorage if available and auto-save on change
     document.addEventListener('DOMContentLoaded', function(){
         try{
             var p = JSON.parse(localStorage.getItem('profile') || 'null');
-            if(p){
+            var isGuest = !isProfileAuthenticated(p);
+            setGuestMode(isGuest);
+            if(p && !isGuest){
+                var ensured = ensureProfileAddresses(p || {});
+                p = ensured.profile;
+                try{ localStorage.setItem('profile', JSON.stringify(p)); }catch(e){}
+                try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
                 if(document.getElementById('profileName')) document.getElementById('profileName').value = p.name || '';
                 if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = p.email || '';
-                if(p.deliveryAddress){
-                    renderProfileAddressFromObject(p.deliveryAddress);
-                } else {
-                    if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = p.addressMain || '';
-                    if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = p.addressDetails || '';
-                }
+                applyProfileAddressDisplay(p);
                 if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = p.phone || '';
             }
-        }catch(err){/* ignore parse errors */}
+        }catch(err){
+            try{ setGuestMode(true); }catch(e){}
+        }
 
         try{ syncProfileFromFirestore(); }catch(e){}
 
@@ -929,14 +1123,18 @@
             var addrMainEl = document.getElementById('profileAddressMain');
             var addrDetEl = document.getElementById('profileAddressDetails');
             var phoneEl = document.getElementById('profilePhone');
-            var deliveryAddress = getProfileDeliveryAddressFromFields();
+            var existing = {};
+            try{ existing = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ existing = {}; }
+            var deliveryAddress = existing.deliveryAddress || getProfileDeliveryAddressFromFields();
             var profile = {
                 name: nameEl ? nameEl.value.trim() : '',
                 email: emailEl ? emailEl.value.trim() : '',
                 addressMain: addrMainEl ? addrMainEl.textContent.trim() : '',
                 addressDetails: addrDetEl ? addrDetEl.textContent.trim() : '',
                 phone: phoneEl ? phoneEl.value.trim() : '',
-                deliveryAddress: deliveryAddress
+                deliveryAddress: deliveryAddress,
+                addresses: Array.isArray(existing.addresses) ? existing.addresses : [],
+                defaultAddressId: existing.defaultAddressId || ''
             };
             try{ localStorage.setItem('profile', JSON.stringify(profile)); }catch(e){/* ignore */}
         }
@@ -951,15 +1149,12 @@
             try{
                 if(e.key === 'profile' || e.key === 'profile_updated_at'){
                     var np = JSON.parse(localStorage.getItem('profile') || 'null');
-                    if(np){
+                    var isGuest = !isProfileAuthenticated(np);
+                    setGuestMode(isGuest);
+                    if(np && !isGuest){
                         if(document.getElementById('profileName')) document.getElementById('profileName').value = np.name || '';
                         if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = np.email || '';
-                        if(np.deliveryAddress){
-                            renderProfileAddressFromObject(np.deliveryAddress);
-                        } else {
-                            if(document.getElementById('profileAddressMain')) document.getElementById('profileAddressMain').textContent = np.addressMain || '';
-                            if(document.getElementById('profileAddressDetails')) document.getElementById('profileAddressDetails').textContent = np.addressDetails || '';
-                        }
+                        applyProfileAddressDisplay(np);
                         if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = np.phone || '';
                     }
                 }

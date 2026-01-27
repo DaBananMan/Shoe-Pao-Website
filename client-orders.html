@@ -130,67 +130,85 @@
     </div>
     
             <!-- Refund Confirmation Modal -->
-            <div id="refundModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:10001;align-items:center;justify-content:center;">
-                <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);">
+            <div id="refundModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(34,34,34,0.45);z-index:10001;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+                <div style="background:#fff;border-radius:12px;padding:20px;max-width:640px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,0.18);max-height:calc(80vh - 32px);display:flex;flex-direction:column;overflow:hidden;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
                         <div style="font-weight:700;font-size:1.05rem;">Request a return or refund</div>
                         <button onclick="closeRefundModal()" style="background:none;border:none;cursor:pointer;"><img src="IMAGE/X.png" alt="Close" style="width:20px;height:20px;"></button>
                     </div>
-                    <div style="margin-bottom:10px;color:#444;">Provide details and upload at least two images to process your request.</div>
-                    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:8px;">
-                        <label style="display:flex;flex-direction:column;gap:6px;">
-                            <span style="font-weight:600;">Request type</span>
-                            <select id="refundTypeSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
-                                <option value="">Select request type</option>
-                                <option value="Return and Refund">Return and Refund</option>
-                                <option value="Refund only">Refund only</option>
-                            </select>
-                        </label>
-                        <label style="display:flex;flex-direction:column;gap:6px;">
-                            <span style="font-weight:600;">Reason</span>
-                            <select id="refundReasonSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
-                                <option value="">Select a reason</option>
-                                <option value="Wrong item received">Wrong item received</option>
-                                <option value="Item damaged or defective">Item damaged or defective</option>
-                                <option value="Missing item in package">Missing item in package</option>
-                                <option value="Incorrect size sent (store error)">Incorrect size sent (store error)</option>
-                                <option value="Package tampered on arrival">Package tampered on arrival</option>
-                            </select>
-                        </label>
-                        <label style="display:flex;flex-direction:column;gap:6px;">
-                            <span style="font-weight:600;">Refund method</span>
-                            <select id="refundMethodSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
-                                <option value="">Select refund method</option>
-                                <option value="Wallet">Wallet</option>
-                                <option value="Original Payment">Original Payment</option>
-                            </select>
-                        </label>
-                        <label style="display:flex;flex-direction:column;gap:6px;">
-                            <span style="font-weight:600;">Description</span>
-                            <textarea id="refundDescription" maxlength="250" placeholder="Describe the issue (max 250 characters)" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;min-height:80px;resize:vertical;"></textarea>
-                            <div style="font-size:0.9rem;color:#666;"><span id="refundDescCount">0</span>/250</div>
-                        </label>
-                        <div style="display:flex;flex-direction:column;gap:8px;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;">
-                            <div style="font-weight:600;">Select item(s) to return/refund</div>
-                            <div id="refundItemsSelect" style="display:flex;flex-direction:column;gap:8px;"></div>
-                            <div id="refundItemsNote" style="color:#b71c1c;font-weight:600;display:none;">Please select at least one item.</div>
+                    <div style="flex:1 1 auto;min-height:0;overflow-y:auto;">
+                        <div style="margin-bottom:10px;color:#444;">Provide details and upload at least two images to process your request.</div>
+                        <div style="margin-bottom:12px;background:#fff3cd;border:1px solid #ffeeba;color:#856404;padding:10px 12px;border-radius:8px;font-weight:600;">
+                            IMPORTANT: Refund processing may take up to 7 days depending on the bank. For questions, chat us on Facebook Messenger:
+                            <a href="https://www.facebook.com/profile.php?id=100064143366280" target="_blank" rel="noopener" style="color:#1877f2;text-decoration:none;font-weight:700;">Shoe Pao Footwear</a>.
                         </div>
-                        <div style="display:flex;flex-direction:column;gap:8px;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;">
-                            <div style="font-weight:600;">Upload proof (at least 2 images)</div>
-                            <div style="color:#444;font-size:0.95rem;">Include: product photo, packaging or shipping label, and damage photo (if applicable).</div>
+                        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:8px;">
+                            <div style="display:flex;flex-direction:column;gap:8px;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;">
+                                <div style="font-weight:600;">Select item(s) to return/refund</div>
+                                <div id="refundItemsSelect" style="display:flex;flex-direction:column;gap:8px;"></div>
+                                <div id="refundItemsNote" style="color:#b71c1c;font-weight:600;display:none;">Please select at least one item.</div>
+                            </div>
                             <label style="display:flex;flex-direction:column;gap:6px;">
-                                <span>Product photo</span>
-                                <input id="refundProofProduct" type="file" accept="image/*" />
+                                <span style="font-weight:600;">Request type</span>
+                                <select id="refundTypeSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
+                                    <option value="">Select request type</option>
+                                    <option value="Return and Refund">Return and Refund</option>
+                                    <option value="Refund only">Refund only</option>
+                                </select>
                             </label>
                             <label style="display:flex;flex-direction:column;gap:6px;">
-                                <span>Packaging / shipping label</span>
-                                <input id="refundProofPackaging" type="file" accept="image/*" />
+                                <span style="font-weight:600;">Reason</span>
+                                <select id="refundReasonSelect" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;">
+                                    <option value="">Select a reason</option>
+                                    <option value="Wrong item received">Wrong item received</option>
+                                    <option value="Item damaged or defective">Item damaged or defective</option>
+                                    <option value="Missing item in package">Missing item in package</option>
+                                    <option value="Incorrect size sent (store error)">Incorrect size sent (store error)</option>
+                                    <option value="Package tampered on arrival">Package tampered on arrival</option>
+                                </select>
                             </label>
                             <label style="display:flex;flex-direction:column;gap:6px;">
-                                <span>Damage photo (if applicable)</span>
-                                <input id="refundProofDamage" type="file" accept="image/*" />
+                                <span style="font-weight:600;">Refund method</span>
+                                <select id="refundMethodSelect" style="padding:10px 12px;border:1px solid:#ddd;border-radius:8px;font-family:inherit;">
+                                    <option value="">Select refund method</option>
+                                    <option value="GCash">GCash (E-wallet)</option>
+                                    <option value="Maya">Maya (E-wallet)</option>
+                                    <option value="BDO Unibank">BDO Unibank (Bank Transfer)</option>
+                                    <option value="BPI">BPI (Bank Transfer)</option>
+                                    <option value="Other Bank">Other Bank (Bank Transfer)</option>
+                                </select>
                             </label>
-                            <div id="refundProofNote" style="color:#b71c1c;font-weight:600;display:none;">Please upload at least two images.</div>
+                            <label style="display:flex;flex-direction:column;gap:6px;">
+                                <span style="font-weight:600;">Refund method details</span>
+                                <input id="refundAccountProvider" type="text" maxlength="60" placeholder="Bank / e-wallet provider" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;" />
+                                <input id="refundAccountName" type="text" maxlength="80" placeholder="Account name" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;" />
+                                <input id="refundAccountNumber" type="text" maxlength="20" inputmode="numeric" placeholder="Account number" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;" />
+                                <div style="font-size:0.92rem;color:#856404;background:#fff3cd;border:1px solid #ffeeba;border-radius:10px;padding:10px 12px;line-height:1.35;">
+                                    <strong>IMPORTANT:</strong> Please ensure the account details are complete and accurate. Submitting incorrect or incomplete details may result in your return/refund request being cancelled. If a refund is sent to an account due to details you provided, the shop cannot be held responsible.
+                                </div>
+                            </label>
+                            <label style="display:flex;flex-direction:column;gap:6px;">
+                                <span style="font-weight:600;">Description</span>
+                                <textarea id="refundDescription" maxlength="250" placeholder="Describe the issue (max 250 characters)" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-family:inherit;min-height:80px;resize:vertical;"></textarea>
+                                <div style="font-size:0.9rem;color:#666;"><span id="refundDescCount">0</span>/250</div>
+                            </label>
+                            <div style="display:flex;flex-direction:column;gap:8px;background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px;">
+                                <div style="font-weight:600;">Upload proof (at least 2 images)</div>
+                                <div style="color:#444;font-size:0.95rem;">Include: product photo, packaging or shipping label, and damage photo (if applicable).</div>
+                                <label style="display:flex;flex-direction:column;gap:6px;">
+                                    <span>Product photo</span>
+                                    <input id="refundProofProduct" type="file" accept="image/*" />
+                                </label>
+                                <label style="display:flex;flex-direction:column;gap:6px;">
+                                    <span>Packaging / shipping label</span>
+                                    <input id="refundProofPackaging" type="file" accept="image/*" />
+                                </label>
+                                <label style="display:flex;flex-direction:column;gap:6px;">
+                                    <span>Damage photo (if applicable)</span>
+                                    <input id="refundProofDamage" type="file" accept="image/*" />
+                                </label>
+                                <div id="refundProofNote" style="color:#b71c1c;font-weight:600;display:none;">Please upload at least two images.</div>
+                            </div>
                         </div>
                     </div>
                     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
@@ -985,30 +1003,129 @@
             _pendingCancelOrderId = null;
         }
 
-        document.addEventListener('DOMContentLoaded', function(){
-            // Cancel modal inputs
-            var cancelSel = document.getElementById('cancelReasonSelect');
-            function updateCancelBtn(){
-                var btn = document.getElementById('confirmCancelBtn');
-                if(!btn) return;
-                var val = cancelSel ? cancelSel.value : '';
-                if(!val){ btn.disabled = true; return; }
-                btn.disabled = false;
-            }
-            if(cancelSel) cancelSel.addEventListener('change', updateCancelBtn);
-            
+        function getRefundInputs(){
+            return {
+                type: document.getElementById('refundTypeSelect'),
+                reason: document.getElementById('refundReasonSelect'),
+                method: document.getElementById('refundMethodSelect'),
+                provider: document.getElementById('refundAccountProvider'),
+                acctName: document.getElementById('refundAccountName'),
+                acctNumber: document.getElementById('refundAccountNumber'),
+                desc: document.getElementById('refundDescription'),
+                descCount: document.getElementById('refundDescCount'),
+                proofProduct: document.getElementById('refundProofProduct'),
+                proofPackaging: document.getElementById('refundProofPackaging'),
+                proofDamage: document.getElementById('refundProofDamage'),
+                proofNote: document.getElementById('refundProofNote'),
+                submit: document.getElementById('confirmRefundBtn'),
+                itemsNote: document.getElementById('refundItemsNote')
+            };
+        }
 
-            var refundType = document.getElementById('refundTypeSelect');
-            var refundSel = document.getElementById('refundReasonSelect');
-            var refundMethod = document.getElementById('refundMethodSelect');
-            var refundDesc = document.getElementById('refundDescription');
-            var refundDescCount = document.getElementById('refundDescCount');
-            var proofProduct = document.getElementById('refundProofProduct');
-            var proofPackaging = document.getElementById('refundProofPackaging');
-            var proofDamage = document.getElementById('refundProofDamage');
+        function _isFixedProviderMethod(method){
+            var m = String(method || '').toLowerCase();
+            return (m === 'gcash' || m === 'maya' || m === 'bdo unibank' || m === 'bpi');
+        }
+
+        function _digitsOnly(s){ return String(s || '').replace(/\D+/g, ''); }
+
+        function _getAccountDigitsRule(method){
+            var m = String(method || '').toLowerCase();
+            if(m === 'gcash') return { exact: 11, max: 11, label: 'GCash number (11 digits)' };
+            if(m === 'maya') return { exact: 11, max: 11, label: 'Maya number (11 digits)' };
+            if(m === 'bdo unibank') return { exact: 10, max: 10, label: 'BDO account number (10 digits)' };
+            if(m === 'bpi') return { exact: 10, max: 10, label: 'BPI account number (10 digits)' };
+            return { min: 6, max: 20, label: 'Account number (6–20 digits)' };
+        }
+
+        function _applyRefundAccountNumberRule(){
+            try{
+                var i = getRefundInputs();
+                if(!i.acctNumber) return;
+                var methodVal = i.method ? i.method.value : '';
+                var rule = _getAccountDigitsRule(methodVal);
+                i.acctNumber.maxLength = Number(rule.max || 20) || 20;
+                var digits = _digitsOnly(i.acctNumber.value);
+                if(digits.length > i.acctNumber.maxLength) digits = digits.slice(0, i.acctNumber.maxLength);
+                i.acctNumber.value = digits;
+            }catch(e){ /* ignore */ }
+        }
+
+        function _syncRefundProviderState(){
+            try{
+                var i = getRefundInputs();
+                if(!i.provider) return;
+                var methodVal = i.method ? i.method.value : '';
+                var fixed = _isFixedProviderMethod(methodVal);
+                if(fixed){
+                    i.provider.value = methodVal;
+                    i.provider.disabled = true;
+                    i.provider.style.opacity = '0.75';
+                }else{
+                    i.provider.disabled = false;
+                    i.provider.style.opacity = '';
+                    if(!i.provider.value || i.provider.value.toLowerCase() === String(methodVal||'').toLowerCase()){
+                        i.provider.value = '';
+                    }
+                }
+            }catch(e){ /* ignore */ }
+        }
+
+        function countRefundProofs(inputs){
+            var n = 0;
+            [inputs.proofProduct, inputs.proofPackaging, inputs.proofDamage].forEach(function(inp){
+                if(inp && inp.files && inp.files.length) n++;
+            });
+            return n;
+        }
+
+        function updateRefundBtn(){
+            var i = getRefundInputs();
+            if(i.proofNote) i.proofNote.style.display = 'none';
+            if(i.itemsNote) i.itemsNote.style.display = 'none';
+            var descVal = i.desc ? String(i.desc.value||'').trim() : '';
+            var descOk = descVal.length > 0 && descVal.length <= 250;
+            var proofsOk = countRefundProofs(i) >= 2;
+            var itemsSelected = document.querySelectorAll('.refund-item-checkbox:checked').length > 0;
+            var methodVal = i.method ? String(i.method.value || '') : '';
+            var providerVal = i.provider ? String(i.provider.value || '').trim() : '';
+            var acctNameVal = i.acctName ? String(i.acctName.value || '').trim() : '';
+            var acctNumberVal = i.acctNumber ? _digitsOnly(i.acctNumber.value || '') : '';
+            var providerOk = _isFixedProviderMethod(methodVal) ? true : (providerVal.length >= 2);
+            var acctNameOk = acctNameVal.length >= 2;
+            var rule = _getAccountDigitsRule(methodVal);
+            var acctNumberOk = (rule.exact ? (acctNumberVal.length === rule.exact) : (acctNumberVal.length >= (rule.min || 6) && acctNumberVal.length <= (rule.max || 20)));
+            var methodDetailsOk = providerOk && acctNameOk && acctNumberOk;
+            var ready = !!(i.type && i.type.value && i.reason && i.reason.value && i.method && i.method.value && methodDetailsOk && descOk && proofsOk && itemsSelected);
+            if(!ready && i.proofNote && !proofsOk) i.proofNote.style.display = 'block';
+            if(i.submit) i.submit.disabled = !ready;
+            if(i.descCount) i.descCount.textContent = String((i.desc && i.desc.value ? i.desc.value.length : 0) || 0);
+        }
+
+        function resetRefundModal(){
+            var i = getRefundInputs();
+            if(i.type) i.type.value = '';
+            if(i.reason) i.reason.value = '';
+            if(i.method) i.method.value = '';
+            if(i.provider){ i.provider.value = ''; i.provider.disabled = false; i.provider.style.opacity = ''; }
+            if(i.acctName) i.acctName.value = '';
+            if(i.acctNumber) i.acctNumber.value = '';
+            if(i.desc) i.desc.value = '';
+            if(i.descCount) i.descCount.textContent = '0';
+            if(i.itemsNote) i.itemsNote.style.display = 'none';
+            ['proofProduct','proofPackaging','proofDamage'].forEach(function(key){
+                try{ if(i[key]) i[key].value = ''; }catch(e){}
+            });
+            if(i.proofNote) i.proofNote.style.display = 'none';
+            if(i.submit) i.submit.disabled = true;
+            try{ document.querySelectorAll('.refund-item-checkbox').forEach(function(b){ b.checked = false; }); }catch(e){}
+        }
+
+        function attachRefundListeners(){
+            var i = getRefundInputs();
             function updateRefundReasons(){
-                if(!refundSel) return;
-                var typeVal = refundType ? refundType.value : '';
+                if(!i.reason) return;
+                var typeVal = i.type ? i.type.value : '';
                 var isRefundOnly = String(typeVal || '').toLowerCase() === 'refund only';
                 var options = isRefundOnly
                     ? [
@@ -1024,62 +1141,60 @@
                         { value:'Incorrect size sent (store error)', label:'Incorrect size sent (store error)' },
                         { value:'Package tampered on arrival', label:'Package tampered on arrival' }
                     ];
-                refundSel.innerHTML = '';
+                i.reason.innerHTML = '';
                 options.forEach(function(opt){
                     var el = document.createElement('option');
                     el.value = opt.value;
                     el.textContent = opt.label;
-                    refundSel.appendChild(el);
+                    i.reason.appendChild(el);
                 });
             }
-            function countProofs(){
-                var n = 0;
-                if(proofProduct && proofProduct.files && proofProduct.files.length) n++;
-                if(proofPackaging && proofPackaging.files && proofPackaging.files.length) n++;
-                if(proofDamage && proofDamage.files && proofDamage.files.length) n++;
-                return n;
-            }
-            function updateRefundBtn(){
-                var btn = document.getElementById('confirmRefundBtn'); if(!btn) return;
-                var proofNote = document.getElementById('refundProofNote');
-                if(proofNote) proofNote.style.display = 'none';
-                var itemsNote = document.getElementById('refundItemsNote');
-                var reason = refundSel ? refundSel.value : '';
-                var rType = refundType ? refundType.value : '';
-                var method = refundMethod ? refundMethod.value : '';
-                var descOk = refundDesc && refundDesc.value && refundDesc.value.trim().length > 0 && refundDesc.value.trim().length <= 250;
-                var proofsOk = countProofs() >= 2;
-                var itemsSelected = document.querySelectorAll('.refund-item-checkbox:checked').length > 0;
-                if(itemsNote) itemsNote.style.display = 'none';
-                if(!rType || !reason || !method || !descOk || !proofsOk || !itemsSelected){
-                    if(proofNote && !proofsOk) proofNote.style.display = 'block';
-                    btn.disabled = true;
-                    return;
-                }
-                btn.disabled = false;
-            }
-            if(refundSel) refundSel.addEventListener('change', updateRefundBtn);
-            if(refundType) refundType.addEventListener('change', function(){
-                updateRefundReasons();
-                updateRefundBtn();
-            });
-            if(refundMethod) refundMethod.addEventListener('change', updateRefundBtn);
-            if(refundDesc){
-                refundDesc.addEventListener('input', function(){
-                    if(refundDescCount) refundDescCount.textContent = String(refundDesc.value.length || 0);
+
+            [i.type, i.reason].forEach(function(sel){ if(sel) sel.addEventListener('change', updateRefundBtn); });
+            if(i.method) i.method.addEventListener('change', function(){ _syncRefundProviderState(); _applyRefundAccountNumberRule(); updateRefundBtn(); });
+            [i.provider, i.acctName].forEach(function(el){ if(el) el.addEventListener('input', updateRefundBtn); });
+            if(i.acctNumber){
+                i.acctNumber.addEventListener('input', function(){
+                    var methodVal = i.method ? i.method.value : '';
+                    var rule = _getAccountDigitsRule(methodVal);
+                    var max = Number(rule.max || 20) || 20;
+                    var digits = _digitsOnly(i.acctNumber.value);
+                    if(digits.length > max) digits = digits.slice(0, max);
+                    i.acctNumber.value = digits;
                     updateRefundBtn();
                 });
             }
-            [proofProduct, proofPackaging, proofDamage].forEach(function(inp){
-                if(inp){ inp.addEventListener('change', updateRefundBtn); }
-            });
+            if(i.desc){ i.desc.addEventListener('input', updateRefundBtn); }
+            [i.proofProduct, i.proofPackaging, i.proofDamage].forEach(function(inp){ if(inp) inp.addEventListener('change', updateRefundBtn); });
             document.addEventListener('change', function(e){
                 if(e && e.target && e.target.classList && e.target.classList.contains('refund-item-checkbox')){
-                    var itemsNote = document.getElementById('refundItemsNote'); if(itemsNote) itemsNote.style.display = 'none';
+                    if(i.itemsNote) i.itemsNote.style.display = 'none';
                     updateRefundBtn();
                 }
             });
+            if(i.type){
+                i.type.addEventListener('change', function(){
+                    updateRefundReasons();
+                    updateRefundBtn();
+                });
+            }
             updateRefundReasons();
+            _syncRefundProviderState();
+            _applyRefundAccountNumberRule();
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            // Cancel modal inputs
+            var cancelSel = document.getElementById('cancelReasonSelect');
+            function updateCancelBtn(){
+                var btn = document.getElementById('confirmCancelBtn');
+                if(!btn) return;
+                var val = cancelSel ? cancelSel.value : '';
+                if(!val){ btn.disabled = true; return; }
+                btn.disabled = false;
+            }
+            if(cancelSel) cancelSel.addEventListener('change', updateCancelBtn);
+            attachRefundListeners();
         });
 
         function updateOrderInFirestore(orderId, payload){
@@ -1209,17 +1324,11 @@
                 }
                 _pendingRefundItems = (order && Array.isArray(order.items)) ? order.items.slice() : [];
             }catch(e){ /* ignore */ }
-            var typeSel = document.getElementById('refundTypeSelect'); if(typeSel) typeSel.value = '';
-            var reasonSel = document.getElementById('refundReasonSelect'); if(reasonSel) reasonSel.value = '';
-            var methodSel = document.getElementById('refundMethodSelect'); if(methodSel) methodSel.value = '';
-            var descEl = document.getElementById('refundDescription'); if(descEl){ descEl.value = ''; }
-            var descCount = document.getElementById('refundDescCount'); if(descCount) descCount.textContent = '0';
-            var proofNote = document.getElementById('refundProofNote'); if(proofNote) proofNote.style.display = 'none';
-            var itemsNote = document.getElementById('refundItemsNote'); if(itemsNote) itemsNote.style.display = 'none';
-            ['refundProofProduct','refundProofPackaging','refundProofDamage'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
-            var btn = document.getElementById('confirmRefundBtn'); if(btn) btn.disabled = true;
+            resetRefundModal();
             var overlay = document.getElementById('refundModalOverlay'); if(overlay) overlay.style.display = 'flex';
             setTimeout(function(){ var el = document.getElementById('refundTypeSelect'); if(el) el.focus(); }, 120);
+            try{ _syncRefundProviderState(); }catch(e){}
+            try{ _applyRefundAccountNumberRule(); }catch(e){}
             try{ updateRefundBtn(); }catch(e){}
             try{ renderRefundItemsSelection(); }catch(e){}
         }
@@ -1235,6 +1344,9 @@
             var typeSel = document.getElementById('refundTypeSelect');
             var reasonSel = document.getElementById('refundReasonSelect');
             var methodSel = document.getElementById('refundMethodSelect');
+            var providerSel = document.getElementById('refundAccountProvider');
+            var acctNameSel = document.getElementById('refundAccountName');
+            var acctNumberSel = document.getElementById('refundAccountNumber');
             var descEl = document.getElementById('refundDescription');
             var proofProd = document.getElementById('refundProofProduct');
             var proofPack = document.getElementById('refundProofPackaging');
@@ -1242,12 +1354,31 @@
             var typeVal = typeSel ? typeSel.value : '';
             var reason = reasonSel ? reasonSel.value : '';
             var method = methodSel ? methodSel.value : '';
+            var provider = providerSel ? String(providerSel.value || '').trim() : '';
+            var acctName = acctNameSel ? String(acctNameSel.value || '').trim() : '';
+            var acctNumber = acctNumberSel ? _digitsOnly(acctNumberSel.value || '') : '';
             var desc = descEl ? String(descEl.value||'').trim() : '';
-            if(!typeVal || !reason || !method) return;
+            if(!typeVal || !reason || !method){ alert('Please complete the form before submitting.'); return; }
+            var providerOk = _isFixedProviderMethod(method) ? true : (provider.length >= 2);
+            var rule = _getAccountDigitsRule(method);
+            var acctNumOk = (rule.exact ? (acctNumber.length === rule.exact) : (acctNumber.length >= (rule.min || 6) && acctNumber.length <= (rule.max || 20)));
+            if(!providerOk || acctName.length < 2 || !acctNumOk){
+                var msg = 'Please provide complete refund account details.';
+                try{ msg = 'Please provide complete refund account details. Expected: ' + (rule && rule.label ? rule.label : 'valid account number'); }catch(e){}
+                alert(msg);
+                return;
+            }
             if(!desc || desc.length > 250){ alert('Please provide a description (max 250 characters).'); return; }
+
+            if(_isFixedProviderMethod(method)) provider = method;
+            var methodDetails = 'Provider: ' + provider + '; Account Name: ' + acctName + '; Account Number: ' + acctNumber;
             var proofFiles = [];
             [proofProd, proofPack, proofDamage].forEach(function(inp){ if(inp && inp.files && inp.files[0]) proofFiles.push(inp.files[0]); });
-            if(proofFiles.length < 2){ alert('Please upload at least two images (product and packaging/label; damage if applicable).'); return; }
+            if(proofFiles.length < 2){
+                try{ var i = getRefundInputs(); if(i && i.proofNote) i.proofNote.style.display = 'block'; }catch(e){}
+                alert('Please upload at least two images (product and packaging/label; damage if applicable).');
+                return;
+            }
             var selectedItems = getSelectedRefundItems();
             if(!selectedItems.length){
                 var itemsNote = document.getElementById('refundItemsNote'); if(itemsNote) itemsNote.style.display = '';
@@ -1275,6 +1406,10 @@
                     requestType: typeVal,
                     returnReason: reason,
                     refundMethod: method,
+                    refundMethodDetails: methodDetails,
+                    refundAccountProvider: provider,
+                    refundAccountName: acctName,
+                    refundAccountNumber: acctNumber,
                     description: desc,
                     items: selectedItems,
                     proofImages: [],

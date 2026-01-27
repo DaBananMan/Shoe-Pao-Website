@@ -317,7 +317,7 @@
         var s = String(raw || '').toLowerCase().trim();
         if(!s || s === 'active' || s === 'published') return 'published';
         if(s === 'archived' || s === 'archive') return 'archive';
-        if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden') return 'unpublished';
+        if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden' || s === 'inactive' || s === 'disabled' || s === 'unavailable') return 'unpublished';
         return s;
     }
 
