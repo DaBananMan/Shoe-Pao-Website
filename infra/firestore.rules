@@ -38,6 +38,13 @@ service cloud.firestore {
       }
     }
 
+    // Accounts collection: allow reads/writes only for users with admin claim
+    // In development this permits the admin UI to list and manage accounts.
+    // Check the custom token contains `admin: true` in `request.auth.token`.
+    match /accounts/{accountId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+
     // By default deny everything else
     match /{document=**} {
       allow read, write: if false;

@@ -330,12 +330,62 @@
             // listing via /api/admin/list-users. This reduces noisy permission
             // errors during page load while preserving security.
             (function tryInitialAccounts(){
-                // Immediately attempt a client read to reduce perceived latency.
+                // Only attempt a client read when an admin session is present
+                // to avoid immediate permission-denied errors. If no signed-in
+                // admin is available yet, wait for the auth state change or
+                // the shoepao:admin-signedin event dispatched by the auto-admin
+                // helper. This reduces noisy errors and prevents the server
+                // fallback from being invoked unnecessarily.
                 try{
-                    document.getElementById('accountsStatus').innerText = 'Loading from Firestore...';
+                    var statusEl = document.getElementById('accountsStatus');
+                    if(statusEl) statusEl.innerText = 'Waiting for admin sign-in...';
                 }catch(e){}
-                db.collection('accounts').limit(500).get().then(snap => handleInitialSnap(snap)).catch(function(e){ handleInitialError(e); });
+
+                function doReadOnce(){
+                    try{ var statusEl2 = document.getElementById('accountsStatus'); if(statusEl2) statusEl2.innerText = 'Loading from Firestore...'; }catch(e){}
+                    db.collection('accounts').limit(500).get().then(snap => handleInitialSnap(snap)).catch(function(e){ handleInitialError(e); });
+                }
+
+                // If an admin is already signed in, run immediately
+                try{
+                    if(window.firebase && firebase.auth && firebase.auth().currentUser){ doReadOnce(); return; }
+                }catch(e){}
+
+                // Listen for our custom event (dispatched by ensure-server.js on auto sign-in)
+                var oneOff = function(){ try{ doReadOnce(); window.removeEventListener('shoepao:admin-signedin', oneOff); }catch(e){} };
+                try{ window.addEventListener && window.addEventListener('shoepao:admin-signedin', oneOff); }catch(e){}
+
+                // Also listen for Firebase auth state change as a fallback
+                try{
+                    if(window.firebase && firebase.auth){
+                        var unreg = firebase.auth().onAuthStateChanged(function(user){ if(user){ try{ doReadOnce(); }catch(e){} if(unreg && typeof unreg === 'function') unreg(); } });
+                    }
+                }catch(e){}
             })();
+
+            function showPermissionDebug(contextError){
+                try{
+                    var st = document.getElementById('accountsStatus');
+                    if(st) st.innerText = 'Permission error: checking auth state...';
+                }catch(e){}
+                try{
+                    if(window.firebase && firebase.auth){
+                        var u = firebase.auth().currentUser;
+                        console.warn('accounts debug: currentUser', u);
+                        if(u){
+                            u.getIdTokenResult().then(function(tr){
+                                console.warn('accounts debug: idTokenResult claims', tr && tr.claims);
+                                try{ var st2 = document.getElementById('accountsStatus'); if(st2) st2.innerText = 'Signed-in as ' + (u.email||u.uid) + ' — missing Firestore read permissions (check admin claims)'; }catch(e){}
+                            }).catch(function(err){ console.warn('accounts debug: getIdTokenResult failed', err); try{ var st3 = document.getElementById('accountsStatus'); if(st3) st3.innerText = 'Signed-in but token inspection failed'; }catch(e){} });
+                        } else {
+                            try{ var st4 = document.getElementById('accountsStatus'); if(st4) st4.innerText = 'Not signed in — sign in as an admin to load accounts'; }catch(e){}
+                        }
+                    } else {
+                        try{ var st5 = document.getElementById('accountsStatus'); if(st5) st5.innerText = 'Firebase not available'; }catch(e){}
+                    }
+                }catch(e){ console.warn('showPermissionDebug failed', e); }
+                console.warn('Permission context error:', contextError);
+            }
 
             function handleInitialSnap(snap){
                 try{
@@ -359,6 +409,7 @@
 
             async function handleInitialError(e){
                 console.warn('Initial accounts query failed', e);
+                try{ await showPermissionDebug(e); }catch(_){ }
                 try{ try{ document.getElementById('accountsStatus').innerText = 'Client read failed — attempting server fallback...'; }catch(_){ } }catch(_){ }
 
                 async function doServerFallback(){
@@ -428,6 +479,7 @@
                     try{ document.getElementById('accountsStatus').innerText = 'Realtime updates enabled (' + mergedList.length + ' accounts)'; }catch(_){ }
                 }catch(e){ console.warn('Failed to process users snapshot', e); }
             }, function(err){ console.warn('users onSnapshot failed', err);
+                try{ showPermissionDebug(err); }catch(e){}
                 // Attempt server-side fallback when onSnapshot fails due to permissions
                 (async function(){ try{
                     try{ document.getElementById('accountsStatus').innerText = 'Realtime blocked — attempting server fallback...'; }catch(_){ }

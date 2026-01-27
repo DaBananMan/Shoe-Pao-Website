@@ -22,10 +22,6 @@
     }
   };
 
-  // remember an incoming stocks filter (from URL or dashboard localStorage) so we can
-  // apply it reliably during the first renderAll() call even if async updates occur.
-  let __initialStocksParam = null;
-
   // Cache of products as rendered in the table to ensure modals reflect the visible row
   let displayedProductCache = {};
 
@@ -41,8 +37,6 @@
     return Number.isFinite(n) ? n : fallback;
   };
 
-  let saveBlockedAlerted = false;
-
   function normalizeStatus(raw) {
     const s = String(raw || '').toLowerCase().trim();
     if (!s || s === 'active' || s === 'published') return 'published';
@@ -57,50 +51,9 @@
       list = [fallback];
     }
     list = list.map(x => String(x || '').trim()).filter(Boolean);
-    // Validate data URIs and reject malformed inline images. Non-data URLs (http/relative)
-    // are passed through unchanged. Keep only valid image sources.
-    // normalize once (normalizeDataUri is the robust implementation declared below)
-    list = list.map(src => normalizeDataUri(String(src || '').trim())).filter(Boolean);
     if (list.length > 4) list = list.slice(0, 4);
     while (list.length < 4) list.push('');
     return list;
-  }
-
-  // Validate and normalize a data URI or return null when invalid. This is the single
-  // authoritative implementation used across the file.
-  function normalizeDataUri(src) {
-    try {
-      if (!src) return null;
-      src = String(src).trim();
-      // allow normal URLs and relative paths
-      if (!src.startsWith('data:')) return src;
-      // collapse whitespace/newlines which sometimes appear in pasted base64
-      src = src.replace(/\s+/g, '');
-      // ensure ;base64, token exists when base64 is intended
-      if (src.indexOf(';base64,') === -1 && src.indexOf(';base64') !== -1) {
-        src = src.replace(/;base64(?!,)/, ';base64,');
-      }
-      if (src.indexOf(',') === -1) return null;
-      // If base64, quick character sanity check
-      if (src.indexOf(';base64,') !== -1) {
-        var parts = src.split(',');
-        var b64 = parts[1] || '';
-        // reject when non-base64 characters are present (after removing padding)
-        if (!/^[A-Za-z0-9+/=]+$/.test(b64.replace(/=+$/,''))) return null;
-      }
-      // guard against very large inline images (keep under ~900KB)
-      if (src.length > 900 * 1024) return null;
-      return src;
-    } catch (e) { return null; }
-  }
-
-  function hasInvalidInlineDataUris(items) {
-    if (!Array.isArray(items)) return false;
-    return items.some(it => {
-      const src = (typeof it === 'string') ? it : (it && it.url ? it.url : '');
-      const val = String(src || '').trim();
-      return val.toLowerCase().startsWith('data:') && !normalizeDataUri(val);
-    });
   }
 
   function applyColorImages(color) {
@@ -270,65 +223,6 @@
   // initialize Firebase and subscribe to live updates. All calls are guarded so the
   // app continues to work offline/local-only when no config is present.
   const firebaseState = { db: null, enabled: false };
-
-  function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  function isRetryableFirestoreError(err) {
-    if (!err) return false;
-    const code = String(err.code || err.status || err.name || '').toLowerCase();
-    const msg = String(err.message || '').toLowerCase();
-    return (
-      code.includes('resource-exhausted') || msg.includes('resource-exhausted') || msg.includes('resource exhausted') ||
-      code.includes('aborted') || msg.includes('aborted') ||
-      code.includes('unavailable') || msg.includes('unavailable') ||
-      code.includes('deadline-exceeded') || msg.includes('deadline-exceeded')
-    );
-  }
-
-  async function runFirestoreWithRetry(action, options = {}) {
-    const maxRetries = Number.isFinite(options.maxRetries) ? options.maxRetries : 5;
-    const baseDelay = Number.isFinite(options.baseDelay) ? options.baseDelay : 300;
-    const maxDelay = Number.isFinite(options.maxDelay) ? options.maxDelay : 6000;
-    const label = options.label || 'firestore-write';
-    let attempt = 0;
-    while (true) {
-      try {
-        return await action();
-      } catch (err) {
-        attempt += 1;
-        const retryable = isRetryableFirestoreError(err);
-        if (!retryable || attempt > maxRetries) throw err;
-        const jitter = 0.75 + (Math.random() * 0.25);
-        const delay = Math.min(maxDelay, Math.floor(baseDelay * Math.pow(2, attempt - 1) * jitter));
-        console.warn(`${label}: retrying after ${delay}ms (attempt ${attempt}/${maxRetries})`);
-        await sleep(delay);
-      }
-    }
-  }
-
-  async function commitFirestoreOpsInChunks(db, ops, options = {}) {
-    if (!db || !Array.isArray(ops) || !ops.length) return true;
-    const chunkSize = Number.isFinite(options.chunkSize) ? options.chunkSize : 200;
-    const cooldownMs = Number.isFinite(options.cooldownMs) ? options.cooldownMs : 120;
-    const label = options.label || 'firestore-batch-commit';
-    for (let i = 0; i < ops.length; i += chunkSize) {
-      const chunk = ops.slice(i, i + chunkSize);
-      const batch = db.batch();
-      chunk.forEach(op => {
-        if (op.type === 'set') {
-          if (op.merge) batch.set(op.ref, op.payload, { merge: true });
-          else batch.set(op.ref, op.payload);
-        }
-        else if (op.type === 'update') batch.update(op.ref, op.payload);
-        else if (op.type === 'delete') batch.delete(op.ref);
-      });
-      await runFirestoreWithRetry(() => batch.commit(), { ...options, label });
-      if (cooldownMs > 0 && i + chunkSize < ops.length) await sleep(cooldownMs);
-    }
-    return true;
-  }
 
   // (debug panel removed) 
 
@@ -581,57 +475,14 @@
     // Sanitize payload to avoid sending large data URIs or huge arrays (images replaced with lightweight pathfile markers)
     const sanitized = sanitizeProductForFirestore(safe);
     const payload = JSON.parse(JSON.stringify(sanitized));
-    const ref = firebaseState.db.collection('products').doc(String(id));
-    return runFirestoreWithRetry(() => ref.set(payload, { merge: true }), { label: 'upsertProductToFirestore' })
+    return firebaseState.db.collection('products').doc(String(id)).set(payload, { merge: true })
       .then(() => console.info('upsertProductToFirestore: written product', String(id)))
       .catch(err => console.error('upsertProductToFirestore', err));
   }
 
-  // Compute a shallow diff between two objects; used to build minimal update payloads.
-  function computeShallowDiff(oldObj, newObj) {
-    const out = {};
-    try {
-      const keys = new Set([].concat(Object.keys(oldObj || {}), Object.keys(newObj || {})));
-      keys.forEach(k => {
-        try {
-          const o = (oldObj || {})[k];
-          const n = (newObj || {})[k];
-          if (JSON.stringify(o) !== JSON.stringify(n)) {
-            out[k] = (typeof n === 'undefined') ? null : n;
-          }
-        } catch (e) {}
-      });
-    } catch (e) {}
-    return out;
-  }
-
-  // Update only changed fields of a product document in Firestore. Falls back to set({merge:true})
-  // if update fails (e.g., doc doesn't exist).
-  function updateProductFieldsToFirestore(id, changes) {
-    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
-    try {
-      const cleaned = JSON.parse(JSON.stringify(changes || {}));
-      // sanitize product-level nested objects if present
-      if (cleaned.pricing || cleaned.images || cleaned.tagsManual || cleaned.colors || cleaned.description) {
-        // build a temp object to sanitize with existing helper
-        const tmp = Object.assign({}, cleaned);
-        try { tmp.pricing = tmp.pricing || {}; } catch(e){}
-        const payload = JSON.parse(JSON.stringify(sanitizeProductForFirestore(tmp)));
-        // copy back only the fields we intended to update
-        Object.keys(cleaned).forEach(k => { cleaned[k] = payload[k]; });
-      }
-      const ref = firebaseState.db.collection('products').doc(String(id));
-      return ref.update(cleaned).then(() => console.info('updateProductFieldsToFirestore: updated', id)).catch(err => {
-        console.warn('updateProductFieldsToFirestore.update failed, falling back to set merge', err);
-        return ref.set(cleaned, { merge: true }).then(() => console.info('updateProductFieldsToFirestore: set(merge) applied', id)).catch(e2 => console.error('updateProductFieldsToFirestore: fallback set failed', e2));
-      });
-    } catch (e) { console.error('updateProductFieldsToFirestore failed', e); return Promise.resolve(); }
-  }
-
   function deleteProductFromFirestore(id) {
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
-    const ref = firebaseState.db.collection('products').doc(String(id));
-    return runFirestoreWithRetry(() => ref.delete(), { label: 'deleteProductFromFirestore' })
+    return firebaseState.db.collection('products').doc(String(id)).delete()
       .then(() => console.info('deleteProductFromFirestore: deleted product', String(id)))
       .catch(err => console.error('deleteProductFromFirestore', err));
   }
@@ -640,18 +491,17 @@
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
     const id = sale.id || firebaseState.db.collection('sales').doc().id;
     const payload = JSON.parse(JSON.stringify(sale));
-    const ref = firebaseState.db.collection('sales').doc(String(id));
-    return runFirestoreWithRetry(() => ref.set(payload, { merge: true }), { label: 'upsertSaleToFirestore' })
+    return firebaseState.db.collection('sales').doc(String(id)).set(payload, { merge: true })
       .then(() => console.info('upsertSaleToFirestore: written sale', String(id)))
       .catch(err => console.error('upsertSaleToFirestore', err));
   }
 
   // Variants write helpers: create/update/delete variant documents in `variants` collection
-  function buildVariantPayload(productId, color, existingId) {
-    if (!firebaseState.db) return null;
-    const id = existingId || color.id || firebaseState.db.collection('variants').doc().id;
+  function upsertVariantToFirestore(productId, color) {
+    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
+    const id = color.id || firebaseState.db.collection('variants').doc().id;
     const normalizedImages = normalizeVariantImages(color.images || [], color.image || '');
-    return {
+    const payload = {
       id: id,
       productId: productId,
       colorName: color.name || '',
@@ -661,24 +511,14 @@
       // store sizes as an array of { eu, stock, sku }
       sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), criticalLevel: clampNum(parseNum(s.criticalLevel, defaultCriticalLevel()), 1, 999), sku: s.sku || '' })) : []
     };
-  }
-
-  function upsertVariantToFirestore(productId, color) {
-    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
-    const payload = buildVariantPayload(productId, color);
-    if (!payload) return Promise.resolve();
-    const id = payload.id;
-    if (!color.id) color.id = id;
-    const ref = firebaseState.db.collection('variants').doc(String(id));
-    return runFirestoreWithRetry(() => ref.set(payload, { merge: true }), { label: 'upsertVariantToFirestore' })
+    return firebaseState.db.collection('variants').doc(String(id)).set(payload, { merge: true })
       .then(() => console.info('upsertVariantToFirestore: written variant', String(id), 'for product', String(productId)))
       .catch(err => console.error('upsertVariantToFirestore', err));
   }
 
   function deleteVariantFromFirestore(id) {
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
-    const ref = firebaseState.db.collection('variants').doc(String(id));
-    return runFirestoreWithRetry(() => ref.delete(), { label: 'deleteVariantFromFirestore' })
+    return firebaseState.db.collection('variants').doc(String(id)).delete()
       .then(() => console.info('deleteVariantFromFirestore: deleted variant', String(id)))
       .catch(err => console.error('deleteVariantFromFirestore', err));
   }
@@ -688,21 +528,13 @@
     if (!product || !product.id) return Promise.resolve();
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
     const pid = product.id;
-    const db = firebaseState.db;
     const existing = firebaseState.variantsByProductId && firebaseState.variantsByProductId[pid] ? firebaseState.variantsByProductId[pid].map(v => v.id).filter(Boolean) : [];
     const desired = Array.isArray(product.colors) ? product.colors.map(c => c.id).filter(Boolean) : [];
-    const ops = [];
-    (product.colors || []).forEach(c => {
-      const payload = buildVariantPayload(pid, c);
-      if (!payload) return;
-      if (!c.id) c.id = payload.id;
-      ops.push({ type: 'set', ref: db.collection('variants').doc(String(payload.id)), payload, merge: true });
-    });
+    const upserts = (product.colors || []).map(c => upsertVariantToFirestore(pid, c));
     // delete variants that exist remotely but were removed locally
     const toDelete = existing.filter(id => !desired.includes(id));
-    toDelete.forEach(id => ops.push({ type: 'delete', ref: db.collection('variants').doc(String(id)) }));
-    return commitFirestoreOpsInChunks(db, ops, { label: 'syncVariantsForProduct', chunkSize: 200, maxRetries: 5, baseDelay: 300, cooldownMs: 120 })
-      .catch(err => console.error('syncVariantsForProduct', err));
+    const deletes = toDelete.map(id => deleteVariantFromFirestore(id));
+    return Promise.all([Promise.all(upserts), Promise.all(deletes)]).catch(err => console.error('syncVariantsForProduct', err));
   }
 
   // Schedule & perform a full one-way sync from local `state.products` to Firestore so the
@@ -713,13 +545,6 @@
     if (!firebaseState.enabled || !firebaseState.db) return;
     if (firebaseState.syncTimer) clearTimeout(firebaseState.syncTimer);
     firebaseState.syncTimer = setTimeout(() => { fullSyncToFirestore().catch(err => console.error('fullSyncToFirestore', err)); }, delay);
-  }
-
-  // Schedule merge-only sync to avoid destructive deletes and re-creating removed items.
-  function scheduleMergeOnlySync(delay = 1000) {
-    if (!firebaseState.enabled || !firebaseState.db) return;
-    if (firebaseState.syncTimer) clearTimeout(firebaseState.syncTimer);
-    firebaseState.syncTimer = setTimeout(() => { mergeOnlySyncToFirestore().catch(err => console.error('mergeOnlySyncToFirestore', err)); }, delay);
   }
 
   async function fullSyncToFirestore() {
@@ -746,39 +571,12 @@
       });
       const localProductIds = new Set(localProducts.map(p => String(p.id)));
 
-      // Helper: aggressively prune very large fields to avoid exceeding Firestore RPC size limits
-      function deepPruneLargeFields(obj){
-        try{
-          if(!obj || typeof obj !== 'object') return obj;
-          // remove obvious heavy fields
-          ['imageData','dataUri','data_uri','base64','rawImage'].forEach(k => { if(obj[k]) delete obj[k]; });
-          // remove or replace big image arrays
-          if(Array.isArray(obj.images)){
-            // keep only URLs/paths and cap length
-            const cleaned = obj.images.filter(x => x && (typeof x === 'string' || (x.pathfile)) ).slice(0,10);
-            obj.images = cleaned;
-            obj.images_count = cleaned.length;
-          }
-          // prune any very large string fields
-          Object.keys(obj).forEach(k => {
-            try{
-              const v = obj[k];
-              if(typeof v === 'string' && v.length > 20000){ obj[k] = v.slice(0,20000) + '...[truncated]'; }
-              else if(typeof v === 'object' && v !== null){ deepPruneLargeFields(v); }
-            }catch(e){}
-          });
-        }catch(e){}
-        return obj;
-      }
-
       // Prepare operations: upsert local products (set), delete remote products not in local
       const ops = [];
       localProducts.forEach(p => {
         const docRef = db.collection('products').doc(String(p.id));
         // Sanitize product to avoid sending data URIs or oversized arrays
         const sanitized = sanitizeProductForFirestore(p);
-        // Aggressively prune remaining large fields (extra safety)
-        deepPruneLargeFields(sanitized);
         // write the sanitized product document to reflect UI (overwrite)
         ops.push({ type: 'set', ref: docRef, payload: sanitized });
       });
@@ -806,19 +604,16 @@
         });
       });
 
-      // Upsert local variants (prune images and large fields)
+      // Upsert local variants
       localVariantsMap.forEach((payload, id) => {
         const ref = db.collection('variants').doc(String(id));
-        try{ deepPruneLargeFields(payload); }catch(e){}
-        // avoid sending long nested objects
-        if(Array.isArray(payload.images)) payload.images = payload.images.slice(0,6);
         ops.push({ type: 'set', ref, payload });
       });
       // Delete remote variants not in local map
       remoteVariants.forEach((d, id) => { if (!localVariantsMap.has(String(id))) ops.push({ type: 'delete', ref: db.collection('variants').doc(String(id)) }); });
 
-      // Commit operations in batches. Use smaller chunks to avoid large single-RPC payloads.
-      const chunkSize = 100;
+      // Commit operations in batches (max 400 per batch to be safe)
+      const chunkSize = 400;
       for (let i = 0; i < ops.length; i += chunkSize) {
         const chunk = ops.slice(i, i + chunkSize);
         const batch = db.batch();
@@ -826,34 +621,13 @@
           if (op.type === 'set') batch.set(op.ref, op.payload);
           else if (op.type === 'delete') batch.delete(op.ref);
         });
-        try{
-          await batch.commit();
-        }catch(err){
-          // If we hit a payload size limit, fall back to merge-only per-document updates to avoid large RPCs.
-          console.error('fullSyncToFirestore batch.commit failed — attempting fallback per-doc upserts', err);
-          for(const op of chunk){
-            try{
-              if(op.type === 'set') await op.ref.set(op.payload, { merge: true });
-              else if(op.type === 'delete') await op.ref.delete();
-            }catch(e2){ console.error('fallback per-doc operation failed', e2); }
-          }
-        }
+        await batch.commit();
       }
-      // Commit operations in sequential chunks with retries/backoff
-      await commitFirestoreOpsInChunks(db, ops, { label: 'fullSyncToFirestore', chunkSize: 200, maxRetries: 6, baseDelay: 400, cooldownMs: 150 });
 
       console.info('fullSyncToFirestore: sync completed (products:', localProducts.length, 'variants:', localVariantsMap.size, ')');
       return true;
     } catch (e) {
       console.error('fullSyncToFirestore failed', e);
-      // If the error indicates request payload size exceeded, try a safer merge-only sync
-      try{
-        if(e && String(e.message || '').toLowerCase().indexOf('payload size') !== -1){
-          console.warn('fullSyncToFirestore: payload too large — falling back to mergeOnlySyncToFirestore()');
-          await mergeOnlySyncToFirestore();
-          return true;
-        }
-      }catch(ff){ console.error('fallback mergeOnlySyncToFirestore failed', ff); }
       throw e;
     }
   }
@@ -1007,17 +781,8 @@
   }
 
   function saveAll() {
-    // Schedule a one-way sync to Firestore.
-    try {
-      if (!firebaseState || !firebaseState.enabled || !firebaseState.db) {
-        if (!saveBlockedAlerted) {
-          alert('Firebase is unavailable. Changes cannot be saved. Please check your connection or Firebase setup.');
-          saveBlockedAlerted = true;
-        }
-        return;
-      }
-      scheduleFullSync();
-    } catch (e) { /* ignore */ }
+    // Schedule a one-way sync to Firestore so remote mirrors current UI state
+    try { if (firebaseState && firebaseState.enabled) scheduleFullSync(); } catch (e) { /* ignore */ }
   }
 
   // Ensure every product has a SKU; generate if missing/blank
@@ -1348,12 +1113,12 @@
         <td>${displayBrand}</td>
         <td>${displaySku || ''}</td>
         <td>${displayModel}</td>
-        <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
-        <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${catDisplay}</td>
   <td class="status ${displayStatus}">${displayStatus}</td>
   <td class="gender-cell"><div class="cell-stack">${genderHtml || ''}</div></td>
   <td class="tags-cell">${tagsHtml || ''}</td>
+    <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
+        <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${price}</td>
         <td class="actions-col">
           <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -1382,8 +1147,12 @@
     const section = qs('#archivedSection');
     const btn = qs('#toggleArchivedBtn');
     const activeSection = qs('#activeInventorySection');
-    if (section) section.hidden = !state.ui.showArchived;
-    if (btn) btn.textContent = state.ui.showArchived ? 'Hide Archived' : 'Show Archived';
+    const shouldShowArchived = archivedOnly || state.ui.selectedTab === 'archived' || state.ui.showArchived;
+    if (section) section.hidden = !shouldShowArchived;
+    if (btn) {
+      btn.textContent = shouldShowArchived ? 'Hide Archived' : 'Show Archived';
+      btn.style.display = (state.ui.selectedTab === 'inventory' && !archivedOnly) ? '' : 'none';
+    }
     if (archivedOnly) {
       if (btn) btn.style.display = 'none';
       if (activeSection) activeSection.style.display = 'none';
@@ -1395,8 +1164,9 @@
     const section = qs('#archivedSection');
     const tbody = qs('#archivedTbody');
     if (!section || !tbody) return;
+    const shouldShowArchived = archivedOnly || state.ui.selectedTab === 'archived' || state.ui.showArchived;
     updateArchivedVisibility();
-    if (!state.ui.showArchived) { tbody.innerHTML = ''; return; }
+    if (!shouldShowArchived) { tbody.innerHTML = ''; return; }
 
     const ctx = getFilterContext();
     const productsList = Array.isArray(state.products) ? state.products : [];
@@ -1486,12 +1256,12 @@
         <td>${displayBrand}</td>
         <td>${displaySku || ''}</td>
         <td>${displayModel}</td>
-        <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
-        <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${catDisplay}</td>
         <td class="status ${displayStatus}">${displayStatus}</td>
         <td class="gender-cell"><div class="cell-stack">${genderHtml || ''}</div></td>
         <td class="tags-cell">${tagsHtml || ''}</td>
+        <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
+        <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${price}</td>
         <td class="actions-col">
           <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
@@ -1610,12 +1380,9 @@
           const brandTxt = (cells[1] && cells[1].textContent) ? cells[1].textContent.trim() : '';
           const skuTxt = (cells[2] && cells[2].textContent) ? cells[2].textContent.trim() : '';
           const modelTxt = (cells[3] && cells[3].textContent) ? cells[3].textContent.trim() : '';
-          // After moving Colors & Total Stock between Model and Category, Category is now at index 6
-          const catTxt = (cells[6] && cells[6].textContent) ? cells[6].textContent.trim() : '';
-          // Status is now at index 7
-          const statusTxt = (cells[7] && cells[7].textContent) ? cells[7].textContent.trim() : '';
-          // Price moved to index 10
-          const priceTxt = (cells[10] && cells[10].textContent) ? cells[10].textContent.trim() : '';
+          const catTxt = (cells[4] && cells[4].textContent) ? cells[4].textContent.trim() : '';
+          const statusTxt = (cells[5] && cells[5].textContent) ? cells[5].textContent.trim() : '';
+          const priceTxt = (cells[9] && cells[9].textContent) ? cells[9].textContent.trim() : '';
           // Extract numeric price if present (e.g., "₱1,234.00")
           let priceNum = 0;
           const m = priceTxt.match(/[\d,\.]+/);
@@ -1805,8 +1572,6 @@
 
     if (pid) {
       const p = state.products.find(x => x.id === pid);
-      // capture original snapshot so we can compute minimal changes to persist
-      const originalSnapshot = JSON.parse(JSON.stringify(p || {}));
       // Confirm archiving when changing status to archive
       if (statusSel === 'archive' && normalizeStatus(p.status) !== 'archive') {
         const ok = confirm(`Archive ${p.brand} ${p.model}?\nArchived products are hidden from active listings.`);
@@ -1826,44 +1591,15 @@
       // Keep existing SKU unless empty; regenerate if missing
       if (!p.sku) p.sku = generateProductSKU(brand, model, cat);
       p.description = desc;
-  // Validate images before assigning; abort save if any inline data URI is malformed.
-  const incomingImages = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
-  for (const imgSrc of incomingImages) {
-    if (imgSrc && imgSrc.indexOf('data:') === 0) {
-      const ok = normalizeDataUri(imgSrc);
-      if (!ok) { alert('One or more product images are invalid. Please re-upload the affected images before saving.'); return; }
-    }
-  }
-  p.images = incomingImages;
-      if (hasInvalidInlineDataUris(state.ui.productModalImages)) {
-        alert('One or more product images are invalid. Please remove and re-upload those images.');
-        return;
-      }
-      p.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
+  p.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       p.tagsManual = manual;
   // AR link handling
   try { const arVal = (qs('#prodARLink') && qs('#prodARLink').value) ? String(qs('#prodARLink').value).trim() : ''; if (arVal) { p.arLink = arVal; p.arQr = qrImageUrlFor(arVal, 300); } else { delete p.arLink; delete p.arQr; } } catch(e){}
       // Ensure size-level SKUs exist
       ensureSizeSkusForProduct(p);
-      // Sync to Firestore when available. Compute shallow diff and update only changed fields.
+      // Sync to Firestore when available
       if (firebaseState.enabled) {
-        try {
-          const diff = computeShallowDiff(originalSnapshot, p);
-          // If colors changed (complex nested), ensure we include the full colors array in diff
-          const colorsChanged = (typeof diff.colors !== 'undefined') && JSON.stringify(diff.colors) !== JSON.stringify(undefined);
-          if (Object.keys(diff).length === 0) {
-            console.info('saveProductFromModal: no changes detected for', pid);
-          } else {
-            updateProductFieldsToFirestore(pid, diff).then(() => {
-              if (colorsChanged) {
-                // ensure variants collection matches product colors
-                try { syncVariantsForProduct(p); } catch(e){ console.warn('syncVariantsForProduct failed', e); }
-              }
-            }).catch(err => {
-              console.error('saveProductFromModal: updateProductFieldsToFirestore failed', err);
-            });
-          }
-        } catch(e) { console.error('saveProductFromModal firestore update failed', e); }
+        upsertProductToFirestore(p).then(() => syncVariantsForProduct(p));
       }
     } else {
       // Require at least one color with sizes when adding
@@ -1874,19 +1610,6 @@
         if (!ok) { return; }
       }
   const newP = newProduct({ brand, model, category: cat, status: statusSel, images: [], pricing: { original: pOrig, sale: pSale, cost: 0 }, description: desc, gender: Array.isArray(genderSel) ? genderSel : [genderSel] });
-  // Validate images for new product as well
-  const incomingImagesNew = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
-  for (const imgSrc of incomingImagesNew) {
-    if (imgSrc && imgSrc.indexOf('data:') === 0) {
-      const ok = normalizeDataUri(imgSrc);
-      if (!ok) { alert('One or more product images are invalid. Please re-upload the affected images before saving.'); return; }
-    }
-  }
-  newP.images = incomingImagesNew;
-  if (hasInvalidInlineDataUris(state.ui.productModalImages)) {
-    alert('One or more product images are invalid. Please remove and re-upload those images.');
-    return;
-  }
   newP.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       newP.tagsManual = manual;
   // AR link for new product
@@ -1924,70 +1647,9 @@
 
   function deleteProduct(id) {
     if (!confirm('Delete this product?')) return;
-    // Remove from in-memory state
-    const removed = state.products.filter(p => p.id === id);
     state.products = state.products.filter(p => p.id !== id);
-
-    // Clear UI cache entries that may hold the product
-    try { if (displayedProductCache && displayedProductCache[id]) delete displayedProductCache[id]; } catch (e) {}
-
-    // Remove product references from common localStorage keys (cart, wishlist, modelData, productId, etc.)
-    try {
-      // cart
-      try{
-        const cart = JSON.parse(localStorage.getItem('cart') || '[]') || [];
-        const filteredCart = cart.filter(it => { const pid = it.productId || it.id || it.sku || ''; return String(pid) !== String(id); });
-        if (filteredCart.length !== cart.length) localStorage.setItem('cart', JSON.stringify(filteredCart));
-      }catch(e){}
-      // wishlist
-      try{
-        const wish = JSON.parse(localStorage.getItem('wishlist') || '[]') || [];
-        const filteredWish = wish.filter(it => { const pid = it.productId || it.id || it.sku || ''; return String(pid) !== String(id); });
-        if (filteredWish.length !== wish.length) localStorage.setItem('wishlist', JSON.stringify(filteredWish));
-      }catch(e){}
-      // product view quick keys
-      try{
-        const pidKey = localStorage.getItem('productId'); if (pidKey && String(pidKey) === String(id)) { localStorage.removeItem('productId'); localStorage.removeItem('productImg'); localStorage.removeItem('productTitle'); localStorage.removeItem('productBrand'); localStorage.removeItem('productPrice'); }
-      }catch(e){}
-      // modelData may contain references
-      try{
-        const md = JSON.parse(localStorage.getItem('modelData') || 'null'); if (md && (md.productId === id || md.id === id)) { localStorage.removeItem('modelData'); }
-      }catch(e){}
-      // orders and client_orders: remove any line items referencing this product (non-destructive best-effort)
-      try{
-        const ordKeys = ['orders','client_orders'];
-        ordKeys.forEach(k => {
-          try{
-            const arr = JSON.parse(localStorage.getItem(k) || '[]') || [];
-            let changed = false;
-            const cleaned = arr.map(o => {
-              if (!o || !Array.isArray(o.items)) return o;
-              const newItems = o.items.filter(it => { const pid = it.productId || it.id || it.sku || ''; return String(pid) !== String(id); });
-              if (newItems.length !== o.items.length) { changed = true; const copy = Object.assign({}, o); copy.items = newItems; return copy; }
-              return o;
-            });
-            if (changed) localStorage.setItem(k, JSON.stringify(cleaned));
-          }catch(e){}
-        });
-      }catch(e){}
-    } catch(e) { console.error('deleteProduct: localStorage cleanup failed', e); }
-
-    // Persist state and re-render
     saveAll();
     renderAll();
-
-    // Remove variants associated with this product (local cache + remote)
-    try {
-      const vidList = (firebaseState.variantsByProductId && firebaseState.variantsByProductId[id]) ? firebaseState.variantsByProductId[id].map(v => v.id).filter(Boolean) : [];
-      // delete remote variants if firebase enabled
-      if (firebaseState.enabled && firebaseState.db) {
-        vidList.forEach(vid => { try { deleteVariantFromFirestore(vid); } catch(e){} });
-      }
-      // remove local variantsByProductId entry
-      try { if (firebaseState.variantsByProductId && firebaseState.variantsByProductId[id]) delete firebaseState.variantsByProductId[id]; } catch(e){}
-    } catch(e) { console.error('deleteProduct: variant cleanup failed', e); }
-
-    // Delete product document remotely
     if (firebaseState.enabled) deleteProductFromFirestore(id);
   }
 
@@ -2038,35 +1700,15 @@
     const inp = qs('#imageFileInput'); if (!inp) return;
     const files = Array.from(inp.files || []);
     if (!files.length) { alert('Choose image files'); return; }
-    let invalidCount = 0;
     const readers = files.map(file => new Promise((resolve, reject) => {
       const fr = new FileReader();
-      fr.onload = () => {
-        try {
-          const normalized = normalizeDataUri(fr.result);
-          if (!normalized) {
-            invalidCount += 1;
-            resolve(null);
-            return;
-          }
-          resolve({ url: normalized, name: file.name });
-        } catch (e) { resolve(null); }
-      };
-      fr.onerror = () => { invalidCount += 1; resolve(null); };
-      try { fr.readAsDataURL(file); } catch (e) { invalidCount += 1; resolve(null); }
+      fr.onload = () => resolve({ url: fr.result, name: file.name });
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
     }));
-
     Promise.all(readers)
-      .then(items => {
-        const valid = items.filter(i => i && i.url);
-        if (invalidCount > 0) alert('One or more images were invalid and were skipped.');
-        if (valid.length) {
-          state.ui.productModalImages.push(...valid);
-          renderImagesList();
-        }
-        inp.value = '';
-      })
-      .catch(() => { alert('Failed to import one or more images'); inp.value = ''; });
+      .then(items => { state.ui.productModalImages.push(...items); renderImagesList(); inp.value = ''; })
+      .catch(() => alert('Failed to import one or more images'));
   }
 
   // Variants modal
@@ -2283,12 +1925,8 @@
       if (!c) return;
       const fr = new FileReader();
       fr.onload = () => {
-        const normalized = normalizeDataUri(fr.result);
-        if (!normalized) {
-          alert('Uploaded image appears invalid. Please choose a different file.');
-          return;
-        }
-        c.images[idx] = normalized;
+        applyColorImages(c);
+        c.images[idx] = fr.result;
         applyColorImages(c);
         saveAll();
         openVariantModal(p.id);
@@ -2794,21 +2432,6 @@
     if (state.ui.selectedTab === 'reports') renderReports();
     if (state.ui.selectedTab === 'alerts') renderAlerts();
     if (state.ui.selectedTab === 'settings') renderSettings();
-    // If an initial stocks filter was provided (via URL or dashboard click), apply it once
-    // after the first render so it isn't overwritten by later init steps.
-    try {
-      if (__initialStocksParam) {
-        const stockSel = document.getElementById('filterStock');
-        if (stockSel && stockSel.value !== __initialStocksParam) {
-          stockSel.value = __initialStocksParam;
-          try { stockSel.dispatchEvent(new Event('change', { bubbles: true })); } catch(e) {}
-          try { renderInventoryTables(); } catch(e){}
-        }
-        // clear transient indicators so we only apply once
-        try { localStorage.removeItem('inventoryStocksFilter'); } catch(e){}
-        __initialStocksParam = null;
-      }
-    } catch (e) { /* ignore */ }
   }
 
   // Export inventory to a Word-compatible .doc file (HTML document saved with .doc extension)
@@ -2974,24 +2597,64 @@
       state.ui.showArchived = true;
       updateArchivedVisibility();
     }
-    // Local persistence disabled: settings remain in-memory only.
-    backfillSizeCriticalLevels();
-    // capture incoming stocks filter from URL or dashboard click (localStorage)
+    // Load persisted settings from localStorage so other pages (e.g. dashboard)
+    // can read the canonical low-stock threshold. Persist settings when the
+    // user clicks Save Settings below.
     try {
-      const params = new URLSearchParams(window.location.search || '');
-      const stocksParam = params.get('stocks');
-      const lsFilter = (function(){ try { return localStorage.getItem('inventoryStocksFilter'); } catch(e){ return null; } })();
-      const effective = (stocksParam || lsFilter || '').toLowerCase();
-      if (effective === 'low' || effective === 'out' || effective === 'in') {
-        __initialStocksParam = effective;
+      var saved = localStorage.getItem('inventory_app_settings');
+      if (saved) {
+        var parsed = JSON.parse(saved);
+        if (parsed && parsed.lowStockThreshold) {
+          state.settings = state.settings || {};
+          state.settings.lowStockThreshold = Number(parsed.lowStockThreshold) || state.settings.lowStockThreshold || 3;
+        }
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) { /* ignore malformed saved settings */ }
 
+    try {
+      var saveBtn = document.getElementById('saveSettingsBtn');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', function(){
+          try {
+            // persist minimal settings shape
+            var toSave = { lowStockThreshold: (state && state.settings && state.settings.lowStockThreshold) ? state.settings.lowStockThreshold : 3 };
+            localStorage.setItem('inventory_app_settings', JSON.stringify(toSave));
+            // also expose for debug/other pages
+            try { window.lastInvSettings = toSave; } catch(_) {}
+          } catch (e) { /* ignore storage errors */ }
+        });
+      }
+    } catch (e) {}
+    // Auto-save lowStockThreshold when the user changes the input so other pages (dashboard)
+    // pick up the canonical value immediately.
+    try {
+      var thresholdInput = document.getElementById('lowStockThreshold');
+      if (thresholdInput) {
+        // initialize input value from loaded settings
+        try { thresholdInput.value = (state && state.settings && state.settings.lowStockThreshold) ? Number(state.settings.lowStockThreshold) : thresholdInput.value || 3; } catch(e){}
+
+        var persistThreshold = function(){
+          try {
+            var v = parseNum(thresholdInput.value, NaN);
+            if (!Number.isFinite(v) || v < 1) v = 1;
+            state.settings = state.settings || {};
+            state.settings.lowStockThreshold = Math.floor(v);
+            var toSave = { lowStockThreshold: state.settings.lowStockThreshold };
+            localStorage.setItem('inventory_app_settings', JSON.stringify(toSave));
+            try { window.lastInvSettings = toSave; } catch(_) {}
+            // refresh reports and table so UI reflects new threshold immediately
+            try { renderReports(); } catch(e){}
+            try { renderProductsTable(); } catch(e){}
+          } catch (e) { /* ignore */ }
+        };
+        thresholdInput.addEventListener('input', persistThreshold);
+        thresholdInput.addEventListener('change', persistThreshold);
+      }
+    } catch (e) {}
+    backfillSizeCriticalLevels();
     // Initialize Firebase (if configured) and attach realtime listeners
     try { initFirebase(); } catch (e) { /* ignore */ }
     renderAll();
-    // Note: we intentionally do NOT apply the incoming filter here; instead we remember
-    // it in __initialStocksParam and apply inside renderAll() to ensure it sticks.
   }
 
   document.addEventListener('DOMContentLoaded', init);

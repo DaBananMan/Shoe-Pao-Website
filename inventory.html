@@ -29,7 +29,12 @@
                 #tab-reports .reports-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
                 #tab-reports .reports-grid .card { padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
                 #tab-reports .reports-grid .card .header-line { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+                #tab-reports .reports-grid .card .header-line h3 { margin: 0; font-size: 1.05rem; }
+                /* Descriptor (e.g. "Top 5 sizes") should be left-aligned and sit between the header and the values */
                 #tab-reports .reports-grid .card .card-desc { color: var(--muted); font-size:0.92rem; margin:0 0 8px 0; text-align:left; display:block; }
+                /* Make report lists vertical and left-aligned under the descriptor */
+                #tab-reports .reports-grid .card .collapsible { margin:6px 0 0 0; padding-left:18px; list-style: disc inside; }
+                #tab-reports .reports-grid .card .summary { margin:6px 0 0 0; }
                 #tab-reports .reports-grid .card .card-values { margin:4px 0 0 0; padding-left:18px; list-style: disc inside; font-size:0.95rem; }
                 #tab-reports .reports-grid .card .card-values li { margin:2px 0; }
                 #tab-reports .reports-grid .card .collapsible .placeholder { color: var(--muted); font-style: italic; }
@@ -70,7 +75,7 @@
         </div>
         <nav class="tabs">
             <button data-tab="inventory" class="active">Inventory</button>
-            <button id="archivedPageBtn" class="secondary" type="button" onclick="window.location.href='archived-products.html'">Archived Page</button>
+            <button data-tab="archived">Archived</button>
             <button data-tab="sales">Sales</button>
             <button data-tab="reports">Reports</button>
             <button data-tab="alerts">Alerts</button>
@@ -89,7 +94,6 @@
                 <button id="bulkRestock" class="secondary">Bulk Restock</button>
                 <button id="bulkArchive" class="secondary">Archive Selected</button>
                 <button id="bulkUnarchive" class="secondary">Unarchive Selected</button>
-                <button id="toggleArchivedBtn" class="secondary">Show Archived</button>
             </div>
             <div class="table-scroll">
             <table class="products-table">
@@ -98,12 +102,12 @@
                     <col style="width:9%" /> <!-- Brand -->
                     <col style="width:7%" />  <!-- SKU -->
                     <col style="width:17%" /> <!-- Model -->
-                    <col style="width:12%" /> <!-- Colors -->
-                    <col style="width:6%" />  <!-- Total Stock -->
                     <col style="width:11%" /> <!-- Category -->
                     <col style="width:5%" />  <!-- Status -->
                     <col style="width:6%" />  <!-- Gender Fit -->
                     <col style="width:7%" />  <!-- Tags -->
+                    <col style="width:12%" /> <!-- Colors -->
+                    <col style="width:6%" />  <!-- Total Stock -->
                     <col style="width:6%" />  <!-- Price -->
                     <col style="width:160px" />  <!-- Actions (fixed) -->
                 </colgroup>
@@ -113,12 +117,12 @@
                         <th>Brand</th>
                         <th>SKU</th>
                         <th>Model</th>
-                        <th class="colors-col">Colors</th>
-                        <th>Total Stock</th>
                         <th>Category</th>
                         <th>Status</th>
                         <th>Gender Fit</th>
                         <th>Tags</th>
+                        <th class="colors-col">Colors</th>
+                        <th>Total Stock</th>
                         <th>Price</th>
                         <th class="actions-col">Actions</th>
                     </tr>
@@ -126,50 +130,6 @@
                 <tbody id="productsTbody"></tbody>
                 </table>
             </div>
-            </div>
-
-            <div id="archivedSection" class="archived-section" hidden>
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0 8px 0;">
-                    <div>
-                        <h3 style="margin:0;">Archived Products</h3>
-                        <p class="muted" style="margin:4px 0 0 0;">Archived items are hidden from active listings.</p>
-                    </div>
-                </div>
-                <div class="table-scroll">
-                    <table class="products-table archived-table">
-                        <colgroup>
-                            <col style="width:36px" />
-                            <col style="width:9%" />
-                            <col style="width:7%" />
-                            <col style="width:17%" />
-                            <col style="width:12%" /> <!-- Colors -->
-                            <col style="width:6%" />  <!-- Total Stock -->
-                            <col style="width:11%" /> <!-- Category -->
-                            <col style="width:5%" />  <!-- Status -->
-                            <col style="width:6%" />  <!-- Gender Fit -->
-                            <col style="width:7%" />  <!-- Tags -->
-                            <col style="width:6%" />  <!-- Price -->
-                            <col style="width:160px" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th class="bulk-col"></th>
-                                <th>Brand</th>
-                                <th>SKU</th>
-                                <th>Model</th>
-                                <th class="colors-col">Colors</th>
-                                <th>Total Stock</th>
-                                <th>Category</th>
-                                <th>Status</th>
-                                <th>Gender Fit</th>
-                                <th>Tags</th>
-                                <th>Price</th>
-                                <th class="actions-col">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="archivedTbody"></tbody>
-                    </table>
-                </div>
             </div>
 
     <!-- Firebase config (paste your web config here). Public keys are fine in client code. -->
@@ -194,6 +154,52 @@
 
     <!-- App script -->
     <script src="inventory-app.js"></script>
+        </section>
+
+        <section id="tab-archived" class="tab">
+            <div id="archivedSection" class="archived-section">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0 8px 0;">
+                    <div>
+                        <h3 style="margin:0;">Archived Products</h3>
+                        <p class="muted" style="margin:4px 0 0 0;">Archived items are hidden from active listings.</p>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table class="products-table archived-table">
+                        <colgroup>
+                            <col style="width:36px" />
+                            <col style="width:9%" />
+                            <col style="width:7%" />
+                            <col style="width:17%" />
+                            <col style="width:11%" />
+                            <col style="width:5%" />
+                            <col style="width:6%" />
+                            <col style="width:7%" />
+                            <col style="width:12%" />
+                            <col style="width:6%" />
+                            <col style="width:6%" />
+                            <col style="width:160px" />
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th class="bulk-col"></th>
+                                <th>Brand</th>
+                                <th>SKU</th>
+                                <th>Model</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Gender Fit</th>
+                                <th>Tags</th>
+                                <th class="colors-col">Colors</th>
+                                <th>Total Stock</th>
+                                <th>Price</th>
+                                <th class="actions-col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archivedTbody"></tbody>
+                    </table>
+                </div>
+            </div>
         </section>
 
         <section id="tab-sales" class="tab">
@@ -640,32 +646,6 @@
                 padding: 14px;
                 background: #fffdfd;
             }
-            /* Make variant image previews compact and stacked vertically (list) */
-            .variant-modal .variant-images-grid {
-                display: flex;
-                flex-direction: column; /* stacked list */
-                gap: 8px;
-                align-items: flex-start;
-            }
-            .variant-modal .variant-image-slot {
-                display: flex;
-                gap: 10px;
-                align-items: center;
-                width: 100%;
-            }
-            .variant-modal .variant-image-preview {
-                width: 72px;
-                height: 72px;
-                flex: 0 0 72px;
-                border-radius: 8px;
-                overflow: hidden;
-                background: #f7f7f7;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-            .variant-modal .variant-image-preview img { width:100%; height:100%; object-fit:cover; display:block; }
-            .variant-modal .variant-image-actions { margin-left: 8px; display:inline-flex; gap:6px; align-items:center; }
             .variant-modal .variant-image-actions label.secondary.small-btn {
                 padding: 6px 10px;
                 border-radius: 8px;
@@ -808,56 +788,27 @@
             ];
         })();
 
-        // Allow passing an external AbortController to enable aborting in-flight probes.
-        function fetchWithTimeout(url, timeout, externalController){
-            var ctrl = externalController || new AbortController();
-            var id = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, timeout||3000);
-            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; }).catch(function(err){ clearTimeout(id); throw err; });
+        function fetchWithTimeout(url, timeout){
+            var ctrl = new AbortController();
+            var id = setTimeout(function(){ ctrl.abort(); }, timeout||3000);
+            return fetch(url, { signal: ctrl.signal, cache: 'no-store' }).then(function(r){ clearTimeout(id); return r; });
         }
 
         function getSalesDebugEl(){ try{ return document.getElementById('salesDebug'); }catch(e){ return null; } }
 
-        // Cache the discovered orders.json URL in sessionStorage so we don't probe repeatedly.
-        var __cachedOrdersJsonUrl = null;
-        try{ __cachedOrdersJsonUrl = sessionStorage.getItem('ordersJsonUrl') || null; }catch(e){ __cachedOrdersJsonUrl = null; }
-        var __ordersJsonAbortController = null;
-
         async function findOrdersJson(){
-            // Abort any previously-running probes before starting a new one
-            try{ if(__ordersJsonAbortController){ try{ __ordersJsonAbortController.abort(); }catch(e){} } }catch(e){}
-            __ordersJsonAbortController = new AbortController();
-
-            // If we have a cached URL from a previous successful probe, try it first.
-            if(__cachedOrdersJsonUrl){
-                try{
-                    console.debug('Trying cached orders.json at', __cachedOrdersJsonUrl);
-                    var rCached = await fetchWithTimeout(__cachedOrdersJsonUrl, 3000, __ordersJsonAbortController);
-                    if(rCached && rCached.ok){ try{ var j = await rCached.json(); return { url: __cachedOrdersJsonUrl, json: j }; }catch(e){ console.warn('Invalid JSON at cached url', __cachedOrdersJsonUrl); /* fallthrough to full probe */ } }
-                    // if cached url failed, clear cache and continue probing
-                    try{ sessionStorage.removeItem('ordersJsonUrl'); }catch(e){}
-                    __cachedOrdersJsonUrl = null;
-                }catch(e){ console.debug('Cached orders.json probe failed', e && e.message); try{ sessionStorage.removeItem('ordersJsonUrl'); }catch(err){} __cachedOrdersJsonUrl = null; }
-            }
             // Silent probe for candidate files. Only log to console; don't update UI text.
             for(var i=0;i<candidates.length;i++){
                 var u = candidates[i];
                 try{
                     console.debug('Trying orders.json at', u);
-                    var r = await fetchWithTimeout(u, 2500, __ordersJsonAbortController);
+                    var r = await fetchWithTimeout(u, 2500);
                     if(r && r.ok){
-                        try{ var j = await r.json();
-                            // cache the successful URL for future loads
-                            __cachedOrdersJsonUrl = u; try{ sessionStorage.setItem('ordersJsonUrl', u); }catch(e){}
-                            return { url: u, json: j };
-                        }catch(e){ console.warn('Invalid JSON at', u); continue; }
+                        try{ var j = await r.json(); return { url: u, json: j }; }catch(e){ console.warn('Invalid JSON at', u); continue; }
                     } else {
                         // no-op, try next
                     }
                 }catch(e){
-                    if(e && e.name === 'AbortError'){
-                        console.debug('orders.json probe aborted for', u);
-                        return null; // aborted by a newer request
-                    }
                     console.debug('fetch error for', u, e && e.message);
                     /* try next */ }
             }
@@ -968,9 +919,7 @@
                                     if(!cells || cells.length < 11) return;
                                     var brand = cells[1] ? cells[1].textContent.trim() : '';
                                     var model = cells[3] ? cells[3].textContent.trim() : '';
-                                    // After moving Colors & Total Stock between Model and Category,
-                                    // Total Stock is now at cell index 5 (0-based)
-                                    var stockText = cells[5] ? cells[5].textContent.trim() : '';
+                                    var stockText = cells[9] ? cells[9].textContent.trim() : '';
                                     var stock = Number(stockText.replace(/[^0-9\-\.]/g,''));
                                     if(!isFinite(stock)) return;
                                     if(stock <= threshold){
@@ -1181,13 +1130,10 @@
                 // wrap original to set the writing flag so the observer ignores our writes
                 loadSalesLog = async function(){ __sales_log_writing = true; try{ await originalLoad(); }catch(e){} finally{ __sales_log_writing = false; } };
 
-                // Debounce rapid external changes so we don't trigger many probes in quick succession.
-                var __sales_reload_timer = null;
                 var mo = new MutationObserver(function(mutations){
                     if(__sales_log_writing) return;
-                    // Debounce: wait 400ms after the last mutation before reloading
-                    try{ clearTimeout(__sales_reload_timer); }catch(e){}
-                    __sales_reload_timer = setTimeout(function(){ try{ loadSalesLog(); }catch(e){} }, 400);
+                    // If something else changed the tbody, refresh after a short delay
+                    setTimeout(function(){ try{ loadSalesLog(); }catch(e){} }, 80);
                 });
                 mo.observe(tbody, { childList: true, subtree: true });
             }catch(e){ /* no-op */ }

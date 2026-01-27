@@ -65,19 +65,11 @@
       // Periodically flush outbox and when page gains connectivity
       try{ setInterval(flushOutboxOnce, 10000); window.addEventListener && window.addEventListener('online', flushOutboxOnce); }catch(e){}
 
-      // Try to ensure the Node API server is running (local dev convenience).
-      // This calls a small PHP script which will start the Node process via a helper
-      // if it's not already running. It's safe because the PHP helper restricts
-      // execution to Windows and local requests by default.
-      try{
-        if(window.location && window.location.hostname === 'localhost'){
-          fetch('/tools/ensure-node.php', { method: 'GET', credentials: 'same-origin' }).then(function(r){
-            return r.json().catch(function(){ return null; });
-          }).then(function(json){
-            try{ if(json) console.debug('ensure-node:', json); }catch(e){}
-          }).catch(function(err){ /* ignore */ });
-        }
-      }catch(e){}
+      // Local dev helper removed: avoid probing for a PHP helper at /tools/ensure-node.php
+      // which may not exist in some setups and causes noisy 404s. If developers need
+      // an automatic Node-starter, enable it via a custom script that sets
+      // window.SHOEPAO_ENABLE_NODE_STARTER = true and provides a reachable endpoint.
+      try{ if(window && window.location && window.location.hostname === 'localhost') { console.debug('ensure-server: node-starter probe skipped (no /tools/ensure-node.php)'); } }catch(e){}
 
       window.fetch = function(input, init){
         try{
@@ -197,8 +189,17 @@
                   try{ sessionStorage.setItem('shoepao_admin_session', '1'); }catch(e){}
                   console.info('admin auto-signin: signed in as', json.email || json.uid);
                   try{
-                    // Ensure we only trigger a reload once after an automatic sign-in to avoid reload storms
-                    if(!window.__shoepao_auto_admin_signedin){ window.__shoepao_auto_admin_signedin = true; setTimeout(function(){ try{ location.reload(); }catch(e){} }, 800); }
+                    // Ensure we only notify once after an automatic sign-in to avoid reload storms.
+                    // Dispatch a custom event so admin pages can react (refresh data) without forcing
+                    // a full page reload. Full reload is still available when explicitly enabled.
+                    if(!window.__shoepao_auto_admin_signedin){
+                      window.__shoepao_auto_admin_signedin = true;
+                      try{
+                        if(window.dispatchEvent){ window.dispatchEvent(new CustomEvent('shoepao:admin-signedin', { detail: { email: json.email || null } })); }
+                      }catch(e){}
+                      // Optional full reload only when explicitly requested by the page
+                      if(window.SHOEPAO_AUTOADMIN_RELOAD === true){ setTimeout(function(){ try{ location.reload(); }catch(e){} }, 800); }
+                    }
                   }catch(e){ /* ignore */ }
                 }).catch(function(err){ console.warn('admin auto-signin: signInWithCustomToken failed', err); });
             }catch(e){ console.warn('admin auto-signin: error signing in', e); }
