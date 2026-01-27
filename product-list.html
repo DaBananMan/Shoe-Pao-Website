@@ -457,7 +457,7 @@
     function goToSale(){ window.location.href = 'product-list.html?filter=sale'; }
     function goToNewArrivals(){ window.location.href = 'product-list.html?filter=new'; }
     function goToProductList(){ window.location.href = 'product-list.html'; }
-    function goToUserPage(){ window.location.href = 'profile.html'; }
+    function goToUserPage(){ try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { window.location.href = 'profile.html'; } }catch(e){ window.location.href = 'profile.html'; } }
     function toggleSearchBox(){ const box = document.getElementById('searchBox'); if(box){ box.style.display = (box.style.display==='none'||!box.style.display)?'block':'none'; } }
     function searchKeyDown(e){ if(e.key==='Enter'){ applyAllFilters(); } }
     function viewProduct(brand,title,price,img,badge,originalPrice){

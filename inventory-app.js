@@ -666,13 +666,33 @@
   }
 
   function totalStockForProduct(p) {
-    if (!p || !Array.isArray(p.colors)) return 0;
-    return p.colors.reduce((acc, c) => acc + (Array.isArray(c.sizes) ? c.sizes.reduce((sacc, s) => sacc + (parseNum(s.stock,0) || 0), 0) : 0), 0);
+    if (!p) return 0;
+    // If product has colors array, sum each color
+    if (Array.isArray(p.colors) && p.colors.length) {
+      return p.colors.reduce((acc, c) => acc + totalStockForColor(c), 0);
+    }
+    // If product stores sizes as an object map at product level (e.g. {"42":3, "43":0}), sum those
+    if (p.sizes && typeof p.sizes === 'object' && !Array.isArray(p.sizes)) {
+      return Object.keys(p.sizes).reduce((acc, k) => acc + (parseNum(p.sizes[k], 0) || 0), 0);
+    }
+    // Fallback to common numeric fields
+    return parseNum(p.qty, parseNum(p.stock, parseNum(p.inventory, parseNum(p.total, 0))));
   }
 
   function totalStockForColor(c) {
-    if (!c || !Array.isArray(c.sizes)) return 0;
-    return c.sizes.reduce((acc, s) => acc + (parseNum(s.stock,0) || 0), 0);
+    if (!c) return 0;
+    // If sizes stored as array of {eu, stock}
+    if (Array.isArray(c.sizes) && c.sizes.length) return c.sizes.reduce((acc, s) => acc + (parseNum(s.stock,0) || 0), 0);
+    // If sizes stored as an object map { '42': 3, '43': 0 }
+    if (c.sizes && typeof c.sizes === 'object') return Object.keys(c.sizes).reduce((acc, k) => acc + (parseNum(c.sizes[k],0) || 0), 0);
+    // Fallback numeric fields on color/variant
+    return parseNum(c.qty, parseNum(c.stock, parseNum(c.inventory, 0)));
+  }
+
+  // Convert a size map/object into an array of { eu, stock } entries for uniform processing
+  function sizesObjectToArray(sizesObj) {
+    if (!sizesObj || typeof sizesObj !== 'object') return [];
+    return Object.keys(sizesObj).map(k => ({ eu: Number(k) || k, stock: parseNum(sizesObj[k], 0) }));
   }
 
   function availableSizes(c) {
@@ -834,18 +854,107 @@
     }
 
     const filtered = productsList.filter(p => {
-      const colorsArr = Array.isArray(p.colors) ? p.colors : [];
+      // Build a colors array that includes merged variants if the product
+      // doesn't include a `colors` array directly (variants may be stored
+      // separately in firebaseState.variantsByProductId).
+      let colorsArr = Array.isArray(p.colors) ? p.colors : [];
+      if ((!colorsArr || colorsArr.length === 0) && firebaseState.variantsByProductId) {
+        const map = firebaseState.variantsByProductId;
+        const candidates = [p.id, p.productId, p.sku, String(p.id || '')];
+        for (const c of candidates) {
+          if (!c) continue;
+          if (Array.isArray(map[c]) && map[c].length) { colorsArr = map[c]; break; }
+        }
+      }
+      // If still no colors but product-level sizes exist as an object map, synthesize
+      // a single color entry so filters and totals work (handles legacy shapes).
+      if ((!colorsArr || colorsArr.length === 0) && p.sizes && typeof p.sizes === 'object') {
+        colorsArr = [{ id: p.id + '-default', name: p.title || p.name || p.model || 'Default', sizes: sizesObjectToArray(p.sizes) }];
+      }
       const matchesText = !text || [p.brand, p.model, p.category].join(' ').toLowerCase().includes(text) || colorsArr.some(c => (c.name || '').toLowerCase().includes(text));
       const matchesBrand = !filterBrand || p.brand === filterBrand;
       const matchesCat = !filterCat || p.category === filterCat;
       // If a specific size is selected, consider size existence; allow out-of-stock when filtering 'out'
-      const matchesSize = !filterSize || colorsArr.some(c => Array.isArray(c.sizes) && c.sizes.some(s => String(s.eu) === filterSize && (filterStock === 'out' ? true : s.stock > 0)));
+      const matchesSize = !filterSize || colorsArr.some(c => {
+        if (Array.isArray(c.sizes)) return c.sizes.some(s => String(s.eu) === filterSize && (filterStock === 'out' ? true : (parseNum(s.stock,0) > 0)));
+        if (c.sizes && typeof c.sizes === 'object') {
+          var q = parseNum(c.sizes[String(filterSize)] || c.sizes[filterSize] || 0, 0);
+          return filterStock === 'out' ? true : q > 0;
+        }
+        return false;
+      });
       // Determine stock status: use total product stock, or size-specific total when a size filter is applied
-      const total = !filterSize
-        ? totalStockForProduct(p)
-        : colorsArr.reduce((acc, c) => acc + (Array.isArray(c.sizes) ? c.sizes.reduce((sacc, s) => sacc + (String(s.eu) === filterSize ? s.stock : 0), 0) : 0), 0);
+      // Compute totals and determine stock status using per-size logic.
+      // If a specific size filter is applied, compute totals only for that size.
       const eff = effectiveThresholdForProduct(p);
-      const stockStatus = total === 0 ? 'out' : (total <= eff ? 'low' : 'in');
+      // helper: check a color's critical (variant) override
+      const criticalForColor = (c) => {
+        try {
+          const cand = (c && (c.criticalLevel || c.critical || c.minStock || c.reorderLevel));
+          const n = parseNum(cand, NaN);
+          if (Number.isFinite(n) && n >= 0) return Math.max(1, Math.floor(n));
+        } catch (e) {}
+        return eff;
+      };
+
+      // Compute per-size aggregation
+      let total = 0;
+      let anySizeLow = false;
+      let allSizesZero = true;
+
+      if (filterSize) {
+        // Only consider the selected size across colors
+        colorsArr.forEach(c => {
+          if (Array.isArray(c.sizes)) {
+            c.sizes.forEach(s => {
+              if (String(s.eu) === String(filterSize)) {
+                const q = parseNum(s.stock, 0);
+                total += q;
+                const crit = criticalForColor(c);
+                if (q <= crit) anySizeLow = true;
+                if (q > 0) allSizesZero = false;
+              }
+            });
+          } else if (c.sizes && typeof c.sizes === 'object') {
+            const q = parseNum(c.sizes[String(filterSize)] || c.sizes[filterSize] || 0, 0);
+            total += q;
+            const crit = criticalForColor(c);
+            if (q <= crit) anySizeLow = true;
+            if (q > 0) allSizesZero = false;
+          }
+        });
+      } else {
+        // Consider all sizes across all colors
+        colorsArr.forEach(c => {
+          if (Array.isArray(c.sizes)) {
+            c.sizes.forEach(s => {
+              const q = parseNum(s.stock, 0);
+              total += q;
+              const crit = criticalForColor(c);
+              if (q <= crit) anySizeLow = true;
+              if (q > 0) allSizesZero = false;
+            });
+          } else if (c.sizes && typeof c.sizes === 'object') {
+            Object.keys(c.sizes).forEach(k => {
+              const q = parseNum(c.sizes[k], 0);
+              total += q;
+              const crit = criticalForColor(c);
+              if (q <= crit) anySizeLow = true;
+              if (q > 0) allSizesZero = false;
+            });
+          } else {
+            // fallback: treat numeric fields on color as aggregate
+            const q = parseNum(c.qty, parseNum(c.stock, parseNum(c.inventory, 0)));
+            total += q;
+            const crit = criticalForColor(c);
+            if (q <= crit) anySizeLow = true;
+            if (q > 0) allSizesZero = false;
+          }
+        });
+      }
+
+      // Determine stockStatus: 'out' if every size is zero, 'low' if any size <= critical, otherwise 'in'
+      const stockStatus = (total === 0 || allSizesZero) ? 'out' : (anySizeLow ? 'low' : 'in');
       const matchesStock = !filterStock || stockStatus === filterStock;
       const matchesStatus = !filterStatus || p.status === filterStatus;
       return matchesText && matchesBrand && matchesCat && matchesSize && matchesStock && matchesStatus;
@@ -1103,6 +1212,35 @@
       }
     } catch (e) { console.warn('failed to wire Generate QR', e); }
   }
+
+  // Debug helper: expose a function to inspect how a product's colors/sizes are
+  // resolved by the renderer (useful when inventory shape varies).
+  try {
+    window.debugResolvedProduct = function(idOrSku) {
+      try {
+        const p = (state.products || []).find(x => String(x.id) === String(idOrSku) || String(x.sku) === String(idOrSku));
+        if (!p) { console.warn('Product not found for', idOrSku); return null; }
+        let colorsArr = Array.isArray(p.colors) ? p.colors : [];
+        if ((!colorsArr || colorsArr.length === 0) && window.firebaseState && window.firebaseState.variantsByProductId) {
+          const map = window.firebaseState.variantsByProductId;
+          const candidates = [p.id, p.productId, p.sku, String(p.id || '')];
+          for (const c of candidates) { if (!c) continue; if (Array.isArray(map[c]) && map[c].length) { colorsArr = map[c]; break; } }
+        }
+        if ((!colorsArr || colorsArr.length === 0) && p.sizes && typeof p.sizes === 'object') {
+          colorsArr = [{ id: p.id + '-default', name: p.title || p.name || p.model || 'Default', sizes: sizesObjectToArray(p.sizes) }];
+        }
+        const summary = { id: p.id, sku: p.sku, title: p.title || p.name || p.model, effectiveThreshold: effectiveThresholdForProduct(p), totalFromColors: (Array.isArray(colorsArr) ? colorsArr.reduce((acc,c) => acc + totalStockForColor(c),0) : totalStockForProduct(p)), colors: [] };
+        (colorsArr || []).forEach(c => {
+          summary.colors.push({ id: c.id, name: c.name, total: totalStockForColor(c), sizes: Array.isArray(c.sizes) ? c.sizes : sizesObjectToArray(c.sizes) });
+        });
+        console.group('debugResolvedProduct', summary.title || summary.sku || summary.id);
+        console.log(summary);
+        console.table(summary.colors.map(c => ({ id: c.id, name: c.name, total: c.total })));
+        console.groupEnd();
+        return summary;
+      } catch (e) { console.error('debugResolvedProduct failed', e); return null; }
+    };
+  } catch (e) {}
 
   function saveProductFromModal() {
     const brand = qs('#prodBrand').value.trim();
@@ -2082,9 +2220,13 @@
   const saleColorEl = qs('#saleColor'); if (saleColorEl) saleColorEl.addEventListener('change', onSaleColorChange);
   const recordSaleBtn = qs('#recordSaleBtn'); if (recordSaleBtn) recordSaleBtn.addEventListener('click', recordSale);
 
-    // Filters
+    // Filters - listen for both `input` and `change` so select elements reliably
+    // trigger a refresh across browsers when the value changes.
     ['#searchInput','#filterBrand','#filterCategory','#filterSize','#filterStock','#filterStatus'].forEach(sel => {
-      const el = qs(sel); if (el) el.addEventListener('input', renderProductsTable);
+      const el = qs(sel);
+      if (!el) return;
+      el.addEventListener('input', renderProductsTable);
+      el.addEventListener('change', renderProductsTable);
     });
 
     // Reports controls and toggles
@@ -2110,6 +2252,60 @@
     backfillCreatedAt();
     backfillCategoryAndStatus();
     wireEvents();
+    // Load persisted settings from localStorage so other pages (e.g. dashboard)
+    // can read the canonical low-stock threshold. Persist settings when the
+    // user clicks Save Settings below.
+    try {
+      var saved = localStorage.getItem('inventory_app_settings');
+      if (saved) {
+        var parsed = JSON.parse(saved);
+        if (parsed && parsed.lowStockThreshold) {
+          state.settings = state.settings || {};
+          state.settings.lowStockThreshold = Number(parsed.lowStockThreshold) || state.settings.lowStockThreshold || 3;
+        }
+      }
+    } catch (e) { /* ignore malformed saved settings */ }
+
+    try {
+      var saveBtn = document.getElementById('saveSettingsBtn');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', function(){
+          try {
+            // persist minimal settings shape
+            var toSave = { lowStockThreshold: (state && state.settings && state.settings.lowStockThreshold) ? state.settings.lowStockThreshold : 3 };
+            localStorage.setItem('inventory_app_settings', JSON.stringify(toSave));
+            // also expose for debug/other pages
+            try { window.lastInvSettings = toSave; } catch(_) {}
+          } catch (e) { /* ignore storage errors */ }
+        });
+      }
+    } catch (e) {}
+    // Auto-save lowStockThreshold when the user changes the input so other pages (dashboard)
+    // pick up the canonical value immediately.
+    try {
+      var thresholdInput = document.getElementById('lowStockThreshold');
+      if (thresholdInput) {
+        // initialize input value from loaded settings
+        try { thresholdInput.value = (state && state.settings && state.settings.lowStockThreshold) ? Number(state.settings.lowStockThreshold) : thresholdInput.value || 3; } catch(e){}
+
+        var persistThreshold = function(){
+          try {
+            var v = parseNum(thresholdInput.value, NaN);
+            if (!Number.isFinite(v) || v < 1) v = 1;
+            state.settings = state.settings || {};
+            state.settings.lowStockThreshold = Math.floor(v);
+            var toSave = { lowStockThreshold: state.settings.lowStockThreshold };
+            localStorage.setItem('inventory_app_settings', JSON.stringify(toSave));
+            try { window.lastInvSettings = toSave; } catch(_) {}
+            // refresh reports and table so UI reflects new threshold immediately
+            try { renderReports(); } catch(e){}
+            try { renderProductsTable(); } catch(e){}
+          } catch (e) { /* ignore */ }
+        };
+        thresholdInput.addEventListener('input', persistThreshold);
+        thresholdInput.addEventListener('change', persistThreshold);
+      }
+    } catch (e) {}
     // Initialize Firebase (if configured) and attach realtime listeners
     try { initFirebase(); } catch (e) { /* ignore */ }
     renderAll();

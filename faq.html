@@ -189,19 +189,13 @@
         </footer>
         <script>
         // Navigation bar functions
-        function goToProfile() {
-            try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-            window.location.href = 'profile.html';
-        }
+        function goToProfile() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } }catch(e){ window.location.href = 'login.html'; } }
         function goToProductList() { window.location.href = 'product-list.html'; }
         function goToOrders() { window.location.href = 'client-orders.html'; }
         function goToWishlist() { window.location.href = 'wishlist.html'; }
         function goToFAQ() { window.location.href = 'privacy.html'; }
         function goToContact() { window.location.href = 'contact.html'; }
-        function goToUserPage() {
-            try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
-            window.location.href = 'profile.html';
-        }
+        function goToUserPage() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } }catch(e){ window.location.href = 'login.html'; } }
         function toggleSearchBox() {
             var box = document.getElementById('searchBox');
             box.style.display = (box.style.display === 'block') ? 'none' : 'block';
@@ -404,7 +398,7 @@
                     if (!isNaN(idx) && cart[idx]) {
                         if(window.tryIncrementCartItem){
                             var r=window.tryIncrementCartItem(cart, idx);
-                            if(r&&r.success===false&&r.reason==='max_pairs'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert('Maximum of 3 items per order allowed.'); return; }
+                            if(r&&r.success===false&&r.reason==='max_pairs'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert('Maximum of 3 pairs of shoes per order.'); return; }
                         } else {
                             cart[idx].quantity++;
                         }

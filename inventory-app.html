@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="shoepao-dev-admin" content="true">
   <title>Footwear Inventory Manager</title>
   <link rel="stylesheet" href="inventory-app.css" />
 </head>
@@ -431,7 +432,9 @@
 
   <script src="js/firebase-config.js"></script>
   <script>
-    window.ALLOW_ANON_SIGNIN = true;
+    // Anonymous sign-in disabled by default. Set window.ALLOW_ANON_SIGNIN = true
+    // on this page only if you intentionally want anonymous reads for dev/testing.
+    window.ALLOW_ANON_SIGNIN = false;
   </script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>

@@ -229,16 +229,7 @@
     </footer>
     <script>
     // Navigation bar functions
-    function goToProfile() {
-        try{
-            if(typeof window.ensureSignedInOrRedirect === 'function'){
-                if(!ensureSignedInOrRedirect('profile.html')) return;
-            } else {
-                var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; }
-            }
-        }catch(e){ window.location.href = 'login.html'; return; }
-        window.location.href = 'profile.html';
-    }
+    function goToProfile() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { if(typeof window.ensureSignedInOrRedirect === 'function'){ ensureSignedInOrRedirect('profile.html'); } else { var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } } }catch(e){ window.location.href = 'login.html'; } }
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToOrders() { window.location.href = 'client-orders.html'; }
     function goToWishlist() { window.location.href = 'wishlist.html'; }
@@ -570,7 +561,7 @@
                             var incRes = window.tryIncrementCartItem(cart, idx);
                             if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 items per order allowed.');
+                                else alert('Maximum of 3 pairs of shoes per order.');
                                 return;
                             }
                         } else {

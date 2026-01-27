@@ -670,6 +670,32 @@
                 }catch(e){ console.warn('social confirm modal failed', e); signInWithProvider(providerName); }
             };
 
+            // Lightweight status overlay used by signup flow
+            function showSignupStatus(msg, options){
+                try{
+                    options = options || {};
+                    var existing = document.getElementById('signupStatusOverlay');
+                    if(!existing){
+                        var ov = document.createElement('div'); ov.id = 'signupStatusOverlay'; ov.className = 'verification-overlay';
+                        var md = document.createElement('div'); md.className = 'verification-modal'; md.style.maxWidth = '520px'; md.style.textAlign = 'center';
+                        var p = document.createElement('div'); p.id = 'signupStatusText'; p.style.marginBottom = '12px'; p.style.color = '#222'; p.textContent = msg || '';
+                        md.appendChild(p);
+                        if(options.showButtons){
+                            var btnRow = document.createElement('div'); btnRow.style.textAlign = 'right'; btnRow.style.marginTop = '12px';
+                            var cancel = document.createElement('button'); cancel.className = 'btn btn-outline'; cancel.textContent = 'Close';
+                            cancel.addEventListener('click', function(){ try{ if(ov && ov.parentNode) ov.parentNode.removeChild(ov); }catch(e){} });
+                            btnRow.appendChild(cancel);
+                            md.appendChild(btnRow);
+                        }
+                        ov.appendChild(md); document.body.appendChild(ov);
+                        existing = ov;
+                    } else {
+                        var p = document.getElementById('signupStatusText'); if(p) p.textContent = msg || '';
+                    }
+                    if(options.hide && existing && existing.parentNode) existing.parentNode.removeChild(existing);
+                }catch(e){ console.warn('showSignupStatus failed', e); }
+            }
+
             // Signup handler: create user, save metadata (non-sensitive), send verification, sign out
             window.handleSignup = async function(e){
                 e && e.preventDefault && e.preventDefault();
@@ -719,6 +745,7 @@
                     }
                 }catch(e){ /* continue if check fails */ }
 
+                if (!navigator.onLine) { alert('You appear to be offline. Please check your network connection and try again.'); return false; }
                 if (!(window.FIREBASE_CONFIG && window.firebase && window.firebase.auth)) { alert('Firebase is not configured. Signup unavailable.'); return false; }
                 try{
                     if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
@@ -727,16 +754,42 @@
                     // of creating a separate user. This prevents orphan anonymous accounts.
                     const auth = firebase.auth();
                     let created = null;
-                    if (auth.currentUser && auth.currentUser.isAnonymous) {
-                        try{
+
+                    // Helper to attempt a creation/link operation once
+                    async function attemptCreateOnce(){
+                        if (auth.currentUser && auth.currentUser.isAnonymous) {
+                            // link to anonymous
                             const cred = firebase.auth.EmailAuthProvider.credential(email, password);
-                            created = await auth.currentUser.linkWithCredential(cred);
-                        }catch(linkErr){
-                            console.warn('linkWithCredential failed, falling back to createUserWithEmailAndPassword', linkErr);
-                            created = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                            return await auth.currentUser.linkWithCredential(cred);
+                        } else {
+                            return await firebase.auth().createUserWithEmailAndPassword(email, password);
                         }
-                    } else {
-                        created = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    }
+
+                    // Retry on network errors with exponential backoff
+                    const MAX_ATTEMPTS = 4;
+                    let attempt = 0;
+                    let backoff = 700; // ms
+                    showSignupStatus('Creating account — please wait...');
+                    while (attempt < MAX_ATTEMPTS) {
+                        try{
+                            created = await attemptCreateOnce();
+                            break; // success
+                        }catch(err){
+                            // If it's a network/auth transport error, retry; otherwise surface immediately
+                            const code = err && err.code ? err.code : null;
+                            const isNetwork = code === 'auth/network-request-failed' || code === 'auth/web-storage-unsupported' || (err && String(err).toLowerCase().indexOf('network') !== -1);
+                            attempt++;
+                            if (isNetwork && attempt < MAX_ATTEMPTS) {
+                                showSignupStatus('Network error while creating account — retrying (' + attempt + '/' + MAX_ATTEMPTS + ')...');
+                                await new Promise(r => setTimeout(r, backoff));
+                                backoff = Math.min(8000, Math.floor(backoff * 1.8));
+                                continue;
+                            }
+                            // non-retryable or out of attempts
+                            showSignupStatus('Unable to create account: ' + (err && err.message ? err.message : String(err)), { showButtons: true });
+                            throw err;
+                        }
                     }
                     const u = created && created.user ? created.user : null;
                     if (u && (firstName || lastName)) {
@@ -811,31 +864,24 @@
                     // Primary: use client-side Firebase SDK so verification works without SMTP/server
                     try{
                         if (u && u.sendEmailVerification) {
-                            await u.sendEmailVerification({ url: window.location.origin + '/login.html' });
+                            showSignupStatus('Sending verification email...');
+                            try{
+                                await u.sendEmailVerification({ url: window.location.origin + '/login.html' });
+                            }catch(ve){
+                                console.warn('sendEmailVerification failed', ve);
+                                // fall back to server-side send
+                                try{ await fetch('server-proxy.php/api/send-verification-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, displayName: fullName, returnUrl: window.location.origin }) }); }catch(se){ console.warn('server send-verification failed as fallback', se); }
+                            }
                         } else {
                             // Client SDK not available for some reason — try server-side send as a fallback
-                            try{
-                                const resp = await fetch('server-proxy.php/api/send-verification-email', {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ email: email, displayName: fullName, returnUrl: window.location.origin })
-                                });
-                                if(!resp.ok) console.warn('Server-side verification send returned non-ok', resp.status);
-                            }catch(se){ console.warn('server send-verification failed as fallback', se); }
+                            try{ await fetch('server-proxy.php/api/send-verification-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, displayName: fullName, returnUrl: window.location.origin }) }); }catch(se){ console.warn('server send-verification failed as fallback', se); }
                         }
-                    }catch(e){
-                        console.warn('client sendEmailVerification failed, attempting server-side send', e);
-                        try{
-                            const resp = await fetch('server-proxy.php/api/send-verification-email', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ email: email, displayName: fullName, returnUrl: window.location.origin })
-                            });
-                            if(!resp.ok) console.warn('Server-side verification send returned non-ok', resp.status);
-                        }catch(err){ console.warn('server send-verification also failed', err); }
-                    }
+                    }catch(e){ console.warn('client sendEmailVerification failed, attempting server-side send', e); try{ await fetch('server-proxy.php/api/send-verification-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, displayName: fullName, returnUrl: window.location.origin }) }); }catch(err){ console.warn('server send-verification also failed', err); } }
                     try{ localStorage.setItem('lastUnverifiedEmail', email); window.lastUnverifiedEmail = email; }catch(e){}
                     // Keep the newly created user signed in so we can offer a resend button that uses the client SDK.
                     // The modal close button will sign the user out before redirecting to the login page.
                     showPendingEmailSentOverlay(email);
+                    showSignupStatus('Account created. Verification email sent.', { hide: true });
                     return false;
                 }catch(err){ console.error('Signup failed', err); alert('Signup failed: ' + (err && err.message ? err.message : String(err))); return false; }
             };

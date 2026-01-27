@@ -16,7 +16,7 @@ app.use(express.json({ limit: '1mb', verify: function(req, res, buf){ try{ req.r
 // NOTE: This is intentionally permissive for dev only. Remove or restrict in production.
 app.use(function(req, res, next){
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Aftership-Signature');
   // quick response to preflight
   if (req.method === 'OPTIONS') return res.sendStatus(200);
@@ -86,9 +86,17 @@ try{
     try{
       if (!admin) return;
       if (String(process.env.ADMIN_DISABLE_AUTO_CREATE || '').toLowerCase() === 'true') return;
-      const adminEmail = (process.env.ADMIN_DEFAULT_EMAIL || 'admin@localhost').toString().trim();
+  const adminEmail = (process.env.ADMIN_DEFAULT_EMAIL || 'admin@gmail.com').toString().trim();
       const adminPassword = (process.env.ADMIN_DEFAULT_PASSWORD || 'password').toString();
       if (!adminEmail) return;
+      // Basic validation: require a simple email-like shape. If invalid, skip auto-creation.
+      try{
+        var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if(!emailRegex.test(adminEmail)){
+          console.warn('ADMIN_DEFAULT_EMAIL appears invalid ("' + adminEmail + '"). Skipping auto-creation of default admin. Set ADMIN_DEFAULT_EMAIL and ADMIN_DEFAULT_PASSWORD or set ADMIN_DISABLE_AUTO_CREATE=true to suppress this.');
+          return;
+        }
+      }catch(e){ /* if regex fails for any reason, proceed cautiously */ }
 
       try{
         const existing = await admin.auth().getUserByEmail(adminEmail);
@@ -546,6 +554,153 @@ app.get('/api/accounts', async (req, res) => {
       return res.json({ accounts: accounts });
     }catch(e){ console.error('api/accounts failed', e); return res.status(500).json({ error: 'firestore_read_failed', detail: String(e && e.message ? e.message : e) }); }
   }catch(err){ console.error('api/accounts error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Public endpoint: verify that an ID token corresponds to an existing Auth user.
+// Returns 200 { ok: true, uid, email } when valid. Returns 401 when token invalid or user not found.
+app.post('/api/verify-user', async (req, res) => {
+  try{
+    if(!admin){ try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ admin = null; } }
+    if(!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
+
+    const authHeader = (req.headers && req.headers.authorization) ? req.headers.authorization : null;
+    let idToken = null;
+    if(authHeader && typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) idToken = authHeader.slice(7).trim();
+    if(!idToken) return res.status(401).json({ error: 'id_token_required' });
+
+    let decoded;
+    try{ decoded = await admin.auth().verifyIdToken(idToken); }catch(e){ return res.status(401).json({ error: 'invalid_id_token', detail: String(e && e.message ? e.message : e) }); }
+
+    try{
+      const rec = await admin.auth().getUser(decoded.uid).catch(()=>null);
+      if(!rec) return res.status(401).json({ error: 'user_not_found' });
+      return res.json({ ok: true, uid: rec.uid, email: (rec.email||'').toLowerCase() });
+    }catch(e){ console.error('verify-user failed', e); return res.status(500).json({ error: 'server_error', detail: String(e && e.message ? e.message : e) }); }
+  }catch(err){ console.error('api/verify-user error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Dev-only: return a Firebase custom token for the default admin account.
+// Security: this endpoint intentionally restricts issuance to requests coming from
+// the local machine (loopback) OR when a matching DEV_ADMIN_KEY header is provided.
+// This is intended for local development convenience only; do NOT enable in
+// production without a secure mechanism.
+app.post('/api/admin/get-admin-custom-token', async (req, res) => {
+  try{
+    if(!admin){ try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ admin = null; } }
+    if(!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
+
+    // Determine requester IP (respect x-forwarded-for when present)
+    const forwarded = (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim();
+    const remote = forwarded || (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || (req.ip || '');
+    const ip = String(remote || '').trim();
+
+    // Allow if localhost/loopback or if a matching DEV_ADMIN_KEY header is provided
+    const allowLoopback = (ip === '127.0.0.1' || ip === '::1' || ip.indexOf('::ffff:127.0.0.1') === 0 || ip.indexOf('127.') === 0);
+    const devKeyHeader = (req.headers['x-dev-admin-key'] || req.headers['x-dev-key'] || '').toString();
+    const hasValidKey = process.env.DEV_ADMIN_KEY && devKeyHeader && process.env.DEV_ADMIN_KEY === devKeyHeader;
+
+    // If in production and no dev key, refuse
+    if(!allowLoopback && !hasValidKey){ return res.status(403).json({ error: 'forbidden' }); }
+
+  const adminEmail = (process.env.ADMIN_DEFAULT_EMAIL || 'admin@gmail.com').toString().trim().toLowerCase();
+    if(!adminEmail) return res.status(400).json({ error: 'admin_email_not_configured' });
+
+    let userRecord = null;
+    try{ userRecord = await admin.auth().getUserByEmail(adminEmail); }catch(e){ /* fallthrough */ }
+    if(!userRecord) return res.status(404).json({ error: 'admin_user_not_found', detail: adminEmail });
+
+    // Create a custom token for this admin UID. The client can sign in with this token.
+    try{
+      const customToken = await admin.auth().createCustomToken(userRecord.uid);
+      return res.json({ ok: true, token: customToken, uid: userRecord.uid, email: adminEmail });
+    }catch(e){ console.error('get-admin-custom-token failed', e); return res.status(500).json({ error: 'token_creation_failed', detail: String(e && e.message ? e.message : e) }); }
+  }catch(err){ console.error('api/admin/get-admin-custom-token error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+});
+
+// Admin: delete a user and related Firestore data (requires admin idToken)
+app.post('/api/admin/delete-user', async (req, res) => {
+  const body = req.body || {};
+  try{
+    if(!admin){ try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ admin = null; } }
+    if(!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
+
+    // verify caller is admin
+    let idToken = null;
+    const auth = (req.headers && req.headers.authorization) ? req.headers.authorization : null;
+    if(auth && typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ')) idToken = auth.slice(7).trim();
+    if(!idToken) return res.status(401).json({ error: 'id_token_required' });
+
+    let decoded;
+    try{ decoded = await admin.auth().verifyIdToken(idToken); }catch(e){ return res.status(401).json({ error: 'invalid_id_token', detail: String(e && e.message ? e.message : e) }); }
+
+    // require admin claim or allowlisted email
+    const callerEmail = (decoded && decoded.email) ? String(decoded.email).toLowerCase() : null;
+    const isAdminClaim = !!(decoded && decoded.admin === true);
+    const adminEmailsEnv = process.env.ADMIN_EMAILS || '';
+    const allowList = adminEmailsEnv ? adminEmailsEnv.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean) : [];
+    const allowedByList = callerEmail && allowList.indexOf(callerEmail) !== -1;
+
+    if(!isAdminClaim && !allowedByList){
+      // Log useful debug info to server logs to diagnose permission failures
+      try{ console.warn('admin delete forbidden - caller not admin', { uid: decoded && decoded.uid, email: callerEmail, isAdminClaim: isAdminClaim, allowListCount: allowList.length }); }catch(e){}
+      // Provide a helpful response body so the client can show actionable text.
+      const reason = (isAdminClaim ? 'allowlist_missing' : (allowList.length ? 'not_allowlisted' : 'no_admin_claim'));
+      return res.status(403).json({ error: 'forbidden', detail: reason, callerEmail: callerEmail, isAdminClaim: !!isAdminClaim });
+    }
+
+    // identify target
+    let targetUid = (body.uid || '').toString().trim() || null;
+    let targetEmail = (body.email || '').toString().trim().toLowerCase() || null;
+    try{
+      if(!targetUid && targetEmail){ const rec = await admin.auth().getUserByEmail(targetEmail).catch(()=>null); if(rec) targetUid = rec.uid; }
+    }catch(e){}
+
+    if(!targetUid && !targetEmail) return res.status(400).json({ error: 'missing_uid_or_email' });
+
+    const fdb = admin.firestore();
+    const result = { authDeleted: false, accountsDeleted: false, ordersDeleted: 0, wishlistsDeleted: 0, userWishlistDeleted: 0, legacyEmailDocDeleted: false };
+
+    // delete accounts/{uid}
+    try{
+      if(targetUid){ await fdb.collection('accounts').doc(targetUid).delete().catch(()=>{}); result.accountsDeleted = true; }
+    }catch(e){ console.warn('delete-user: accounts delete failed', e); }
+
+    // delete legacy encoded-email doc if present
+    try{
+      if(targetEmail){ const legacyId = encodeURIComponent(targetEmail); await fdb.collection('accounts').doc(legacyId).delete().catch(()=>{}); result.legacyEmailDocDeleted = true; }
+    }catch(e){ console.warn('delete-user: legacy email doc delete failed', e); }
+
+    // delete orders by uid and by customerEmail
+    try{
+      if(targetUid){ const q = await fdb.collection('orders').where('user_id','==',targetUid).get(); if(!q.empty){ const batch = fdb.batch(); q.forEach(d=>batch.delete(d.ref)); await batch.commit(); result.ordersDeleted += q.size; } }
+      if(targetEmail){ const q2 = await fdb.collection('orders').where('customerEmail','==',targetEmail).get(); if(!q2.empty){ const batch2 = fdb.batch(); q2.forEach(d=>batch2.delete(d.ref)); await batch2.commit(); result.ordersDeleted += q2.size; } }
+    }catch(e){ console.warn('delete-user: orders delete failed', e); }
+
+    // delete top-level wishlists where ownerEmail == email
+    try{
+      if(targetEmail){ const wl = await fdb.collection('wishlists').where('ownerEmail','==',targetEmail).get(); if(!wl.empty){ const batch = fdb.batch(); wl.forEach(d=>batch.delete(d.ref)); await batch.commit(); result.wishlistsDeleted += wl.size; } }
+    }catch(e){ console.warn('delete-user: wishlists delete failed', e); }
+
+    // delete users/{uid}/wishlist subcollection (if users collection used)
+    try{
+      if(targetUid){ const sub = await fdb.collection('users').doc(targetUid).collection('wishlist').get(); if(!sub.empty){ const batch = fdb.batch(); sub.forEach(d=>batch.delete(d.ref)); await batch.commit(); result.userWishlistDeleted += sub.size; } }
+    }catch(e){ console.warn('delete-user: users/{uid}/wishlist delete failed', e); }
+
+    // remove user from top-level users collection if present (legacy)
+    try{ if(targetUid){ await fdb.collection('users').doc(targetUid).delete().catch(()=>{}); } }catch(e){ console.warn('delete-user: users doc delete failed', e); }
+
+    // finally delete auth user (if we have uid)
+    try{
+      if(targetUid){
+        // Revoke refresh tokens first so active sessions will be invalidated on next
+        // token refresh. This helps force client sign-out more quickly.
+        try{ await admin.auth().revokeRefreshTokens(targetUid); }catch(e){ console.warn('delete-user: revokeRefreshTokens failed', e); }
+        await admin.auth().deleteUser(targetUid); result.authDeleted = true;
+      }
+    }catch(e){ console.warn('delete-user: auth delete failed', e); }
+
+    return res.json(Object.assign({ ok: true }, result));
+  }catch(err){ console.error('api/admin/delete-user error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
 });
 
 // Record that a password reset was completed for an email (client informs server).

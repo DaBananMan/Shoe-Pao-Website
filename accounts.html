@@ -49,7 +49,11 @@
                 <a class="nav-item" href="accounts.html">Accounts</a>
             </div>
         </div>
-        <!-- profile removed for admin UI -->
+        <div class="nav-right">
+            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
+                <img src="IMAGE/USERICON.png" alt="User">
+            </button>
+        </div>
     </header>
 
     <main class="container">
@@ -251,7 +255,7 @@
                 const tr = document.createElement('tr');
                 const name = formatName(u);
                 const email = u.email || 'EMPTY';
-                const phone = (u.phone || (u.deliveryAddress && u.deliveryAddress.phone) || 'EMPTY');
+                const phone = u.phone || 'EMPTY';
                 const type = (u.role && u.role.toLowerCase() === 'admin') ? 'Admin' : 'Client';
                 tr.innerHTML = '<td>' + name + '</td><td>' + email + '</td><td>' + phone + '</td><td>' + type + '</td><td>' +
                     '<a class="action-link" href="account-detail.html?email=' + encodeURIComponent(email) + '">View</a>' +
@@ -283,46 +287,51 @@
     </script>
 
     <script>
-    // Server-backed accounts sync: client cannot read Firestore directly due to rules.
+    // Firestore users synchronization: ensure new signups appear in the accounts table
     (function(){
-        async function fetchAccountsFromServer(){
-            try{
-                if(!window.firebase || !firebase.auth) { console.warn('Firebase auth not available for accounts sync'); return; }
-                const user = firebase.auth().currentUser;
-                if(!user) { console.warn('No signed-in user for accounts sync'); return; }
-                let idToken = null;
-                try{ idToken = await user.getIdToken(true); }catch(e){ console.warn('getIdToken failed', e); }
-                if(!idToken) return;
-
-                let resp = null;
+        if(!window.firebase || !firebase.firestore) return;
+        try{
+            const db = firebase.firestore();
+            db.collection('users').limit(500).get().then(snap => {
                 try{
-                    resp = await fetch('http://127.0.0.1:3000/api/accounts', { headers: { 'Authorization': 'Bearer ' + idToken } });
-                    if(!resp.ok){
-                        // fall back to PHP proxy
-                        resp = await fetch('server-proxy.php/api/accounts', { headers: { 'Authorization': 'Bearer ' + idToken } });
-                    }
-                }catch(e){ console.warn('accounts fetch failed', e); return; }
+                    var local = JSON.parse(localStorage.getItem('users')||'[]') || [];
+                    var map = {};
+                    local.forEach(u=>{ if(u && u.email) map[(u.email||'').toLowerCase()] = u; });
+                    snap.forEach(doc => {
+                        const d = doc.data() || {};
+                        const email = (d.email || d.emailAddress || '').toLowerCase();
+                        if(!email) return;
+                        const merged = Object.assign({}, map[email] || {}, d);
+                        merged.email = email;
+                        map[email] = merged;
+                    });
+                    const mergedList = Object.keys(map).map(k => map[k]);
+                    localStorage.setItem('users', JSON.stringify(mergedList));
+                    try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
+                }catch(e){ console.warn('Failed to merge initial users snapshot', e); }
+            }).catch(e=>{ console.warn('Initial users query failed', e); });
 
-                if(!resp || !resp.ok) { console.warn('accounts endpoint returned non-ok', resp && resp.status); return; }
-                const j = await resp.json();
-                if(!j || !Array.isArray(j.accounts)) return;
-                const map = {};
-                j.accounts.forEach(function(d){
-                    try{
-                        const key = (d && d.uid) ? String(d.uid) : ((d && d.email) ? (d.email||'').toLowerCase() : null);
-                        if(!key) return;
-                        if(d.email) d.email = (d.email||'').toLowerCase();
-                        map[key] = Object.assign({}, map[key] || {}, d);
-                    }catch(e){}
-                });
-                const mergedList = Object.keys(map).map(k => map[k]);
-                localStorage.setItem('users', JSON.stringify(mergedList));
-                try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
-            }catch(e){ console.warn('fetchAccountsFromServer failed', e); }
-        }
-
-        // initial fetch and periodic refresh
-        try{ fetchAccountsFromServer(); setInterval(fetchAccountsFromServer, 10000); }catch(e){ console.warn('accounts sync init failed', e); }
+            db.collection('users').onSnapshot(function(snap){
+                try{
+                    var local = JSON.parse(localStorage.getItem('users')||'[]') || [];
+                    var map = {};
+                    local.forEach(u=>{ if(u && u.email) map[(u.email||'').toLowerCase()] = u; });
+                    snap.docChanges().forEach(change => {
+                        const d = change.doc.data() || {};
+                        const email = (d.email || d.emailAddress || '').toLowerCase();
+                        if(!email) return;
+                        if(change.type === 'removed'){
+                            delete map[email];
+                        } else {
+                            map[email] = Object.assign({}, map[email] || {}, d, { email: email });
+                        }
+                    });
+                    const mergedList = Object.keys(map).map(k => map[k]);
+                    localStorage.setItem('users', JSON.stringify(mergedList));
+                    try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
+                }catch(e){ console.warn('Failed to process users snapshot', e); }
+            }, function(err){ console.warn('users onSnapshot failed', err); });
+        }catch(e){ console.warn('Could not setup Firestore users sync', e); }
     })();
     </script>
 
@@ -402,7 +411,7 @@
         cancelBtn.addEventListener('click', closeAccountModal);
         if(createBtn) createBtn.addEventListener('click', function(){ openAccountModal('create'); });
 
-    form.addEventListener('submit', async function(e){
+        form.addEventListener('submit', function(e){
             e.preventDefault();
             var firstName = (document.getElementById('firstName_m').value||'').trim();
             var lastName = (document.getElementById('lastName_m').value||'').trim();
@@ -416,34 +425,8 @@
                 var existing = users.find(function(u){ return (u.email||'').toLowerCase() === email; });
                     if(currentMode === 'create'){
                         if(existing){ alert('A user with this email already exists'); return; }
-                        // Prefer creating an Auth user first via the server so we get a canonical uid.
-                        var fullName = (firstName || '') + (lastName ? (' ' + lastName) : '');
-                        var profile = { name: fullName.trim(), displayName: fullName.trim(), phone: phone || '' };
-                        try{
-                            var resp = null;
-                            try{
-                                resp = await fetch('http://127.0.0.1:3000/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: password || 'changeme', profile: profile }) });
-                                if(!resp.ok){
-                                    console.warn('Direct admin create-user returned non-ok', resp.status);
-                                    resp = await fetch('server-proxy.php/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: password || 'changeme', profile: profile }) });
-                                }
-                            }catch(fetchErr){
-                                console.warn('Direct admin create-user failed, falling back to proxy', fetchErr);
-                                try{ resp = await fetch('server-proxy.php/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, password: password || 'changeme', profile: profile }) }); }catch(proxyErr){ console.warn('Proxy admin create-user failed', proxyErr); resp = null; }
-                            }
-
-                            if(resp && resp.ok){
-                                var jr = null;
-                                try{ jr = await resp.json(); }catch(parseErr){ console.warn('admin create-user parse failed', parseErr); alert('Created user but could not parse server response. Check server logs.'); return; }
-                                var newUser = { email: email, password: password || '', firstName: firstName, lastName: lastName, phone: phone, role: (role === 'admin' ? 'admin' : 'user'), registeredAt: Date.now(), uid: jr.uid };
-                                users.push(newUser);
-                            } else {
-                                // If server creation not available, fall back to local creation and client-side Firestore writes (legacy)
-                                var newUser = { email: email, password: password || '', firstName: firstName, lastName: lastName, phone: phone, role: (role === 'admin' ? 'admin' : 'user'), registeredAt: Date.now() };
-                                users.push(newUser);
-                                alert('Created local user entry; server-side Auth creation unavailable.');
-                            }
-                        }catch(e){ console.warn('Admin create-user flow failed', e); alert('Failed to create user via server: ' + (e && e.message ? e.message : e)); return; }
+                        var newUser = { email: email, password: password || '', firstName: firstName, lastName: lastName, phone: phone, role: (role === 'admin' ? 'admin' : 'user'), registeredAt: Date.now() };
+                        users.push(newUser);
                     } else {
                         // When editing, locate the original record by the editingEmail (the original email before edits)
                         var originalEmail = (editingEmail ? decodeURIComponent(editingEmail) : null);
@@ -468,23 +451,6 @@
                 closeAccountModal();
                 // refresh table
                 try{ render(); }catch(e){}
-                // Persist to server-side canonical accounts when we have a uid for this record.
-                try{
-                    var localUsers2 = JSON.parse(localStorage.getItem('users')||'[]') || [];
-                    var createdLocal = localUsers2.find(function(u){ return (u.email||'').toLowerCase() === (email||'').toLowerCase(); });
-                    if(createdLocal && createdLocal.uid){
-                        // Call server endpoint to merge profile into canonical accounts/{uid}
-                        try{
-                            var payload = { uid: createdLocal.uid, profile: { name: (createdLocal.firstName||'') + (createdLocal.lastName ? (' ' + createdLocal.lastName) : ''), phone: createdLocal.phone || '' } };
-                            try{ var r2 = await fetch('http://127.0.0.1:3000/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if(!r2.ok) r2 = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); }catch(e){ console.warn('Failed to notify server to create-account-doc after admin create', e); }
-                        }catch(e){ console.warn('Failed to call server create-account-doc', e); }
-                    } else {
-                        // No uid known: do NOT create encoded-email alias docs from the admin UI.
-                        // This is intentional to keep `accounts/{uid}` canonical. Admin should
-                        // retry creation when the server endpoint is available.
-                        console.warn('No uid available for created account; skipping client-side encoded-email write to Firestore.');
-                    }
-                }catch(e){ console.warn('Post-create persistence handling failed', e); }
             }catch(err){ console.warn('Could not save user', err); alert('Could not save user'); }
         });
 
@@ -511,24 +477,6 @@
                             }
                         }catch(e){}
                         try{ if(typeof window.renderAccountsTable === 'function'){ window.renderAccountsTable(); } else if(typeof render === 'function'){ render(); } }catch(e){}
-                        // Also try to remove from Firestore
-                        try{
-                            if(window.firebase && firebase.firestore){
-                                try{
-                                    var db = firebase.firestore();
-                                    // If a canonical uid exists for this email, delete by uid; otherwise delete the encoded-email doc.
-                                    try{
-                                        var cached = JSON.parse(localStorage.getItem('users')||'[]') || [];
-                                        var target = cached.find(function(u){ return (u.email||'').toLowerCase() === (em2||'').toLowerCase(); });
-                                        var docId = (target && target.uid) ? String(target.uid) : encodeURIComponent(em2);
-                                        db.collection('accounts').doc(docId).delete().catch(function(){});
-                                    }catch(e){
-                                        var docId = encodeURIComponent(em2);
-                                        db.collection('accounts').doc(docId).delete().catch(function(){});
-                                    }
-                                }catch(e){ console.warn('Failed to delete remote user docs', e); }
-                            }
-                        }catch(e){}
                     }catch(err){ console.warn('Delete failed', err); alert('Delete failed'); }
                 }
             }
