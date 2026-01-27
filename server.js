@@ -25,6 +25,32 @@ app.use(function(req, res, next){
 
 app.use(express.static(path.join(__dirname)));
 
+// On startup: purge any locally-stored inventory entries that are known deleted.
+// This prevents the server from serving stale `data/inventory.json` entries that
+// client-side sync logic might re-import into Firestore.
+try{
+  const dataDir = path.join(__dirname, 'data');
+  const delPath = path.join(dataDir, 'deleted-products.json');
+  const invPath = path.join(dataDir, 'inventory.json');
+  if (fs.existsSync(delPath) && fs.existsSync(invPath)){
+    try{
+      const delRaw = fs.readFileSync(delPath, 'utf8') || '[]';
+      const deleted = JSON.parse(delRaw || '[]');
+      const deletedIds = new Set((deleted||[]).map(d => String(d && d.id)));
+      if (deletedIds.size){
+        const invRaw = fs.readFileSync(invPath, 'utf8') || '[]';
+        const inv = JSON.parse(invRaw || '[]');
+        const filtered = (inv||[]).filter(p => !deletedIds.has(String(p && p.id)));
+        if (filtered.length !== (inv||[]).length){
+          // backup original inventory file
+          try{ fs.writeFileSync(path.join(dataDir, 'inventory.json.bak.' + Date.now()), invRaw, 'utf8'); }catch(e){ console.warn('failed to write inventory backup', e); }
+          try{ fs.writeFileSync(invPath, JSON.stringify(filtered, null, 2), 'utf8'); console.log('Purged', ((inv||[]).length - filtered.length), 'deleted product(s) from data/inventory.json'); }catch(e){ console.warn('failed to write sanitized inventory.json', e); }
+        }
+      }
+    }catch(e){ console.warn('failed to sanitize data/inventory.json against deleted-products.json', e); }
+  }
+}catch(e){ /* non-fatal */ }
+
 // Short link redirect route: /r/:id -> redirects to stored target link (Firebase verification link)
 app.get('/r/:id', async (req, res) => {
   try{
@@ -913,6 +939,12 @@ app.post('/api/admin/register-deleted-product', async (req, res) => {
       const entry = { id: String(prodId), deletedAt: new Date().toISOString(), deletedBy: (decoded && decoded.email) ? String(decoded.email).toLowerCase() : (decoded && decoded.uid) ? String(decoded.uid) : null };
       list.push(entry);
       try{ fs.writeFileSync(delPath, JSON.stringify(list, null, 2), 'utf8'); }catch(e){ console.warn('failed to write deleted-products.json', e); }
+      // Also write a canonical tombstone to Firestore so rules can prevent re-creation
+      try{
+        const firestore = admin.firestore();
+        // use the product id as the doc id in deleted_products collection
+        await firestore.collection('deleted_products').doc(String(prodId)).set(Object.assign({}, entry, { serverTimestamp: admin.firestore.FieldValue.serverTimestamp() }));
+      }catch(e){ console.warn('failed to write deleted_products tombstone to Firestore', e); }
       return res.json({ ok: true, registered: true, entry: entry });
     }
     return res.json({ ok: true, registered: false, message: 'already_registered' });

@@ -9,6 +9,18 @@
 const fs = require('fs');
 const path = require('path');
 
+// Load tombstone list so this tool will not reintroduce deleted products when
+// running with --apply. We silently continue if the file is missing or invalid.
+let deletedIds = new Set();
+try{
+  const delPath = path.resolve(__dirname, '..', 'data', 'deleted-products.json');
+  if (fs.existsSync(delPath)){
+    const raw = fs.readFileSync(delPath, 'utf8') || '[]';
+    const list = JSON.parse(raw || '[]');
+    deletedIds = new Set((list||[]).map(d => String(d && d.id)));
+  }
+}catch(e){ console.warn('normalize-images: failed to read deleted-products.json', e); }
+
 const SIZE_CAP = 900 * 1024; // 900 KB
 const PLACEHOLDER = 'IMAGE/NIKE1.png';
 
@@ -121,6 +133,29 @@ function scanFile(filePath, apply) {
         console.log(` - ${c.path}: ${c.before && c.before.length && typeof c.before === 'string' && c.before.length > 120 ? (c.before.slice(0,120)+'...[len:'+c.before.length+']') : JSON.stringify(c.before)} -> ${c.after === null ? '<removed>' : (typeof c.after === 'string' && c.after.length>120 ? (c.after.slice(0,120)+'...[len:'+c.after.length+']') : JSON.stringify(c.after))}`);
       });
       if (apply) {
+        // Before writing, make sure we don't reintroduce tombstoned products.
+        try{
+          if (Array.isArray(data)){
+            const beforeLen = data.length;
+            const filtered = data.filter(item => {
+              if (!item || typeof item !== 'object') return true;
+              const id = item.id || item.productId || item.sku;
+              if (!id) return true;
+              return !deletedIds.has(String(id));
+            });
+            if (filtered.length !== beforeLen){
+              console.log(' → Skipped', (beforeLen - filtered.length), 'tombstoned product(s) in', filePath);
+              data = filtered;
+            }
+          } else if (data && typeof data === 'object' && !Array.isArray(data)){
+            const id = data.id || data.productId || data.sku;
+            if (id && deletedIds.has(String(id))){
+              console.log(' → Skipping write for tombstoned object in', filePath);
+              return changes; // do not write
+            }
+          }
+        }catch(e){ console.warn('failed tombstone check for', filePath, e); }
+
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
         console.log(' → Applied changes to', filePath);
       }

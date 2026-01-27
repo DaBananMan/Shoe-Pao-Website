@@ -19,6 +19,10 @@
 .profile-btn{background:none;border:0;padding:6px;cursor:pointer}
 .profile-btn img{width:34px;height:34px}
 
+/* Hide profile button and profile links in admin-mode (local dev admin pages) */
+.admin-mode .profile-btn{ display: none !important; }
+.admin-mode .header-link.profile{ display: none !important; }
+
 .productlist-main-content {
     flex: 1 0 auto;
     display: flex;

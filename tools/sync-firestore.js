@@ -30,6 +30,16 @@ async function main(){
   try{ deletedList = readJson(deletedPath) || []; }catch(e){ deletedList = []; }
   const deletedIds = new Set((deletedList||[]).map(d => String(d && d.id)));
 
+  // Also consult Firestore's deleted_products collection (if any) so this tool
+  // running with admin credentials will honor remote tombstones too.
+  try{
+    const snap = await db.collection('deleted_products').get();
+    if (snap && !snap.empty){
+      snap.forEach(d => { if (d && d.id) deletedIds.add(String(d.id)); else if (d && d.id === undefined) deletedIds.add(String(d.id || d.id)); });
+      console.log('Merged', snap.size, 'remote tombstones from deleted_products collection');
+    }
+  }catch(e){ console.warn('Failed to fetch remote deleted_products collection', e); }
+
   // 1) seed users
   const usersFile = path.join(dataDir, 'users.json');
   const users = readJson(usersFile) || [];
@@ -93,6 +103,32 @@ async function main(){
 
   // NOTE: product import logic would respect `deletedIds` - if you add a product sync step later,
   // check deletedIds.has(productId) before writing that product to Firestore.
+
+  // 4) seed products/inventory (skip any tombstoned ids)
+  try{
+    const productFiles = [path.join(dataDir, 'products.json'), path.join(dataDir, 'inventory.json')];
+    let products = [];
+    for(const pf of productFiles){
+      if (!fs.existsSync(pf)) continue;
+      const p = readJson(pf) || [];
+      if (Array.isArray(p)) products = products.concat(p);
+      else if (p && typeof p === 'object') products.push(p);
+      console.log('Found', (Array.isArray(p) ? p.length : (p ? 1 : 0)), 'product(s) in', path.basename(pf));
+    }
+    console.log('Total candidate products to import:', products.length);
+    for(const prod of products){
+      try{
+        const id = prod && (prod.id || prod.productId || prod.sku) ? String(prod.id || prod.productId || prod.sku) : null;
+        if (id && deletedIds.has(id)){
+          console.log('Skipping tombstoned product import:', id);
+          continue;
+        }
+        const docId = id || ('prod_' + Math.random().toString(36).slice(2,9));
+        await db.collection('products').doc(String(docId)).set(Object.assign({}, prod, { migratedAt: admin.firestore.FieldValue.serverTimestamp() }), { merge: true });
+        console.log('Wrote product', docId);
+      }catch(e){ console.error('Product write failed', e); }
+    }
+  }catch(e){ console.error('Product import step failed', e); }
 
   console.log('Sync complete.');
   process.exit(0);

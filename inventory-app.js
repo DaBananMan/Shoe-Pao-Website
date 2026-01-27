@@ -559,9 +559,13 @@
   // local products/variants and delete remote docs that no longer exist locally. Use only for
   // dev or when the UI should be the source-of-truth.
   function scheduleFullSync(delay = 1000) {
+    // NOTE: previously this scheduled a destructive fullSync which could delete
+    // remote documents that don't exist locally. To make Firestore the source-of-
+    // truth and avoid accidental restoration of stale local data, switch to a
+    // safe merge-only sync: upsert local changes but do not delete remote docs.
     if (!firebaseState.enabled || !firebaseState.db) return;
     if (firebaseState.syncTimer) clearTimeout(firebaseState.syncTimer);
-    firebaseState.syncTimer = setTimeout(() => { fullSyncToFirestore().catch(err => console.error('fullSyncToFirestore', err)); }, delay);
+    firebaseState.syncTimer = setTimeout(() => { mergeOnlySyncToFirestore().catch(err => console.error('mergeOnlySyncToFirestore', err)); }, delay);
   }
 
   async function fullSyncToFirestore() {

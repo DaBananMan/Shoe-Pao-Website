@@ -149,19 +149,24 @@
     var host = (window.location.hostname || '').toLowerCase();
     if(!(host === 'localhost' || host === '127.0.0.1' || host === '::1')) return;
 
-    // Require an explicit opt-in to avoid accidentally signing clients in on public pages.
-    // Add this meta tag to admin pages that should auto-signin during local dev:
-    // <meta name="shoepao-dev-admin" content="true">
-    // Or set window.SHOEPAO_DEV_AUTOADMIN = true in page JS before this script runs.
+    // For local development: enable auto-admin by default on known admin pages
+    // so developers don't need to add a meta tag or set a global flag.
+    // This only runs when the host is loopback and the current page is in
+    // `adminPages` (see above), so it remains safe for local dev usage.
     try{
-      var meta = document.querySelector('meta[name="shoepao-dev-admin"]');
-      var metaEnabled = meta && String(meta.content || '').toLowerCase() === 'true';
-      var globalEnabled = !!(window.SHOEPAO_DEV_AUTOADMIN === true);
-      if(!metaEnabled && !globalEnabled) return; // explicit opt-in required
-    }catch(e){ return; }
+      // Intentionally no explicit opt-in required when on localhost and on
+      // an admin page — proceed to attempt auto-admin sign-in.
+    }catch(e){ /* ignore */ }
 
-    // Prevent scheduling this auto-signin logic multiple times in the same page
-    if(window.__shoepao_auto_admin_inited) return; window.__shoepao_auto_admin_inited = true;
+  // Prevent scheduling this auto-signin logic multiple times in the same page
+  if(window.__shoepao_auto_admin_inited) return; window.__shoepao_auto_admin_inited = true;
+
+  // Mark the document as admin-mode so styles can hide client profile UI on admin pages
+  try{ if(typeof document !== 'undefined' && document.documentElement){ document.documentElement.classList.add('admin-mode'); } }catch(e){}
+
+  // Clear any client profile data from localStorage on admin pages to ensure
+  // admin sessions do not reuse or display end-user profile fields.
+  try{ localStorage.removeItem('profile'); localStorage.removeItem('profile_updated_at'); localStorage.removeItem('authToken'); localStorage.removeItem('authTokenUpdatedAt'); }catch(e){}
 
     // If Firebase isn't present yet, wait a short time and try again
     function attemptAutoSignIn(){
