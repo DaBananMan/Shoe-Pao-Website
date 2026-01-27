@@ -22,6 +22,10 @@
     }
   };
 
+  // remember an incoming stocks filter (from URL or dashboard localStorage) so we can
+  // apply it reliably during the first renderAll() call even if async updates occur.
+  let __initialStocksParam = null;
+
   // Cache of products as rendered in the table to ensure modals reflect the visible row
   let displayedProductCache = {};
 
@@ -1113,12 +1117,12 @@
         <td>${displayBrand}</td>
         <td>${displaySku || ''}</td>
         <td>${displayModel}</td>
+        <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
+        <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${catDisplay}</td>
   <td class="status ${displayStatus}">${displayStatus}</td>
   <td class="gender-cell"><div class="cell-stack">${genderHtml || ''}</div></td>
   <td class="tags-cell">${tagsHtml || ''}</td>
-    <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
-        <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${price}</td>
         <td class="actions-col">
           <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -1251,12 +1255,12 @@
         <td>${displayBrand}</td>
         <td>${displaySku || ''}</td>
         <td>${displayModel}</td>
+        <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
+        <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${catDisplay}</td>
         <td class="status ${displayStatus}">${displayStatus}</td>
         <td class="gender-cell"><div class="cell-stack">${genderHtml || ''}</div></td>
         <td class="tags-cell">${tagsHtml || ''}</td>
-        <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
-        <td><span class="badge ${totalStatus}">${total}</span></td>
         <td>${price}</td>
         <td class="actions-col">
           <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
@@ -1375,9 +1379,12 @@
           const brandTxt = (cells[1] && cells[1].textContent) ? cells[1].textContent.trim() : '';
           const skuTxt = (cells[2] && cells[2].textContent) ? cells[2].textContent.trim() : '';
           const modelTxt = (cells[3] && cells[3].textContent) ? cells[3].textContent.trim() : '';
-          const catTxt = (cells[4] && cells[4].textContent) ? cells[4].textContent.trim() : '';
-          const statusTxt = (cells[5] && cells[5].textContent) ? cells[5].textContent.trim() : '';
-          const priceTxt = (cells[9] && cells[9].textContent) ? cells[9].textContent.trim() : '';
+          // After moving Colors & Total Stock between Model and Category, Category is now at index 6
+          const catTxt = (cells[6] && cells[6].textContent) ? cells[6].textContent.trim() : '';
+          // Status is now at index 7
+          const statusTxt = (cells[7] && cells[7].textContent) ? cells[7].textContent.trim() : '';
+          // Price moved to index 10
+          const priceTxt = (cells[10] && cells[10].textContent) ? cells[10].textContent.trim() : '';
           // Extract numeric price if present (e.g., "₱1,234.00")
           let priceNum = 0;
           const m = priceTxt.match(/[\d,\.]+/);
@@ -2427,6 +2434,21 @@
     if (state.ui.selectedTab === 'reports') renderReports();
     if (state.ui.selectedTab === 'alerts') renderAlerts();
     if (state.ui.selectedTab === 'settings') renderSettings();
+    // If an initial stocks filter was provided (via URL or dashboard click), apply it once
+    // after the first render so it isn't overwritten by later init steps.
+    try {
+      if (__initialStocksParam) {
+        const stockSel = document.getElementById('filterStock');
+        if (stockSel && stockSel.value !== __initialStocksParam) {
+          stockSel.value = __initialStocksParam;
+          try { stockSel.dispatchEvent(new Event('change', { bubbles: true })); } catch(e) {}
+          try { renderInventoryTables(); } catch(e){}
+        }
+        // clear transient indicators so we only apply once
+        try { localStorage.removeItem('inventoryStocksFilter'); } catch(e){}
+        __initialStocksParam = null;
+      }
+    } catch (e) { /* ignore */ }
   }
 
   // Export inventory to a Word-compatible .doc file (HTML document saved with .doc extension)
@@ -2647,9 +2669,22 @@
       }
     } catch (e) {}
     backfillSizeCriticalLevels();
+    // capture incoming stocks filter from URL or dashboard click (localStorage)
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const stocksParam = params.get('stocks');
+      const lsFilter = (function(){ try { return localStorage.getItem('inventoryStocksFilter'); } catch(e){ return null; } })();
+      const effective = (stocksParam || lsFilter || '').toLowerCase();
+      if (effective === 'low' || effective === 'out' || effective === 'in') {
+        __initialStocksParam = effective;
+      }
+    } catch (e) { /* ignore */ }
+
     // Initialize Firebase (if configured) and attach realtime listeners
     try { initFirebase(); } catch (e) { /* ignore */ }
     renderAll();
+    // Note: we intentionally do NOT apply the incoming filter here; instead we remember
+    // it in __initialStocksParam and apply inside renderAll() to ensure it sticks.
   }
 
   document.addEventListener('DOMContentLoaded', init);

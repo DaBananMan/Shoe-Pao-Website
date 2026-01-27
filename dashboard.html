@@ -39,6 +39,20 @@
         .card .label{font-weight:600;color:#222;margin-bottom:8px}
         .card .value{font-size:1.28rem;font-weight:600;color:#111}
 
+    /* Lists for low-stock and top items */
+    .low-list{margin:0;padding-left:20px}
+    .low-list li{margin-bottom:6px;list-style-type:disc}
+    .top-list{margin:0;padding-left:20px}
+    .top-list li{margin-bottom:6px}
+    /* clickable card link style */
+    .low-link{display:block;color:inherit;text-decoration:none}
+    .low-link:hover{background:#fafafa;cursor:pointer}
+    .total-link{display:block;color:inherit;text-decoration:none}
+    .total-link:hover{background:#fafafa;cursor:pointer}
+    /* remove underline for anchor cards (orders/inventory) and keep card styling */
+    .card[role="link"]{ text-decoration:none; color:inherit; }
+    .card[role="link"]:hover{ background:#fafafa; cursor:pointer; }
+
         /* small screens */
         @media (max-width:720px){
             .nav-left{width:100%}
@@ -80,25 +94,339 @@
 
         <h2 class="dashboard-title">Dashboard</h2>
 
-        <section class="cards-row" role="list">
+        <!-- Top summary cards removed; Total Revenue moved to the Sales section per request -->
+        
+        <div style="height:18px"></div>
+        <h3 class="dashboard-title">Sales</h3>
+        <!-- Row of sales cards (Top brands/sizes/models) -->
+        <section class="cards-row" role="list" style="margin-bottom:18px;">
             <div class="card" role="listitem">
-                <div class="label">Total Revenue</div>
-                <div class="value">PHP 64,000.00</div>
+                <div class="label">Top 3 Brands</div>
+                <div id="topBrands"></div>
             </div>
             <div class="card" role="listitem">
-                <div class="label">Sales</div>
-                <div class="value">100</div>
+                <div class="label">Top 5 Sizes</div>
+                <div id="topSizes"></div>
             </div>
             <div class="card" role="listitem">
-                <div class="label">Products in Stock</div>
-                <div class="value">25</div>
+                <div class="label">Top 5 Models</div>
+                <div id="topModels"></div>
             </div>
-            <div class="card" role="listitem">
-                <div class="label">Pending Orders</div>
-                <div class="value">23</div>
+        </section>
+
+        <!-- Revenue chart: centered and nearly end-to-end width -->
+        <section style="margin-bottom:22px;">
+            <div class="card" style="max-width:calc(100% - 80px);margin:0 auto;"> 
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <div class="label">Revenue (time series)</div>
+                        <div id="cardRevenue" class="value" style="margin-top:6px;">PHP 0.00</div>
+                    </div>
+                    <div style="text-align:right;font-size:0.95rem;color:var(--muted)">
+                        <div>Items sold: <span id="cardSales">0</span></div>
+                        <div>Orders: <span id="cardOrdersCount">0</span></div>
+                    </div>
+                </div>
+                <div style="height:12px"></div>
+                <div id="revenueChartWrap" style="width:100%;height:420px;">
+                    <canvas id="revenueChart" style="width:100%;height:100%;display:block;"></canvas>
+                </div>
+                <div style="margin-top:10px;display:flex;gap:12px;align-items:center;justify-content:center;">
+                    <label style="font-size:0.95rem;color:var(--muted);">Range</label>
+                    <select id="filterRange" style="padding:8px;border-radius:6px;border:1px solid #ddd;min-width:200px">
+                        <option value="past_day">Today</option>
+                        <option value="past_week" selected>This Week</option>
+                        <option value="past_month">Past month</option>
+                        <option value="past_year">Past year</option>
+                    </select>
+                </div>
             </div>
+        </section>
+
+        <!-- Brand bar chart (items sold per brand) -->
+        <section style="margin-bottom:22px;">
+            <div class="card" style="max-width:calc(100% - 80px);margin:0 auto;">
+                <div class="label">Items sold by Brand</div>
+                <div style="height:12px"></div>
+                <div id="brandChartWrap" style="width:100%;height:320px;">
+                    <canvas id="brandChart" style="width:100%;height:100%;display:block;"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <div style="height:18px"></div>
+        <h3 class="dashboard-title">Inventory</h3>
+        <section class="cards-row">
+            <a class="card total-link" href="inventory.html" role="link" aria-label="View all inventory" style="align-self:flex-start;" onclick="try{localStorage.removeItem('inventoryStocksFilter')}catch(e){}">
+                <div class="label">Total Stocks</div>
+                <div id="invTotal" class="value">0</div>
+            </a>
+        <a class="card low-link" href="inventory.html?stocks=low" role="link" aria-label="View low stock products" style="flex:1 1 100%" onclick="try{localStorage.setItem('inventoryStocksFilter','low')}catch(e){}">
+            <div class="label">Low-stock Products</div>
+            <div id="lowStockList" class="muted" style="margin-top:8px"></div>
+        </a>
+        </section>
+
+        <div style="height:18px"></div>
+        <h3 class="dashboard-title">Orders</h3>
+        <section class="cards-row">
+            <a class="card" href="orders.html?status=pending" role="link" aria-label="View pending orders" onclick="try{localStorage.removeItem('ordersFilter')}catch(e){}">
+                <div class="label">Pending</div>
+                <div id="ordersPending" class="value">0</div>
+            </a>
+            <a class="card" href="orders.html?status=delivered" role="link" aria-label="View delivered orders" onclick="try{localStorage.removeItem('ordersFilter')}catch(e){}">
+                <div class="label">Delivered</div>
+                <div id="ordersDelivered" class="value">0</div>
+            </a>
+            <a class="card" href="orders.html?tab=cancel-requests" role="link" aria-label="View cancellation requests" onclick="try{localStorage.removeItem('ordersFilter')}catch(e){}">
+                <div class="label">Cancel Requests</div>
+                <div id="ordersCancel" class="value">0</div>
+            </a>
+            <a class="card" href="orders.html?tab=return-requests" role="link" aria-label="View return/refund requests" onclick="try{localStorage.removeItem('ordersFilter')}catch(e){}">
+                <div class="label">Refund Requests</div>
+                <div id="ordersRefund" class="value">0</div>
+            </a>
         </section>
     </main>
 
 </body>
 </html>
+<!-- Analytics scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+<script>
+    (function(){
+    function formatPHP(n){ return 'PHP ' + Number(n||0).toLocaleString(); }
+    function el(id){ return document.getElementById(id); }
+    function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+    // Auto-refresh controls
+    let __autoRefreshMs = 30000; // 30 seconds
+    let __autoRefreshTimer = null;
+    let __currentGran = null;
+    let __currentFilters = {};
+    let __isRefreshing = false;
+    function startAutoRefresh(){
+        stopAutoRefresh();
+        __autoRefreshTimer = setInterval(async () => {
+            if(__isRefreshing) return;
+            __isRefreshing = true;
+            try{
+                await refresh(__currentGran || 'month', __currentFilters || {});
+            }catch(e){ console.warn('auto-refresh error', e); }
+            __isRefreshing = false;
+        }, __autoRefreshMs);
+    }
+    function stopAutoRefresh(){ if(__autoRefreshTimer){ clearInterval(__autoRefreshTimer); __autoRefreshTimer = null; } }
+
+    // Determine API base: prefer explicit window.API_BASE, then try localhost:3000, then fall back to server-proxy.php
+    let __cachedApiBase = null;
+    async function probeBase(candidate){
+        try{
+            const url = String(candidate).replace(/\/+$/,'') + '/api/health';
+            const r = await fetch(url, { method: 'GET', cache: 'no-store' });
+            if(r && r.ok) return String(candidate).replace(/\/+$/,'');
+        }catch(e){}
+        return null;
+    }
+
+    async function getApiBase(){
+        if(__cachedApiBase) return __cachedApiBase;
+        const candidates = [];
+        if(window && window.API_BASE) candidates.push(window.API_BASE);
+        candidates.push('http://localhost:3000');
+        candidates.push('/server-proxy.php');
+        for(const c of candidates){
+            try{
+                const ok = await probeBase(c);
+                if(ok){ __cachedApiBase = ok; return ok; }
+            }catch(e){}
+        }
+        // final fallback: use server-proxy.php path even if health didn't respond
+        __cachedApiBase = '/server-proxy.php';
+        return __cachedApiBase;
+    }
+
+    async function fetchAnalytics(gran, filters){
+        try{
+            const apiBase = await getApiBase();
+            const body = { granularity: gran || 'month', filters: filters || {} };
+            console.debug && console.debug('[analytics] request body:', body, 'apiBase:', apiBase);
+            const resp = await fetch(String(apiBase).replace(/\/+$/,'') + '/api/admin/analytics', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+            if(!resp){ console.warn('analytics fetch no response'); return null; }
+            console.debug && console.debug('[analytics] response status:', resp.status);
+            if(!resp.ok) { console.warn('analytics fetch failed', resp.status); return null; }
+            const json = await resp.json();
+            console.debug && console.debug('[analytics] response json:', json && (json.ok ? json : json));
+            // ensure numeric coercion of series
+            if(json && Array.isArray(json.series)){
+                json.series = json.series.map(s => ({ bucket: s.bucket, revenue: Number(s.revenue || 0), orders: Number(s.orders || 0) }));
+            }
+            return json;
+        }catch(e){ console.warn('analytics fetch error', e); return null; }
+    }
+
+    let revenueChart = null;
+    let lastGranularity = null;
+
+    function formatLabelForGran(bucket, gran){
+        if(!bucket) return '';
+        if(gran === 'hour'){
+            // try to parse an ISO-like or space-separated datetime and show localized hour:minute
+            let s = String(bucket);
+            let d = new Date(s);
+            if(isNaN(d.getTime())) d = new Date(s.replace(' ', 'T'));
+            if(!isNaN(d.getTime())){
+                try{ return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }catch(e){ /* fallthrough */ }
+            }
+            // fallback: extract hour from YYYY-MM-DD HH or YYYY-MM-DDTHH
+            const m = String(bucket).match(/\d{4}-\d{2}-\d{2}[ T]?(\d{2})[:]?\d{0,2}/);
+            if(m && m[1]) return m[1] + ':00';
+            return String(bucket);
+        }
+        return String(bucket);
+    }
+    function renderSeries(series){
+        const rawLabels = (series || []).map(r => r.bucket);
+        const labels = rawLabels.map(l => formatLabelForGran(l, lastGranularity));
+        const data = (series || []).map(r => Number(r.revenue || 0));
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        if(revenueChart) revenueChart.destroy();
+        // compute suggested max to avoid autoscaling weirdness
+        const maxVal = data && data.length ? Math.max.apply(null, data) : 0;
+        const suggestedMax = Math.ceil(maxVal * 1.15 || 10);
+        revenueChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: [{ label: 'Revenue', data: data, borderColor: '#b71c1c', backgroundColor: 'rgba(183,28,28,0.08)', fill: true, tension: 0.2 }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 300 },
+                scales: {
+                    x: {
+                        ticks: { autoSkip: true, maxRotation: 0 }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: suggestedMax,
+                        ticks: { callback: function(v){ return 'PHP ' + Number(v).toLocaleString(); } }
+                    }
+                },
+                plugins: { legend: { display: false } },
+            }
+        });
+    }
+
+    // Brand bar chart (items sold per brand)
+    let brandChart = null;
+    function renderBrandChart(brands){
+        const labels = (brands || []).map(b => b.brand || b.title || 'Unknown');
+        const data = (brands || []).map(b => Number(b.units || b.revenue || 0));
+        const ctx = document.getElementById('brandChart').getContext('2d');
+        if(brandChart) brandChart.destroy();
+        if(!labels.length){
+            // clear canvas by creating empty chart
+            brandChart = new Chart(ctx, { type: 'bar', data: { labels: [], datasets: [] }, options: { responsive:true, maintainAspectRatio:false } });
+            return;
+        }
+        brandChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: 'Items sold', data: data, backgroundColor: 'rgba(54,162,235,0.7)', borderColor: 'rgba(54,162,235,1)', borderWidth: 1 }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { precision:0 } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    function renderTopList(containerId, items, labelKey, valueKey){
+        const c = el(containerId); if(!c) return;
+        const list = items || [];
+        if(!list.length){ c.innerHTML = '<div class="muted">None</div>'; return; }
+        // render as an ordered list so items are numbered (ranked)
+        let html = '<ol class="top-list">';
+        list.forEach((it, idx) => {
+            const title = escapeHtml(it[labelKey] || it.brand || it.title || '');
+            const val = escapeHtml(String(it[valueKey] || it.units || it.revenue || ''));
+            html += '<li><strong>' + title + '</strong>' + (val ? ' — ' + val : '') + '</li>';
+        });
+        html += '</ol>';
+        c.innerHTML = html;
+    }
+
+    async function refresh(gran, filters){
+        const data = await fetchAnalytics(gran, filters);
+        if(!data || !data.ok) return;
+    el('cardRevenue').textContent = formatPHP(data.totals.revenue || 0);
+    el('cardSales').textContent = String(data.totals.itemsSold || 0);
+    // orders count displayed near chart
+    el('cardOrdersCount').textContent = String(data.totals.orders || (data.series || []).reduce((s,x)=>s+Number(x.orders||0),0));
+
+        renderSeries(data.series || []);
+        renderTopList('topBrands', data.topBrands || [], 'brand', 'units');
+        renderTopList('topSizes', data.topSizes || [], 'size', 'units');
+        renderTopList('topModels', data.topModels || [], 'title', 'units');
+    // render brand bar chart (same filters)
+    renderBrandChart(data.topBrands || []);
+
+    el('invTotal').textContent = String((data.inventory && data.inventory.totalStock) || 0);
+        const low = (data.inventory && data.inventory.lowStock) || [];
+        // show low-stock products as a bulleted list (product names only)
+        if(!low.length){ el('lowStockList').innerHTML = '<div class="muted">None</div>'; }
+        else {
+            const html = '<ul class="low-list">' + low.map(p => '<li>' + escapeHtml(p.name || p.id) + '</li>').join('') + '</ul>';
+            el('lowStockList').innerHTML = html;
+        }
+
+    // normalize and lookup status counts with fallbacks
+    const sc = data.statusCounts || {};
+    console.debug && console.debug('[analytics] statusCounts:', sc);
+    function lookupStatusCount(obj, keys){ if(!obj) return 0; for(const k of keys){ if(typeof obj[k] !== 'undefined') return Number(obj[k]||0); } return 0; }
+
+    el('ordersPending').textContent = String( lookupStatusCount(sc, ['pending','pending payment','pending_payment','pending-payment','processing']) );
+    el('ordersDelivered').textContent = String( lookupStatusCount(sc, ['delivered','delivered']) );
+    el('ordersCancel').textContent = String( lookupStatusCount(sc, ['cancel_requests','cancel_requests','cancel-request','cancel-requested','cancelled']) );
+    el('ordersRefund').textContent = String( lookupStatusCount(sc, ['refund_requests','refund-request','refund_requested','refunded','refund processing','refund-processing']) );
+    }
+
+    // Range filter (Current day / Past week / Past month / Past year)
+    function onRangeChange(){
+        const sel = el('filterRange'); if(!sel) return;
+        const v = sel.value || 'past_month';
+        let gran = 'month';
+        const filters = { range: v };
+        console.debug && console.debug('[analytics] range selected:', v);
+        switch(v){
+            // Today -> use hourly buckets so the chart shows time-of-day points
+            case 'past_day': gran = 'hour'; break;
+            // Past week -> daily buckets
+            case 'past_week': gran = 'day'; break;
+            case 'past_month': gran = 'month'; break;
+            case 'past_year': gran = 'year'; break;
+            default: gran = 'month';
+        }
+        console.debug && console.debug('[analytics] calling refresh gran:', gran, 'filters:', filters);
+        // store current selection for auto-refresh
+        __currentGran = gran;
+        __currentFilters = filters;
+        // perform a refresh and (re)start auto-refreshing
+        (async ()=>{ __isRefreshing = true; try{ await refresh(gran, filters); }catch(e){ console.warn('refresh error', e); } __isRefreshing = false; startAutoRefresh(); })();
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+        const sel = el('filterRange'); if(sel) sel.addEventListener('change', onRangeChange);
+        // trigger initial load (default is past_month)
+        onRangeChange();
+        // when tab becomes visible again or window focuses, refresh immediately and restart polling
+        document.addEventListener('visibilitychange', function(){
+            if(document.visibilityState === 'visible'){
+                // immediate refresh
+                (async ()=>{ if(__isRefreshing) return; __isRefreshing = true; try{ await refresh(__currentGran || 'month', __currentFilters || {}); }catch(e){ console.warn('visibility refresh error', e); } __isRefreshing = false; startAutoRefresh(); })();
+            }else{
+                stopAutoRefresh();
+            }
+        });
+        window.addEventListener('focus', function(){ if(document.visibilityState === 'visible'){ (async ()=>{ if(__isRefreshing) return; __isRefreshing = true; try{ await refresh(__currentGran || 'month', __currentFilters || {}); }catch(e){ console.warn('focus refresh error', e); } __isRefreshing = false; startAutoRefresh(); })(); } });
+    });
+})();
+</script>

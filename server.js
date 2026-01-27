@@ -682,6 +682,117 @@ app.post('/api/admin/list-users', async (req, res) => {
   }catch(err){ console.error('api/admin/list-users error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
 });
 
+  // Admin: analytics endpoint - aggregates orders and inventory metrics for dashboard
+  app.post('/api/admin/analytics', async (req, res) => {
+    try{
+      // Allow requests from localhost without idToken for local development convenience
+      const forwarded = (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim();
+      const remote = forwarded || (req.connection && req.connection.remoteAddress) || (req.socket && req.socket.remoteAddress) || (req.ip || '');
+      const ip = String(remote || '').trim();
+      const allowLoopback = (ip === '127.0.0.1' || ip === '::1' || ip.indexOf('::ffff:127.0.0.1') === 0 || ip.indexOf('127.') === 0);
+
+      // If not loopback, attempt token verification similar to other admin endpoints
+      if (!allowLoopback){
+        if(!admin){ try{ admin = require('firebase-admin'); if(!admin.apps || !admin.apps.length) admin.initializeApp(); }catch(e){ admin = null; } }
+        if(!admin) return res.status(500).json({ error: 'firebase-admin not initialized' });
+        let idToken = null;
+        const auth = (req.headers && req.headers.authorization) ? req.headers.authorization : null;
+        if(auth && typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ')) idToken = auth.slice(7).trim();
+        if(!idToken) return res.status(401).json({ error: 'id_token_required' });
+        try{ var decoded = await admin.auth().verifyIdToken(idToken); if(!(decoded && decoded.admin === true)){ return res.status(403).json({ error: 'forbidden' }); } }catch(e){ return res.status(401).json({ error: 'invalid_id_token', detail: String(e && e.message ? e.message : e) }); }
+      }
+
+      // proceed with analytics
+      const body = req.body || {};
+      const startDate = body.startDate ? new Date(body.startDate) : null;
+      const endDate = body.endDate ? new Date(body.endDate) : null;
+      const gran = (body.granularity || 'month');
+      let bucketFmt = '%Y-%m'; if(gran === 'day') bucketFmt = '%Y-%m-%d'; if(gran === 'year') bucketFmt = '%Y';
+      const minDate = startDate ? startDate.toISOString() : null;
+      const maxDate = endDate ? endDate.toISOString() : null;
+
+      let where = ''; let params = [];
+      if(minDate && maxDate){ where = ' WHERE created_at BETWEEN ? AND ?'; params = [minDate, maxDate]; }
+      else if(minDate){ where = ' WHERE created_at >= ?'; params = [minDate]; }
+      else if(maxDate){ where = ' WHERE created_at <= ?'; params = [maxDate]; }
+
+      const totalsRow = db.prepare('SELECT COUNT(*) as ordersCount, IFNULL(SUM(total),0) as revenue FROM Orders' + where).get(...params);
+      const itemsRow = db.prepare('SELECT IFNULL(SUM(oi.qty),0) as itemsSold FROM OrderItems oi JOIN Orders o ON oi.order_id = o.id' + where.replace('created_at','o.created_at')).get(...params);
+
+      const seriesSql = `SELECT strftime('${bucketFmt}', created_at) as bucket, IFNULL(SUM(total),0) as revenue, COUNT(*) as orders FROM Orders${where} GROUP BY bucket ORDER BY bucket ASC`;
+      const seriesRows = db.prepare(seriesSql).all(...params);
+
+  const statusRows = db.prepare('SELECT status, COUNT(*) as count FROM Orders' + where + ' GROUP BY status').all(...params);
+
+      const topProductsRows = db.prepare('SELECT oi.product_id, oi.name, SUM(oi.qty) as units, IFNULL(SUM(oi.qty * oi.price),0) as revenue FROM OrderItems oi JOIN Orders o ON oi.order_id = o.id' + where.replace('created_at','o.created_at') + ' GROUP BY oi.product_id, oi.name ORDER BY units DESC LIMIT 50').all(...params);
+
+      // load inventory
+      let inventory = [];
+      try{ inventory = JSON.parse(fs.readFileSync(path.join(__dirname,'data','inventory.json'),'utf8') || '[]'); }catch(e){ inventory = []; }
+      const invById = {};
+      inventory.forEach(p => { if(p && p.id) invById[String(p.id)] = p; if(p && p.id && String(p.id).charAt(0) !== '#') invById['#'+String(p.id)] = p; });
+
+      const brandAgg = {}; const sizeAgg = {};
+      topProductsRows.forEach(r => {
+        const pid = String(r.product_id || '');
+        const inv = invById[pid] || invById[(pid.indexOf('#')===0?pid:('#'+pid))] || null;
+        const brand = (inv && inv.brand) ? inv.brand : (r.name ? (String(r.name).split(/\s+/)[0]) : 'Unknown');
+        brandAgg[brand] = brandAgg[brand] || { brand: brand, units: 0, revenue: 0 };
+        brandAgg[brand].units += Number(r.units || 0);
+        brandAgg[brand].revenue += Number(r.revenue || 0);
+        // Improved size extraction: capture common shoe size patterns like 8, 8.5, 10, 42, etc.
+        const name = String(r.name || '');
+        // First try obvious patterns (numbers with optional .5)
+        const found = [];
+        const regex = /([0-9]{1,2}(?:\.[05])?)/g;
+        let mm;
+        while((mm = regex.exec(name)) !== null){
+          // ignore likely years (e.g., 2020+) by restricting to 1-2 digits
+          const candidate = mm[1];
+          if(candidate && candidate.length <= 5){
+            found.push(candidate);
+          }
+        }
+        // If none found, try to match numeric tokens that might appear after size indicators
+        if(found.length === 0){
+          const alt = name.match(/(?:size|sz|US|UK|EU)\s*[:#]?\s*([0-9]{1,2}(?:\.[05])?)/i);
+          if(alt && alt[1]) found.push(alt[1]);
+        }
+        // Aggregate sizes found
+        if(found.length){
+          // use the first match as the size for this product
+          const sz = String(found[0]);
+          sizeAgg[sz] = sizeAgg[sz] || 0;
+          sizeAgg[sz] += Number(r.units || 0);
+        }
+      });
+
+      const topBrands = Object.keys(brandAgg).map(k => brandAgg[k]).sort((a,b)=>b.units - a.units).slice(0,3);
+      const topSizes = Object.keys(sizeAgg).map(k => ({ size: k, units: sizeAgg[k] })).sort((a,b)=>b.units - a.units).slice(0,5);
+      const topModels = topProductsRows.map(r => ({ productId: r.product_id, title: r.name, units: r.units, revenue: r.revenue })).slice(0,5);
+
+      // Normalize status rows into a predictable shape for the dashboard client.
+      const statusCounts = {};
+      statusRows.forEach(s => {
+        const raw = (s.status || '').toString();
+        const norm = canonicalizeStatus(raw) || raw || 'unknown';
+        const key = String(norm).toLowerCase();
+        statusCounts[key] = (statusCounts[key] || 0) + Number(s.count || 0);
+        // also derive request-type counters for cancel/refund intents
+        const low = raw.toLowerCase();
+        if(low.indexOf('cancel') !== -1){ statusCounts['cancel_requests'] = (statusCounts['cancel_requests'] || 0) + Number(s.count || 0); }
+        if(low.indexOf('refund') !== -1 || low.indexOf('return') !== -1){ statusCounts['refund_requests'] = (statusCounts['refund_requests'] || 0) + Number(s.count || 0); }
+      });
+
+      let totalStock = 0; const lowStock = [];
+      inventory.forEach(p=>{ let productTotal = 0; const sizes = p.sizes || {}; Object.keys(sizes||{}).forEach(sz => { const v = Number(sizes[sz]||0); if(isFinite(v)) productTotal += v; }); totalStock += productTotal; const critical = (p.critical || 3); const lowSizes = Object.keys(sizes||{}).filter(sz => (Number(sizes[sz]||0) <= critical)).map(sz => ({ size: sz, qty: Number(sizes[sz]||0) })); if(productTotal <= critical || (lowSizes && lowSizes.length)) lowStock.push({ id: p.id, name: p.name, total: productTotal, lowSizes: lowSizes }); });
+
+      return res.json({ ok:true, totals: { orders: Number(totalsRow.ordersCount||0), revenue: Number(totalsRow.revenue||0), itemsSold: Number((itemsRow && itemsRow.itemsSold) || 0) }, series: seriesRows, topBrands: topBrands, topSizes: topSizes, topModels: topModels, statusCounts: statusCounts, inventory: { totalStock: totalStock, lowStock: lowStock } });
+
+    }catch(err){ console.error('api/admin/analytics error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }
+  });
+
+
 // Admin: delete a user and related Firestore data (requires admin idToken)
 app.post('/api/admin/delete-user', async (req, res) => {
   const body = req.body || {};

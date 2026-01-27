@@ -38,6 +38,18 @@ service cloud.firestore {
       }
     }
 
+    // Accounts (dev-only)
+    // NOTE: This block is intentionally permissive on reads for local development
+    // so admin UI pages can use client-side onSnapshot during testing. Remove or
+    // tighten this rule before deploying to production.
+    match /accounts/{accountId} {
+      // allow clients to list/read account documents during development
+      allow read: if true;
+
+      // allow writes only for authenticated admin users (via custom claim)
+      allow create, update, delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
     // By default deny everything else
     match /{document=**} {
       allow read, write: if false;

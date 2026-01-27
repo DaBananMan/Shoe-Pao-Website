@@ -164,6 +164,21 @@
                                 lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
                             }, meta || {});
                             userDoc.set(payload, { merge: true }).catch(() => {});
+                            // Also notify server to ensure a canonical `accounts` doc exists (uses Admin SDK)
+                            (async function(){
+                                try{
+                                    if(user && user.getIdToken){
+                                        var idToken = null;
+                                        try{ idToken = await user.getIdToken(true); }catch(e){ try{ idToken = await user.getIdToken(); }catch(e){} }
+                                        if(idToken){
+                                            var profileBody = Object.assign({}, meta || {}, { email: user.email, displayName: user.displayName || '', phone: meta.phone || '', addressMain: meta.addressMain || '', addressDetails: meta.addressDetails || '' });
+                                            try{
+                                                await fetch('/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: idToken, profile: profileBody }) });
+                                            }catch(e){ console.warn('notify server create-account-doc failed', e); }
+                                        }
+                                    }
+                                }catch(e){ console.warn('create-account-doc notify failed', e); }
+                            })();
                             // Cleanup pending metadata for this email
                             try{ delete pendingMeta[(user.email||'').toLowerCase()]; localStorage.setItem('pendingSignup', JSON.stringify(pendingMeta)); }catch(e){}
 
@@ -270,6 +285,19 @@
                             const userDoc = firebase.firestore().doc('users/' + user.uid);
                             const payload = { email: user.email, displayName: user.displayName || '', emailVerified: !!user.emailVerified, role: 'user', lastLoginAt: firebase.firestore.FieldValue.serverTimestamp() };
                             userDoc.set(payload, { merge: true }).catch(() => {});
+                            // Ensure server accounts doc exists for social sign-ins as well
+                            (async function(){
+                                try{
+                                    if(user && user.getIdToken){
+                                        var idToken = null;
+                                        try{ idToken = await user.getIdToken(true); }catch(e){ try{ idToken = await user.getIdToken(); }catch(e){} }
+                                        if(idToken){
+                                            var profileBody = { email: user.email, displayName: user.displayName || '', phone: user.phoneNumber || '' };
+                                            try{ await fetch('/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: idToken, profile: profileBody }) }); }catch(e){ console.warn('notify server create-account-doc (social) failed', e); }
+                                        }
+                                    }
+                                }catch(e){ console.warn('create-account-doc notify failed (social)', e); }
+                            })();
                         }
                     } catch (e) { console.warn('Failed to upsert social sign-in user doc', e); }
                     const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || '' };

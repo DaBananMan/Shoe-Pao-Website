@@ -162,6 +162,12 @@
         </div>
     </div>
 
+    <!-- Firebase client SDK: required for Firestore order lookup -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="js/firebase-config.js"></script>
+
     <script>
     (function(){
         function qs(name){
@@ -171,6 +177,7 @@
         function getUsers(){ try{ return JSON.parse(localStorage.getItem('users') || '[]') }catch(e){ return [] } }
     function getOrders(){ try{ return JSON.parse(localStorage.getItem('client_orders') || '[]') }catch(e){ return [] } }
         function formatPHP(n){ return 'PHP ' + Number(n||0).toLocaleString(); }
+        function escapeHtml(text){ return String(text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
         const email = qs('email');
         if(!email){ document.getElementById('userWrap').innerHTML = '<div class="user-card">No user specified.</div>'; }
@@ -225,35 +232,98 @@
             if(user.lastLogin) meta += ' • Last login: ' + new Date(user.lastLogin).toLocaleString();
             document.getElementById('userMeta').textContent = meta;
 
-            const orders = getOrders().filter(o => {
-                // orders may store customer email under order.email, order.profile.email, or order.checkoutEmail
-                const candidates = [o.email, (o.customerEmail||''), (o.checkoutEmail||''), (o.customerName||'')];
-                // also check order.profile.email or order.profile
-                if(o.profile && o.profile.email) candidates.push(o.profile.email);
-                if(o.customer && o.customer.email) candidates.push(o.customer.email);
-                if(o.customerName && o.customerName.indexOf('@') !== -1) candidates.push(o.customerName);
-                return candidates.some(c => (c||'').toLowerCase() === (email||'').toLowerCase());
-            });
-            const wrap = document.getElementById('userOrders');
-            wrap.innerHTML = '';
-            if(!orders || orders.length === 0){ wrap.innerHTML = '<div class="empty">No orders for this user.</div>'; return; }
-            orders.forEach(o => {
-                const row = document.createElement('div'); row.className = 'order-card';
-                const left = document.createElement('div'); left.style.flex = '1';
-                left.innerHTML = '<div style="font-weight:700">Order ' + (o.id || '') + '</div><div class="muted">' + (new Date(o.date||o.createdAt||Date.now())).toLocaleString() + '</div>';
-                const right = document.createElement('div'); right.style.textAlign = 'right'; right.innerHTML = '<div style="font-weight:700">' + formatPHP(o.total||o.subtotal||0) + '</div><div class="muted">' + (o.status||'') + '</div>';
-                row.appendChild(left); row.appendChild(right);
-                // open the order modal in-place (find full orders index and open modal)
-                row.onclick = function(){
+            // Try to load orders from Firestore by matching email fields when possible.
+            // Fall back to localStorage `client_orders` if Firestore is unavailable or the query fails.
+            async function loadAndRenderOrders(){
+                const wrap = document.getElementById('userOrders');
+                wrap.innerHTML = '<div style="padding:12px;background:#fff;border:1px solid #eee;border-radius:8px">Loading orders...</div>';
+                var orders = [];
+                const target = (email||'').toLowerCase();
+                if(window.firebase && firebase.firestore){
                     try{
-                        const all = getOrders() || [];
-                        const idx = all.findIndex(function(x){ return (x.id||'') === (o.id||''); });
-                        if(idx !== -1 && window.openOrderModal){ window.openOrderModal(idx); }
-                        else { window.location.href = 'client-orders.html?open=' + encodeURIComponent(o.id || ''); }
-                    }catch(e){ window.location.href = 'client-orders.html?open=' + encodeURIComponent(o.id || ''); }
-                };
-                wrap.appendChild(row);
-            });
+                        const db = firebase.firestore();
+                        const seen = {};
+                        // Query common email fields in Firestore. Do these sequentially and merge by document id.
+                        // Prefer customerEmail match first (accounts.email -> order.customerEmail)
+                        try{ const qCust = await db.collection('orders').where('customerEmail','==', target).get(); qCust.forEach(d=>{ var obj = Object.assign({ id: d.id }, d.data()); obj.__matchField = 'customerEmail'; seen[d.id] = obj; }); }catch(e){}
+                        try{ const qEmail = await db.collection('orders').where('email','==', target).get(); qEmail.forEach(d=>{ if(!seen[d.id]){ var obj = Object.assign({ id: d.id }, d.data()); obj.__matchField = 'email'; seen[d.id] = obj; } }); }catch(e){}
+                        try{ const qProfile = await db.collection('orders').where('profile.email','==', target).get(); qProfile.forEach(d=>{ if(!seen[d.id]){ var obj = Object.assign({ id: d.id }, d.data()); obj.__matchField = 'profile.email'; seen[d.id] = obj; } }); }catch(e){}
+                        // Convert to array and sort by created/createdAt/date desc if available
+                        orders = Object.keys(seen).map(k => seen[k]);
+                        orders.sort(function(a,b){ var ad = a.createdAt || a.date || a.created_at || 0; var bd = b.createdAt || b.date || b.created_at || 0; try{ ad = new Date(ad).getTime(); }catch(_){} try{ bd = new Date(bd).getTime(); }catch(_){} return (bd || 0) - (ad || 0); });
+                    }catch(err){ console.warn('Failed to load orders from Firestore', err); orders = []; }
+                }
+                // If Firestore yielded nothing, fall back to localStorage-based orders
+                if(!orders || orders.length === 0){
+                    const stored = getOrders() || [];
+                    orders = stored.map(function(o){
+                        // compute matchField for local orders as well
+                        var m = null;
+                        try{ if(o.customerEmail && String(o.customerEmail).toLowerCase() === target) m = 'customerEmail'; }catch(e){}
+                        try{ if(!m && o.email && String(o.email).toLowerCase() === target) m = 'email'; }catch(e){}
+                        try{ if(!m && o.profile && o.profile.email && String(o.profile.email).toLowerCase() === target) m = 'profile.email'; }catch(e){}
+                        if(m){ var copy = Object.assign({ }, o); copy.__matchField = m; return copy; }
+                        return null;
+                    }).filter(Boolean);
+                }
+
+                // If still none found, try server-side listing as a last-resort fallback
+                if((!orders || orders.length === 0) && typeof fetch === 'function'){
+                    try{
+                        // Attempt to fetch all orders from the API and filter by email.
+                        // This is a fallback for environments where Firestore client reads
+                        // are blocked by rules. The server has a lightweight /api/orders
+                        // endpoint which returns recent orders.
+                        var base = String(window.API_BASE || '/server-proxy.php').replace(/\/+$/,'');
+                        var resp = await fetch(base + '/api/orders');
+                        if(resp && resp.ok){
+                            var json = await resp.json();
+                            var serverOrders = (json && json.orders) ? json.orders : [];
+                            if(Array.isArray(serverOrders) && serverOrders.length){
+                                var filtered = serverOrders.map(function(o){
+                                    var m = null;
+                                    try{ if(o.customerEmail && String(o.customerEmail).toLowerCase() === target) m = 'customerEmail'; }catch(e){}
+                                    try{ if(!m && o.email && String(o.email).toLowerCase() === target) m = 'email'; }catch(e){}
+                                    try{ if(!m && o.profile && o.profile.email && String(o.profile.email).toLowerCase() === target) m = 'profile.email'; }catch(e){}
+                                    if(m){ var copy = Object.assign({}, o); copy.__matchField = m; return copy; }
+                                    return null;
+                                }).filter(Boolean);
+                                if(filtered.length) orders = filtered;
+                            }
+                        }
+                    }catch(e){ console.warn('server fallback for orders failed', e); }
+                }
+
+                wrap.innerHTML = '';
+                if(!orders || orders.length === 0){ wrap.innerHTML = '<div class="empty">No orders for this user.</div>'; return; }
+                orders.forEach(o => {
+                    const row = document.createElement('div'); row.className = 'order-card';
+                    const left = document.createElement('div'); left.style.flex = '1';
+                    var when = new Date(o.date||o.createdAt||Date.now()).toLocaleString();
+                    var matchedEmail = '';
+                    try{
+                        if(o.__matchField === 'customerEmail') matchedEmail = (o.customerEmail || o.email || '');
+                        else if(o.__matchField === 'email') matchedEmail = (o.email || o.customerEmail || '');
+                        else if(o.__matchField === 'profile.email') matchedEmail = (o.profile && o.profile.email) ? o.profile.email : (o.email||o.customerEmail||'');
+                        else matchedEmail = (o.customerEmail||o.email|| (o.profile && o.profile.email) || '');
+                    }catch(e){ matchedEmail = (o.customerEmail||o.email||''); }
+                    left.innerHTML = '<div style="font-weight:700">Order ' + (o.id || '') + '</div><div class="muted">' + when + '</div>' + (matchedEmail ? ('<div style="font-size:0.92rem;color:#444;margin-top:6px">' + escapeHtml(matchedEmail) + '</div>') : '');
+                    const right = document.createElement('div'); right.style.textAlign = 'right'; right.innerHTML = '<div style="font-weight:700">' + formatPHP(o.total||o.subtotal||0) + '</div><div class="muted">' + (o.status||'') + '</div>';
+                    row.appendChild(left); row.appendChild(right);
+                    row.onclick = function(){
+                        try{
+                            // Prefer opening the modal from localStorage-backed index when available
+                            const all = getOrders() || [];
+                            const idx = all.findIndex(function(x){ return (x.id||'') === (o.id||''); });
+                            if(idx !== -1 && window.openOrderModal){ window.openOrderModal(idx); }
+                            else { window.location.href = 'client-orders.html?open=' + encodeURIComponent(o.id || ''); }
+                        }catch(e){ window.location.href = 'client-orders.html?open=' + encodeURIComponent(o.id || ''); }
+                    };
+                    wrap.appendChild(row);
+                });
+            }
+            // kick off async load/render (don't await to keep event handlers responsive)
+            try{ loadAndRenderOrders(); }catch(e){ console.warn('loadAndRenderOrders failed', e); }
         }
 
         document.addEventListener('DOMContentLoaded', render);
@@ -321,8 +391,55 @@
             if(!deliveryLabel && order.deliveryCode){ if(order.deliveryCode === 'personal') deliveryLabel = 'Personal Delivery'; else if(order.deliveryCode === 'lalamove') deliveryLabel = 'Lalamove'; else if(order.deliveryCode === 'jnt') deliveryLabel = 'J&T Express'; else if(order.deliveryCode === 'jrs') deliveryLabel = 'JRS'; }
             document.getElementById('orderModalDelivery').textContent = deliveryLabel ? ('Delivery: ' + deliveryLabel) : '';
             document.getElementById('orderModalImg').src = (order.items[0] && order.items[0].image) || 'IMAGE/NIKE1.png';
+            // Normalize and dedupe items to avoid redundant listings in the modal.
             var itemsHtml = '';
-            order.items.forEach(function(it){ var qty = it.quantity || it.qty || 1; itemsHtml += '<div style="margin-bottom:6px;">' + qty + ' x ' + (it.title||'Product') + ' — ' + formatPHP((it.price||0) * qty) + '</div>'; });
+            try{
+                var rawItems = [];
+                if(Array.isArray(order.items)) rawItems = order.items.slice();
+                else if(order.items && Array.isArray(order.items.items)) rawItems = order.items.items.slice();
+                // flatten nested arrays and parse JSON strings
+                var flat = [];
+                rawItems.forEach(function(it){
+                    if(!it) return;
+                    if(Array.isArray(it)) it.forEach(function(x){ if(x) flat.push(x); });
+                    else flat.push(it);
+                });
+                flat = flat.map(function(it){ if(typeof it === 'string'){ try{ return JSON.parse(it); }catch(e){ return { title: String(it) }; } } return it || {}; });
+                // group by product identifier (productId/product_id/id/sku/title)
+                // Use a safer grouping key: prefer productId/sku plus variant (size/color). If none exist,
+                // fall back to the original index to avoid merging unrelated items.
+                var grouped = {};
+                flat.forEach(function(it, idx){
+                    var variant = it.size || it.variant || it.color || '';
+                    var key = '';
+                    if(it.productId) key = 'pid:' + it.productId + '|v:' + variant;
+                    else if(it.product_id) key = 'pid:' + it.product_id + '|v:' + variant;
+                    else if(it.sku) key = 'sku:' + it.sku + '|v:' + variant;
+                    else if(it.id) key = 'id:' + it.id + '|v:' + variant;
+                    else if(it.title) key = 'title:' + it.title + '|v:' + variant;
+                    else if(it.name) key = 'name:' + it.name + '|v:' + variant;
+                    else key = 'idx:' + idx; // ensure uniqueness when no identifying fields exist
+
+                    var qty = Number(it.quantity || it.qty || it.count || 1);
+                    if(!isFinite(qty) || qty <= 0) qty = 1;
+                    if(!grouped[key]){
+                        grouped[key] = Object.assign({}, it);
+                        grouped[key].quantity = qty;
+                    } else {
+                        grouped[key].quantity = (Number(grouped[key].quantity) || 0) + qty;
+                    }
+                });
+                var finalItems = Object.keys(grouped).map(function(k){ return grouped[k]; });
+                // If normalization changed the item count (possible when merging), log for debugging.
+                if(flat.length !== finalItems.length){
+                    try{ console.debug('Order items normalized: original count', flat.length, 'normalized count', finalItems.length, 'orderId', order.id || order.orderId || order._id); }catch(e){}
+                    try{ console.debug('Original items:', flat); }catch(e){}
+                    try{ console.debug('Normalized items:', finalItems); }catch(e){}
+                }
+                finalItems.forEach(function(it){ var qty = Number(it.quantity || it.qty || it.count || 1); if(!isFinite(qty) || qty <= 0) qty = 1; itemsHtml += '<div style="margin-bottom:6px;">' + qty + ' x ' + (it.title||it.name||it.productName||'Product') + ' — ' + formatPHP((it.price||it.unitPrice||it.itemPrice||0) * qty) + '</div>'; });
+            }catch(e){
+                try{ order.items && order.items.forEach && order.items.forEach(function(it){ var qty = it.quantity || it.qty || 1; itemsHtml += '<div style="margin-bottom:6px;">' + qty + ' x ' + (it.title||'Product') + ' — ' + formatPHP((it.price||0) * qty) + '</div>'; }); }catch(_){ itemsHtml = '<div class="muted">Items unavailable</div>'; }
+            }
             document.getElementById('orderModalItems').innerHTML = itemsHtml;
             document.getElementById('orderModalStatus').textContent = 'Status: ' + titleCase(order.status);
             var ship = Number(order.shipping || 0);

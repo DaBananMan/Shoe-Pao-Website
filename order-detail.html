@@ -1714,11 +1714,15 @@
   // and point to server-proxy.php there.
   var API_BASE = (function(){
     try{
+      // Prefer a developer-set API base (window.API_BASE) when available so
+      // local Node servers are used instead of the PHP proxy. Fall back to the
+      // PHP proxy path when no API_BASE is configured.
+      if(typeof window !== 'undefined' && window.API_BASE) return window.API_BASE;
       var p = window.location.pathname.replace(/\/+$|^\/+/, '');
       var seg = p.split('/');
       var root = seg.length > 0 ? '/' + seg[0] : '';
       return root + '/server-proxy.php';
-    }catch(e){ return '/server-proxy.php'; }
+    }catch(e){ return (typeof window !== 'undefined' && window.API_BASE) ? window.API_BASE : '/server-proxy.php'; }
   })();
       if(!orderId){
         showError('Missing order id. Open this page as /orders/{orderId} (example: /orders/ORD230123) or open from the Orders admin drawer.');

@@ -7,6 +7,7 @@
     <title>Shoe Pao — Accounts</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="js/ensure-server.js"></script>
     <style>
         :root{--accent:#b71c1c;--muted:#666;--page-bg:#fafafa}
         body{font-family:'Poppins',Arial,sans-serif;margin:0;background:var(--page-bg);color:#222}
@@ -88,6 +89,7 @@
         </div>
 
         <div id="accountsWrap">
+            <div id="accountsStatus" style="padding:8px 12px;background:#fff;border:1px solid #eee;border-radius:8px;margin-bottom:10px;color:#333;font-weight:600">Loading accounts...</div>
             <table class="accounts-table" id="accountsTable">
                 <thead>
                     <tr>
@@ -288,6 +290,33 @@
     </script>
 
     <script>
+    // When the dev auto-admin flow signs in, it now emits a 'shoepao:admin-signedin'
+    // event instead of forcing a reload. Listen for that and attempt to refresh
+    // the accounts snapshot so the UI updates without a full page navigation.
+    try{
+        window.addEventListener && window.addEventListener('shoepao:admin-signedin', function(){
+            try{
+                if(window.firebase && firebase.firestore){
+                    var db = firebase.firestore();
+                    db.collection('accounts').limit(500).get().then(function(snap){
+                        try{
+                            var local = JSON.parse(localStorage.getItem('users')||'[]') || [];
+                            var map = {};
+                            local.forEach(function(u){ if(u && u.email) map[(u.email||'').toLowerCase()] = u; });
+                            snap.forEach(function(doc){ var d = doc.data() || {}; var email = (d.email || d.emailAddress || '').toLowerCase(); if(!email) return; var merged = Object.assign({}, map[email] || {}, d); merged.email = email; map[email] = merged; });
+                            var mergedList = Object.keys(map).map(function(k){ return map[k]; });
+                            localStorage.setItem('users', JSON.stringify(mergedList));
+                            try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
+                            try{ document.getElementById('accountsStatus').innerText = 'Loaded after auto-signin (' + mergedList.length + ' accounts)'; }catch(e){}
+                        }catch(e){ console.warn('shoepao:admin-signedin handler failed', e); }
+                    }).catch(function(){ /* ignore */ });
+                }
+            }catch(e){ /* ignore */ }
+        });
+    }catch(e){}
+    </script>
+
+    <script>
     // Firestore users synchronization: ensure new signups appear in the accounts table
     (function(){
         if(!window.firebase || !firebase.firestore) return;
@@ -295,29 +324,17 @@
             const db = firebase.firestore();
 
             // Wait briefly for the dev auto-admin sign-in to complete so that
-            // client-side Firestore reads can succeed under strict rules. If an
-            // admin session doesn't appear within 1.5s, fall back to server-side
-            // listing (handled in the existing .catch). This reduces noisy
-            // permission errors during page load while preserving security.
-            (function tryInitialUsers(){
-                var waited = 0;
-                var interval = 150; // ms
-                var maxWait = 1500; // ms total
-                function check(){
-                    try{
-                        if(window.firebase && firebase.auth && firebase.auth().currentUser){
-                            // admin signed in -> try client Firestore read
-                            return db.collection('users').limit(500).get().then(snap => handleInitialSnap(snap)).catch(async function(e){ handleInitialError(e); });
-                        }
-                        if(waited >= maxWait){
-                            // no admin sign-in detected within timeout -> attempt client read anyway
-                            return db.collection('users').limit(500).get().then(snap => handleInitialSnap(snap)).catch(async function(e){ handleInitialError(e); });
-                        }
-                        waited += interval;
-                        setTimeout(check, interval);
-                    }catch(e){ console.warn('tryInitialUsers failed', e); }
-                }
-                check();
+            // client-side Firestore reads can succeed under strict rules. Use the
+            // authoritative `accounts` collection (not `users`). If an admin
+            // session doesn't appear within 1.5s, fall back to server-side
+            // listing via /api/admin/list-users. This reduces noisy permission
+            // errors during page load while preserving security.
+            (function tryInitialAccounts(){
+                // Immediately attempt a client read to reduce perceived latency.
+                try{
+                    document.getElementById('accountsStatus').innerText = 'Loading from Firestore...';
+                }catch(e){}
+                db.collection('accounts').limit(500).get().then(snap => handleInitialSnap(snap)).catch(function(e){ handleInitialError(e); });
             })();
 
             function handleInitialSnap(snap){
@@ -328,56 +345,97 @@
                     snap.forEach(doc => {
                         const d = doc.data() || {};
                         const email = (d.email || d.emailAddress || '').toLowerCase();
-                        if(!email) return;
+                        if(!email) return; // skip docs without an email for now
                         const merged = Object.assign({}, map[email] || {}, d);
                         merged.email = email;
                         map[email] = merged;
                     });
                     const mergedList = Object.keys(map).map(k => map[k]);
                     localStorage.setItem('users', JSON.stringify(mergedList));
+                    try{ document.getElementById('accountsStatus').innerText = 'Loaded from Firestore (' + mergedList.length + ' accounts)'; }catch(e){}
                     try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
                 }catch(e){ console.warn('Failed to merge initial users snapshot', e); }
             }
 
-            async function handleInitialError(e){ console.warn('Initial users query failed', e);
-                try{
-                    // Fallback: request users list from server admin endpoint (requires admin session)
-                    if(window.firebase && firebase.auth && firebase.auth().currentUser){
-                        try{
-                            var token = await firebase.auth().currentUser.getIdToken();
-                            var resp = await fetch('/api/admin/list-users', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
-                            if(resp && resp.ok){ var json = await resp.json(); if(json && json.users){ localStorage.setItem('users', JSON.stringify(json.users)); try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){} } }
-                        }catch(err){ console.warn('Fallback list-users failed', err); }
-                    }
-                }catch(err2){ console.warn('Fallback list-users outer failed', err2); }
+            async function handleInitialError(e){
+                console.warn('Initial accounts query failed', e);
+                try{ try{ document.getElementById('accountsStatus').innerText = 'Client read failed — attempting server fallback...'; }catch(_){ } }catch(_){ }
+
+                async function doServerFallback(){
+                    try{
+                        // If no signed-in admin, wait for auth and retry
+                        if(!(window.firebase && firebase.auth && firebase.auth().currentUser)){
+                            try{ document.getElementById('accountsStatus').innerText = 'Awaiting admin sign-in for server fallback'; }catch(_){ }
+                            try{
+                                var unreg = firebase.auth().onAuthStateChanged(function(u){
+                                    if(u){ unreg && typeof unreg === 'function' && unreg();
+                                        (async function(){ try{ await doServerFallback(); }catch(e){ console.warn('Auth-state fallback failed', e); } })();
+                                    }
+                                });
+                            }catch(e2){ console.warn('Failed to attach auth state fallback listener', e2); }
+                            return;
+                        }
+
+                        // We have a signed-in admin; attempt server list-users
+                        var token = await firebase.auth().currentUser.getIdToken();
+                        var resp = await fetch('/api/admin/list-users', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+                        if(resp && resp.ok){
+                            var json = await resp.json();
+                            if(json && json.users){
+                                localStorage.setItem('users', JSON.stringify(json.users));
+                                try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
+                                try{ document.getElementById('accountsStatus').innerText = 'Using server fallback (' + (json.users.length||0) + ' accounts)'; }catch(_){ }
+                                return;
+                            } else {
+                                try{ document.getElementById('accountsStatus').innerText = 'Server fallback returned no users'; }catch(_){ }
+                                return;
+                            }
+                        } else {
+                            try{ document.getElementById('accountsStatus').innerText = 'Server fallback failed'; }catch(_){ }
+                        }
+                    }catch(err){ console.warn('Fallback list-users failed', err); try{ document.getElementById('accountsStatus').innerText = 'Server fallback failed'; }catch(_){ } }
+                }
+
+                try{ await doServerFallback(); }catch(err2){ console.warn('Fallback outer failed', err2); }
             }
 
-            db.collection('users').onSnapshot(function(snap){
+            db.collection('accounts').onSnapshot(function(snap){
                 try{
                     var local = JSON.parse(localStorage.getItem('users')||'[]') || [];
                     var map = {};
                     local.forEach(u=>{ if(u && u.email) map[(u.email||'').toLowerCase()] = u; });
                     snap.docChanges().forEach(change => {
                         const d = change.doc.data() || {};
+                        // accounts documents typically contain `email` or `emailAddress` and may include displayName/phone
                         const email = (d.email || d.emailAddress || '').toLowerCase();
                         if(!email) return;
                         if(change.type === 'removed'){
                             delete map[email];
                         } else {
-                            map[email] = Object.assign({}, map[email] || {}, d, { email: email });
+                            // normalize fields to match existing local structure (firstName/lastName/phone/role)
+                            const out = Object.assign({}, map[email] || {}, d || {});
+                            // derive firstName/lastName from displayName if present
+                            if(!out.firstName && out.displayName){ var parts = String(out.displayName||'').split(/\s+/); if(parts.length===1) out.firstName = parts[0]; else if(parts.length>1){ out.firstName = parts.shift(); out.lastName = parts.join(' '); } }
+                            // ensure role field exists
+                            out.role = out.role || (out.role === 'admin' || (out.email && String(out.email).toLowerCase() === 'admin@gmail.com') ? 'admin' : (out.role || 'user'));
+                            out.email = email;
+                            map[email] = out;
                         }
                     });
                     const mergedList = Object.keys(map).map(k => map[k]);
                     localStorage.setItem('users', JSON.stringify(mergedList));
                     try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){}
+                    try{ document.getElementById('accountsStatus').innerText = 'Realtime updates enabled (' + mergedList.length + ' accounts)'; }catch(_){ }
                 }catch(e){ console.warn('Failed to process users snapshot', e); }
             }, function(err){ console.warn('users onSnapshot failed', err);
                 // Attempt server-side fallback when onSnapshot fails due to permissions
                 (async function(){ try{
+                    try{ document.getElementById('accountsStatus').innerText = 'Realtime blocked — attempting server fallback...'; }catch(_){ }
                     if(window.firebase && firebase.auth && firebase.auth().currentUser){
                         var token = await firebase.auth().currentUser.getIdToken();
                         var resp = await fetch('/api/admin/list-users', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
-                        if(resp && resp.ok){ var json = await resp.json(); if(json && json.users){ localStorage.setItem('users', JSON.stringify(json.users)); try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){} } }
+                        if(resp && resp.ok){ var json = await resp.json(); if(json && json.users){ localStorage.setItem('users', JSON.stringify(json.users)); try{ if(typeof window.renderAccountsTable === 'function') window.renderAccountsTable(); }catch(e){} try{ document.getElementById('accountsStatus').innerText = 'Using server fallback (' + (json.users.length||0) + ' accounts)'; }catch(_){ } }
+                        }
                     }
                 }catch(e){ console.warn('Fallback onSnapshot list-users failed', e); } })();
             });
@@ -477,6 +535,20 @@
                         if(existing){ alert('A user with this email already exists'); return; }
                         var newUser = { email: email, password: password || '', firstName: firstName, lastName: lastName, phone: phone, role: (role === 'admin' ? 'admin' : 'user'), registeredAt: Date.now() };
                         users.push(newUser);
+                        // Try to persist newly created user to server via admin/create-user when an admin session exists
+                        (async function(){
+                            try{
+                                if(window.firebase && firebase.auth && firebase.auth().currentUser){
+                                    var token = await firebase.auth().currentUser.getIdToken();
+                                    if(token){
+                                        var profile = { name: ((firstName||'') + (lastName ? (' ' + lastName) : '')).trim(), firstName: firstName, lastName: lastName, phone: phone };
+                                        var resp = await fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ email: email, password: password || undefined, profile: profile }) });
+                                        if(resp && resp.ok){ console.info('Server created user', email); }
+                                        else { console.warn('Server create-user returned non-ok', resp && resp.status); }
+                                    }
+                                }
+                            }catch(err){ console.warn('Server create-user failed', err); }
+                        })();
                     } else {
                         // When editing, locate the original record by the editingEmail (the original email before edits)
                         var originalEmail = (editingEmail ? decodeURIComponent(editingEmail) : null);
@@ -496,6 +568,22 @@
                         existingUser.role = (role === 'admin') ? 'admin' : (existingUser.role || 'user');
                         // If email changed, update it
                         existingUser.email = email;
+                        // Attempt to persist edits to server via /api/admin/update-account when admin session present
+                        (async function(){
+                            try{
+                                if(window.firebase && firebase.auth && firebase.auth().currentUser){
+                                    var token = await firebase.auth().currentUser.getIdToken();
+                                    if(token){
+                                        // Identify target by original editingEmail if present
+                                        var originalEmail = (editingEmail ? decodeURIComponent(editingEmail) : null) || email;
+                                        var profile = { displayName: ((firstName||'') + (lastName ? (' ' + lastName) : '')).trim(), firstName: firstName, lastName: lastName, phone: phone };
+                                        var resp = await fetch('/api/admin/update-account', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ email: originalEmail, profile: profile }) });
+                                        if(resp && resp.ok){ console.info('Server updated account for', originalEmail); }
+                                        else { console.warn('Server update-account returned non-ok', resp && resp.status); }
+                                    }
+                                }
+                            }catch(err){ console.warn('Server update-account failed', err); }
+                        })();
                     }
                 localStorage.setItem('users', JSON.stringify(users));
                 closeAccountModal();
