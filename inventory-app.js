@@ -41,6 +41,24 @@
     return Number.isFinite(n) ? n : fallback;
   };
 
+  let saveBlockedAlerted = false;
+
+  function normalizeDataUri(src) {
+    if (typeof src !== 'string') return '';
+    const trimmed = src.trim();
+    if (!trimmed) return '';
+    if (!trimmed.toLowerCase().startsWith('data:')) return trimmed;
+    const match = trimmed.match(/^data:([^;,]+)(;base64)?,(.*)$/i);
+    if (!match) return '';
+    const mime = (match[1] || '').toLowerCase();
+    const isBase64 = !!match[2];
+    const payload = match[3] || '';
+    if (!mime.startsWith('image/')) return '';
+    if (!isBase64) return '';
+    if (!payload || !/^[A-Za-z0-9+/=\s]+$/.test(payload)) return '';
+    return trimmed;
+  }
+
   function normalizeStatus(raw) {
     const s = String(raw || '').toLowerCase().trim();
     if (!s || s === 'active' || s === 'published') return 'published';
@@ -58,6 +76,7 @@
     // Validate data URIs and reject malformed inline images. Non-data URLs (http/relative)
     // are passed through unchanged. Keep only valid image sources.
     list = list.map(src => normalizeDataUri(src)).filter(Boolean);
+    list = list.map(x => normalizeDataUri(String(x || '').trim())).filter(Boolean);
     if (list.length > 4) list = list.slice(0, 4);
     while (list.length < 4) list.push('');
     return list;
@@ -88,6 +107,13 @@
       if (src.length > 900 * 1024) return null;
       return src;
     } catch (e) { return null; }
+  function hasInvalidInlineDataUris(items) {
+    if (!Array.isArray(items)) return false;
+    return items.some(it => {
+      const src = (typeof it === 'string') ? it : (it && it.url ? it.url : '');
+      const val = String(src || '').trim();
+      return val.toLowerCase().startsWith('data:') && !normalizeDataUri(val);
+    });
   }
 
   function applyColorImages(color) {
@@ -257,6 +283,65 @@
   // initialize Firebase and subscribe to live updates. All calls are guarded so the
   // app continues to work offline/local-only when no config is present.
   const firebaseState = { db: null, enabled: false };
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function isRetryableFirestoreError(err) {
+    if (!err) return false;
+    const code = String(err.code || err.status || err.name || '').toLowerCase();
+    const msg = String(err.message || '').toLowerCase();
+    return (
+      code.includes('resource-exhausted') || msg.includes('resource-exhausted') || msg.includes('resource exhausted') ||
+      code.includes('aborted') || msg.includes('aborted') ||
+      code.includes('unavailable') || msg.includes('unavailable') ||
+      code.includes('deadline-exceeded') || msg.includes('deadline-exceeded')
+    );
+  }
+
+  async function runFirestoreWithRetry(action, options = {}) {
+    const maxRetries = Number.isFinite(options.maxRetries) ? options.maxRetries : 5;
+    const baseDelay = Number.isFinite(options.baseDelay) ? options.baseDelay : 300;
+    const maxDelay = Number.isFinite(options.maxDelay) ? options.maxDelay : 6000;
+    const label = options.label || 'firestore-write';
+    let attempt = 0;
+    while (true) {
+      try {
+        return await action();
+      } catch (err) {
+        attempt += 1;
+        const retryable = isRetryableFirestoreError(err);
+        if (!retryable || attempt > maxRetries) throw err;
+        const jitter = 0.75 + (Math.random() * 0.25);
+        const delay = Math.min(maxDelay, Math.floor(baseDelay * Math.pow(2, attempt - 1) * jitter));
+        console.warn(`${label}: retrying after ${delay}ms (attempt ${attempt}/${maxRetries})`);
+        await sleep(delay);
+      }
+    }
+  }
+
+  async function commitFirestoreOpsInChunks(db, ops, options = {}) {
+    if (!db || !Array.isArray(ops) || !ops.length) return true;
+    const chunkSize = Number.isFinite(options.chunkSize) ? options.chunkSize : 200;
+    const cooldownMs = Number.isFinite(options.cooldownMs) ? options.cooldownMs : 120;
+    const label = options.label || 'firestore-batch-commit';
+    for (let i = 0; i < ops.length; i += chunkSize) {
+      const chunk = ops.slice(i, i + chunkSize);
+      const batch = db.batch();
+      chunk.forEach(op => {
+        if (op.type === 'set') {
+          if (op.merge) batch.set(op.ref, op.payload, { merge: true });
+          else batch.set(op.ref, op.payload);
+        }
+        else if (op.type === 'update') batch.update(op.ref, op.payload);
+        else if (op.type === 'delete') batch.delete(op.ref);
+      });
+      await runFirestoreWithRetry(() => batch.commit(), { ...options, label });
+      if (cooldownMs > 0 && i + chunkSize < ops.length) await sleep(cooldownMs);
+    }
+    return true;
+  }
 
   // (debug panel removed) 
 
@@ -509,7 +594,8 @@
     // Sanitize payload to avoid sending large data URIs or huge arrays (images replaced with lightweight pathfile markers)
     const sanitized = sanitizeProductForFirestore(safe);
     const payload = JSON.parse(JSON.stringify(sanitized));
-    return firebaseState.db.collection('products').doc(String(id)).set(payload, { merge: true })
+    const ref = firebaseState.db.collection('products').doc(String(id));
+    return runFirestoreWithRetry(() => ref.set(payload, { merge: true }), { label: 'upsertProductToFirestore' })
       .then(() => console.info('upsertProductToFirestore: written product', String(id)))
       .catch(err => console.error('upsertProductToFirestore', err));
   }
@@ -557,7 +643,8 @@
 
   function deleteProductFromFirestore(id) {
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
-    return firebaseState.db.collection('products').doc(String(id)).delete()
+    const ref = firebaseState.db.collection('products').doc(String(id));
+    return runFirestoreWithRetry(() => ref.delete(), { label: 'deleteProductFromFirestore' })
       .then(() => console.info('deleteProductFromFirestore: deleted product', String(id)))
       .catch(err => console.error('deleteProductFromFirestore', err));
   }
@@ -566,17 +653,18 @@
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
     const id = sale.id || firebaseState.db.collection('sales').doc().id;
     const payload = JSON.parse(JSON.stringify(sale));
-    return firebaseState.db.collection('sales').doc(String(id)).set(payload, { merge: true })
+    const ref = firebaseState.db.collection('sales').doc(String(id));
+    return runFirestoreWithRetry(() => ref.set(payload, { merge: true }), { label: 'upsertSaleToFirestore' })
       .then(() => console.info('upsertSaleToFirestore: written sale', String(id)))
       .catch(err => console.error('upsertSaleToFirestore', err));
   }
 
   // Variants write helpers: create/update/delete variant documents in `variants` collection
-  function upsertVariantToFirestore(productId, color) {
-    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
-    const id = color.id || firebaseState.db.collection('variants').doc().id;
+  function buildVariantPayload(productId, color, existingId) {
+    if (!firebaseState.db) return null;
+    const id = existingId || color.id || firebaseState.db.collection('variants').doc().id;
     const normalizedImages = normalizeVariantImages(color.images || [], color.image || '');
-    const payload = {
+    return {
       id: id,
       productId: productId,
       colorName: color.name || '',
@@ -586,14 +674,24 @@
       // store sizes as an array of { eu, stock, sku }
       sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), criticalLevel: clampNum(parseNum(s.criticalLevel, defaultCriticalLevel()), 1, 999), sku: s.sku || '' })) : []
     };
-    return firebaseState.db.collection('variants').doc(String(id)).set(payload, { merge: true })
+  }
+
+  function upsertVariantToFirestore(productId, color) {
+    if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
+    const payload = buildVariantPayload(productId, color);
+    if (!payload) return Promise.resolve();
+    const id = payload.id;
+    if (!color.id) color.id = id;
+    const ref = firebaseState.db.collection('variants').doc(String(id));
+    return runFirestoreWithRetry(() => ref.set(payload, { merge: true }), { label: 'upsertVariantToFirestore' })
       .then(() => console.info('upsertVariantToFirestore: written variant', String(id), 'for product', String(productId)))
       .catch(err => console.error('upsertVariantToFirestore', err));
   }
 
   function deleteVariantFromFirestore(id) {
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
-    return firebaseState.db.collection('variants').doc(String(id)).delete()
+    const ref = firebaseState.db.collection('variants').doc(String(id));
+    return runFirestoreWithRetry(() => ref.delete(), { label: 'deleteVariantFromFirestore' })
       .then(() => console.info('deleteVariantFromFirestore: deleted variant', String(id)))
       .catch(err => console.error('deleteVariantFromFirestore', err));
   }
@@ -603,13 +701,21 @@
     if (!product || !product.id) return Promise.resolve();
     if (!firebaseState.enabled || !firebaseState.db) return Promise.resolve();
     const pid = product.id;
+    const db = firebaseState.db;
     const existing = firebaseState.variantsByProductId && firebaseState.variantsByProductId[pid] ? firebaseState.variantsByProductId[pid].map(v => v.id).filter(Boolean) : [];
     const desired = Array.isArray(product.colors) ? product.colors.map(c => c.id).filter(Boolean) : [];
-    const upserts = (product.colors || []).map(c => upsertVariantToFirestore(pid, c));
+    const ops = [];
+    (product.colors || []).forEach(c => {
+      const payload = buildVariantPayload(pid, c);
+      if (!payload) return;
+      if (!c.id) c.id = payload.id;
+      ops.push({ type: 'set', ref: db.collection('variants').doc(String(payload.id)), payload, merge: true });
+    });
     // delete variants that exist remotely but were removed locally
     const toDelete = existing.filter(id => !desired.includes(id));
-    const deletes = toDelete.map(id => deleteVariantFromFirestore(id));
-    return Promise.all([Promise.all(upserts), Promise.all(deletes)]).catch(err => console.error('syncVariantsForProduct', err));
+    toDelete.forEach(id => ops.push({ type: 'delete', ref: db.collection('variants').doc(String(id)) }));
+    return commitFirestoreOpsInChunks(db, ops, { label: 'syncVariantsForProduct', chunkSize: 200, maxRetries: 5, baseDelay: 300, cooldownMs: 120 })
+      .catch(err => console.error('syncVariantsForProduct', err));
   }
 
   // Schedule & perform a full one-way sync from local `state.products` to Firestore so the
@@ -620,6 +726,13 @@
     if (!firebaseState.enabled || !firebaseState.db) return;
     if (firebaseState.syncTimer) clearTimeout(firebaseState.syncTimer);
     firebaseState.syncTimer = setTimeout(() => { fullSyncToFirestore().catch(err => console.error('fullSyncToFirestore', err)); }, delay);
+  }
+
+  // Schedule merge-only sync to avoid destructive deletes and re-creating removed items.
+  function scheduleMergeOnlySync(delay = 1000) {
+    if (!firebaseState.enabled || !firebaseState.db) return;
+    if (firebaseState.syncTimer) clearTimeout(firebaseState.syncTimer);
+    firebaseState.syncTimer = setTimeout(() => { mergeOnlySyncToFirestore().catch(err => console.error('mergeOnlySyncToFirestore', err)); }, delay);
   }
 
   async function fullSyncToFirestore() {
@@ -739,6 +852,8 @@
           }
         }
       }
+      // Commit operations in sequential chunks with retries/backoff
+      await commitFirestoreOpsInChunks(db, ops, { label: 'fullSyncToFirestore', chunkSize: 200, maxRetries: 6, baseDelay: 400, cooldownMs: 150 });
 
       console.info('fullSyncToFirestore: sync completed (products:', localProducts.length, 'variants:', localVariantsMap.size, ')');
       return true;
@@ -905,8 +1020,17 @@
   }
 
   function saveAll() {
-    // Schedule a one-way sync to Firestore so remote mirrors current UI state
-    try { if (firebaseState && firebaseState.enabled) scheduleFullSync(); } catch (e) { /* ignore */ }
+    // Schedule a one-way sync to Firestore.
+    try {
+      if (!firebaseState || !firebaseState.enabled || !firebaseState.db) {
+        if (!saveBlockedAlerted) {
+          alert('Firebase is unavailable. Changes cannot be saved. Please check your connection or Firebase setup.');
+          saveBlockedAlerted = true;
+        }
+        return;
+      }
+      scheduleFullSync();
+    } catch (e) { /* ignore */ }
   }
 
   // Ensure every product has a SKU; generate if missing/blank
@@ -1724,6 +1848,11 @@
     }
   }
   p.images = incomingImages;
+      if (hasInvalidInlineDataUris(state.ui.productModalImages)) {
+        alert('One or more product images are invalid. Please remove and re-upload those images.');
+        return;
+      }
+      p.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       p.tagsManual = manual;
   // AR link handling
   try { const arVal = (qs('#prodARLink') && qs('#prodARLink').value) ? String(qs('#prodARLink').value).trim() : ''; if (arVal) { p.arLink = arVal; p.arQr = qrImageUrlFor(arVal, 300); } else { delete p.arLink; delete p.arQr; } } catch(e){}
@@ -1767,6 +1896,11 @@
     }
   }
   newP.images = incomingImagesNew;
+  if (hasInvalidInlineDataUris(state.ui.productModalImages)) {
+    alert('One or more product images are invalid. Please remove and re-upload those images.');
+    return;
+  }
+  newP.images = state.ui.productModalImages.map(it => it.url || it.pathfile || '').filter(Boolean);
       newP.tagsManual = manual;
   // AR link for new product
   try { const arVal = (qs('#prodARLink') && qs('#prodARLink').value) ? String(qs('#prodARLink').value).trim() : ''; if (arVal) { newP.arLink = arVal; newP.arQr = qrImageUrlFor(arVal, 300); } } catch(e){}
@@ -1917,6 +2051,7 @@
     const inp = qs('#imageFileInput'); if (!inp) return;
     const files = Array.from(inp.files || []);
     if (!files.length) { alert('Choose image files'); return; }
+    let invalidCount = 0;
     const readers = files.map(file => new Promise((resolve, reject) => {
       const fr = new FileReader();
       fr.onload = () => {
@@ -1927,12 +2062,22 @@
           return;
         }
         resolve({ url: clean, name: file.name });
+        const normalized = normalizeDataUri(fr.result);
+        if (!normalized) { invalidCount += 1; resolve(null); return; }
+        resolve({ url: normalized, name: file.name });
       };
       fr.onerror = reject;
       fr.readAsDataURL(file);
     }));
     Promise.all(readers)
       .then(items => { state.ui.productModalImages.push(...items.filter(i => i && i.url)); renderImagesList(); inp.value = ''; })
+      .then(items => {
+        const validItems = items.filter(Boolean);
+        if (invalidCount > 0) alert('One or more images were invalid and were skipped.');
+        if (validItems.length) state.ui.productModalImages.push(...validItems);
+        renderImagesList();
+        inp.value = '';
+      })
       .catch(() => alert('Failed to import one or more images'));
   }
 
@@ -2157,6 +2302,10 @@
         }
         applyColorImages(c);
         c.images[idx] = clean;
+        const normalized = normalizeDataUri(fr.result);
+        if (!normalized) { alert('Invalid image file. Please choose a different image.'); return; }
+        applyColorImages(c);
+        c.images[idx] = normalized;
         applyColorImages(c);
         saveAll();
         openVariantModal(p.id);
@@ -2842,60 +2991,7 @@
       state.ui.showArchived = true;
       updateArchivedVisibility();
     }
-    // Load persisted settings from localStorage so other pages (e.g. dashboard)
-    // can read the canonical low-stock threshold. Persist settings when the
-    // user clicks Save Settings below.
-    try {
-      var saved = localStorage.getItem('inventory_app_settings');
-      if (saved) {
-        var parsed = JSON.parse(saved);
-        if (parsed && parsed.lowStockThreshold) {
-          state.settings = state.settings || {};
-          state.settings.lowStockThreshold = Number(parsed.lowStockThreshold) || state.settings.lowStockThreshold || 3;
-        }
-      }
-    } catch (e) { /* ignore malformed saved settings */ }
-
-    try {
-      var saveBtn = document.getElementById('saveSettingsBtn');
-      if (saveBtn) {
-        saveBtn.addEventListener('click', function(){
-          try {
-            // persist minimal settings shape
-            var toSave = { lowStockThreshold: (state && state.settings && state.settings.lowStockThreshold) ? state.settings.lowStockThreshold : 3 };
-            localStorage.setItem('inventory_app_settings', JSON.stringify(toSave));
-            // also expose for debug/other pages
-            try { window.lastInvSettings = toSave; } catch(_) {}
-          } catch (e) { /* ignore storage errors */ }
-        });
-      }
-    } catch (e) {}
-    // Auto-save lowStockThreshold when the user changes the input so other pages (dashboard)
-    // pick up the canonical value immediately.
-    try {
-      var thresholdInput = document.getElementById('lowStockThreshold');
-      if (thresholdInput) {
-        // initialize input value from loaded settings
-        try { thresholdInput.value = (state && state.settings && state.settings.lowStockThreshold) ? Number(state.settings.lowStockThreshold) : thresholdInput.value || 3; } catch(e){}
-
-        var persistThreshold = function(){
-          try {
-            var v = parseNum(thresholdInput.value, NaN);
-            if (!Number.isFinite(v) || v < 1) v = 1;
-            state.settings = state.settings || {};
-            state.settings.lowStockThreshold = Math.floor(v);
-            var toSave = { lowStockThreshold: state.settings.lowStockThreshold };
-            localStorage.setItem('inventory_app_settings', JSON.stringify(toSave));
-            try { window.lastInvSettings = toSave; } catch(_) {}
-            // refresh reports and table so UI reflects new threshold immediately
-            try { renderReports(); } catch(e){}
-            try { renderProductsTable(); } catch(e){}
-          } catch (e) { /* ignore */ }
-        };
-        thresholdInput.addEventListener('input', persistThreshold);
-        thresholdInput.addEventListener('change', persistThreshold);
-      }
-    } catch (e) {}
+    // Local persistence disabled: settings remain in-memory only.
     backfillSizeCriticalLevels();
     // capture incoming stocks filter from URL or dashboard click (localStorage)
     try {
