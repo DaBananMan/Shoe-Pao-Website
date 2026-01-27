@@ -116,6 +116,13 @@
     align-items: flex-start;
     position: relative;
 }
+.cart-item-disabled {
+    opacity: 0.6;
+}
+.cart-item-select:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
 
 /* Layout variables for cart action buttons. Adjust these to control spacing. */
 .cart-item-box { --edit-gap:6px; --edit-width:56px; }

@@ -667,7 +667,7 @@
                 <span>Total</span>
                 <span id="checkoutTotal">₱0.00</span>
             </div>
-            <div id="orderLimitMsg" style="display:none;color:#b71c1c;font-size:0.95rem;margin-top:8px;">Maximum of 3 pairs of shoes per order.</div>
+            <div id="orderLimitMsg" style="display:none;color:#b71c1c;font-size:0.95rem;margin-top:8px;">Maximum of 3 pairs per product (all sizes combined).</div>
         </div>
     </div>
     <!-- Address book modal -->
@@ -1815,12 +1815,14 @@
     });
     // Cart rendering
     function renderCheckoutCart() {
-        var cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        var cart = [];
+        try{
+            var snap = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]');
+            if(Array.isArray(snap) && snap.length) cart = snap;
+        }catch(e){}
         if(!Array.isArray(cart) || cart.length === 0){
-            try{
-                var snap = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]');
-                if(Array.isArray(snap) && snap.length) cart = snap;
-            }catch(e){}
+            try{ cart = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ cart = []; }
+            if(Array.isArray(cart)) cart = cart.filter(function(it){ return it && (it.selected === undefined || it.selected === true); });
         }
         var cartList = document.getElementById('checkoutCartList');
         var subtotal = 0;
@@ -1855,8 +1857,8 @@
         try{ updateCheckoutShippingDisplay(); }catch(e){}
         try{
             var limitEl = document.getElementById('orderLimitMsg');
-            var maxPairs = (window.MAX_PAIRS_PER_ORDER || 3);
-            if(limitEl) limitEl.style.display = (totalPairs > maxPairs) ? 'block' : 'none';
+            var overLimit = (window.hasProductOverLimit && typeof window.hasProductOverLimit === 'function') ? window.hasProductOverLimit(cart) : false;
+            if(limitEl) limitEl.style.display = overLimit ? 'block' : 'none';
         }catch(e){}
     var stored = localStorage.getItem('checkoutShipping');
     // default to 0 when no shipping has been selected; only J&T selection will set a non-zero value
@@ -1881,7 +1883,12 @@
     window.addEventListener('DOMContentLoaded', function(){
         // Guard: prevent entering checkout with an empty cart (e.g., via back button)
         try{
-            var cartGuard = JSON.parse(localStorage.getItem('cart') || '[]');
+            var cartGuard = [];
+            try{ cartGuard = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ cartGuard = []; }
+            if(!Array.isArray(cartGuard) || cartGuard.length === 0){
+                try{ cartGuard = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ cartGuard = []; }
+                if(Array.isArray(cartGuard)) cartGuard = cartGuard.filter(function(it){ return it && (it.selected === undefined || it.selected === true); });
+            }
             if(!Array.isArray(cartGuard) || cartGuard.length === 0){
                 var shopUrl = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e){ return 'product-list.html'; } })();
                 window.location.replace(shopUrl);
@@ -1911,9 +1918,12 @@
             }
         }catch(e){}
         try{
-            var cartSnap = JSON.parse(localStorage.getItem('cart') || '[]');
-            if(Array.isArray(cartSnap) && cartSnap.length){
-                localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartSnap));
+            var cartSnap = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]');
+            if(!Array.isArray(cartSnap) || !cartSnap.length){
+                var cartNow2 = JSON.parse(localStorage.getItem('cart') || '[]');
+                if(Array.isArray(cartNow2) && cartNow2.length){
+                    localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartNow2));
+                }
             }
         }catch(e){}
         try{
@@ -1924,19 +1934,30 @@
     // Proceed from checkout to payment: persist the chosen delivery/payment and the customer name shown on the page
     function proceedToPayment(){
         try{
-            var cartNow = JSON.parse(localStorage.getItem('cart') || '[]');
+            var cartNow = [];
+            try{ cartNow = JSON.parse(localStorage.getItem('checkoutCartSnapshot') || '[]'); }catch(e){ cartNow = []; }
+            if(!Array.isArray(cartNow) || cartNow.length === 0){
+                try{ cartNow = JSON.parse(localStorage.getItem('cart') || '[]'); }catch(e){ cartNow = []; }
+                if(Array.isArray(cartNow)) cartNow = cartNow.filter(function(it){ return it && (it.selected === undefined || it.selected === true); });
+            }
             if(!Array.isArray(cartNow) || cartNow.length === 0){
                 alert('Your cart is empty.');
                 var shopUrl0 = (function(){ try{ return (window.location && String(window.location.origin||'').startsWith('http')) ? '/shop' : 'product-list.html'; }catch(e){ return 'product-list.html'; } })();
                 window.location.replace(shopUrl0);
                 return;
             }
-            var totalPairs = (window.getCartTotalPairs ? window.getCartTotalPairs(cartNow) : (function(){ var t=0; cartNow.forEach(function(it){ var q=(typeof it.qty==='number')?it.qty:((typeof it.quantity==='number')?it.quantity:1); t+=Number(q)||0; }); return t; })());
-            var maxPairs = (window.MAX_PAIRS_PER_ORDER || 3);
-            if(totalPairs > maxPairs){
+            try{
+                var unavailable = (window.hasUnavailableCartItems && typeof window.hasUnavailableCartItems === 'function') ? window.hasUnavailableCartItems(cartNow) : false;
+                if(unavailable){
+                    alert('Some items in your cart are unavailable. Please remove them before checkout.');
+                    return;
+                }
+            }catch(e){}
+            var overLimit = (window.hasProductOverLimit && typeof window.hasProductOverLimit === 'function') ? window.hasProductOverLimit(cartNow) : false;
+            if(overLimit){
                 var limitEl = document.getElementById('orderLimitMsg');
                 if(limitEl) limitEl.style.display = 'block';
-                alert('Maximum of 3 pairs of shoes per order.');
+                alert('Maximum of 3 pairs per product (all sizes combined).');
                 return;
             }
             localStorage.setItem('checkoutCartSnapshot', JSON.stringify(cartNow));
@@ -2415,7 +2436,7 @@
                             var incRes = window.tryIncrementCartItem(cart, idx);
                             if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                 if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 pairs of shoes per order.');
+                                else alert('Maximum of 3 pairs per product (all sizes combined).');
                                 return;
                             }
                         } else {
@@ -2450,8 +2471,9 @@
             if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
             renderCart();
             if (checkoutBtn) {
-                checkoutBtn.addEventListener('click', function(){
-                    window.location.href = 'checkout.html';
+                checkoutBtn.addEventListener('click', function(e){
+                    if(window.handleCheckoutFromCart){ window.handleCheckoutFromCart(e); }
+                    else { window.location.href = 'checkout.html'; }
                 });
             }
         });

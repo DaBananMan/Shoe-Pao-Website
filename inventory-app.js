@@ -10,6 +10,7 @@
     settings: { ...defaultSettings },
     ui: {
       selectedTab: 'inventory',
+      showArchived: false,
       bulkMode: false,
       selectedProductIds: new Set(),
       editingProductId: null,
@@ -24,6 +25,10 @@
   // Cache of products as rendered in the table to ensure modals reflect the visible row
   let displayedProductCache = {};
 
+  const archivedOnly = (function(){
+    try { return !!window.INVENTORY_ARCHIVED_ONLY; } catch (e) { return false; }
+  })();
+
   // Utilities
   const uid = (p='id') => `${p}-${Math.random().toString(36).slice(2, 9)}`;
   const clampNum = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -31,6 +36,14 @@
     const n = Number(v);
     return Number.isFinite(n) ? n : fallback;
   };
+
+  function normalizeStatus(raw) {
+    const s = String(raw || '').toLowerCase().trim();
+    if (!s || s === 'active' || s === 'published') return 'published';
+    if (s === 'archived' || s === 'archive') return 'archive';
+    if (s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden') return 'unpublished';
+    return s;
+  }
 
   function normalizeVariantImages(images, fallback) {
     let list = Array.isArray(images) ? images.slice() : [];
@@ -65,6 +78,62 @@
       if (Number.isFinite(n) && n >= 1) return clampNum(Math.floor(n), 1, 999);
     } catch (e) {}
     return state.settings && state.settings.lowStockThreshold ? state.settings.lowStockThreshold : 3;
+  }
+
+  function defaultCriticalLevel() {
+    const v = state && state.settings ? Number(state.settings.lowStockThreshold) : NaN;
+    if (Number.isFinite(v) && v >= 1) return clampNum(Math.floor(v), 1, 999);
+    return 3;
+  }
+
+  function criticalLevelForColor(p, c) {
+    try {
+      const cand = (c && (c.criticalLevel || c.critical || c.minStock || c.reorderLevel));
+      const n = parseNum(cand, NaN);
+      if (Number.isFinite(n) && n >= 1) return clampNum(Math.floor(n), 1, 999);
+    } catch (e) {}
+    return effectiveThresholdForProduct(p);
+  }
+
+  function criticalLevelForSize(p, c, s) {
+    try {
+      const cand = (s && (s.criticalLevel || s.critical_level || s.critical || s.minStock || s.reorderLevel));
+      const n = parseNum(cand, NaN);
+      if (Number.isFinite(n) && n >= 1) return clampNum(Math.floor(n), 1, 999);
+    } catch (e) {}
+    return criticalLevelForColor(p, c);
+  }
+
+  function isSizeCritical(p, c, s) {
+    const stock = parseNum(s && s.stock, 0);
+    const crit = criticalLevelForSize(p, c, s);
+    return Number.isFinite(crit) ? stock <= crit : false;
+  }
+
+  function normalizeSizesArray(c) {
+    if (!c) return [];
+    if (Array.isArray(c.sizes)) return c.sizes;
+    if (c.sizes && typeof c.sizes === 'object') return sizesObjectToArray(c.sizes);
+    return [];
+  }
+
+  function colorHasCriticalSize(p, c) {
+    const sizesArr = normalizeSizesArray(c);
+    if (sizesArr.length) return sizesArr.some(s => isSizeCritical(p, c, s));
+    const q = parseNum(c.qty, parseNum(c.stock, parseNum(c.inventory, 0)));
+    return q <= criticalLevelForColor(p, c);
+  }
+
+  function colorAllSizesZero(c) {
+    const sizesArr = normalizeSizesArray(c);
+    if (sizesArr.length) return sizesArr.every(s => parseNum(s.stock, 0) === 0);
+    const q = parseNum(c.qty, parseNum(c.stock, parseNum(c.inventory, 0)));
+    return q === 0;
+  }
+
+  function productHasCriticalSize(p, colorsArr) {
+    const arr = Array.isArray(colorsArr) ? colorsArr : [];
+    return arr.some(c => colorHasCriticalSize(p, c));
   }
 
   // SKU generation: SP-BBB-MMMM-XXXX
@@ -245,7 +314,7 @@
               // category fallbacks
               out.category = out.category || out.categoryName || out.cat || out.category_id || out.categoryCode || '';
               // status fallbacks
-              out.status = out.status || out.state || out.availability || '';
+              out.status = normalizeStatus(out.status || out.state || out.availability || '');
               // tags fallbacks
               out.tagsManual = Array.isArray(out.tagsManual) ? out.tagsManual : (Array.isArray(out.tags) ? out.tags : (out.tagsList || out.tags_list || []));
               if (!Array.isArray(out.tagsManual)) out.tagsManual = [];
@@ -328,15 +397,17 @@
             // ensure sizes have eu and stock
             color.sizes = EU_SIZES.map(eu => {
               const found = v.sizes.find(s => Number(s.eu) === Number(eu) || String(s.eu) === String(eu));
-              return { eu, stock: found ? parseNum(found.stock, 0) : 0, sku: found && found.sku || '' };
+              const crit = found ? parseNum(found.criticalLevel || found.critical_level || found.critical || found.minStock || found.reorderLevel, NaN) : NaN;
+              const criticalLevel = (Number.isFinite(crit) && crit >= 1) ? clampNum(Math.floor(crit), 1, 999) : defaultCriticalLevel();
+              return { eu, stock: found ? parseNum(found.stock, 0) : 0, criticalLevel, sku: found && found.sku || '' };
             });
           } else if (v.sizeMap && typeof v.sizeMap === 'object') {
-            color.sizes = EU_SIZES.map(eu => ({ eu, stock: parseNum(v.sizeMap[String(eu)] || v.sizeMap[eu] || 0, 0), sku: '' }));
+            color.sizes = EU_SIZES.map(eu => ({ eu, stock: parseNum(v.sizeMap[String(eu)] || v.sizeMap[eu] || 0, 0), criticalLevel: defaultCriticalLevel(), sku: '' }));
           } else if (v.sizesMap && typeof v.sizesMap === 'object') {
-            color.sizes = EU_SIZES.map(eu => ({ eu, stock: parseNum(v.sizesMap[String(eu)] || 0, 0), sku: '' }));
+            color.sizes = EU_SIZES.map(eu => ({ eu, stock: parseNum(v.sizesMap[String(eu)] || 0, 0), criticalLevel: defaultCriticalLevel(), sku: '' }));
           } else {
             // fallback: try numeric fields like stock35, stock36, etc.
-            color.sizes = EU_SIZES.map(eu => ({ eu, stock: parseNum(v[`s${eu}`] || v[`stock${eu}`] || 0, 0), sku: '' }));
+            color.sizes = EU_SIZES.map(eu => ({ eu, stock: parseNum(v[`s${eu}`] || v[`stock${eu}`] || 0, 0), criticalLevel: defaultCriticalLevel(), sku: '' }));
           }
           map[pid].push(color);
         });
@@ -438,7 +509,7 @@
       image: normalizedImages.find(x => x && String(x).trim()) || '',
       images: normalizedImages,
       // store sizes as an array of { eu, stock, sku }
-      sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), sku: s.sku || '' })) : []
+      sizes: Array.isArray(color.sizes) ? color.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock, 0), criticalLevel: clampNum(parseNum(s.criticalLevel, defaultCriticalLevel()), 1, 999), sku: s.sku || '' })) : []
     };
     return firebaseState.db.collection('variants').doc(String(id)).set(payload, { merge: true })
       .then(() => console.info('upsertVariantToFirestore: written variant', String(id), 'for product', String(productId)))
@@ -527,7 +598,7 @@
             colorCode: c.code || '',
             image: normalizedImages.find(x => x && String(x).trim()) || '',
             images: normalizedImages,
-            sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock,0), sku: s.sku || '' })) : []
+            sizes: Array.isArray(c.sizes) ? c.sizes.map(s => ({ eu: s.eu, stock: parseNum(s.stock,0), criticalLevel: clampNum(parseNum(s.criticalLevel, defaultCriticalLevel()), 1, 999), sku: s.sku || '' })) : []
           };
           localVariantsMap.set(String(vid), payload);
         });
@@ -599,7 +670,8 @@
 
   // Data helpers
   function ensureSizes() {
-    return EU_SIZES.map(eu => ({ eu, stock: 0, sku: '' }));
+    const crit = defaultCriticalLevel();
+    return EU_SIZES.map(eu => ({ eu, stock: 0, criticalLevel: crit, sku: '' }));
   }
 
   // Sanitize product payload to avoid sending large embedded blobs (data URIs) and very large arrays.
@@ -648,7 +720,7 @@
     return { id: uid('color'), name, code: code || '#ffffff', sizes: ensureSizes(), images: normalizeVariantImages([], '') };
   }
 
-  function newProduct({ brand, model, category, status = 'active', images = [], pricing = {}, description = '', sku = '', gender = 'Unisex' }) {
+  function newProduct({ brand, model, category, status = 'published', images = [], pricing = {}, description = '', sku = '', gender = 'Unisex' }) {
     return {
       id: uid('prod'), brand, model, category, status,
       gender: gender || 'Unisex',
@@ -692,7 +764,8 @@
   // Convert a size map/object into an array of { eu, stock } entries for uniform processing
   function sizesObjectToArray(sizesObj) {
     if (!sizesObj || typeof sizesObj !== 'object') return [];
-    return Object.keys(sizesObj).map(k => ({ eu: Number(k) || k, stock: parseNum(sizesObj[k], 0) }));
+    const crit = defaultCriticalLevel();
+    return Object.keys(sizesObj).map(k => ({ eu: Number(k) || k, stock: parseNum(sizesObj[k], 0), criticalLevel: crit }));
   }
 
   function availableSizes(c) {
@@ -733,6 +806,25 @@
     if (changed) saveAll();
   }
 
+  // Ensure every size has a per-size critical level
+  function backfillSizeCriticalLevels() {
+    if (!Array.isArray(state.products) || !state.products.length) return;
+    let changed = false;
+    state.products.forEach(p => {
+      (Array.isArray(p.colors) ? p.colors : []).forEach(c => {
+        if (!Array.isArray(c.sizes)) return;
+        c.sizes.forEach(s => {
+          const n = parseNum(s.criticalLevel, NaN);
+          if (!Number.isFinite(n) || n < 1) {
+            s.criticalLevel = defaultCriticalLevel();
+            changed = true;
+          }
+        });
+      });
+    });
+    if (changed) saveAll();
+  }
+
   // Ensure createdAt exists for legacy products
   function backfillCreatedAt() {
     if (!Array.isArray(state.products) || !state.products.length) return;
@@ -744,7 +836,7 @@
   }
 
   // Backfill category and status for products. Try to infer category from model/brand
-  // using a small keyword map; otherwise default to 'Uncategorized'. Ensure status is 'active'.
+  // using a small keyword map; otherwise default to 'Uncategorized'. Ensure status is 'published'.
   function backfillCategoryAndStatus() {
     if (!Array.isArray(state.products) || !state.products.length) return;
     const changedProducts = [];
@@ -771,7 +863,7 @@
     state.products.forEach(p => {
       const cat = infer(p);
       if (!p.category || p.category !== cat) { p.category = cat; changed = true; }
-      if (!p.status || p.status !== 'active') { p.status = 'active'; changed = true; }
+      if (!p.status || p.status !== 'published') { p.status = 'published'; changed = true; }
       // ensure pricing object exists so UI shows price
       p.pricing = p.pricing || { original: 0, sale: 0, cost: 0 };
       if (!Array.isArray(p.tagsManual)) p.tagsManual = [];
@@ -808,17 +900,124 @@
     sizeSel.innerHTML = '<option value="">Any Size</option>' + EU_SIZES.map(s => `<option value="${s}">${s}EU</option>`).join('');
   }
 
+  function getFilterContext() {
+    const searchEl = qs('#searchInput');
+    const brandEl = qs('#filterBrand');
+    const catEl = qs('#filterCategory');
+    const sizeEl = qs('#filterSize');
+    const stockEl = qs('#filterStock');
+    const statusEl = qs('#filterStatus');
+    return {
+      text: (searchEl && searchEl.value ? searchEl.value : '').toLowerCase(),
+      filterBrand: brandEl ? brandEl.value : '',
+      filterCat: catEl ? catEl.value : '',
+      filterSize: sizeEl ? sizeEl.value : '',
+      filterStock: stockEl ? stockEl.value : '',
+      filterStatus: statusEl ? statusEl.value : ''
+    };
+  }
+
+  function productMatchesFilters(p, ctx, options = {}) {
+    // Build a colors array that includes merged variants if the product
+    // doesn't include a `colors` array directly (variants may be stored
+    // separately in firebaseState.variantsByProductId).
+    let colorsArr = Array.isArray(p.colors) ? p.colors : [];
+    if ((!colorsArr || colorsArr.length === 0) && firebaseState.variantsByProductId) {
+      const map = firebaseState.variantsByProductId;
+      const candidates = [p.id, p.productId, p.sku, String(p.id || '')];
+      for (const c of candidates) {
+        if (!c) continue;
+        if (Array.isArray(map[c]) && map[c].length) { colorsArr = map[c]; break; }
+      }
+    }
+    // If still no colors but product-level sizes exist as an object map, synthesize
+    // a single color entry so filters and totals work (handles legacy shapes).
+    if ((!colorsArr || colorsArr.length === 0) && p.sizes && typeof p.sizes === 'object') {
+      colorsArr = [{ id: p.id + '-default', name: p.title || p.name || p.model || 'Default', sizes: sizesObjectToArray(p.sizes) }];
+    }
+
+    const matchesText = !ctx.text || [p.brand, p.model, p.category].join(' ').toLowerCase().includes(ctx.text) || colorsArr.some(c => (c.name || '').toLowerCase().includes(ctx.text));
+    const matchesBrand = !ctx.filterBrand || p.brand === ctx.filterBrand;
+    const matchesCat = !ctx.filterCat || p.category === ctx.filterCat;
+    // If a specific size is selected, consider size existence; allow out-of-stock when filtering 'out'
+    const matchesSize = !ctx.filterSize || colorsArr.some(c => {
+      if (Array.isArray(c.sizes)) return c.sizes.some(s => String(s.eu) === ctx.filterSize && (ctx.filterStock === 'out' ? true : (parseNum(s.stock,0) > 0)));
+      if (c.sizes && typeof c.sizes === 'object') {
+        var q = parseNum(c.sizes[String(ctx.filterSize)] || c.sizes[ctx.filterSize] || 0, 0);
+        return ctx.filterStock === 'out' ? true : q > 0;
+      }
+      return false;
+    });
+    // Determine stock status using per-size critical levels
+
+    // Compute per-size aggregation
+    let total = 0;
+    let anySizeLow = false;
+    let allSizesZero = true;
+
+    if (ctx.filterSize) {
+      // Only consider the selected size across colors
+      colorsArr.forEach(c => {
+        const sizesArr = normalizeSizesArray(c);
+        if (sizesArr.length) {
+          sizesArr.forEach(s => {
+            if (String(s.eu) === String(ctx.filterSize)) {
+              const q = parseNum(s.stock, 0);
+              total += q;
+              const crit = criticalLevelForSize(p, c, s);
+              if (q <= crit) anySizeLow = true;
+              if (q > 0) allSizesZero = false;
+            }
+          });
+        } else {
+          const q = parseNum(c.qty, parseNum(c.stock, parseNum(c.inventory, 0)));
+          total += q;
+          const crit = criticalLevelForColor(p, c);
+          if (q <= crit) anySizeLow = true;
+          if (q > 0) allSizesZero = false;
+        }
+      });
+    } else {
+      // Consider all sizes across all colors
+      colorsArr.forEach(c => {
+        const sizesArr = normalizeSizesArray(c);
+        if (sizesArr.length) {
+          sizesArr.forEach(s => {
+            const q = parseNum(s.stock, 0);
+            total += q;
+            const crit = criticalLevelForSize(p, c, s);
+            if (q <= crit) anySizeLow = true;
+            if (q > 0) allSizesZero = false;
+          });
+        } else {
+          // fallback: treat numeric fields on color as aggregate
+          const q = parseNum(c.qty, parseNum(c.stock, parseNum(c.inventory, 0)));
+          total += q;
+          const crit = criticalLevelForColor(p, c);
+          if (q <= crit) anySizeLow = true;
+          if (q > 0) allSizesZero = false;
+        }
+      });
+    }
+
+    // Determine stockStatus: 'out' if every size is zero, 'low' if any size <= critical, otherwise 'in'
+    const stockStatus = (total === 0 || allSizesZero) ? 'out' : (anySizeLow ? 'low' : 'in');
+    const matchesStock = !ctx.filterStock || stockStatus === ctx.filterStock;
+
+    const normalizedStatus = normalizeStatus(p.status);
+    const forceStatus = options.forceStatus;
+    const excludeStatus = options.excludeStatus;
+    const statusTarget = forceStatus ? forceStatus : ctx.filterStatus;
+    const matchesStatus = !statusTarget || normalizedStatus === statusTarget;
+    const notExcluded = excludeStatus ? normalizedStatus !== excludeStatus : true;
+    return matchesText && matchesBrand && matchesCat && matchesSize && matchesStock && matchesStatus && notExcluded;
+  }
+
   // Inventory listing
   function renderProductsTable() {
     const tbody = qs('#productsTbody');
-    const text = qs('#searchInput').value.toLowerCase();
-    const filterBrand = qs('#filterBrand').value;
-    const filterCat = qs('#filterCategory').value;
-    const filterSize = qs('#filterSize').value;
-    const filterStock = qs('#filterStock').value; // '', 'low', 'out', 'in'
-    const filterStatus = qs('#filterStatus') ? qs('#filterStatus').value : '';
-  // Per-product effective threshold will be used in filtering; keep a local var for default
-  const threshold = state.settings.lowStockThreshold;
+    if (!tbody) return;
+    const ctx = getFilterContext();
 
   // Use a guarded products array in case Firestore or imports yielded products without a
   // `colors` array (e.g. when variants are stored separately or permission-denied prevents
@@ -837,10 +1036,10 @@
       const now = Date.now();
       const created = p.createdAt ? new Date(p.createdAt).getTime() : 0;
       const ageDays = created ? Math.floor((now - created) / (24*3600*1000)) : Infinity;
-      const isNew = ageDays <= 14 && p.status === 'active';
-  const isSale = (parseNum(p.pricing?.sale,0) > 0) && (parseNum(p.pricing?.sale,0) < parseNum(p.pricing?.original,0)) && p.status === 'active';
+        const isNew = ageDays <= 14 && normalizeStatus(p.status) === 'published';
+      const isSale = (parseNum(p.pricing?.sale,0) > 0) && (parseNum(p.pricing?.sale,0) < parseNum(p.pricing?.original,0)) && normalizeStatus(p.status) === 'published';
       const total = totalStockForProduct(p);
-      const isPre = (total === 0) && p.status === 'active';
+        const isPre = (total === 0) && normalizeStatus(p.status) === 'published';
       const isBest = bestIds.has(p.id);
       const hasAr = !!(p.arLink || p.ar_link || p.arUrl || p.ar_url);
       if (isNew) tags.push('New');
@@ -853,112 +1052,7 @@
       return Array.from(new Set([ ...manual, ...tags ]));
     }
 
-    const filtered = productsList.filter(p => {
-      // Build a colors array that includes merged variants if the product
-      // doesn't include a `colors` array directly (variants may be stored
-      // separately in firebaseState.variantsByProductId).
-      let colorsArr = Array.isArray(p.colors) ? p.colors : [];
-      if ((!colorsArr || colorsArr.length === 0) && firebaseState.variantsByProductId) {
-        const map = firebaseState.variantsByProductId;
-        const candidates = [p.id, p.productId, p.sku, String(p.id || '')];
-        for (const c of candidates) {
-          if (!c) continue;
-          if (Array.isArray(map[c]) && map[c].length) { colorsArr = map[c]; break; }
-        }
-      }
-      // If still no colors but product-level sizes exist as an object map, synthesize
-      // a single color entry so filters and totals work (handles legacy shapes).
-      if ((!colorsArr || colorsArr.length === 0) && p.sizes && typeof p.sizes === 'object') {
-        colorsArr = [{ id: p.id + '-default', name: p.title || p.name || p.model || 'Default', sizes: sizesObjectToArray(p.sizes) }];
-      }
-      const matchesText = !text || [p.brand, p.model, p.category].join(' ').toLowerCase().includes(text) || colorsArr.some(c => (c.name || '').toLowerCase().includes(text));
-      const matchesBrand = !filterBrand || p.brand === filterBrand;
-      const matchesCat = !filterCat || p.category === filterCat;
-      // If a specific size is selected, consider size existence; allow out-of-stock when filtering 'out'
-      const matchesSize = !filterSize || colorsArr.some(c => {
-        if (Array.isArray(c.sizes)) return c.sizes.some(s => String(s.eu) === filterSize && (filterStock === 'out' ? true : (parseNum(s.stock,0) > 0)));
-        if (c.sizes && typeof c.sizes === 'object') {
-          var q = parseNum(c.sizes[String(filterSize)] || c.sizes[filterSize] || 0, 0);
-          return filterStock === 'out' ? true : q > 0;
-        }
-        return false;
-      });
-      // Determine stock status: use total product stock, or size-specific total when a size filter is applied
-      // Compute totals and determine stock status using per-size logic.
-      // If a specific size filter is applied, compute totals only for that size.
-      const eff = effectiveThresholdForProduct(p);
-      // helper: check a color's critical (variant) override
-      const criticalForColor = (c) => {
-        try {
-          const cand = (c && (c.criticalLevel || c.critical || c.minStock || c.reorderLevel));
-          const n = parseNum(cand, NaN);
-          if (Number.isFinite(n) && n >= 0) return Math.max(1, Math.floor(n));
-        } catch (e) {}
-        return eff;
-      };
-
-      // Compute per-size aggregation
-      let total = 0;
-      let anySizeLow = false;
-      let allSizesZero = true;
-
-      if (filterSize) {
-        // Only consider the selected size across colors
-        colorsArr.forEach(c => {
-          if (Array.isArray(c.sizes)) {
-            c.sizes.forEach(s => {
-              if (String(s.eu) === String(filterSize)) {
-                const q = parseNum(s.stock, 0);
-                total += q;
-                const crit = criticalForColor(c);
-                if (q <= crit) anySizeLow = true;
-                if (q > 0) allSizesZero = false;
-              }
-            });
-          } else if (c.sizes && typeof c.sizes === 'object') {
-            const q = parseNum(c.sizes[String(filterSize)] || c.sizes[filterSize] || 0, 0);
-            total += q;
-            const crit = criticalForColor(c);
-            if (q <= crit) anySizeLow = true;
-            if (q > 0) allSizesZero = false;
-          }
-        });
-      } else {
-        // Consider all sizes across all colors
-        colorsArr.forEach(c => {
-          if (Array.isArray(c.sizes)) {
-            c.sizes.forEach(s => {
-              const q = parseNum(s.stock, 0);
-              total += q;
-              const crit = criticalForColor(c);
-              if (q <= crit) anySizeLow = true;
-              if (q > 0) allSizesZero = false;
-            });
-          } else if (c.sizes && typeof c.sizes === 'object') {
-            Object.keys(c.sizes).forEach(k => {
-              const q = parseNum(c.sizes[k], 0);
-              total += q;
-              const crit = criticalForColor(c);
-              if (q <= crit) anySizeLow = true;
-              if (q > 0) allSizesZero = false;
-            });
-          } else {
-            // fallback: treat numeric fields on color as aggregate
-            const q = parseNum(c.qty, parseNum(c.stock, parseNum(c.inventory, 0)));
-            total += q;
-            const crit = criticalForColor(c);
-            if (q <= crit) anySizeLow = true;
-            if (q > 0) allSizesZero = false;
-          }
-        });
-      }
-
-      // Determine stockStatus: 'out' if every size is zero, 'low' if any size <= critical, otherwise 'in'
-      const stockStatus = (total === 0 || allSizesZero) ? 'out' : (anySizeLow ? 'low' : 'in');
-      const matchesStock = !filterStock || stockStatus === filterStock;
-      const matchesStatus = !filterStatus || p.status === filterStatus;
-      return matchesText && matchesBrand && matchesCat && matchesSize && matchesStock && matchesStatus;
-    });
+    const filtered = productsList.filter(p => productMatchesFilters(p, ctx, { excludeStatus: 'archive' }));
 
     
 
@@ -977,7 +1071,7 @@
       const displayBrand = pick(p, ['brand','brandName'], '');
       const displayModel = pick(p, ['model','name','title','productName'], '');
       const displaySku = pick(p, ['sku'], p.id || '');
-  const displayStatus = pick(p, ['status','state','availability'], '');
+  const displayStatus = normalizeStatus(pick(p, ['status','state','availability'], ''));
 
   // colors fallback: try product.colors or variants map (grouped by several possible keys)
       let colorsArr = Array.isArray(p.colors) ? p.colors : [];
@@ -990,17 +1084,17 @@
         }
       }
 
-      // per-product effective low-stock threshold
-      const eff = effectiveThresholdForProduct(p);
+      const productCritical = productHasCriticalSize(p, colorsArr);
 
       const colors = colorsArr.map(c => {
         const stock = totalStockForColor(c);
-        const status = stock === 0 ? 'out' : (stock <= eff ? 'low' : 'in');
+        const status = (stock === 0 || colorAllSizesZero(c)) ? 'out' : (colorHasCriticalSize(p, c) ? 'low' : 'in');
         return `<span class="badge ${status}" title="${(availableSizes(c) || []).join(', ') || 'None'}">${c.name} (${stock})</span>`;
       }).join(' ');
 
   const total = totalStockForProduct(p);
-  const totalStatus = total === 0 ? 'out' : (total <= eff ? 'low' : 'in');
+  const allZero = colorsArr.length ? colorsArr.every(c => colorAllSizesZero(c)) : total === 0;
+  const totalStatus = (total === 0 || allZero) ? 'out' : (productCritical ? 'low' : 'in');
       const price = `₱${(parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0))}`;
       const bulkBox = state.ui.bulkMode ? `<input type="checkbox" class="bulkSel" data-id="${p.id}" ${state.ui.selectedProductIds.has(p.id) ? 'checked' : ''}/>` : '';
       const catDisplay = (p.category || '').trim();
@@ -1014,7 +1108,7 @@
   const genderArr = Array.isArray(gRaw) ? gRaw : (typeof gRaw === 'string' ? gRaw.split(',').map(s => s.trim()) : []);
   const genderHtml = genderArr.length ? genderArr.map(g => `<span class="badge gender-badge">${g}</span>`).join(' ') : '';
 
-      return `<tr>
+      return `<tr class="${productCritical ? 'is-critical' : ''}">
         <td class="bulk-col">${bulkBox}</td>
         <td>${displayBrand}</td>
         <td>${displaySku || ''}</td>
@@ -1036,7 +1130,7 @@
       </tr>`;
     }).join('');
 
-    qsa('.bulkSel').forEach(cb => cb.addEventListener('change', (e) => {
+    tbody.querySelectorAll('.bulkSel').forEach(cb => cb.addEventListener('change', (e) => {
       const id = e.target.dataset.id; if (e.target.checked) state.ui.selectedProductIds.add(id); else state.ui.selectedProductIds.delete(id);
       updateSelectedCount();
     }));
@@ -1044,9 +1138,151 @@
     updateSelectedCount();
 
     // Bind row actions
-    qsa('[data-action="edit"]').forEach(btn => btn.addEventListener('click', () => openProductModal(btn.dataset.id)));
-    qsa('[data-action="variants"]').forEach(btn => btn.addEventListener('click', () => openVariantModal(btn.dataset.id)));
-    qsa('[data-action="delete"]').forEach(btn => btn.addEventListener('click', () => deleteProduct(btn.dataset.id)));
+    tbody.querySelectorAll('[data-action="edit"]').forEach(btn => btn.addEventListener('click', () => openProductModal(btn.dataset.id)));
+    tbody.querySelectorAll('[data-action="variants"]').forEach(btn => btn.addEventListener('click', () => openVariantModal(btn.dataset.id)));
+    tbody.querySelectorAll('[data-action="delete"]').forEach(btn => btn.addEventListener('click', () => deleteProduct(btn.dataset.id)));
+  }
+
+  function updateArchivedVisibility() {
+    const section = qs('#archivedSection');
+    const btn = qs('#toggleArchivedBtn');
+    const activeSection = qs('#activeInventorySection');
+    if (section) section.hidden = !state.ui.showArchived;
+    if (btn) btn.textContent = state.ui.showArchived ? 'Hide Archived' : 'Show Archived';
+    if (archivedOnly) {
+      if (btn) btn.style.display = 'none';
+      if (activeSection) activeSection.style.display = 'none';
+      if (section) section.hidden = false;
+    }
+  }
+
+  function renderArchivedTable() {
+    const section = qs('#archivedSection');
+    const tbody = qs('#archivedTbody');
+    if (!section || !tbody) return;
+    updateArchivedVisibility();
+    if (!state.ui.showArchived) { tbody.innerHTML = ''; return; }
+
+    const ctx = getFilterContext();
+    const productsList = Array.isArray(state.products) ? state.products : [];
+
+    // Compute best-seller products (all-time, by units)
+    const byProductQty = new Map();
+    (Array.isArray(state.sales) ? state.sales : []).forEach(s => byProductQty.set(s.productId, (byProductQty.get(s.productId) || 0) + s.qty));
+    const bestIds = new Set(Array.from(byProductQty.entries()).sort((a,b) => b[1]-a[1]).slice(0,5).map(([id]) => id));
+
+    function computeTags(p) {
+      const tags = [];
+      const now = Date.now();
+      const created = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+      const ageDays = created ? Math.floor((now - created) / (24*3600*1000)) : Infinity;
+      const isNew = ageDays <= 14 && normalizeStatus(p.status) === 'published';
+      const isSale = (parseNum(p.pricing?.sale,0) > 0) && (parseNum(p.pricing?.sale,0) < parseNum(p.pricing?.original,0)) && normalizeStatus(p.status) === 'published';
+      const total = totalStockForProduct(p);
+      const isPre = (total === 0) && normalizeStatus(p.status) === 'published';
+      const isBest = bestIds.has(p.id);
+      const hasAr = !!(p.arLink || p.ar_link || p.arUrl || p.ar_url);
+      if (isNew) tags.push('New');
+      if (isSale) tags.push('Sale');
+      if (isPre) tags.push('Pre-Order');
+      if (isBest) tags.push('Best Seller');
+      if (hasAr) tags.push('Try On!');
+      const manual = Array.isArray(p.tagsManual) ? p.tagsManual : [];
+      return Array.from(new Set([ ...manual, ...tags ]));
+    }
+
+    const filtered = productsList.filter(p => productMatchesFilters(p, ctx, { forceStatus: 'archive' }));
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr><td colspan="12" style="color:#888;padding:12px;">No archived products found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(p => {
+      // snapshot the displayed product for modal use
+      try { displayedProductCache[String(p.id)] = JSON.parse(JSON.stringify(p)); } catch (e) { displayedProductCache[String(p.id)] = p; }
+      // small helper: pick the first non-empty field from candidates
+      const pick = (obj, keys, dflt = '') => {
+        if (!obj || typeof obj !== 'object') return dflt;
+        for (const k of keys) {
+          try { const v = obj[k]; if (v !== undefined && v !== null && String(v).trim() !== '') return v; } catch (e) { /* continue */ }
+        }
+        return dflt;
+      };
+
+      const displayBrand = pick(p, ['brand','brandName'], '');
+      const displayModel = pick(p, ['model','name','title','productName'], '');
+      const displaySku = pick(p, ['sku'], p.id || '');
+      const displayStatus = normalizeStatus(pick(p, ['status','state','availability'], ''));
+
+      // colors fallback: try product.colors or variants map (grouped by several possible keys)
+      let colorsArr = Array.isArray(p.colors) ? p.colors : [];
+      if (!colorsArr.length && firebaseState.variantsByProductId) {
+        const map = firebaseState.variantsByProductId;
+        const candidates = [p.id, p.productId, p.sku, String(p.id || '')];
+        for (const c of candidates) {
+          if (!c) continue;
+          if (Array.isArray(map[c]) && map[c].length) { colorsArr = map[c]; break; }
+        }
+      }
+
+      const productCritical = productHasCriticalSize(p, colorsArr);
+      const colors = colorsArr.map(c => {
+        const stock = totalStockForColor(c);
+        const status = (stock === 0 || colorAllSizesZero(c)) ? 'out' : (colorHasCriticalSize(p, c) ? 'low' : 'in');
+        return `<span class="badge ${status}" title="${(availableSizes(c) || []).join(', ') || 'None'}">${c.name} (${stock})</span>`;
+      }).join(' ');
+
+      const total = totalStockForProduct(p);
+      const allZero = colorsArr.length ? colorsArr.every(c => colorAllSizesZero(c)) : total === 0;
+      const totalStatus = (total === 0 || allZero) ? 'out' : (productCritical ? 'low' : 'in');
+      const price = `₱${(parseNum(p.pricing?.sale, 0) || parseNum(p.pricing?.original, 0))}`;
+      const catDisplay = (p.category || '').trim();
+      const tags = computeTags(p);
+      const tagsHtml = tags.length ? tags.map(t => {
+        const cls = (t && typeof t === 'string') ? t.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') : '';
+        return `<span class="tag ${cls}">${t}</span>`;
+      }).join(' ') : '';
+      const gRaw = p.gender || [];
+      const genderArr = Array.isArray(gRaw) ? gRaw : (typeof gRaw === 'string' ? gRaw.split(',').map(s => s.trim()) : []);
+      const genderHtml = genderArr.length ? genderArr.map(g => `<span class="badge gender-badge">${g}</span>`).join(' ') : '';
+
+      return `<tr class="${productCritical ? 'is-critical' : ''}">
+        <td class="bulk-col"></td>
+        <td>${displayBrand}</td>
+        <td>${displaySku || ''}</td>
+        <td>${displayModel}</td>
+        <td>${catDisplay}</td>
+        <td class="status ${displayStatus}">${displayStatus}</td>
+        <td class="gender-cell"><div class="cell-stack">${genderHtml || ''}</div></td>
+        <td class="tags-cell">${tagsHtml || ''}</td>
+        <td class="colors-cell"><div class="cell-stack">${colors || '<span class="badge out">No colors</span>'}</div></td>
+        <td><span class="badge ${totalStatus}">${total}</span></td>
+        <td>${price}</td>
+        <td class="actions-col">
+          <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+            <button class="secondary" data-action="edit" data-id="${p.id}">Edit</button>
+            <button class="secondary" data-action="variants" data-id="${p.id}">Variants</button>
+            <button class="secondary" data-action="unarchive" data-id="${p.id}">Unarchive</button>
+            <button class="danger" data-action="delete" data-id="${p.id}">Delete</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('[data-action="edit"]').forEach(btn => btn.addEventListener('click', () => openProductModal(btn.dataset.id)));
+    tbody.querySelectorAll('[data-action="variants"]').forEach(btn => btn.addEventListener('click', () => openVariantModal(btn.dataset.id)));
+    tbody.querySelectorAll('[data-action="unarchive"]').forEach(btn => btn.addEventListener('click', () => unarchiveProduct(btn.dataset.id)));
+    tbody.querySelectorAll('[data-action="delete"]').forEach(btn => btn.addEventListener('click', () => deleteProduct(btn.dataset.id)));
+  }
+
+  function renderInventoryTables() {
+    if (!archivedOnly) {
+      renderProductsTable();
+    } else {
+      const tbody = qs('#productsTbody');
+      if (tbody) tbody.innerHTML = '';
+    }
+    renderArchivedTable();
   }
 
   function updateSelectedCount() {
@@ -1055,11 +1291,52 @@
   }
 
   // Product modal
+  function resetProductModalState() {
+    const brand = qs('#prodBrand'); if (brand) brand.value = '';
+    const model = qs('#prodModel'); if (model) model.value = '';
+    const cat = qs('#prodCategory'); if (cat) cat.value = '';
+    const genderMen = qs('#prodGenderMen'); if (genderMen) genderMen.checked = false;
+    const genderWomen = qs('#prodGenderWomen'); if (genderWomen) genderWomen.checked = false;
+    const genderUnisex = qs('#prodGenderUnisex'); if (genderUnisex) genderUnisex.checked = true;
+    const statusSel = qs('#prodStatus'); if (statusSel) statusSel.value = 'published';
+    const pOrig = qs('#priceOriginal'); if (pOrig) pOrig.value = '';
+    const pSale = qs('#priceSale'); if (pSale) pSale.value = '';
+    const skuEl = qs('#prodSKU'); if (skuEl) skuEl.value = '';
+    const descEl = qs('#prodDescription'); if (descEl) descEl.value = '';
+    const critEl = qs('#prodCriticalLevel'); if (critEl) critEl.value = '';
+
+    // AR inputs
+    try {
+      const arEl = qs('#prodARLink'); if (arEl) arEl.value = '';
+      const qrPreview = qs('#prodARQrPreview');
+      if (qrPreview) { qrPreview.src = ''; qrPreview.style.display = 'none'; }
+    } catch (e) {}
+
+    // Manual tags
+    const tagNew = qs('#tagNew'); if (tagNew) tagNew.checked = false;
+    const tagSale = qs('#tagSale'); if (tagSale) tagSale.checked = false;
+    const tagPre = qs('#tagPreOrder'); if (tagPre) tagPre.checked = false;
+    const tagBest = qs('#tagBestSeller'); if (tagBest) tagBest.checked = false;
+    const tagTryOn = qs('#tagTryOn'); if (tagTryOn) tagTryOn.checked = false;
+
+    // Images + initial variants
+    const imgInput = qs('#imageFileInput'); if (imgInput) imgInput.value = '';
+    const initColorName = qs('#initialColorName'); if (initColorName) initColorName.value = '';
+    const initColorCode = qs('#initialColorCode'); if (initColorCode) initColorCode.value = '#000000';
+    const initSec = qs('#initialVariantSection'); if (initSec) initSec.style.display = 'block';
+
+    state.ui.productModalColors = [];
+    state.ui.productModalImages = [];
+    renderImagesList();
+    renderInitialVariants();
+  }
+
   function openProductModal(productId) {
     // Redirect to the dedicated Add Product page when creating a new item
     if (!productId) { window.location.href = 'add-product.html'; return; }
     const dlg = qs('#productModal');
     const isEdit = !!productId;
+    resetProductModalState();
     state.ui.editingProductId = productId || null;
     qs('#productModalTitle').textContent = isEdit ? 'Edit Product' : 'Add Product';
   const brand = qs('#prodBrand');
@@ -1075,7 +1352,14 @@
     const descEl = qs('#prodDescription');
     // images handled via state.ui.productModalImages
 
+    const imagesSection = qs('#imagesSection');
+    const imagesControls = imagesSection ? imagesSection.querySelector('.images-controls') : null;
+    const imagesHeader = imagesSection ? imagesSection.querySelector('h3') : null;
+
     if (isEdit) {
+      // Hide upload controls in Edit mode (keep existing images list visible)
+      if (imagesControls) imagesControls.style.display = 'none';
+      if (imagesHeader) imagesHeader.style.display = 'none';
       // Prefer the product data as rendered in the table (stable) to avoid flicker from snapshots.
       // Additionally, read the visible table row values directly from the DOM to ensure the
       // modal reflects exactly what's shown to the user (text content, tags, and price formatting).
@@ -1109,7 +1393,7 @@
       brand.value = (dom && dom.brand) ? dom.brand : (p.brand || '');
       model.value = (dom && dom.model) ? dom.model : (p.model || '');
       cat.value = (dom && dom.category) ? dom.category : (p.category || '');
-      statusSel.value = (dom && dom.status) ? dom.status : (p.status || '');
+      statusSel.value = normalizeStatus((dom && dom.status) ? dom.status : (p.status || ''));
       // Set gender checkboxes based on product data (allow string or array)
       try {
         const g = p.gender || [];
@@ -1167,11 +1451,14 @@
       const initSec = qs('#initialVariantSection'); if (initSec) initSec.style.display = 'none';
       state.ui.productModalColors = [];
     } else {
+      // Show upload controls for Add mode
+      if (imagesControls) imagesControls.style.display = '';
+      if (imagesHeader) imagesHeader.style.display = '';
   brand.value = ''; model.value = ''; cat.value = '';
   if (genderMen) genderMen.checked = false;
   if (genderWomen) genderWomen.checked = false;
   if (genderUnisex) genderUnisex.checked = true;
-  statusSel.value = 'active'; pOrig.value = ''; pSale.value = '';
+  statusSel.value = 'published'; pOrig.value = ''; pSale.value = '';
       if (skuEl) skuEl.value = '';
       if (descEl) descEl.value = '';
   // clear AR inputs on Add
@@ -1252,7 +1539,7 @@
   const genderWomenEl = qs('#prodGenderWomen'); if (genderWomenEl && genderWomenEl.checked) genders.push('Women');
   const genderUnisexEl = qs('#prodGenderUnisex'); if (genderUnisexEl && genderUnisexEl.checked) genders.push('Unisex');
   const genderSel = genders.length ? genders : ['Unisex'];
-    const statusSel = qs('#prodStatus').value;
+    const statusSel = normalizeStatus(qs('#prodStatus').value);
     const pOrig = parseNum(qs('#priceOriginal').value, 0);
     const pSale = parseNum(qs('#priceSale').value, 0);
     const skuPreview = (qs('#prodSKU')?.value || '').trim();
@@ -1280,8 +1567,8 @@
 
     if (pid) {
       const p = state.products.find(x => x.id === pid);
-      // Confirm archiving when changing status to archived
-      if (statusSel === 'archived' && p.status !== 'archived') {
+      // Confirm archiving when changing status to archive
+      if (statusSel === 'archive' && normalizeStatus(p.status) !== 'archive') {
         const ok = confirm(`Archive ${p.brand} ${p.model}?\nArchived products are hidden from active listings.`);
         if (!ok) { return; }
       }
@@ -1313,7 +1600,7 @@
       // Require at least one color with sizes when adding
       const colors = state.ui.productModalColors.filter(c => (c.name || '').trim().length);
       if (!colors.length) { alert('Add at least one color with stock'); return; }
-      if (statusSel === 'archived') {
+      if (statusSel === 'archive') {
         const ok = confirm('Create this product in archived state?');
         if (!ok) { return; }
       }
@@ -1337,7 +1624,7 @@
           code: c.code,
           image: normalizedImages.find(x => x && String(x).trim()) || '',
           images: normalizedImages,
-          sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), sku: s.sku || '' }))
+          sizes: c.sizes.map(s => ({ eu: s.eu, stock: clampNum(parseNum(s.stock,0), 0, 9999), criticalLevel: clampNum(parseNum(s.criticalLevel, defaultCriticalLevel()), 1, 999), sku: s.sku || '' }))
         };
       });
       // Ensure size-level SKUs exist
@@ -1359,6 +1646,19 @@
     saveAll();
     renderAll();
     if (firebaseState.enabled) deleteProductFromFirestore(id);
+  }
+
+  function unarchiveProduct(id) {
+    const p = state.products.find(x => x.id === id);
+    if (!p) return;
+    const ok = confirm(`Unarchive ${p.brand} ${p.model}?`);
+    if (!ok) return;
+    p.status = 'published';
+    saveAll();
+    renderAll();
+    if (firebaseState.enabled) {
+      upsertProductToFirestore(p).then(() => syncVariantsForProduct(p));
+    }
   }
 
   // Images management in Add/Edit Product modal
@@ -1544,6 +1844,11 @@
       card.appendChild(imageSection);
 
       const grid = document.createElement('div'); grid.className = 'size-grid';
+      const header = document.createElement('div');
+      header.className = 'size-row header';
+      header.setAttribute('aria-hidden', 'true');
+      header.innerHTML = '<strong>Size</strong><strong>Stock</strong><strong>Critical</strong><span></span><span></span>';
+      grid.appendChild(header);
       if (!color.sizes.length) {
         const emptyRow = document.createElement('div');
         emptyRow.className = 'size-row';
@@ -1551,10 +1856,12 @@
         grid.appendChild(emptyRow);
       } else {
         color.sizes.forEach(s => {
-          const row = document.createElement('div'); row.className = 'size-row';
+          const row = document.createElement('div'); row.className = `size-row${isSizeCritical(p, color, s) ? ' is-critical' : ''}`;
+          const critVal = criticalLevelForSize(p, color, s);
           row.innerHTML = `
             <label>${s.eu}EU</label>
-            <input type="number" min="0" step="1" value="${s.stock}" data-color="${color.id}" data-size="${s.eu}" />
+            <input type="number" min="0" step="1" value="${s.stock}" data-color="${color.id}" data-size="${s.eu}" data-field="stock" />
+            <input type="number" min="1" step="1" value="${critVal}" data-color="${color.id}" data-size="${s.eu}" data-field="critical" class="critical-input" aria-label="Critical level" />
             <div class="qty-controls">
               <button type="button" class="qty-btn" data-action="decr" data-color="${color.id}" data-size="${s.eu}">−</button>
               <button type="button" class="qty-btn" data-action="incr" data-color="${color.id}" data-size="${s.eu}">+</button>
@@ -1578,7 +1885,7 @@
       eu = parseNum(eu, null);
       if (!eu || !EU_SIZES.includes(eu)) { alert('Size must be between 35 and 49 EU.'); return; }
       if (c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
-      c.sizes.push({ eu, stock: 0, sku: '' });
+      c.sizes.push({ eu, stock: 0, criticalLevel: defaultCriticalLevel(), sku: '' });
       saveAll(); openVariantModal(p.id);
     }));
 
@@ -1652,11 +1959,20 @@
       inp.addEventListener('change', (e) => {
         const colorId = e.target.dataset.color;
         const eu = parseNum(e.target.dataset.size);
-        const qty = clampNum(parseNum(e.target.value), 0, 9999);
+        const field = e.target.dataset.field || 'stock';
+        if (!colorId || !Number.isFinite(eu)) return;
         const p = state.products.find(x => x.id === state.ui.editingVariantProductId);
         const c = p.colors.find(y => y.id === colorId);
         const s = c.sizes.find(z => z.eu === eu);
-        if (s) s.stock = qty; saveAll();
+        if (!s) return;
+        if (field === 'critical') {
+          s.criticalLevel = clampNum(parseNum(e.target.value, defaultCriticalLevel()), 1, 999);
+        } else {
+          s.stock = clampNum(parseNum(e.target.value), 0, 9999);
+        }
+        const row = e.target.closest('.size-row');
+        if (row) row.classList.toggle('is-critical', isSizeCritical(p, c, s));
+        saveAll();
       });
     });
 
@@ -1749,10 +2065,12 @@
         grid.appendChild(emptyRow);
       } else {
         color.sizes.forEach(s => {
-          const row = document.createElement('div'); row.className = 'size-row';
+          const row = document.createElement('div'); row.className = `size-row${isSizeCritical({ id: 'init', brand: '', model: '' }, color, s) ? ' is-critical' : ''}`;
+          const critVal = criticalLevelForSize({ id: 'init', brand: '', model: '' }, color, s);
           row.innerHTML = `
             <label>${s.eu}EU</label>
-            <input type="number" min="0" step="1" value="${s.stock}" data-init-color="${color.id}" data-size="${s.eu}" />
+            <input type="number" min="0" step="1" value="${s.stock}" data-init-color="${color.id}" data-size="${s.eu}" data-field="stock" />
+            <input type="number" min="1" step="1" value="${critVal}" data-init-color="${color.id}" data-size="${s.eu}" data-field="critical" class="critical-input" aria-label="Critical level" />
             <button type="button" class="danger" data-action="remove-size-init" data-color="${color.id}" data-size="${s.eu}">Remove</button>
           `;
           grid.appendChild(row);
@@ -1771,7 +2089,7 @@
       eu = parseNum(eu, null);
       if (!eu || !EU_SIZES.includes(eu)) { alert('Size must be between 35 and 49 EU.'); return; }
       if (c.sizes.find(z => z.eu === eu)) { alert('Invalid or duplicate size.'); return; }
-      c.sizes.push({ eu, stock: 0, sku: '' });
+      c.sizes.push({ eu, stock: 0, criticalLevel: defaultCriticalLevel(), sku: '' });
       renderInitialVariants();
     }));
 
@@ -1797,10 +2115,18 @@
     editor.querySelectorAll('input[type="number"]').forEach(inp => inp.addEventListener('change', (e) => {
       const colorId = e.target.dataset.initColor;
       const eu = parseNum(e.target.dataset.size);
-      const qty = clampNum(parseNum(e.target.value), 0, 9999);
+      const field = e.target.dataset.field || 'stock';
+      if (!colorId || !Number.isFinite(eu)) return;
       const c = state.ui.productModalColors.find(y => y.id === colorId);
       const s = c.sizes.find(z => z.eu === eu);
-      if (s) s.stock = qty;
+      if (!s) return;
+      if (field === 'critical') {
+        s.criticalLevel = clampNum(parseNum(e.target.value, defaultCriticalLevel()), 1, 999);
+      } else {
+        s.stock = clampNum(parseNum(e.target.value), 0, 9999);
+      }
+      const row = e.target.closest('.size-row');
+      if (row) row.classList.toggle('is-critical', isSizeCritical({ id: 'init', brand: '', model: '' }, c, s));
     }));
   }
 
@@ -1890,11 +2216,10 @@
       if (!Number.isFinite(size)) { alert('Enter a size (EU 35–49)'); return; }
       if (!EU_SIZES.includes(size)) { alert('Size must be between 35 and 49 EU'); return; }
     }
-    const threshold = state.settings.lowStockThreshold;
     state.products.forEach(p => {
       if (!ids.includes(p.id)) return;
       p.colors.forEach(c => c.sizes.forEach(s => {
-        const isLow = s.stock > 0 && s.stock <= effectiveThresholdForProduct(p);
+        const isLow = s.stock > 0 && isSizeCritical(p, c, s);
         const isOut = s.stock === 0;
         const isSize = scope === 'size' && s.eu === size;
         if (scope === 'all' || (scope === 'low' && isLow) || (scope === 'out' && isOut) || isSize) {
@@ -1913,14 +2238,14 @@
     const names = state.products.filter(p => ids.includes(p.id)).map(p => `${p.brand} ${p.model}`);
     const msg = `Archive ${ids.length} product(s)?\nArchived products are hidden from active listings.`;
     if (!confirm(msg)) { return; }
-    state.products.forEach(p => { if (ids.includes(p.id)) p.status = 'archived'; });
+    state.products.forEach(p => { if (ids.includes(p.id)) p.status = 'archive'; });
     saveAll(); renderProductsTable();
   }
 
   function bulkUnarchive() {
     const ids = Array.from(state.ui.selectedProductIds);
     if (!ids.length) { alert('Select products first'); return; }
-    state.products.forEach(p => { if (ids.includes(p.id)) p.status = 'active'; });
+    state.products.forEach(p => { if (ids.includes(p.id)) p.status = 'published'; });
     saveAll(); renderProductsTable();
   }
 
@@ -2003,7 +2328,6 @@
     const sizesSummary = qs('#bestSizesSummary');
     const brandsSummary = qs('#bestBrandsSummary');
     const deadSummary = qs('#deadStockSummary');
-    const threshold = state.settings.lowStockThreshold;
 
     // Timeframe filter for sales
     const tf = state.ui.reports.timeframe || 'all';
@@ -2011,12 +2335,12 @@
     const cutoff = tf === '7d' ? now - 7*24*3600*1000 : tf === '30d' ? now - 30*24*3600*1000 : 0;
     const salesFiltered = cutoff ? state.sales.filter(s => new Date(s.date).getTime() >= cutoff) : state.sales.slice();
 
-    const activeProducts = state.products.filter(p => p.status === 'active').length;
+    const activeProducts = state.products.filter(p => normalizeStatus(p.status) === 'published').length;
     const totalUnits = state.products.reduce((acc, p) => acc + totalStockForProduct(p), 0);
     const totalSales = salesFiltered.reduce((acc, s) => acc + (s.qty * s.price), 0);
 
     overview.innerHTML = [
-      `<li><strong>Active products:</strong> ${activeProducts}</li>`,
+      `<li><strong>Published products:</strong> ${activeProducts}</li>`,
       `<li><strong>Total units in stock:</strong> ${totalUnits}</li>`,
       `<li><strong>Sales (${tf === 'all' ? 'All Time' : (tf === '7d' ? '7d' : '30d')}):</strong> ₱${totalSales.toFixed(2)}</li>`
     ].join('');
@@ -2026,7 +2350,7 @@
     let lowCount = 0, outCount = 0;
     state.products.forEach(p => p.colors.forEach(c => c.sizes.forEach(s => {
   if (s.stock === 0) { outCount++; lowItems.push(`<li>${p.brand} ${p.model} - ${c.name} ${s.eu}EU: <span class=\"badge out\">Out</span></li>`); }
-  else if (s.stock <= effectiveThresholdForProduct(p)) { lowCount++; lowItems.push(`<li>${p.brand} ${p.model} - ${c.name} ${s.eu}EU: <span class=\"badge low\">Low (${s.stock})</span></li>`); }
+  else if (isSizeCritical(p, c, s)) { lowCount++; lowItems.push(`<li>${p.brand} ${p.model} - ${c.name} ${s.eu}EU: <span class=\"badge low\">Low (${s.stock})</span></li>`); }
     })));
     if (lowSummary) lowSummary.textContent = `Low: ${lowCount} • Out: ${outCount}`;
     const lowOpen = state.ui.reports.open.low;
@@ -2084,7 +2408,7 @@
     const alerts = [];
     state.products.forEach(p => p.colors.forEach(c => c.sizes.forEach(s => {
       if (s.stock === 0) alerts.push(`<li>Out of stock: ${p.brand} ${p.model} - ${c.name} ${s.eu}EU</li>`);
-      else if (s.stock <= effectiveThresholdForProduct(p)) alerts.push(`<li>Low stock: ${p.brand} ${p.model} - ${c.name} ${s.eu}EU (${s.stock})</li>`);
+      else if (isSizeCritical(p, c, s)) alerts.push(`<li>Low stock: ${p.brand} ${p.model} - ${c.name} ${s.eu}EU (${s.stock})</li>`);
     })));
     ul.innerHTML = alerts.join('') || '<li>No alerts</li>';
   }
@@ -2098,7 +2422,7 @@
   // Render all
   function renderAll() {
     populateFilters();
-    renderProductsTable();
+    renderInventoryTables();
     if (state.ui.selectedTab === 'sales') { populateSaleSelectors(); renderSalesLog(); }
     if (state.ui.selectedTab === 'reports') renderReports();
     if (state.ui.selectedTab === 'alerts') renderAlerts();
@@ -2117,19 +2441,22 @@
         const colorsArr = Array.isArray(p.colors) ? p.colors : [];
         (colorsArr||[]).forEach(c => {
           const sizesMap = {};
-          (Array.isArray(c.sizes)?c.sizes:[]).forEach(s => { sizesMap[String(s.eu)] = Number(s.stock||0); });
+          const criticalMap = {};
+          (Array.isArray(c.sizes)?c.sizes:[]).forEach(s => {
+            sizesMap[String(s.eu)] = Number(s.stock||0);
+            criticalMap[String(s.eu)] = criticalLevelForSize(p, c, s);
+          });
           const total = Object.values(sizesMap).reduce((a,b)=>a+Number(b||0),0);
-          const threshold = effectiveThresholdForProduct(p);
-          // find sizes that meet or fall below the threshold (inclusive)
-          const lowSizes = Object.keys(sizesMap).filter(k => Number(sizesMap[k]) <= Number(threshold));
-          const low = (lowSizes.length > 0) || (total <= Number(threshold));
-          rows.push({ brand: p.brand||'', model: p.model||'', sku: p.sku||'', color: c.name||'', sizes: sizesMap, total: total, threshold: threshold, low: low, lowSizes: lowSizes });
+          // find sizes that meet or fall below their per-size critical level (inclusive)
+          const lowSizes = Object.keys(sizesMap).filter(k => Number(sizesMap[k]) <= Number(criticalMap[k] || defaultCriticalLevel()));
+          const low = lowSizes.length > 0;
+          rows.push({ brand: p.brand||'', model: p.model||'', sku: p.sku||'', color: c.name||'', sizes: sizesMap, criticalLevels: criticalMap, total: total, low: low, lowSizes: lowSizes });
         });
         if(!Array.isArray(p.colors) || p.colors.length===0){
           const sizesMap = {};
+          const criticalMap = {};
           const total = 0;
-          const threshold = effectiveThresholdForProduct(p);
-          rows.push({ brand: p.brand||'', model: p.model||'', sku: p.sku||'', color: '', sizes: sizesMap, total: total, threshold: threshold, low: false });
+          rows.push({ brand: p.brand||'', model: p.model||'', sku: p.sku||'', color: '', sizes: sizesMap, criticalLevels: criticalMap, total: total, low: false });
         }
       });
 
@@ -2138,9 +2465,10 @@
       let html = '<!doctype html><html><head><meta charset="utf-8"><title>'+escapeHtml(title)+'</title>' +
                  '<style>body{font-family:Arial,Helvetica,sans-serif}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:6px;text-align:left}th{background:#f6f6f6} .low{color:#b71c1c;font-weight:700}</style></head><body>';
       html += '<h1>'+escapeHtml(title)+'</h1>';
-      html += '<table><thead><tr><th>Brand</th><th>Model</th><th>SKU</th><th>Color</th><th>Sizes</th><th>Total</th><th>Critical Level</th><th>Low Sizes</th><th>Status</th></tr></thead><tbody>';
+      html += '<table><thead><tr><th>Brand</th><th>Model</th><th>SKU</th><th>Color</th><th>Sizes</th><th>Total</th><th>Critical Levels</th><th>Low Sizes</th><th>Status</th></tr></thead><tbody>';
       rows.forEach(r => {
         const sizesText = Object.keys(r.sizes).length ? Object.keys(r.sizes).map(k => escapeHtml(k) + ': ' + escapeHtml(String(r.sizes[k]))).join(', ') : '';
+        const criticalText = (r.criticalLevels && Object.keys(r.criticalLevels).length) ? Object.keys(r.criticalLevels).map(k => escapeHtml(k) + ': ' + escapeHtml(String(r.criticalLevels[k]))).join(', ') : '';
         const lowSizesText = (r.lowSizes && r.lowSizes.length) ? escapeHtml(r.lowSizes.join(', ')) : '';
         const status = r.low ? '<span class="low">LOW STOCK</span>' : 'OK';
         html += '<tr>' +
@@ -2150,7 +2478,7 @@
                 '<td>' + escapeHtml(r.color) + '</td>' +
                 '<td>' + sizesText + '</td>' +
                 '<td>' + escapeHtml(String(r.total)) + '</td>' +
-                '<td>' + escapeHtml(String(r.threshold)) + '</td>' +
+                '<td>' + criticalText + '</td>' +
                 '<td>' + lowSizesText + '</td>' +
                 '<td>' + status + '</td>' +
                 '</tr>';
@@ -2171,6 +2499,7 @@
   const addProductBtn = qs('#addProductBtn'); if (addProductBtn) addProductBtn.addEventListener('click', () => { window.location.href = 'add-product.html'; });
   const saveProductBtn = qs('#saveProductBtn'); if (saveProductBtn) saveProductBtn.addEventListener('click', (e) => { e.preventDefault(); saveProductFromModal(); });
   const cancelBtn = qs('#cancelProductBtn'); if (cancelBtn) cancelBtn.addEventListener('click', (e) => { e.preventDefault(); qs('#productModal').close(); });
+  const productModal = qs('#productModal'); if (productModal) productModal.addEventListener('close', () => resetProductModalState());
   const addInitBtn = qs('#addInitialColorBtn'); if (addInitBtn) addInitBtn.addEventListener('click', (e) => { e.preventDefault(); addInitialColorFromModal(); });
   const importImageBtn = qs('#importImageBtn'); if (importImageBtn) importImageBtn.addEventListener('click', (e) => { e.preventDefault(); addImagesFromFileInput(); });
 
@@ -2198,6 +2527,13 @@
 
   const bulkArchiveBtn = qs('#bulkArchive'); if (bulkArchiveBtn) bulkArchiveBtn.addEventListener('click', bulkArchive);
   const bulkUnarchiveBtn = qs('#bulkUnarchive'); if (bulkUnarchiveBtn) bulkUnarchiveBtn.addEventListener('click', bulkUnarchive);
+  const toggleArchivedBtn = qs('#toggleArchivedBtn');
+  if (toggleArchivedBtn) toggleArchivedBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    state.ui.showArchived = !state.ui.showArchived;
+    updateArchivedVisibility();
+    renderArchivedTable();
+  });
 
     const scopeSel = qs('#bulkRestockScope');
     const sizeInp = qs('#bulkRestockSize');
@@ -2225,8 +2561,8 @@
     ['#searchInput','#filterBrand','#filterCategory','#filterSize','#filterStock','#filterStatus'].forEach(sel => {
       const el = qs(sel);
       if (!el) return;
-      el.addEventListener('input', renderProductsTable);
-      el.addEventListener('change', renderProductsTable);
+      el.addEventListener('input', renderInventoryTables);
+      el.addEventListener('change', renderInventoryTables);
     });
 
     // Reports controls and toggles
@@ -2252,6 +2588,10 @@
     backfillCreatedAt();
     backfillCategoryAndStatus();
     wireEvents();
+    if (archivedOnly) {
+      state.ui.showArchived = true;
+      updateArchivedVisibility();
+    }
     // Load persisted settings from localStorage so other pages (e.g. dashboard)
     // can read the canonical low-stock threshold. Persist settings when the
     // user clicks Save Settings below.
@@ -2306,6 +2646,7 @@
         thresholdInput.addEventListener('change', persistThreshold);
       }
     } catch (e) {}
+    backfillSizeCriticalLevels();
     // Initialize Firebase (if configured) and attach realtime listeners
     try { initFirebase(); } catch (e) { /* ignore */ }
     renderAll();

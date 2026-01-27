@@ -139,6 +139,56 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
 .form-grid textarea { grid-column: 1 / -1; min-height: 80px; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 
+/* Product modal (Add/Edit) enhancements */
+#productModal form {
+  width: min(980px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 0;
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+}
+#productModal form > h2 {
+  margin: 0;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(120deg, #fff7f7, #ffffff 70%);
+  font-size: 1.2rem;
+}
+#productModal .form-grid {
+  padding: 18px 22px 8px;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+#productModal .form-grid input,
+#productModal .form-grid select,
+#productModal .form-grid textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-family: inherit;
+}
+#productModal .form-grid textarea { min-height: 96px; }
+#productModal #tagsSection,
+#productModal #imagesSection,
+#productModal #initialVariantSection {
+  padding: 0 22px 14px;
+}
+#productModal #tagsSection h3,
+#productModal #imagesSection h3,
+#productModal #initialVariantSection h3 {
+  margin: 8px 0 10px;
+}
+#productModal .modal-actions {
+  padding: 12px 22px 18px;
+  border-top: 1px solid var(--border);
+  background: #fafafa;
+}
+
 /* Product modal field title (label on top of input) */
 .form-grid .field { display: block; }
 .form-grid .field .field-title { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
@@ -208,7 +258,7 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
  /* Tighter size-row spacing: smaller gaps and fixed columns so label, input and +/- sit closer */
  .size-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr); /* 4 equal columns: checkbox | caption | input | +/- */
+  grid-template-columns: repeat(5, 1fr); /* 5 equal columns: label | stock | critical | +/- | actions */
   gap: 6px;
   align-items: center;
   margin-bottom: 6px;
@@ -218,6 +268,14 @@ input, select, textarea { background: var(--panel); color: var(--text); border: 
 .size-row label { color: var(--muted); font-size: 12px; margin: 0; padding: 0; }
 .size-checkbox { width: 16px; height: 16px; justify-self: center; }
 .size-row input[type="number"] { width: 48px; padding: 6px 8px; justify-self: center; }
+.size-row input.critical-input { width: 56px; }
+.size-row.is-critical {
+  background: #fff2f2;
+  border: 1px solid #f3c1c1;
+  border-radius: 8px;
+  padding: 6px 4px;
+}
+.size-row.is-critical label { color: #b71c1c; font-weight: 600; }
 .qty-controls { display: inline-flex; gap: 4px; align-items: center; justify-self: center; }
  .qty-btn { background: #f2f2f2; border: 1px solid #d9d9d9; padding: 2px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 6px; width:20px; height:20px; font-size: 13px; line-height:1; }
 .qty-btn img { width: 14px; height: 14px; display: block; }
@@ -244,8 +302,42 @@ input[type=number] {
 .image-actions { margin-left: auto; display: flex; gap: 6px; }
 
 /* Status labels */
-.status.active { color: var(--ok); }
-.status.archived { color: var(--muted); }
+.status.published { color: var(--ok); }
+.status.unpublished { color: var(--warning); }
+.status.archive { color: var(--muted); }
+
+.products-table tr.is-critical td {
+  background: #fff7f7;
+}
+
+/* Add Product page: tighten size/stock/critical spacing */
+.add-product-page .size-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.add-product-page .size-row {
+  grid-template-columns: 90px 70px 70px 80px 80px;
+  gap: 10px;
+  justify-items: start;
+}
+.add-product-page .size-row.header {
+  color: #666;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 6px 4px 2px;
+}
+.add-product-page .size-row.header strong {
+  font-weight: 600;
+}
+.add-product-page .size-row input[type="number"] {
+  width: 70px;
+}
+.add-product-page .size-row .qty-controls {
+  justify-self: start;
+}
 
 /* Responsive tweaks */
 @media (max-width: 900px) {

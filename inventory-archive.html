@@ -172,13 +172,15 @@
             try{
                 var db = ensureFirebaseReady();
                 Promise.all([
+                    db.collection('products').where('status','==','archive').get(),
                     db.collection('products').where('status','==','archived').get(),
                     db.collection('variants').get()
                 ]).then(function(res){
                     var products = [];
                     res[0].forEach(function(doc){ products.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                    res[1].forEach(function(doc){ products.push(Object.assign({ id: doc.id }, doc.data() || {})); });
                     var variants = [];
-                    res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                    res[2].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
                     rowsCache = buildRows(products, variants);
                     applySearch();
                 }).catch(function(e){ console.error(e); });
@@ -209,7 +211,7 @@
             if(!productId) return;
             try{
                 var db = ensureFirebaseReady();
-                db.collection('products').doc(String(productId)).set({ status: 'active' }, { merge: true }).then(function(){
+                db.collection('products').doc(String(productId)).set({ status: 'published' }, { merge: true }).then(function(){
                     loadArchive();
                 });
             }catch(e){ console.error(e); }

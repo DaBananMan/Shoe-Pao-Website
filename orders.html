@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="shoepao-dev-admin" content="true">
     <title>Orders - SHOEPAO</title>
     <link rel="stylesheet" href="style.css">
     <script src="js/ensure-server.js"></script>
@@ -525,7 +524,11 @@
                 <a class="nav-item" href="accounts.html">Accounts</a>
             </div>
         </div>
-        <!-- profile removed for admin UI -->
+        <div class="nav-right">
+            <button class="profile-btn" onclick="location.href='profile.html'" aria-label="Profile">
+                <img src="IMAGE/USERICON.png" alt="User">
+            </button>
+        </div>
     </header>
     <div class="site-container">
     <div class="orders-page">
@@ -793,9 +796,7 @@
 
     <script src="js/firebase-config.js"></script>
         <script>
-            // Do NOT enable anonymous sign-in by default. Admin pages should opt-in
-            // explicitly if they need it by setting window.ALLOW_ANON_SIGNIN = true.
-            window.ALLOW_ANON_SIGNIN = false;
+            window.ALLOW_ANON_SIGNIN = true;
         </script>
         <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
         <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -805,8 +806,8 @@
     // Navigation bar functions
     function goToHome() { window.location.href = 'home.html'; }
     function goToProfile() {
-        // profile navigation removed for admin UI
-        return;
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
     }
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToOrders() { window.location.href = 'orders.html'; }
@@ -814,8 +815,8 @@
     function goToFAQ() { window.location.href = 'privacy.html'; }
     function goToContact() { window.location.href = 'contact.html'; }
     function goToUserPage() {
-        // profile/user navigation removed for admin UI
-        return;
+    try{ var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } }catch(e){ window.location.href = 'login.html'; return; }
+        window.location.href = 'profile.html';
     }
     function goToCartPage() { window.location.href = 'cart.html'; }
     function toggleSearchBox() {
@@ -879,10 +880,9 @@
         let selectedOrders = new Set();
         let currentDrawerOrderId = null;
     let ordersLoaded = false;
-    // Dev API base for Node backend. Prefer `window.API_BASE` (set by ensure-server.js)
-    // which will point to the local Node server on localhost. Fall back to the
-    // legacy PHP proxy path when needed.
-    var API_BASE = (function(){ try{ if(typeof window !== 'undefined' && window.API_BASE) return window.API_BASE; var p = window.location.pathname.replace(/\/+$|^\/+/,''); var seg = p.split('/'); var root = seg.length > 0 ? '/' + seg[0] : ''; return root + '/server-proxy.php'; }catch(e){ return '/server-proxy.php'; } })();
+    // Dev API base for Node backend. Change or make dynamic for production.
+    // API base points to PHP proxy so browser requests go through Apache/PHP.
+    const API_BASE = (function(){ try{ var p = window.location.pathname.replace(/\/+$|^\/+/, ''); var seg = p.split('/'); var root = seg.length > 0 ? '/' + seg[0] : ''; return root + '/server-proxy.php'; }catch(e){ return '/server-proxy.php'; } })();
 
             function showOrdersLoading(label){
                 var overlay = document.getElementById('ordersLoadingOverlay');
@@ -3208,7 +3208,6 @@
         }
 
         document.addEventListener('DOMContentLoaded', async function(){
-            try{ if(window.PageDataGate && PageDataGate.block) PageDataGate.block('Loading orders...'); }catch(e){}
             document.getElementById('ordersSearch').addEventListener('input', function(){ applySearch(); });
             var selectAll = document.getElementById('selectAllCheckbox');
             if(selectAll){
@@ -3243,10 +3242,7 @@
                     applySearch();
                 });
             });
-            try{
-                await initializeOrders();
-            }catch(e){ console.error('initializeOrders failed', e); }
-            try{ if(window.PageDataGate && PageDataGate.ready) PageDataGate.ready(); }catch(e){}
+            await initializeOrders();
         });
     })();
     // Sticky footer fallback for short content

@@ -135,6 +135,26 @@
             color: #222;
             font-weight: 400;
         }
+        .wishlist-card.unavailable {
+            opacity: 0.6;
+            filter: grayscale(1);
+            pointer-events: none;
+        }
+        .wishlist-card.unavailable .wishlist-card-delete-btn {
+            pointer-events: auto;
+        }
+        .wishlist-unavailable-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: #b71c1c;
+            color: #fff;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 4px 10px;
+            z-index: 2;
+        }
         .wishlist-divider {
             width: 100%;
             height: 2px;
@@ -227,6 +247,9 @@
             </div>
         </div>
     </footer>
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script>
     // Navigation bar functions
     function goToProfile() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { if(typeof window.ensureSignedInOrRedirect === 'function'){ ensureSignedInOrRedirect('profile.html'); } else { var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } } }catch(e){ window.location.href = 'login.html'; } }
@@ -290,6 +313,73 @@
     window.addEventListener('load', stickyFooter);
     window.addEventListener('resize', stickyFooter);
 
+    function normalizeStatus(raw){
+        var s = String(raw || '').toLowerCase().trim();
+        if(!s || s === 'active' || s === 'published') return 'published';
+        if(s === 'archived' || s === 'archive') return 'archive';
+        if(s === 'unpublished' || s === 'unpublish' || s === 'draft' || s === 'hidden') return 'unpublished';
+        return s;
+    }
+
+    function ensureFirebaseReady(){
+        if(!window.FIREBASE_CONFIG) throw new Error('Firebase not configured');
+        if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+        return firebase.firestore();
+    }
+
+    function buildInventoryRows(products, variants){
+        var map = {};
+        (variants || []).forEach(function(v){
+            var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || null;
+            if(!pid) return;
+            map[pid] = map[pid] || [];
+            var images = Array.isArray(v.images) ? v.images : (v.image ? [v.image] : []);
+            map[pid].push({
+                id: v.id || ('color-' + Math.random().toString(36).slice(2,9)),
+                name: v.colorName || v.name || v.color || 'Color',
+                images: images,
+                image: images[0] || v.image || ''
+            });
+        });
+        var out = [];
+        (products || []).forEach(function(p){
+            var pid = p.id || p.productId || p.sku || '';
+            var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors : (map[pid] || []);
+            var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : (p.image || '');
+            (colorsArr || []).forEach(function(c){
+                var colorImages = Array.isArray(c.images) ? c.images.filter(Boolean) : [];
+                var colorImg = colorImages.length ? colorImages[0] : (c.image || baseImg || 'IMAGE/NIKE1.png');
+                var salePrice = Number((p.pricing && (p.pricing.sale||p.pricing.original)) || p.price || 0);
+                var originalPrice = Number((p.pricing && p.pricing.original) || p.originalPrice || 0);
+                out.push({
+                    productId: p.id || '',
+                    brand: p.brand || '',
+                    title: (p.model || p.name || '') + (c.name ? (' ' + c.name) : ''),
+                    color: c.name || '',
+                    image: colorImg || baseImg || 'IMAGE/NIKE1.png',
+                    price: salePrice,
+                    originalPrice: originalPrice,
+                    status: normalizeStatus(p.status || p.state || p.availability || 'published')
+                });
+            });
+        });
+        return out;
+    }
+
+    function openProductFromRow(row){
+        try{
+            var params = new URLSearchParams();
+            if(row.productId) params.set('pid', row.productId);
+            if(row.brand) params.set('brand', row.brand);
+            if(row.title) params.set('title', row.title);
+            if(row.color) params.set('color', row.color);
+            if(row.price) params.set('price', String(row.price));
+            if(row.originalPrice) params.set('originalPrice', String(row.originalPrice));
+            if(row.image) params.set('img', row.image);
+            window.location.href = 'product-view.html' + (params.toString() ? ('?' + params.toString()) : '');
+        }catch(e){ window.location.href = 'product-view.html'; }
+    }
+
     // Wishlist logic (safe: only updates 'wishlist' key)
     function renderWishlist() {
         var wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]');
@@ -301,13 +391,29 @@
         }
         wishlist.forEach(function(item, idx) {
             var card = document.createElement('div');
-            card.className = 'wishlist-card';
+            var invItem = null;
+            try{ if(window.findInventoryItemForProduct) invItem = window.findInventoryItemForProduct(item); }catch(e){ invItem = null; }
+            var unavailable = false;
+            try{
+                var statusSource = (invItem && invItem.status !== undefined) ? invItem.status : (item && item.status !== undefined ? item.status : '');
+                if(statusSource !== undefined && statusSource !== null && String(statusSource).trim() !== ''){
+                    if(window.isPublishedStatus && typeof window.isPublishedStatus === 'function') unavailable = !window.isPublishedStatus(statusSource);
+                    else {
+                        var s = String(statusSource || '').toLowerCase().trim();
+                        if(s === 'active') s = 'published';
+                        if(s === 'archived') s = 'archive';
+                        unavailable = s && s !== 'published';
+                    }
+                }
+            }catch(e){ unavailable = false; }
+            card.className = 'wishlist-card' + (unavailable ? ' unavailable' : '');
             // determine flip for Nike images
             var flipClass = ((item.brand && item.brand.toString().toLowerCase().indexOf('nike') !== -1) || (item.image && item.image.toString().toLowerCase().indexOf('nike') !== -1)) ? ' flip-horizontal' : '';
             card.innerHTML = `
                 <button class="wishlist-card-delete-btn" title="Remove from Wishlist" data-idx="${idx}">&times;</button>
                 <div class="wishlist-card-img-box">
                     <img src="${item.image}" class="wishlist-card-img${flipClass}" alt="${item.title}">
+                    ${unavailable ? '<span class="wishlist-unavailable-badge">Unavailable</span>' : ''}
                     ${item.sale ? '<span class="wishlist-card-badge-sale">Sale</span>' : ''}
                 </div>
                 <div class="wishlist-card-info-box">
@@ -327,8 +433,10 @@
                 // set product localStorage keys and navigate
                 viewProduct(item.brand || '', item.title || '', item.price || '', item.image || '', item.sale ? 'Sale' : '');
             }
-            if(imgBox) imgBox.style.cursor = 'pointer', imgBox.addEventListener('click', onCardClick);
-            if(infoBox) infoBox.style.cursor = 'pointer', infoBox.addEventListener('click', onCardClick);
+            if(!unavailable){
+                if(imgBox) imgBox.style.cursor = 'pointer', imgBox.addEventListener('click', onCardClick);
+                if(infoBox) infoBox.style.cursor = 'pointer', infoBox.addEventListener('click', onCardClick);
+            }
             grid.appendChild(card);
         });
         // Attach delete event
@@ -345,40 +453,49 @@
     }
     // You may also like (static demo, can be replaced with dynamic data)
     function renderWishlistRecommend() {
-        var recommend = [
-            {image:'IMAGE/NIKE1.png', sale:true, brand:'Nike', price:'₱2,295.00', title:'Nike P6000 Shadow'},
-            {image:'IMAGE/NIKE2.png', sale:true, brand:'Nike', price:'₱2,295.00', title:'Nike Airmax TN Camo'},
-            {image:'IMAGE/NIKE3.png', sale:false, brand:'Nike', price:'₱2,395.00', title:'Nike GT CUT 2 LEAP HIGH'}
-        ];
         var grid = document.getElementById('wishlistRecommendGrid');
+        if(!grid) return;
         grid.innerHTML = '';
-        recommend.forEach(function(item) {
-            var card = document.createElement('div');
-            card.className = 'wishlist-card';
-            var flipClass = ((item.brand && item.brand.toString().toLowerCase().indexOf('nike') !== -1) || (item.image && item.image.toString().toLowerCase().indexOf('nike') !== -1)) ? ' flip-horizontal' : '';
-            card.innerHTML = `
-                <div class="wishlist-card-img-box">
-                    <img src="${item.image}" class="wishlist-card-img${flipClass}" alt="${item.title}">
-                    ${item.sale ? '<span class="wishlist-card-badge-sale">New</span>' : ''}
-                </div>
-                <div class="wishlist-card-info-box">
-                    <div class="wishlist-card-info-top">
-                        <span class="wishlist-card-brand">${item.brand}</span>
-                        <span class="wishlist-card-price">${item.price}</span>
-                    </div>
-                    <div class="wishlist-card-info-bottom">${item.title}</div>
-                </div>
-            `;
-            // navigate to product view when clicking image or info
-            var imgBox = card.querySelector('.wishlist-card-img-box');
-            var infoBox = card.querySelector('.wishlist-card-info-box');
-            function onRecommendClick(e){
-                viewProduct(item.brand || '', item.title || '', item.price || '', item.image || '', item.sale ? 'New' : '');
-            }
-            if(imgBox) imgBox.style.cursor = 'pointer', imgBox.addEventListener('click', onRecommendClick);
-            if(infoBox) infoBox.style.cursor = 'pointer', infoBox.addEventListener('click', onRecommendClick);
-            grid.appendChild(card);
-        });
+        try{
+            var db = ensureFirebaseReady();
+            Promise.all([db.collection('products').get(), db.collection('variants').get()]).then(function(res){
+                var products = []; res[0].forEach(function(doc){ products.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                var variants = []; res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                var rows = buildInventoryRows(products, variants).filter(function(r){ return normalizeStatus(r.status) === 'published'; });
+                if(!rows.length){ grid.innerHTML = '<div style="color:#888;font-size:1.05rem;padding:20px 0;">No recommendations available right now.</div>'; return; }
+                for(var i = rows.length - 1; i > 0; i--){
+                    var j = Math.floor(Math.random() * (i + 1));
+                    var tmp = rows[i]; rows[i] = rows[j]; rows[j] = tmp;
+                }
+                var picks = rows.slice(0, 5);
+                picks.forEach(function(item){
+                    var card = document.createElement('div');
+                    card.className = 'wishlist-card';
+                    var flipClass = ((item.brand && item.brand.toString().toLowerCase().indexOf('nike') !== -1) || (item.image && item.image.toString().toLowerCase().indexOf('nike') !== -1)) ? ' flip-horizontal' : '';
+                    var priceLabel = (function(){ try{ return new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(item.price||0); }catch(e){ return '₱'+Number(item.price||0).toFixed(2); } })();
+                    var onSale = Number(item.originalPrice||0) > Number(item.price||0);
+                    card.innerHTML = `
+                        <div class="wishlist-card-img-box">
+                            <img src="${item.image}" class="wishlist-card-img${flipClass}" alt="${item.title}">
+                            ${onSale ? '<span class="wishlist-card-badge-sale">Sale</span>' : ''}
+                        </div>
+                        <div class="wishlist-card-info-box">
+                            <div class="wishlist-card-info-top">
+                                <span class="wishlist-card-brand">${item.brand}</span>
+                                <span class="wishlist-card-price">${priceLabel}</span>
+                            </div>
+                            <div class="wishlist-card-info-bottom">${item.title}</div>
+                        </div>
+                    `;
+                    var imgBox = card.querySelector('.wishlist-card-img-box');
+                    var infoBox = card.querySelector('.wishlist-card-info-box');
+                    function onRecommendClick(){ openProductFromRow(item); }
+                    if(imgBox) imgBox.style.cursor = 'pointer', imgBox.addEventListener('click', onRecommendClick);
+                    if(infoBox) infoBox.style.cursor = 'pointer', infoBox.addEventListener('click', onRecommendClick);
+                    grid.appendChild(card);
+                });
+            }).catch(function(e){ console.error(e); grid.innerHTML = '<div style="color:#888;font-size:1.05rem;padding:20px 0;">No recommendations available right now.</div>'; });
+        }catch(e){ grid.innerHTML = '<div style="color:#888;font-size:1.05rem;padding:20px 0;">No recommendations available right now.</div>'; }
     }
     window.addEventListener('DOMContentLoaded', function() {
         renderWishlist();
@@ -596,8 +713,9 @@
             if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
             renderCart();
             if (checkoutBtn) {
-                checkoutBtn.addEventListener('click', function(){
-                    window.location.href = 'checkout.html';
+                checkoutBtn.addEventListener('click', function(e){
+                    if(window.handleCheckoutFromCart){ window.handleCheckoutFromCart(e); }
+                    else { window.location.href = 'checkout.html'; }
                 });
             }
         });
