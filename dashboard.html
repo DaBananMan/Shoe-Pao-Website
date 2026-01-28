@@ -90,6 +90,8 @@
             <div class="subheader">Monitor Shoe Pao Footwear's performance at a glance. View real-time sales, inventory status, add products, and new orders.</div>
         </section>
 
+        <div id="cacheBanner" style="display:none;margin:10px 0;padding:10px;border-radius:8px;background:#fff3cd;color:#856404;border:1px solid #ffeeba;font-weight:600;">Showing cached data from localStorage (offline mode)</div>
+
         <div class="divider" aria-hidden="true"></div>
 
         <h2 class="dashboard-title">Dashboard</h2>
@@ -355,13 +357,17 @@
     }
 
     async function refresh(gran, filters){
+        let usedLocal = false;
         let data = await fetchAnalytics(gran, filters);
         // If server analytics failed, try to build a best-effort view from localStorage
         if(!data || !data.ok){
             try{
                 data = computeLocalAnalytics(gran, filters);
+                usedLocal = true;
             }catch(e){ data = null; }
         }
+        // If server returned a non-ok payload, mark as local used as well
+        if(data && data.ok === false) usedLocal = true;
         if(!data || !data.ok) return;
         el('cardRevenue').textContent = formatPHP(data.totals.revenue || 0);
     el('cardSales').textContent = String(data.totals.itemsSold || 0);
@@ -393,6 +399,7 @@
     el('ordersDelivered').textContent = String( lookupStatusCount(sc, ['delivered','delivered']) );
     el('ordersCancel').textContent = String( lookupStatusCount(sc, ['cancel_requests','cancel_requests','cancel-request','cancel-requested','cancelled']) );
     el('ordersRefund').textContent = String( lookupStatusCount(sc, ['refund_requests','refund-request','refund_requested','refunded','refund processing','refund-processing']) );
+    try{ var banner = el('cacheBanner'); if(banner) banner.style.display = usedLocal ? 'block' : 'none'; }catch(e){}
     }
 
     // Range filter (Current day / Past week / Past month / Past year)
@@ -432,6 +439,19 @@
             console.debug && console.debug('[dashboard] detected local orders update, refreshing UI from local cache');
             (async ()=>{ if(__isRefreshing) return; __isRefreshing = true; try{ await refresh(__currentGran || 'month', __currentFilters || {}); }catch(e){ console.warn('local-orders refresh error', e); } __isRefreshing = false; })();
         });
+        // Also listen for storage events (cross-tab localStorage writes) so the dashboard
+        // refreshes when another tab/page updates the canonical keys.
+        try{
+            window.addEventListener('storage', function(e){
+                try{
+                    if(!e || !e.key) return;
+                    if(e.key === 'products' || e.key === 'orders' || e.key === 'inventory' || e.key === 'inventory_app_products'){
+                        console.debug && console.debug('[dashboard] storage event for', e.key, '— refreshing');
+                        (async ()=>{ if(__isRefreshing) return; __isRefreshing = true; try{ await refresh(__currentGran || 'month', __currentFilters || {}); }catch(err){ console.warn('storage refresh error', err); } __isRefreshing = false; })();
+                    }
+                }catch(err){}
+            });
+        }catch(e){}
         // when tab becomes visible again or window focuses, refresh immediately and restart polling
         document.addEventListener('visibilitychange', function(){
             if(document.visibilityState === 'visible'){
@@ -451,38 +471,131 @@
 function computeLocalAnalytics(gran, filters){
     // expected output shape similar to server response used by UI
     var out = { ok: true, totals: { revenue: 0, itemsSold: 0, orders: 0 }, series: [], topBrands: [], topSizes: [], topModels: [], inventory: { totalStock: 0, lowStock: [] }, statusCounts: {} };
-
-    // read orders from localStorage
     try{
+        // read products first for brand/model lookups
+        var prodKeys = ['products','inventory','inventory_data','inventory_app_products','local_inventory'];
+        var products = null; var productsKey = null;
+        for(var i=0;i<prodKeys.length;i++){
+            try{ var rr = localStorage.getItem(prodKeys[i]); if(!rr) continue; var pp = JSON.parse(rr||'null'); if(Array.isArray(pp)){ products = pp; productsKey = prodKeys[i]; break; } }catch(e){}
+        }
+
+        // read orders from localStorage
         var raw = localStorage.getItem('orders');
         var orders = raw ? JSON.parse(raw) : null;
-        if(Array.isArray(orders)){
-            out.totals.orders = orders.length;
-            var itemsSold = 0;
-            orders.forEach(function(o){
-                try{
-                    var status = (o && (o.status || o.state || o.orderStatus)) || 'unknown';
-                    status = String(status).toLowerCase();
-                    out.statusCounts[status] = (out.statusCounts[status]||0) + 1;
-                    if(Array.isArray(o.items)){
-                        o.items.forEach(function(it){ itemsSold += Number(it.qty || it.quantity || 1) || 0; });
-                    }
-                }catch(e){}
-            });
-            out.totals.itemsSold = itemsSold;
-        }
-    }catch(e){ /* ignore */ }
+        if(!Array.isArray(orders)) orders = [];
 
-    // Read inventory from common localStorage keys (same heuristic as orders page updater)
-    try{
-        var keys = ['products','inventory','inventory_data','inventory_app_products','local_inventory'];
-        var found = null; var data = null;
-        for(var i=0;i<keys.length;i++){
-            try{ var r = localStorage.getItem(keys[i]); if(!r) continue; var p = JSON.parse(r||'null'); if(Array.isArray(p)){ found = keys[i]; data = p; break; } }catch(e){}
+        out.totals.orders = orders.length;
+
+        // helpers for revenue extraction
+        function orderRevenue(o){
+            try{
+                if(!o) return 0;
+                var cand = o.total || o.totalAmount || o.grandTotal || o.grand_total || o.amount || o.paid || o.total_paid;
+                if(Number.isFinite(Number(cand))) return Number(cand);
+                // fallback: sum item price * qty
+                var sum = 0;
+                if(Array.isArray(o.items)){
+                    o.items.forEach(function(it){
+                        try{
+                            var price = it.price || it.unitPrice || it.unit_price || it.amount || it.rate || 0;
+                            var qty = Number(it.qty || it.quantity || it.q || 1) || 0;
+                            price = Number(price) || 0;
+                            sum += price * qty;
+                        }catch(e){}
+                    });
+                }
+                return sum || 0;
+            }catch(e){ return 0; }
         }
-        if(found && Array.isArray(data)){
-            var total = 0; var low = [];
-            data.forEach(function(prod){
+
+        // bucket function
+        function bucketFor(dateStr){
+            try{
+                var d = new Date(dateStr);
+                if(isNaN(d.getTime())) d = new Date(String(dateStr).replace(' ', 'T'));
+                if(isNaN(d.getTime())) return null;
+                var y = d.getFullYear(); var m = String(d.getMonth()+1).padStart(2,'0'); var day = String(d.getDate()).padStart(2,'0'); var hh = String(d.getHours()).padStart(2,'0');
+                if(gran === 'hour') return y+'-'+m+'-'+day+'T'+hh;
+                if(gran === 'day') return y+'-'+m+'-'+day;
+                if(gran === 'month') return y+'-'+m;
+                if(gran === 'year') return String(y);
+                return y+'-'+m;
+            }catch(e){ return null; }
+        }
+
+        var seriesMap = {}; // bucket -> { revenue, orders }
+        var brandsMap = {}; var sizesMap = {}; var modelsMap = {};
+        var totalItems = 0; var totalRevenue = 0;
+
+        orders.forEach(function(o){
+            try{
+                var status = (o && (o.status || o.state || o.orderStatus)) || 'unknown';
+                status = String(status).toLowerCase();
+                out.statusCounts[status] = (out.statusCounts[status]||0) + 1;
+
+                var rev = orderRevenue(o) || 0;
+                totalRevenue += rev;
+
+                // series bucket
+                var dateField = o.date || o.createdAt || o.created_at || o.timestamp || o.time || o.ts || o.orderDate || o.order_date;
+                var b = bucketFor(dateField || o.date || o.timestamp || new Date().toISOString());
+                if(b){ if(!seriesMap[b]) seriesMap[b] = { revenue: 0, orders: 0 }; seriesMap[b].revenue += rev; seriesMap[b].orders += 1; }
+
+                // items
+                if(Array.isArray(o.items)){
+                    o.items.forEach(function(it){
+                        try{
+                            var qty = Number(it.qty || it.quantity || it.q || 1) || 0;
+                            totalItems += qty;
+                            // brand
+                            var brand = it.brand || it.productBrand || it.mfg || it.manufacturer || (it.product && it.product.brand) || '';
+                            if(!brand && products && (it.productId || it.id || it.product)){
+                                var pid = it.productId || it.product || it.id;
+                                var prod = products.find(p => String(p.id) === String(pid) || String(p.sku) === String(pid));
+                                if(prod) brand = prod.brand || prod.title || prod.model || '';
+                            }
+                            brand = String(brand || '').trim() || 'Unknown';
+                            brandsMap[brand] = brandsMap[brand] || { brand: brand, units: 0, revenue: 0 };
+                            brandsMap[brand].units += qty;
+                            var itemPrice = Number(it.price || it.unitPrice || it.unit_price || 0) || 0;
+                            brandsMap[brand].revenue += itemPrice * qty;
+
+                            // size
+                            var size = it.size || it.eu || it.variantSize || String((it.sizeLabel||'')).trim() || 'N/A';
+                            sizesMap[size] = sizesMap[size] || { size: size, units: 0 };
+                            sizesMap[size].units += qty;
+
+                            // model/title
+                            var title = it.title || it.model || (it.product && (it.product.model || it.product.title)) || '';
+                            if(!title && products && (it.productId || it.id || it.product)){
+                                var pid2 = it.productId || it.product || it.id;
+                                var prod2 = products.find(p => String(p.id) === String(pid2) || String(p.sku) === String(pid2));
+                                if(prod2) title = prod2.model || prod2.title || prod2.name || '';
+                            }
+                            title = String(title || '').trim() || 'Unknown Model';
+                            modelsMap[title] = modelsMap[title] || { title: title, units: 0 };
+                            modelsMap[title].units += qty;
+                        }catch(e){}
+                    });
+                }
+            }catch(e){}
+        });
+
+        out.totals.itemsSold = totalItems;
+        out.totals.revenue = totalRevenue;
+
+        // series -> array sorted by bucket (attempt chronological order)
+        var buckets = Object.keys(seriesMap).sort();
+        out.series = buckets.map(bk => ({ bucket: bk, revenue: Number(seriesMap[bk].revenue || 0), orders: Number(seriesMap[bk].orders || 0) }));
+        // provide top lists
+        out.topBrands = Object.keys(brandsMap).map(k => brandsMap[k]).sort((a,b) => b.units - a.units).slice(0,10);
+        out.topSizes = Object.keys(sizesMap).map(k => sizesMap[k]).sort((a,b) => b.units - a.units).slice(0,10);
+        out.topModels = Object.keys(modelsMap).map(k => ({ title: modelsMap[k].title, units: modelsMap[k].units })).sort((a,b) => b.units - a.units).slice(0,10);
+
+        // inventory totals & low-stock from products if available
+        if(Array.isArray(products)){
+            var totalStock = 0; var low = [];
+            products.forEach(function(prod){
                 try{
                     var prodTotal = 0;
                     if(Array.isArray(prod.colors)){
@@ -497,24 +610,21 @@ function computeLocalAnalytics(gran, filters){
                         prod.sizes.forEach(function(s){ prodTotal += Number(s.stock||s.qty||s.inventory||0)||0; });
                     } else if(prod.sizeMap && typeof prod.sizeMap === 'object'){
                         Object.keys(prod.sizeMap).forEach(function(k){ prodTotal += Number(prod.sizeMap[k]||0)||0; });
-                    } else if(prod.sizesMap && typeof prod.sizesMap === 'object'){
-                        Object.keys(prod.sizesMap).forEach(function(k){ prodTotal += Number(prod.sizesMap[k]||0)||0; });
                     } else {
                         prodTotal += Number(prod.stock||prod.inventory||prod.qty||0)||0;
                     }
-                    total += prodTotal;
-                    // low stock threshold: 5 or product-specific lowThreshold
-                    var threshold = Number(prod.lowThreshold||prod.reorderPoint||5) || 5;
+                    totalStock += prodTotal;
+                    var threshold = Number(prod.lowThreshold||prod.reorderPoint||prod.criticalLevel||5) || 5;
                     if(prodTotal <= threshold){ low.push({ id: prod.id||prod.productId||prod.sku||'', name: prod.name||prod.title||prod.model||'' }); }
                 }catch(e){}
             });
-            out.inventory.totalStock = total;
+            out.inventory.totalStock = totalStock;
             out.inventory.lowStock = low;
         }
-    }catch(e){ /* ignore */ }
 
-    // revenue/series/top lists can't be reliably computed from local cache without sales history
-    // keep them empty or zero; UI will display zeros gracefully.
+        // set global lastGranularity for label formatting
+        try{ lastGranularity = gran || lastGranularity || 'month'; }catch(e){}
+    }catch(e){ /* ignore and return minimal out */ }
     return out;
 }
 </script>

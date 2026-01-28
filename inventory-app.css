@@ -309,7 +309,7 @@ input[type=number] {
 .variant-image-preview img { width:100%; height:100%; object-fit:cover; }
 .variant-image-placeholder { color:var(--muted); font-size:12px; text-align:center; padding:6px; }
 .variant-image-controls { display:flex; gap:8px; align-items:flex-start; flex:1; flex-wrap:wrap; }
-.variant-image-url { flex:1 1 280px; padding:10px 12px; border-radius:8px; border:1px solid var(--border); font-size:14px; }
+.variant-image-url { flex:1 1 280px; padding:6px 8px; height:28px; line-height:20px; border-radius:8px; border:1px solid var(--border); font-size:14px; }
 .variant-image-controls .small-btn { padding:8px 10px; font-size:14px; }
 
 /* Status labels */

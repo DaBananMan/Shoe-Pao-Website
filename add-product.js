@@ -162,12 +162,12 @@
             const preview = img ? `<img src="${img}" alt="${color.name} ${label}">` : `<div class="variant-image-placeholder">${label}</div>`;
             return `
               <div class="variant-image-slot" data-index="${idx}">
-                <div class="variant-image-preview">${preview}</div>
-                <div class="variant-image-actions">
-                  <label class="small-btn">
-                    <input type="file" accept="image/*" data-action="upload" data-index="${idx}" style="display:none;">
-                    Upload
-                  </label>
+                <div class="variant-image-preview" data-index="${idx}">
+                  ${preview}
+                  <input type="file" accept="image/*" data-action="upload" data-index="${idx}" style="display:none;">
+                </div>
+                <input type="text" class="variant-image-url" placeholder="Image URL (http:// or data:)" data-index="${idx}" value="${img || ''}">
+                <div style="margin-top:8px;display:flex;justify-content:flex-start;">
                   <button type="button" class="ghost danger-text small-btn" data-action="clear" data-index="${idx}">Remove</button>
                 </div>
               </div>`;
@@ -228,6 +228,66 @@
       color.images[idx] = '';
       renderColors();
     }));
+
+    // Clicking the preview should open the hidden file picker
+    wrap.querySelectorAll('.variant-image-preview').forEach(pre => pre.addEventListener('click', (e) => {
+      const idx = parseNum(pre.dataset.index, 0);
+      const fileInput = pre.querySelector('input[type="file"][data-action="upload"]') || pre.parentElement.querySelector('input[type="file"][data-action="upload"]');
+      if (fileInput) fileInput.click();
+    }));
+
+    // Bind Enter key or blur on URL inputs to set the URL (no Set button)
+    wrap.querySelectorAll('.variant-image-url').forEach(inp => {
+      const applyUrl = () => {
+        const idx = parseNum(inp.dataset.index, 0);
+        const url = inp && String(inp.value || '').trim();
+        if (!url) { color.images[idx] = ''; renderColors(); return; }
+        if (!/^data:|^(https?:)?\/\//i.test(url) && !/^\//.test(url)) { alert('Please enter a valid image URL (http(s) or data:).'); return; }
+        color.images[idx] = url;
+        renderColors();
+      };
+
+      // Live-preview while typing/pasting a URL without re-rendering (preserve caret)
+      inp.addEventListener('input', () => {
+        try {
+          const idx = parseNum(inp.dataset.index, 0);
+          const url = inp && String(inp.value || '').trim();
+          const slot = inp.closest('.variant-image-slot');
+          if (!slot) return;
+          const previewEl = slot.querySelector('.variant-image-preview');
+          if (!previewEl) return;
+          // Determine if URL looks like an image/data URL
+          const valid = url && (/^data:|^(https?:)?\/\//i.test(url) || /^\//.test(url));
+          let imgEl = previewEl.querySelector('img');
+          if (valid) {
+            if (!imgEl) {
+              imgEl = document.createElement('img');
+              imgEl.alt = `${color.name} image ${idx + 1}`;
+              imgEl.style.width = '100%'; imgEl.style.height = '100%'; imgEl.style.objectFit = 'cover';
+              // remove placeholder if present
+              const ph = previewEl.querySelector('.variant-image-placeholder'); if (ph) ph.remove();
+              const fileInput = previewEl.querySelector('input[type="file"][data-action="upload"]');
+              previewEl.insertBefore(imgEl, fileInput || null);
+            }
+            imgEl.src = url;
+            color.images[idx] = url;
+          } else {
+            if (imgEl) imgEl.remove();
+            if (!previewEl.querySelector('.variant-image-placeholder')) {
+              const placeholder = document.createElement('div');
+              placeholder.className = 'variant-image-placeholder';
+              placeholder.textContent = `Image ${idx + 1}`;
+              const fileInput = previewEl.querySelector('input[type="file"][data-action="upload"]');
+              previewEl.insertBefore(placeholder, fileInput || null);
+            }
+            color.images[idx] = '';
+          }
+        } catch (e) { /* ignore live preview errors */ }
+      });
+
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyUrl(); } });
+      inp.addEventListener('blur', () => { try { applyUrl(); }catch(e){} });
+    });
 
     // Bind add size
     const addBtn = qs('#addSizeBtn');
