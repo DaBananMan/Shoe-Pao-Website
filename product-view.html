@@ -3350,7 +3350,7 @@ On page.</div>
                                 var incRes = window.tryIncrementCartItem(cart, idx);
                                 if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                     if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                    else alert('Maximum of 3 items per order allowed.');
+                                    else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
                                     return;
                                 }
                                 if (incRes && incRes.success === false && incRes.reason === 'max_reached') {

@@ -487,6 +487,9 @@
     function normalizeDeliveryAddressFromAddressObject(addressObject){
         if(!addressObject) return null;
         return {
+            fullName: addressObject.fullName || '',
+            phone: addressObject.phone || '',
+            postalCode: addressObject.postalCode || '',
             region: (addressObject.region && addressObject.region.name) ? addressObject.region.name : (addressObject.region || ''),
             province: (addressObject.province && addressObject.province.name) ? addressObject.province.name : (addressObject.province || ''),
             city: (addressObject.city && addressObject.city.name) ? addressObject.city.name : (addressObject.city || ''),
@@ -1203,6 +1206,22 @@
     document.addEventListener('DOMContentLoaded', function(){
         var btn = document.getElementById('placeOrderBtn');
         if (btn) btn.addEventListener('click', placeOrder);
+
+        // Failsafe: if Firebase or checkout listeners hang, show whatever we have and hide loader.
+        setTimeout(function(){
+            try{
+                if(paymentDataReady) return;
+                var localSnap = getLocalCheckoutSnapshot();
+                if(localSnap && localSnap.items && localSnap.items.length){
+                    usingLocalCheckoutFallback = true;
+                    currentCheckout = localSnap.checkout || null;
+                    currentItems = localSnap.items || [];
+                    renderPaymentFromCheckout();
+                } else {
+                    markPaymentDataReady('timeout');
+                }
+            }catch(e){ markPaymentDataReady('timeout'); }
+        }, 4500);
 
         ensureFirebaseReady(function(err){
             if(err){

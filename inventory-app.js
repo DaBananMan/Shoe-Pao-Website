@@ -1379,6 +1379,7 @@
 
     // Images + initial variants
     const imgInput = qs('#imageFileInput'); if (imgInput) imgInput.value = '';
+  const imgUrlInput = qs('#imageUrlInput'); if (imgUrlInput) imgUrlInput.value = '';
     const initColorName = qs('#initialColorName'); if (initColorName) initColorName.value = '';
     const initColorCode = qs('#initialColorCode'); if (initColorCode) initColorCode.value = '#000000';
     const initSec = qs('#initialVariantSection'); if (initSec) initSec.style.display = 'block';
@@ -1762,6 +1763,23 @@
     Promise.all(readers)
       .then(items => { state.ui.productModalImages.push(...items); renderImagesList(); inp.value = ''; })
       .catch(() => alert('Failed to import one or more images'));
+  }
+
+  // Add an image into the modal by URL (or data: URI). Accepts http(s) or data: URIs.
+  function addImageFromUrl() {
+    try {
+      const inp = qs('#imageUrlInput'); if (!inp) return;
+      const v = (inp.value || '').trim();
+      if (!v) { alert('Enter an image URL or data URI'); return; }
+      // basic validation: accept data: URIs or http/https or protocol-relative
+      if (!/^data:|^(https?:)?\/\//i.test(v) && !/^\//.test(v)) {
+        alert('Please enter a valid image URL (http(s) or data:).');
+        return;
+      }
+      state.ui.productModalImages.push({ url: v, name: displayNameFromUrl(v) });
+      renderImagesList();
+      inp.value = '';
+    } catch (e) { console.warn('addImageFromUrl failed', e); alert('Failed to add image URL'); }
   }
 
   // Variants modal
@@ -2586,6 +2604,7 @@
   const productModal = qs('#productModal'); if (productModal) productModal.addEventListener('close', () => resetProductModalState());
   const addInitBtn = qs('#addInitialColorBtn'); if (addInitBtn) addInitBtn.addEventListener('click', (e) => { e.preventDefault(); addInitialColorFromModal(); });
   const importImageBtn = qs('#importImageBtn'); if (importImageBtn) importImageBtn.addEventListener('click', (e) => { e.preventDefault(); addImagesFromFileInput(); });
+  const addImageUrlBtn = qs('#addImageUrlBtn'); if (addImageUrlBtn) addImageUrlBtn.addEventListener('click', (e) => { e.preventDefault(); addImageFromUrl(); });
 
   const addColorBtn = qs('#addColorBtn'); if (addColorBtn) addColorBtn.addEventListener('click', (e) => { e.preventDefault(); addColorFromModal(); });
   const saveVariantsBtn = qs('#saveVariantsBtn'); if (saveVariantsBtn) saveVariantsBtn.addEventListener('click', (e) => { e.preventDefault(); saveVariantsModal(); });

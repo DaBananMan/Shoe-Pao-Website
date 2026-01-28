@@ -882,7 +882,7 @@
                             // Normalize by merging to ensure ids are set
                             const merged = sortOrdersByNewest(mergeOrdersById([], srv));
                             ordersData = merged;
-                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                             currentList = ordersData.slice();
                             try{ renderTable(currentList); }catch(e){}
                         }catch(e){ /* ignore set/caching errors */ }
@@ -999,44 +999,39 @@
 
         async function initializeOrders(){
             try{
-                var fetched = [];
-                // Prefer authoritative server copy first so client always matches admin/state on load.
-                try{
-                    const resp = await fetch(API_BASE + '/api/orders');
-                    if(resp && resp.ok){
-                        const j = await resp.json();
-                        // API might return { orders: [...] } or an array directly
-                        if(j){
-                            if(Array.isArray(j.orders)) fetched = j.orders;
-                            else if(Array.isArray(j)) fetched = j;
+                // Render cached local orders immediately for snappy UI, then refresh from server/firestore in background.
+                var cached = [];
+                try{ cached = JSON.parse(localStorage.getItem('orders') || '[]'); if(!Array.isArray(cached)) cached = []; }catch(e){ cached = []; }
+                if(Array.isArray(cached) && cached.length){
+                    ordersData = sortOrdersByNewest(mergeOrdersById([], cached));
+                    ordersLoaded = true; // allow UI to render
+                    applySearch();
+                }
+
+                // Now fetch authoritative copies in background and merge
+                (async function backgroundFetch(){
+                    try{
+                        var fetched = [];
+                        try{
+                            const resp = await fetch(API_BASE + '/api/orders');
+                            if(resp && resp.ok){ const j = await resp.json(); if(j){ if(Array.isArray(j.orders)) fetched = j.orders; else if(Array.isArray(j)) fetched = j; } }
+                        }catch(e){ /* ignore server fetch error */ }
+                        if(!fetched || !fetched.length){
+                            try{ const fromFs = await fetchOrdersFromFirestore(); if(Array.isArray(fromFs) && fromFs.length) fetched = fromFs; }catch(e){}
                         }
-                    }
-                }catch(e){
-                    // server not reachable — we'll fall back below
-                }
-
-                // If server had no orders or wasn't reachable, try Firestore then localStorage
-                if(!fetched || !fetched.length){
-                    try{
-                        const fromFs = await fetchOrdersFromFirestore();
-                        if(Array.isArray(fromFs) && fromFs.length) fetched = fromFs;
-                    }catch(fetchErr){
-                        console.warn('Firestore fetch failed, falling back to localStorage', fetchErr);
-                    }
-                }
-
-                if(!fetched || !fetched.length){
-                    try{
-                        fetched = JSON.parse(localStorage.getItem('orders') || '[]');
-                        if(!Array.isArray(fetched)) fetched = [];
-                    }catch(e){ fetched = []; }
-                }
-
-                // Use server/authoritative data as the source of truth for rendering and cache it locally
-                ordersData = sortOrdersByNewest(mergeOrdersById([], fetched));
-                // Auto-cancel COD orders that are pending and have an awaiting cancel request
-                autoCancelCodPendingRequests(ordersData);
-                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){/* ignore */}
+                        if(!fetched || !fetched.length) return;
+                        // Merge server/fstore results and persist
+                        ordersData = sortOrdersByNewest(mergeOrdersById(ordersData || [], fetched || []));
+                        try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
+                        // Ensure confirmed orders from server are deducted locally
+                        try{ ensureStockAdjustmentForOrders(fetched); }catch(e){}
+                        if(ordersLoaded) applySearch();
+                    }catch(e){ console.warn('backgroundFetch failed', e); }
+                })();
+                // Ensure any confirmed orders that arrived from server/firestore/localStorage
+                // have their stock deducted locally (if not already adjusted). This ensures
+                // that merges and initial syncs also update localStorage inventory.
+                try{ ensureStockAdjustmentForOrders(ordersData); }catch(e){ console.warn('ensureStockAdjustmentForOrders failed', e); }
             }catch(e){
                 console.error('Failed to initialize orders', e);
                 ordersData = [];
@@ -1796,7 +1791,9 @@
             var promise = directItems ? Promise.resolve(directItems) : fetchOrderItemsFromFirestore(orderId);
             return promise.then(function(items){
                 if(!items || !items.length) return false;
-                return adjustInventoryStock(items, 1);
+                var localRes = null;
+                try{ localRes = performLocalInventoryAdjustment(items, 1); console.debug && console.debug('[restock] localRes', localRes); }catch(e){}
+                return adjustInventoryStock(items, 1).then(function(r){ return r; }).catch(function(){ return false; });
             }).catch(function(){ return false; });
         }
 
@@ -1805,8 +1802,268 @@
             var promise = directItems ? Promise.resolve(directItems) : fetchOrderItemsFromFirestore(orderId);
             return promise.then(function(items){
                 if(!items || !items.length) return false;
-                return adjustInventoryStock(items, -1);
+                var localRes = null;
+                try{ localRes = performLocalInventoryAdjustment(items, -1); console.debug && console.debug('[deduct] localRes', localRes); }catch(e){}
+                // If no matchedSize found in details, warn so admins can investigate
+                try{
+                    var anySizeMatched = Array.isArray(localRes && localRes.details) && localRes.details.some(function(d){ return d.matchedSize === true; });
+                    if(!anySizeMatched){ console.warn('No variant size matched when deducting items for order', orderId, localRes); }
+                }catch(e){}
+                return adjustInventoryStock(items, -1).then(function(r){ return r; }).catch(function(){ return false; });
             }).catch(function(){ return false; });
+        }
+
+        // Update localStorage-based inventory copies when orders change.
+        // This is best-effort: it only updates known local keys and shapes used by
+        // the admin inventory UI. If no suitable local inventory is present, this
+        // is a no-op.
+        function updateLocalInventory(items, direction){
+            try{
+                if(!Array.isArray(items) || !items.length) return false;
+                // candidate localStorage keys to try
+                var keys = ['products','inventory','inventory_data','inventory_app_products','local_inventory'];
+                var foundKey = null;
+                var data = null;
+                for(var k=0;k<keys.length;k++){
+                    try{ var raw = localStorage.getItem(keys[k]); if(!raw) continue; var parsed = JSON.parse(raw || 'null'); if(Array.isArray(parsed)){ foundKey = keys[k]; data = parsed; break; } }catch(e){}
+                }
+                if(!foundKey || !Array.isArray(data)) return false;
+
+                var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+
+                items.forEach(function(it){
+                    try{
+                        var qty = Number(it.qty || it.quantity || 1) || 1;
+                        var size = String(it.size || it.eu || it.size_eu || '').trim();
+                        var id = String(it.product_id || it.productId || it.id || it.inventoryId || '').trim();
+                        var name = String(it.name || it.title || it.productName || '').trim();
+                        var color = String(it.color || it.variant || it.colorName || '').trim();
+
+                        // find candidate product
+                        var prodIdx = -1;
+                        if(id){ prodIdx = data.findIndex(function(p){ try{ return String(p.id||p.productId||p.sku||'').trim() === id; }catch(e){return false;} }); }
+                        if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')) === normalize(name); }catch(e){return false;} }); }
+                        if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')).indexOf(normalize(name)) !== -1; }catch(e){return false;} }); }
+                        if(prodIdx === -1) return; // nothing to update
+
+                        var prod = data[prodIdx];
+                        // Several inventory shapes: colors -> sizes array OR sizesMap OR flat stock fields
+                        if(Array.isArray(prod.colors)){
+                            // find color
+                            var colorIdx = -1;
+                            if(color){ colorIdx = prod.colors.findIndex(function(c){ return normalize(c.name||c.code||'') === normalize(color); }); }
+                            if(colorIdx === -1 && prod.colors.length === 1) colorIdx = 0;
+                            if(colorIdx !== -1){
+                                var col = prod.colors[colorIdx];
+                                // sizes array
+                                if(Array.isArray(col.sizes)){
+                                    var sizeIdx = col.sizes.findIndex(function(s){ return String(s.eu||s.size||'') === String(size); });
+                                    if(sizeIdx !== -1){
+                                        var cur = Number(col.sizes[sizeIdx].stock || col.sizes[sizeIdx].qty || col.sizes[sizeIdx].inventory || 0) || 0;
+                                        var next = Math.max(0, cur + (direction * qty));
+                                        col.sizes[sizeIdx].stock = next;
+                                    } else {
+                                        // fallback: adjust aggregate fields
+                                        var cur2 = Number(col.stock || col.inventory || col.qty || 0) || 0;
+                                        col.stock = Math.max(0, cur2 + (direction * qty));
+                                    }
+                                } else {
+                                    var cur3 = Number(col.stock || col.inventory || col.qty || 0) || 0;
+                                    col.stock = Math.max(0, cur3 + (direction * qty));
+                                }
+                            } else {
+                                // no per-color match; try product-level sizes or aggregate
+                                var matched = false;
+                                if(Array.isArray(prod.sizes)){
+                                    var sIdx = prod.sizes.findIndex(function(s){ return String(s.eu||s.size||'') === String(size); });
+                                    if(sIdx !== -1){ var cur = Number(prod.sizes[sIdx].stock||0)||0; prod.sizes[sIdx].stock = Math.max(0, cur + (direction * qty)); matched = true; }
+                                }
+                                if(!matched){ var curp = Number(prod.stock || prod.inventory || prod.qty || 0) || 0; prod.stock = Math.max(0, curp + (direction * qty)); }
+                            }
+                        } else {
+                            // no colors array — try sizesMap or flat fields
+                            var done = false;
+                            if(prod.sizeMap && typeof prod.sizeMap === 'object' && size){
+                                var cur4 = Number(prod.sizeMap[String(size)] || 0) || 0;
+                                prod.sizeMap[String(size)] = Math.max(0, cur4 + (direction * qty));
+                                done = true;
+                            }
+                            if(!done && prod.sizesMap && typeof prod.sizesMap === 'object' && size){
+                                var cur5 = Number(prod.sizesMap[String(size)] || 0) || 0;
+                                prod.sizesMap[String(size)] = Math.max(0, cur5 + (direction * qty));
+                                done = true;
+                            }
+                            if(!done){
+                                var curp2 = Number(prod.stock || prod.inventory || prod.qty || 0) || 0;
+                                prod.stock = Math.max(0, curp2 + (direction * qty));
+                            }
+                        }
+                        // write back
+                        data[prodIdx] = prod;
+                    }catch(e){ /* ignore item update errors */ }
+                });
+
+                try{ localStorage.setItem(foundKey, JSON.stringify(data)); }catch(e){}
+                try{ window.dispatchEvent(new CustomEvent('shoepao:local-inventory-updated', { detail: { key: foundKey, updatedAt: Date.now() } })); }catch(e){}
+                return true;
+            }catch(e){ return false; }
+        }
+
+        // More detailed local adjustment that returns diagnostics about what changed.
+        function performLocalInventoryAdjustment(items, direction){
+            try{
+                if(!Array.isArray(items) || !items.length) return { updated: false, details: [] };
+                // Snapshot before
+                var keys = ['products','inventory','inventory_data','inventory_app_products','local_inventory'];
+                var foundKey = null; var data = null;
+                for(var k=0;k<keys.length;k++){
+                    try{ var raw = localStorage.getItem(keys[k]); if(!raw) continue; var parsed = JSON.parse(raw || 'null'); if(Array.isArray(parsed)){ foundKey = keys[k]; data = parsed; break; } }catch(e){}
+                }
+                if(!foundKey || !Array.isArray(data)) return { updated:false, details:[] };
+                var beforeMap = JSON.parse(JSON.stringify(data));
+                // reuse existing update logic to apply changes
+                var ok = (function(){
+                    try{
+                        // call the inline updateLocalInventory body but on our copied data
+                        var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+                        items.forEach(function(it){
+                            try{
+                                var qty = Number(it.qty || it.quantity || 1) || 1;
+                                var size = String(it.size || it.eu || it.size_eu || '').trim();
+                                var id = String(it.product_id || it.productId || it.id || it.inventoryId || '').trim();
+                                var name = String(it.name || it.title || it.productName || '').trim();
+                                var color = String(it.color || it.variant || it.colorName || '').trim();
+
+                                var prodIdx = -1;
+                                if(id){ prodIdx = data.findIndex(function(p){ try{ return String(p.id||p.productId||p.sku||'').trim() === id; }catch(e){return false;} }); }
+                                if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')) === normalize(name); }catch(e){return false;} }); }
+                                if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')).indexOf(normalize(name)) !== -1; }catch(e){return false;} }); }
+                                if(prodIdx === -1) return; // nothing to update
+
+                                var prod = data[prodIdx];
+                                if(Array.isArray(prod.colors)){
+                                    var colorIdx = -1;
+                                    if(color){ colorIdx = prod.colors.findIndex(function(c){ return normalize(c.name||c.code||'') === normalize(color); }); }
+                                    if(colorIdx === -1 && prod.colors.length === 1) colorIdx = 0;
+                                    if(colorIdx !== -1){
+                                        var col = prod.colors[colorIdx];
+                                        if(Array.isArray(col.sizes)){
+                                            var sizeIdx = col.sizes.findIndex(function(s){ return String(s.eu||s.size||'') === String(size); });
+                                            if(sizeIdx !== -1){
+                                                var cur = Number(col.sizes[sizeIdx].stock || col.sizes[sizeIdx].qty || col.sizes[sizeIdx].inventory || 0) || 0;
+                                                var next = Math.max(0, cur + (direction * qty));
+                                                col.sizes[sizeIdx].stock = next;
+                                            } else {
+                                                var cur2 = Number(col.stock || col.inventory || col.qty || 0) || 0;
+                                                col.stock = Math.max(0, cur2 + (direction * qty));
+                                            }
+                                        } else {
+                                            var cur3 = Number(col.stock || col.inventory || col.qty || 0) || 0;
+                                            col.stock = Math.max(0, cur3 + (direction * qty));
+                                        }
+                                    } else {
+                                        var matched = false;
+                                        if(Array.isArray(prod.sizes)){
+                                            var sIdx = prod.sizes.findIndex(function(s){ return String(s.eu||s.size||'') === String(size); });
+                                            if(sIdx !== -1){ var cur = Number(prod.sizes[sIdx].stock||0)||0; prod.sizes[sIdx].stock = Math.max(0, cur + (direction * qty)); matched = true; }
+                                        }
+                                        if(!matched){ var curp = Number(prod.stock || prod.inventory || prod.qty || 0) || 0; prod.stock = Math.max(0, curp + (direction * qty)); }
+                                    }
+                                } else {
+                                    var done = false;
+                                    if(prod.sizeMap && typeof prod.sizeMap === 'object' && size){
+                                        var cur4 = Number(prod.sizeMap[String(size)] || 0) || 0;
+                                        prod.sizeMap[String(size)] = Math.max(0, cur4 + (direction * qty));
+                                        done = true;
+                                    }
+                                    if(!done && prod.sizesMap && typeof prod.sizesMap === 'object' && size){
+                                        var cur5 = Number(prod.sizesMap[String(size)] || 0) || 0;
+                                        prod.sizesMap[String(size)] = Math.max(0, cur5 + (direction * qty));
+                                        done = true;
+                                    }
+                                    if(!done){ var curp2 = Number(prod.stock || prod.inventory || prod.qty || 0) || 0; prod.stock = Math.max(0, curp2 + (direction * qty)); }
+                                }
+                                data[prodIdx] = prod;
+                            }catch(e){ }
+                        });
+                        try{ localStorage.setItem(foundKey, JSON.stringify(data)); }catch(e){}
+                        try{ window.dispatchEvent(new CustomEvent('shoepao:local-inventory-updated', { detail: { key: foundKey, updatedAt: Date.now() } })); }catch(e){}
+                        return true;
+                    }catch(e){ return false; }
+                })();
+
+                // Build details by diffing beforeMap -> data for items
+                var details = [];
+                items.forEach(function(it){
+                    try{
+                        var id = String(it.product_id || it.productId || it.id || it.inventoryId || '').trim();
+                        var name = String(it.name || it.title || it.productName || '').trim();
+                        var size = String(it.size || it.eu || it.size_eu || '').trim();
+                        // find product in beforeMap and after data
+                        var beforeProd = null, afterProd = null;
+                        for(var i=0;i<beforeMap.length;i++){ var p = beforeMap[i]; if(id && (String(p.id||p.sku||p.productId||'') === id)) { beforeProd = p; break; } }
+                        for(var j=0;j<data.length;j++){ var p2 = data[j]; if(id && (String(p2.id||p2.sku||p2.productId||'') === id)) { afterProd = p2; break; } }
+                        // fall back to name matching
+                        if(!beforeProd && name){ beforeProd = beforeMap.find(function(p){ try{ return String(p.name||p.model||p.title||'').trim().toLowerCase() === name.toLowerCase(); }catch(e){return false;} }); }
+                        if(!afterProd && name){ afterProd = data.find(function(p){ try{ return String(p.name||p.model||p.title||'').trim().toLowerCase() === name.toLowerCase(); }catch(e){return false;} }); }
+                        var matchedSize = false;
+                        var beforeStock = null, afterStock = null;
+                        try{
+                            if(beforeProd){
+                                if(Array.isArray(beforeProd.colors)){
+                                    var col = (beforeProd.colors[0] || {});
+                                    if(Array.isArray(col.sizes)){
+                                        var s = col.sizes.find(function(s){ return String(s.eu||s.size||'') === size; }); if(s) beforeStock = Number(s.stock||s.qty||0)||0;
+                                    }
+                                } else if(beforeProd.sizeMap && size){ beforeStock = Number(beforeProd.sizeMap[String(size)]||0)||0; }
+                                else beforeStock = Number(beforeProd.stock||beforeProd.inventory||beforeProd.qty||0)||0;
+                            }
+                            if(afterProd){
+                                if(Array.isArray(afterProd.colors)){
+                                    var col2 = (afterProd.colors[0] || {});
+                                    if(Array.isArray(col2.sizes)){
+                                        var s2 = col2.sizes.find(function(s){ return String(s.eu||s.size||'') === size; }); if(s2) afterStock = Number(s2.stock||s2.qty||0)||0;
+                                    }
+                                } else if(afterProd.sizeMap && size){ afterStock = Number(afterProd.sizeMap[String(size)]||0)||0; }
+                                else afterStock = Number(afterProd.stock||afterProd.inventory||afterProd.qty||0)||0;
+                            }
+                            if(beforeStock !== null && afterStock !== null && beforeStock !== afterStock) matchedSize = true;
+                        }catch(e){}
+                        details.push({ item: it, matchedProductId: (afterProd && (afterProd.id||afterProd.sku||afterProd.productId)) || null, matchedSize: matchedSize, before: beforeStock, after: afterStock });
+                    }catch(e){}
+                });
+
+                return { updated: !!ok, key: foundKey, details: details };
+            }catch(e){ return { updated:false, details:[] }; }
+        }
+
+        // Ensure confirmed orders have their stock deducted locally when they appear
+        // in the local cache or are merged from server/firestore. This runs a best-effort
+        // deduction per order item and marks the order as adjusted to avoid duplicate work.
+        async function ensureStockAdjustmentForOrders(list){
+            try{
+                if(!Array.isArray(list)) return;
+                for(var i=0;i<list.length;i++){
+                    try{
+                        var ord = list[i];
+                        if(!ord || !ord.id) continue;
+                        var state = String((ord.status||'')).toLowerCase();
+                        var already = ord.stockAdjusted === true;
+                        if(state === 'confirmed' && !already){
+                            // Deduct locally first (best-effort). Use skipStockAdjust to
+                            // avoid recursive loops inside updateOrder.
+                            try{
+                                console.debug && console.debug('[stock-sync] auto-deduct for order', ord.id);
+                                var did = await deductOrderItems(ord.id, ord).catch(function(e){ console.warn('auto deduct failed for', ord.id, e); return false; });
+                                if(did){
+                                    // mark as adjusted locally and persist without triggering another adjust
+                                    try{ await updateOrder(ord.id, { stockAdjusted: true, stockAdjustedSource: 'sync', stockAdjustedAt: new Date().toISOString(), stockRestocked: false }, { skipStockAdjust: true }); }catch(e){ console.warn('mark adjusted failed', ord.id, e); }
+                                }
+                            }catch(e){ console.warn('error deducting order items', ord && ord.id, e); }
+                        }
+                    }catch(e){ /* per-order ignore */ }
+                }
+            }catch(e){ console.warn('ensureStockAdjustmentForOrders error', e); }
         }
 
         function titleCase(str){
@@ -1945,7 +2202,7 @@
                                                             try{
                                                                 for(var i=0;i<ordersData.length;i++){ if(String(ordersData[i].id) === String(localRow.id)){ ordersData[i] = Object.assign({}, ordersData[i], { tracking_number: tn, courier_name: carrier || ordersData[i].courier_name || '' }); break; } }
                                                                 for(var jidx=0;jidx<currentList.length;jidx++){ if(String(currentList[jidx].id) === String(localRow.id)){ currentList[jidx] = Object.assign({}, currentList[jidx], { tracking_number: tn, courier_name: carrier || currentList[jidx].courier_name || '' }); break; } }
-                                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                                                             }catch(e){}
                                                         }catch(e){}
                                                         // update the table cell text
@@ -2115,7 +2372,7 @@
                                                     var idx = ordersData.findIndex(o2 => String(o2.id) === String(row.id));
                                                     if(idx !== -1){
                                                         ordersData[idx] = Object.assign({}, ordersData[idx], { courier_name: srvOrder.courier_name || '', tracking_number: srvOrder.tracking_number || '', status: srvOrder.status || '' });
-                                                        try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                        try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                                                         try{ if(ordersLoaded) applySearch(); }catch(e){}
                                                     }
                                                     try{ if(window.activeDrawerRow && String(window.activeDrawerRow.id) === String(row.id)){ window.activeDrawerRow.courier_name = srvOrder.courier_name || window.activeDrawerRow.courier_name; window.activeDrawerRow.tracking_number = srvOrder.tracking_number || window.activeDrawerRow.tracking_number; } }catch(e){}
@@ -2146,7 +2403,7 @@
                                                     payment_proof: o.payment_proof || o.paymentProof || o.proofImage || ordersData[idx].payment_proof || '',
                                                     payment_proof_name: o.payment_proof_name || o.paymentProofName || o.proofName || ordersData[idx].payment_proof_name || ''
                                                 });
-                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                                                 // re-render table to reflect new values
                                                 try{ if(ordersLoaded) { applySearch(); } }catch(e){}
                                             }
@@ -2456,12 +2713,12 @@
                                             payment_status: s.payment_status || s.paymentStatus || ordersData[idx].payment_status || '',
                                             payment_proof: s.payment_proof || s.paymentProof || ordersData[idx].payment_proof || '',
                                             payment_proof_name: s.payment_proof_name || s.paymentProofName || ordersData[idx].payment_proof_name || ''
-                                        }); try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){} }catch(e){}
+                                        }); try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){} }catch(e){}
                             }
                         }).catch(function(err){ console.warn('Failed to persist order status to server', err); });
                     }
                 }catch(e){ console.warn('persist to server skipped', e); }
-                try { localStorage.setItem('orders', JSON.stringify(ordersData)); } catch(e) { console.error('persist failed', e); }
+                try { localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} } catch(e) { console.error('persist failed', e); }
                 // Broadcast a lightweight update so client tabs can refresh without a full reload
                 try{ localStorage.setItem('orders_update', JSON.stringify({ id: orderId, status: merged.status || '', ts: Date.now() })); }catch(e){}
                 applySearch();
@@ -2801,6 +3058,7 @@
                     ordersData = sortOrdersByNewest(mergeOrdersById([], ordersData));
                     currentList = ordersData.slice();
                     applySort(); renderTable(currentList);
+                    try{ ensureStockAdjustmentForOrders(ordersData); }catch(e){}
                 }catch(err){/* ignore */}
             }
             if(e.key === 'orders_update'){
@@ -2816,7 +3074,7 @@
                                 var idx = ordersData.findIndex(function(o){ return String(o.id) === String(serverOrder.id); });
                                 if(idx === -1){ ordersData.unshift(serverOrder); }
                                 else { ordersData[idx] = Object.assign({}, ordersData[idx], serverOrder); }
-                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                                 ordersData = sortOrdersByNewest(mergeOrdersById([], ordersData));
                                 currentList = ordersData.slice();
                                 applySort(); renderTable(currentList);
@@ -2825,6 +3083,8 @@
                                     var updated = ordersData.find(function(o){ return String(o.id) === String(id); });
                                     if(updated) openOrderDrawer(updated);
                                 }
+                                // Ensure any newly-merged confirmed orders are adjusted locally
+                                try{ ensureStockAdjustmentForOrders([serverOrder]); }catch(e){}
                             }catch(e){}
                         }).catch(function(){ /* ignore fetch errors */ });
                     }
@@ -2864,7 +3124,8 @@
                         });
                         if(incoming.length){
                             ordersData = sortOrdersByNewest(mergeOrdersById(ordersData, incoming));
-                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
+                            try{ ensureStockAdjustmentForOrders(incoming); }catch(e){}
                             if(ordersLoaded) applySearch();
                         }
                     }catch(err){
@@ -2897,7 +3158,8 @@
                     // Normalize ids and merge
                     list.forEach(function(it){ if(!it.id) it.id = it.id || it.orderId || it.id; });
                     ordersData = sortOrdersByNewest(mergeOrdersById(ordersData, list));
-                    try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                    try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
+                    try{ ensureStockAdjustmentForOrders(list); }catch(e){}
                     if(ordersLoaded) applySearch();
                 }).catch(function(err){ console.warn('Polling orders failed', err); });
             }catch(e){/* ignore */}
