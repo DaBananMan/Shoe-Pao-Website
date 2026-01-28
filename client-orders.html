@@ -489,6 +489,63 @@
               .replace(/'/g,'&#39;');
         }
 
+        function hasUserRatedOrder(order, items){
+            try{
+                var api = window.ShoePaoRatings;
+                if(!api) return false;
+                var ord = order || null;
+                if(!ord) return false;
+                var orderKey = String(ord.id || '').trim();
+                if(!orderKey) return false;
+
+                var profile = _getActiveProfile() || {};
+                var userEmail = String(profile.email||'').trim().toLowerCase();
+
+                function matchRating(r){
+                    if(!r) return false;
+                    if(String(r.orderId||'') !== orderKey) return false;
+                    if(userEmail){
+                        var re = String(r.userEmail||'').toLowerCase();
+                        if(!re || re !== userEmail) return false;
+                    }
+                    return true;
+                }
+
+                var listItems = items || (Array.isArray(ord.items) ? ord.items : []);
+                var byKey = {};
+                listItems.forEach(function(it){
+                    if(!it) return;
+                    var title = (it.title || it.name || it.productName || it.itemName || '').trim();
+                    var brand = (it.brand || it.productBrand || '').trim();
+                    var productId = String(it.id || it.productId || it.variantId || it.sku || '').trim();
+                    if(!productId) productId = _resolveProductIdByName(brand, title);
+                    var key = productId ? api.getProductKey({ productId: productId, brand: brand, title: title }) : api.getProductKey({ brand: brand, title: title });
+                    if(key) byKey[key] = true;
+                });
+
+                var keys = Object.keys(byKey);
+                if(keys.length){
+                    for(var i=0;i<keys.length;i++){
+                        var list = api.getRatings(keys[i]) || [];
+                        for(var j=0;j<list.length;j++){
+                            if(matchRating(list[j])) return true;
+                        }
+                    }
+                    return false;
+                }
+
+                var all = api.getAllRatings ? api.getAllRatings() : {};
+                var pk = Object.keys(all || {});
+                for(var k=0;k<pk.length;k++){
+                    var arr = Array.isArray(all[pk[k]]) ? all[pk[k]] : [];
+                    for(var m=0;m<arr.length;m++){
+                        if(matchRating(arr[m])) return true;
+                    }
+                }
+                return false;
+            }catch(e){ return false; }
+        }
+
         window.openRatingModalById = function(orderId){
             try{
                 var api = window.ShoePaoRatings;
@@ -497,6 +554,10 @@
                 var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
                 var order = Array.isArray(orders) ? orders.find(function(o){ return (o && (o.id||'')) === orderId; }) : null;
                 if(!order) return;
+                if(hasUserRatedOrder(order, order.items)){
+                    alert('You already rated this order.');
+                    return;
+                }
 
                 var profile = _getActiveProfile() || {};
                 var userEmail = String(profile.email||'').trim().toLowerCase();
@@ -516,7 +577,7 @@
                     var productId = String(it.id || it.productId || it.variantId || it.sku || '').trim();
                     if(!productId) productId = _resolveProductIdByName(brand, title);
 
-                    var key = (brand || title) ? api.getProductKey({ brand: brand, title: title }) : api.getProductKey({ productId: productId, brand: brand, title: title });
+                    var key = productId ? api.getProductKey({ productId: productId, brand: brand, title: title }) : api.getProductKey({ brand: brand, title: title });
                     var qty = Number(it.quantity || it.qty || 1);
                     if(!isFinite(qty) || qty <= 0) qty = 1;
                     if(!byKey[key]){
@@ -614,6 +675,16 @@
                 var profile = _getActiveProfile() || {};
                 var userEmail = String(profile.email||'').trim().toLowerCase();
 
+                try{
+                    var orders = JSON.parse(localStorage.getItem('client_orders')||'[]');
+                    var order = Array.isArray(orders) ? orders.find(function(o){ return (o && (o.id||'')) === _ratingModalOrderId; }) : null;
+                    if(order && hasUserRatedOrder(order, order.items)){
+                        alert('You already rated this order.');
+                        window.closeRatingModal();
+                        return;
+                    }
+                }catch(e){}
+
                 var itemsEl = document.getElementById('ratingItems');
                 if(!itemsEl) return;
                 var rows = Array.prototype.slice.call(itemsEl.querySelectorAll('.rating-item'));
@@ -640,6 +711,7 @@
 
                 if(!wroteAny){ alert('Please select a star rating.'); return; }
                 window.closeRatingModal();
+                try{ renderOrders(); }catch(e){}
                 alert('Thanks! Your rating has been submitted.');
             }catch(e){
                 console.error(e);
@@ -722,7 +794,12 @@
                         actions.push(btn('Return / Refund', 'refund-btn', 'window.requestRefundOrderById(\'' + order.id + '\')', { disabled: true }));
                         actions.push('<div style="flex-basis:100%;color:#b71c1c;font-weight:600;font-size:0.92rem;">Return period has expired</div>');
                     }
-                    actions.push(btn('Rate Items', 'received-btn', 'window.openRatingModalById(\'' + order.id + '\')'));
+                    var rated = hasUserRatedOrder(order, order.items);
+                    if(rated){
+                        actions.push('<button class="order-card-btn received-btn" style="opacity:0.55;cursor:not-allowed;" aria-disabled="true" disabled title="You already rated this order.">Rated</button>');
+                    } else {
+                        actions.push(btn('Rate Items', 'received-btn', 'window.openRatingModalById(\'' + order.id + '\')'));
+                    }
                     actions.push(btn('Contact Seller', 'contact-btn', 'window.contactSeller(\'' + order.id + '\')'));
                 } else if(statusNorm.indexOf('cancel') !== -1){
                     actions.push(btn('Order Again', 'view-btn', 'window._orderAgain(\'' + order.id + '\')'));
@@ -1663,10 +1740,16 @@
                     if (!isNaN(idx) && cart[idx]) {
                         if (window.tryIncrementCartItem) {
                             var incRes = window.tryIncrementCartItem(cart, idx);
-                            if (incRes && incRes.success === false && (incRes.reason === 'max_pairs' || incRes.reason === 'max_reached')) {
-                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
-                                return;
+                            if (incRes && incRes.success === false) {
+                                if (incRes.reason === 'max_reached') {
+                                    alert('Only ' + Number(incRes.maxAllowed || 0) + ' stock is available');
+                                    return;
+                                }
+                                if (incRes.reason === 'max_pairs') {
+                                    if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                    else alert('Maximum of 3 items per order allowed.');
+                                    return;
+                                }
                             }
                         } else {
                             if (typeof cart[idx].qty === 'number') {

@@ -3350,12 +3350,12 @@ On page.</div>
                                 var incRes = window.tryIncrementCartItem(cart, idx);
                                 if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                     if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                    else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
+                                    else alert('Maximum of 3 items per order allowed.');
                                     return;
                                 }
                                 if (incRes && incRes.success === false && incRes.reason === 'max_reached') {
                                     var cStockEl = document.getElementById('sizeStock');
-                                    var limitMsg = (window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
+                                    var limitMsg = 'Only ' + Number(incRes.maxAllowed || 0) + ' stock is available';
                                     if (cStockEl) { cStockEl.style.color = '#b71c1c'; cStockEl.textContent = limitMsg; }
                                     else if (window.showMaxPairsMessage) window.showMaxPairsMessage();
                                     else alert(limitMsg);
@@ -3480,7 +3480,8 @@ On page.</div>
                             // show inline message when add failed
                             var msg = 'Unable to add to cart.';
                             if (res && res.reason === 'unavailable') msg = 'This product is currently unavailable.';
-                            else if (res && (res.reason === 'out_of_stock' || res.reason === 'max_reached' || res.reason === 'max_pairs')) msg = (window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
+                            else if (res && (res.reason === 'out_of_stock' || res.reason === 'max_pairs')) msg = (window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
+                            else if (res && res.reason === 'max_reached') msg = 'Only ' + Number(res.maxAllowed || 0) + ' stock is available';
                             if (elStock) { elStock.style.color = '#b71c1c'; elStock.textContent = msg; }
                             else alert(msg);
                         }

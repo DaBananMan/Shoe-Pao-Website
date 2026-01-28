@@ -426,12 +426,150 @@ function getVariantIdForProduct(product, inventoryItem){
     }catch(e){ return ''; }
 }
 
+function getNormalizedSizeKey(product){
+    try{
+        if(!product) return '';
+        var size = (product.size !== undefined && product.size !== null) ? product.size
+            : (product.eu !== undefined && product.eu !== null) ? product.eu
+            : (product.size_eu !== undefined && product.size_eu !== null) ? product.size_eu
+            : (product.sizeEU !== undefined && product.sizeEU !== null) ? product.sizeEU
+            : (product.sizeEu !== undefined && product.sizeEu !== null) ? product.sizeEu
+            : '';
+        return (size === undefined || size === null) ? '' : String(size).trim();
+    }catch(e){ return ''; }
+}
+
+function getStockFromSizesMap(sizes, sizeKey){
+    try{
+        if(!sizes) return null;
+        if(Array.isArray(sizes)){
+            if(sizeKey){
+                var entry = sizes.find(function(s){ return s && (s.eu !== undefined) && String(s.eu) === String(sizeKey); });
+                return entry ? (Number(entry.stock || 0) || 0) : 0;
+            }
+            var total = 0;
+            sizes.forEach(function(s){ if(s && s.stock !== undefined){ total += (Number(s.stock || 0) || 0); } });
+            return total;
+        }
+        if(typeof sizes === 'object'){
+            if(sizeKey){
+                if(Object.prototype.hasOwnProperty.call(sizes, sizeKey)) return Number(sizes[sizeKey] || 0) || 0;
+                return 0;
+            }
+            var sum = 0;
+            Object.keys(sizes).forEach(function(k){ sum += (Number(sizes[k] || 0) || 0); });
+            return sum;
+        }
+        return null;
+    }catch(e){ return null; }
+}
+
+function findInventoryIndexForItem(inv, item){
+    try{
+        if(!Array.isArray(inv)) return -1;
+        var itemId = item && (item.product_id || item.productId || item.id) ? String(item.product_id || item.productId || item.id) : '';
+        if(itemId){
+            var idIdx = inv.findIndex(function(i){ return String(i.id||'') === itemId || String(i.productId||'') === itemId; });
+            if(idIdx !== -1) return idIdx;
+        }
+        var title = (item && (item.name || item.title || item.productName) || '').toString().trim();
+        var brand = (item && (item.brand || item.productBrand) || '').toString().trim();
+        if(title){
+            var exactIdx = inv.findIndex(function(i){ return String(i.name||'').trim() === title; });
+            if(exactIdx !== -1) return exactIdx;
+            var containsIdx = inv.findIndex(function(i){ return title && String(i.name||'').toLowerCase().indexOf(title.toLowerCase()) !== -1; });
+            if(containsIdx !== -1) return containsIdx;
+        }
+        if(brand){
+            var brandIdx = inv.findIndex(function(i){ return String(i.brand||'').toLowerCase() === brand.toLowerCase(); });
+            if(brandIdx !== -1) return brandIdx;
+        }
+        return -1;
+    }catch(e){ return -1; }
+}
+
+function getAvailableStockForProduct(product){
+    try{
+        if(!product) return null;
+        if(product.preOrder) return null;
+        var sizeKey = getNormalizedSizeKey(product);
+
+        // 1) inventory cache from Firestore
+        try{
+            var rows = getInventoryRowsCache();
+            var invItem = null;
+            if(product.inventoryId){
+                invItem = rows.find(function(r){ return r && r.id && String(r.id) === String(product.inventoryId); });
+            }
+            if(!invItem){
+                invItem = findInventoryItemForProduct(product);
+            }
+            var cacheStock = getStockFromSizesMap(invItem && invItem.sizes, sizeKey);
+            if(cacheStock !== null && cacheStock !== undefined) return cacheStock;
+        }catch(e){ /* ignore */ }
+
+        // 2) legacy localStorage inventory
+        try{
+            var inv = JSON.parse(localStorage.getItem('inventory') || '[]');
+            if(Array.isArray(inv) && inv.length){
+                var idx = findInventoryIndexForItem(inv, product);
+                if(idx !== -1){
+                    var invStock = getStockFromSizesMap(inv[idx].sizes || {}, sizeKey);
+                    if(invStock !== null && invStock !== undefined) return invStock;
+                }
+            }
+        }catch(e){ /* ignore */ }
+
+        // 3) admin localStorage inventory (shoeInventoryData)
+        try{
+            var adminProducts = JSON.parse(localStorage.getItem('shoeInventoryData') || 'null');
+            if(Array.isArray(adminProducts) && adminProducts.length){
+                var itemId = (product.product_id || product.productId || product.id || '').toString().trim();
+                var title = (product.title || product.name || product.productName || '').toString().trim();
+                var foundStock = null;
+                adminProducts.some(function(p){
+                    if(!p) return false;
+                    var pId = (p.id || p.sku || '').toString().trim();
+                    var matchesProduct = itemId && pId && itemId === pId;
+                    var colors = Array.isArray(p.colors) ? p.colors : [];
+                    for(var i=0;i<colors.length;i++){
+                        var c = colors[i] || {};
+                        var name = ((p.model || p.name || '') + (c.name ? (' ' + c.name) : '')).trim();
+                        if(!matchesProduct && title){
+                            if(String(name).toLowerCase() !== String(title).toLowerCase()) continue;
+                        }
+                        var stock = getStockFromSizesMap(c.sizes || [], sizeKey);
+                        if(stock !== null && stock !== undefined){
+                            foundStock = stock;
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                if(foundStock !== null && foundStock !== undefined) return foundStock;
+            }
+        }catch(e){ /* ignore */ }
+
+        // 4) direct stock fields on product
+        if(typeof product.stock === 'number') return Number(product.stock) || 0;
+        if(typeof product.availableStock === 'number') return Number(product.availableStock) || 0;
+        if(typeof product.qtyAvailable === 'number') return Number(product.qtyAvailable) || 0;
+        return null;
+    }catch(e){ return null; }
+}
+
 // Returns the maximum allowed quantity a customer can have for the given product based on inventory rules
 function getMaxAllowedForProduct(product) {
     try {
-        // Only enforce the overall max pairs per order; allow any size per item.
+        // Only enforce the overall max pairs per order; cap further by available stock when known.
         var cap = Number(product && product.preOrderMax || MAX_PAIRS_PER_ORDER);
-        return (isFinite(cap) && cap > 0) ? cap : MAX_PAIRS_PER_ORDER;
+        cap = (isFinite(cap) && cap > 0) ? cap : MAX_PAIRS_PER_ORDER;
+        if(product && product.preOrder) return cap;
+        var stock = getAvailableStockForProduct(product);
+        if(typeof stock === 'number' && isFinite(stock)){
+            return Math.max(0, Math.min(cap, stock));
+        }
+        return cap;
     } catch (e) {
         return MAX_PAIRS_PER_ORDER;
     }
@@ -778,7 +916,7 @@ function renderCartSidebarItems(){
         });
         // attach basic handlers (increase/decrease/remove/edit)
         container.querySelectorAll('.qty-btn.decrease').forEach(function(btn){ btn.onclick = function(){ var idx = Number(btn.getAttribute('data-index')); var cart = getCart(); if(!cart[idx]) return; if((cart[idx].quantity||cart[idx].qty||1) > 1){ cart[idx].quantity = (cart[idx].quantity||cart[idx].qty||1) - 1; saveCart(cart); renderCartSidebarItems(); renderCartSidebarUI(); } }; });
-        container.querySelectorAll('.qty-btn.increase').forEach(function(btn){ btn.onclick = function(){ var idx = Number(btn.getAttribute('data-index')); var cart = getCart(); if(!cart[idx]) return; if(window.tryIncrementCartItem){ var incRes = window.tryIncrementCartItem(cart, idx); if(incRes && incRes.success === false && incRes.reason === 'max_pairs'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert('Maximum of 3 items per order allowed.'); return; } } else { cart[idx].quantity = (cart[idx].quantity||cart[idx].qty||1) + 1; } saveCart(cart); renderCartSidebarItems(); renderCartSidebarUI(); }; });
+        container.querySelectorAll('.qty-btn.increase').forEach(function(btn){ btn.onclick = function(){ var idx = Number(btn.getAttribute('data-index')); var cart = getCart(); if(!cart[idx]) return; if(window.tryIncrementCartItem){ var incRes = window.tryIncrementCartItem(cart, idx); if(incRes && incRes.success === false){ if(incRes.reason === 'max_reached'){ alert('Only ' + Number(incRes.maxAllowed || 0) + ' stock is available'); return; } if(incRes.reason === 'max_pairs'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert('Maximum of 3 items per order allowed.'); return; } } } else { cart[idx].quantity = (cart[idx].quantity||cart[idx].qty||1) + 1; } saveCart(cart); renderCartSidebarItems(); renderCartSidebarUI(); }; });
         container.querySelectorAll('.cart-item-remove').forEach(function(btn){ btn.onclick = function(){ var idx = Number(btn.getAttribute('data-index')); var cart = getCart(); if(isNaN(idx)) return; cart.splice(idx,1); saveCart(cart); renderCartSidebarItems(); renderCartSidebarUI(); }; });
         container.querySelectorAll('.cart-item-edit').forEach(function(btn){ btn.onclick = function(){ var idx = Number(btn.getAttribute('data-index')); openCartItemEditor(idx); }; });
     }catch(e){ console.error('renderCartSidebarItems error', e); }

@@ -398,7 +398,10 @@
                     if (!isNaN(idx) && cart[idx]) {
                         if(window.tryIncrementCartItem){
                             var r=window.tryIncrementCartItem(cart, idx);
-                            if(r&&r.success===false&&(r.reason==='max_pairs'||r.reason==='max_reached')){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.'); return; }
+                            if(r&&r.success===false){
+                                if(r.reason==='max_reached'){ alert('Only '+Number(r.maxAllowed||0)+' stock is available'); return; }
+                                if(r.reason==='max_pairs'){ if(window.showMaxPairsMessage) window.showMaxPairsMessage(); else alert('Maximum of 3 items per order allowed.'); return; }
+                            }
                         } else {
                             cart[idx].quantity++;
                         }
