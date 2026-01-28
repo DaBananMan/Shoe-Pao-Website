@@ -1873,7 +1873,21 @@
         }catch(e){}
         document.getElementById('checkoutTotal').textContent = '₱' + (subtotal + (available ? shipping : 0)).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
+    function isUserLoggedIn(){
+        try{
+            var token = localStorage.getItem('authToken');
+            if(token) return true;
+            if(window.firebase && firebase.auth && firebase.auth().currentUser) return true;
+        }catch(e){ /* ignore */ }
+        return false;
+    }
+
     window.addEventListener('DOMContentLoaded', function(){
+        // Guard: require login before checkout (same logic as profile page)
+        if(!isUserLoggedIn()){
+            window.location.replace('login.html?return=' + encodeURIComponent('checkout.html'));
+            return;
+        }
         // Guard: prevent entering checkout with an empty cart (e.g., via back button)
         try{
             var cartGuard = [];

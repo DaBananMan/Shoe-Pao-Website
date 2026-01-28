@@ -755,6 +755,43 @@ window.ensureSignedInOrRedirect = function(returnUrl){
     }catch(e){ return false; }
 };
 
+// Checkout guard: validate login before proceeding to checkout
+window.handleCheckoutFromCart = function(e, returnUrl){
+    var targetUrl = returnUrl || 'checkout.html';
+    try{
+        if(e && e.__checkoutValidated === true){
+            window.location.href = targetUrl;
+            return true;
+        }
+        if(typeof window.ensureSignedInOrRedirect === 'function'){
+            var ok = window.ensureSignedInOrRedirect(targetUrl);
+            if(!ok){
+                if(e){ try{ e.preventDefault(); e.stopImmediatePropagation(); }catch(ex){} }
+                return false;
+            }
+        }
+        if(e){ try{ e.preventDefault(); }catch(ex){} }
+        window.location.href = targetUrl;
+        return true;
+    }catch(err){ return false; }
+};
+
+// Intercept checkout button clicks site-wide to enforce login
+document.addEventListener('click', function(e){
+    try{
+        var target = e && e.target && (e.target.closest ? e.target.closest('#checkoutBtn') : null);
+        if(!target) return;
+        if(typeof window.ensureSignedInOrRedirect === 'function'){
+            var ok = window.ensureSignedInOrRedirect('checkout.html');
+            if(!ok){
+                try{ e.preventDefault(); e.stopImmediatePropagation(); }catch(ex){}
+                return;
+            }
+            e.__checkoutValidated = true;
+        }
+    }catch(err){}
+}, true);
+
 // Remove all locally-stored data associated with a given email (orders, profile, cart, wishlist)
 function clearAccountLocalDataByEmail(email){
     if(!email) return;
