@@ -303,7 +303,7 @@
     <div class="payment-main">
         <div class="payment-left">
             <div class="payment-header">Payment</div>
-            <div class="payment-caption"></div>
+            <div class="payment-caption">Payment should be done within 24 hours upon purchase. We will confirm your<br>order once we receive the payment.<br>Please upload proof of payment after transfer.<br>We accept BDO and BPI.</div>
             <div class="payment-method-list" style="margin-bottom:12px;">
                 <!-- payment selection is chosen on the Checkout page but not shown here per design -->
             </div>
@@ -317,7 +317,7 @@
                     </ul>
                 </div>
                 <div style="margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:8px;">
-                    <img id="paymentQRImage" src="IMAGE/qrph.png" alt="QR PH" style="width:220px;height:220px;border-radius:12px;border:1px solid #eee;object-fit:contain;background:#fff;display:none;" data-attempt="" onerror="this.style.display='none'; try{document.getElementById('paymentQRFallback').style.display=''; var d=document.getElementById('downloadPaymentQRBtn'); if(d) d.disabled=true;}catch(e){}" />
+                    <img id="paymentQRImage" src="" alt="QR PH" style="width:220px;height:220px;border-radius:12px;border:1px solid #eee;object-fit:contain;background:#fff;display:none;" data-attempt="" onerror="this.style.display='none'; try{document.getElementById('paymentQRFallback').style.display=''; var d=document.getElementById('downloadPaymentQRBtn'); if(d) d.disabled=true;}catch(e){}" />
                     <div id="paymentQRFallback" style="font-size:0.95rem;color:#666;display:none;margin-top:8px;">QR image not available. Scan with your banking app or enter the reference number below.</div>
                     <div style="margin-top:8px;">
                         <button id="downloadPaymentQRBtn" class="download-qr-btn" type="button" disabled>Download QR</button>
@@ -328,7 +328,7 @@
 
             <div id="bankInstructions" style="display:none;">
                 <div class="payment-divider"></div>
-                <div class="payment-method-title">≡ƒÆ│ For Bank Transfer (BDO)</div>
+                <div class="payment-method-title">For Bank Transfer (BDO)</div>
                 <div class="payment-method-list">
                     <ul>
                         <li>Bank Name: BDO Unibank, Inc.</li>
@@ -336,7 +336,7 @@
                         <li>Account Number: 0045 6789 1234</li>
                     </ul>
                 </div>
-                <div class="payment-method-title">≡ƒÆ│ For Bank Transfer (BPI)</div>
+                <div class="payment-method-title">For Bank Transfer (BPI)</div>
                 <div class="payment-method-list">
                     <ul>
                         <li>Bank Name: Bank of the Philippine Islands (BPI)</li>
@@ -355,10 +355,6 @@
                     <div style="flex:1;display:flex;flex-direction:column;">
                         <label for="bankSelect" style="font-size:0.95rem;color:#333;margin-bottom:6px;">Bank</label>
                         <select id="bankSelect"><option value="BDO">BDO</option><option value="BPI">BPI</option><option value="Other">Other</option></select>
-                    </div>
-                    <div style="flex:1;display:flex;flex-direction:column;">
-                        <label for="acctTypeSelect" style="font-size:0.95rem;color:#333;margin-bottom:6px;">Account/Card Type</label>
-                        <select id="acctTypeSelect"><option value="savings">Savings</option><option value="current">Current</option><option value="debit">Debit Card</option><option value="credit">Credit Card</option></select>
                     </div>
                 </div>
                 <div style="display:flex;gap:10px;margin-top:10px;">
@@ -829,8 +825,9 @@
                     if(bankActions) bankActions.style.display = '';
                     try{
                         var qrImg = document.getElementById('paymentQRImage');
+                        var payload = (currentCheckout && (currentCheckout.payment_payload || currentCheckout.referenceNumber)) ? (currentCheckout.payment_payload || currentCheckout.referenceNumber) : ('SHOEPAO:' + Date.now());
                         if(qrImg){
-                            qrImg.src = 'IMAGE/qrph.png';
+                            qrImg.src = generatePaymentQRUrl(payload, 240);
                             qrImg.style.display = '';
                             try{ var fb = document.getElementById('paymentQRFallback'); if(fb) fb.style.display = 'none'; }catch(e){}
                             try{ var dl = document.getElementById('downloadPaymentQRBtn'); if(dl) dl.disabled = false; }catch(e){}
@@ -1245,7 +1242,6 @@
             if(!el) return;
             try{
                 var sel = document.getElementById('bankSelect'); if(sel) sel.value = (currentCheckout && (currentCheckout.bank || currentCheckout.bank_name)) || '';
-                var at = document.getElementById('acctTypeSelect'); if(at) at.value = (currentCheckout && currentCheckout.bank_acct_type) || '';
                 var an = document.getElementById('acctNameInput'); if(an) an.value = (currentCheckout && currentCheckout.bank_acct_name) || '';
                 var anum = document.getElementById('acctNumberInput'); if(anum) anum.value = (currentCheckout && currentCheckout.bank_acct_number) || '';
                 var note = document.getElementById('bankNote'); if(note) note.value = (currentCheckout && currentCheckout.bank_note) || '';
@@ -1261,7 +1257,6 @@
             // Auto-save bank detail fields as the user types or changes selections
             [
                 { id: 'bankSelect', key: 'bank' },
-                { id: 'acctTypeSelect', key: 'bank_acct_type' },
                 { id: 'acctNameInput', key: 'bank_acct_name' },
                 { id: 'acctNumberInput', key: 'bank_acct_number' },
                 { id: 'bankNote', key: 'bank_note' }
