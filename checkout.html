@@ -587,21 +587,14 @@
             <div class="checkout-delivery-method-title">Delivery method</div>
             
                 <div class="checkout-delivery-options">
-                    <div class="checkout-delivery-option selected" data-code="personal" onclick="selectDeliveryMethod(this, 0)">
-                        <input type="radio" name="delivery" class="checkout-delivery-radio" checked value="personal">
-                        <div>
-                            <div class="checkout-delivery-label">Personal Delivery</div>
-                            <div class="checkout-delivery-desc">Hand delivered by our team. Est. Delivery Time: 1-2 days. Only available in Bacoor, Cavite.</div>
-                        </div>
-                    </div>
-                    <div class="checkout-delivery-option" data-code="jnt" onclick="selectDeliveryMethod(this, 1)">
-                        <input type="radio" name="delivery" class="checkout-delivery-radio" value="jnt">
+                    <div class="checkout-delivery-option selected" data-code="jnt" onclick="selectDeliveryMethod(this, 0)">
+                        <input type="radio" name="delivery" class="checkout-delivery-radio" checked value="jnt">
                         <div>
                             <div class="checkout-delivery-label">J&amp;T Express</div>
                             <div class="checkout-delivery-desc">Delivered via J&amp;T Express. Delivery fee may vary by distance. Est. Delivery Time: 2-7 business days.</div>
                         </div>
                     </div>
-                    <div class="checkout-delivery-option" data-code="jrs" onclick="selectDeliveryMethod(this, 2)">
+                    <div class="checkout-delivery-option" data-code="jrs" onclick="selectDeliveryMethod(this, 1)">
                         <input type="radio" name="delivery" class="checkout-delivery-radio" value="jrs">
                         <div>
                             <div class="checkout-delivery-label">JRS</div>
@@ -940,7 +933,7 @@
     // J&T 500g–1kg bracket per pair
     var SHIPPING_BASE_RATES = { Luzon:155, 'Metro Manila':165, Visayas:180, Mindanao:195, Island:205 };
     // JRS 1kg per item (separate table so rates can diverge from J&T)
-    var JRS_BASE_RATES = { Luzon:155, 'Metro Manila':165, Visayas:180, Mindanao:195, Island:205 };
+    var JRS_BASE_RATES = { Luzon:165, 'Metro Manila':175, Visayas:190, Mindanao:205, Island:215 };
 
     function normalizeRegionGroup(regionName, isIsland){
         if(isIsland) return 'Island';
@@ -2434,10 +2427,16 @@
                     if (!isNaN(idx) && cart[idx]) {
                         if (window.tryIncrementCartItem) {
                             var incRes = window.tryIncrementCartItem(cart, idx);
-                            if (incRes && incRes.success === false && (incRes.reason === 'max_pairs' || incRes.reason === 'max_reached')) {
-                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
-                                return;
+                            if (incRes && incRes.success === false) {
+                                if (incRes.reason === 'max_reached') {
+                                    alert('Only ' + Number(incRes.maxAllowed || 0) + ' stock is available');
+                                    return;
+                                }
+                                if (incRes.reason === 'max_pairs') {
+                                    if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                    else alert('Maximum of 3 items per order allowed.');
+                                    return;
+                                }
                             }
                         } else {
                             cart[idx].quantity++;

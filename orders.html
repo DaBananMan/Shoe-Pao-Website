@@ -3283,11 +3283,50 @@
                     return '&quot;';
                 });
             }
+            function pickValue(obj, keys){
+                if(!obj) return '';
+                for(var i=0;i<keys.length;i++){
+                    var v = obj[keys[i]];
+                    if(v === undefined || v === null) continue;
+                    var str = String(v).trim();
+                    if(str) return str;
+                }
+                return '';
+            }
+            function buildRefundMethodDetailsSection(req){
+                if(!req) return '';
+                var detailsVal = req.refundMethodDetails || req.refundDetails || req.refundAccountDetails || req.refundAccount;
+                if(detailsVal && typeof detailsVal === 'string'){
+                    var text = String(detailsVal).trim();
+                    if(text){
+                        return '<div style="margin-bottom:8px;"><strong>Refund method details:</strong> ' + escHtml(text) + '</div>';
+                    }
+                }
+                var detailObj = (detailsVal && typeof detailsVal === 'object') ? detailsVal : req;
+                var name = pickValue(detailObj, ['accountName','account_name','name','holder','accountHolder','refundName','gcashName','walletName']);
+                var number = pickValue(detailObj, ['accountNumber','account_number','number','accountNo','account_no','refundNumber','gcashNumber','walletNumber','phone','mobile']);
+                var bank = pickValue(detailObj, ['bank','bankName','bank_name']);
+                var branch = pickValue(detailObj, ['branch','bankBranch','bank_branch']);
+                var handle = pickValue(detailObj, ['handle','username','walletId','wallet_id']);
+                var email = pickValue(detailObj, ['email']);
+                var reference = pickValue(detailObj, ['reference','referenceNumber','reference_number']);
+                var lines = [];
+                if(name) lines.push('<div><strong>Account name:</strong> ' + escHtml(name) + '</div>');
+                if(number) lines.push('<div><strong>Account number:</strong> ' + escHtml(number) + '</div>');
+                if(bank) lines.push('<div><strong>Bank:</strong> ' + escHtml(bank) + '</div>');
+                if(branch) lines.push('<div><strong>Branch:</strong> ' + escHtml(branch) + '</div>');
+                if(handle) lines.push('<div><strong>Wallet handle:</strong> ' + escHtml(handle) + '</div>');
+                if(email) lines.push('<div><strong>Email:</strong> ' + escHtml(email) + '</div>');
+                if(reference) lines.push('<div><strong>Reference:</strong> ' + escHtml(reference) + '</div>');
+                if(!lines.length) return '';
+                return '<div style="margin-bottom:8px;"><strong>Refund method details:</strong><div style="margin-top:6px;display:flex;flex-direction:column;gap:4px;color:#444;">' + lines.join('') + '</div></div>';
+            }
             var html = '<div style="font-weight:600;margin-bottom:8px;">Order ID: ' + (row.id||'') + '</div>';
             html += '<div style="margin-bottom:8px;">Customer: ' + (row.name || '') + '</div>';
             if(row.returnRequest){
                 html += '<div style="margin-bottom:8px;"><strong>Reason:</strong> ' + (row.returnRequest.returnReason || '') + '</div>';
                 html += '<div style="margin-bottom:8px;"><strong>Refund method:</strong> ' + (row.returnRequest.refundMethod || '') + '</div>';
+                html += buildRefundMethodDetailsSection(row.returnRequest);
                 var reqItems = row.returnRequest.items || row.returnRequest.returnItems || row.returnRequest.products || [];
                 if(Array.isArray(reqItems) && reqItems.length){
                     html += '<div style="margin-bottom:6px;"><strong>Requested items:</strong></div>';
