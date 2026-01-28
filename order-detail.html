@@ -313,12 +313,72 @@
           .replace(/'/g,'&#39;');
       }
 
+      function hasUserRatedOrder(order, items){
+        try{
+          var api = window.ShoePaoRatings;
+          if(!api) return false;
+          var ord = order || getActiveDetailOrder();
+          if(!ord) return false;
+          var orderKey = String(ord.id || orderId || '').trim();
+          if(!orderKey) return false;
+
+          var profile = _getActiveProfile() || {};
+          var userEmail = String(profile.email||'').trim().toLowerCase();
+
+          function matchRating(r){
+            if(!r) return false;
+            if(String(r.orderId||'') !== orderKey) return false;
+            if(userEmail){
+              var re = String(r.userEmail||'').toLowerCase();
+              if(!re || re !== userEmail) return false;
+            }
+            return true;
+          }
+
+          var listItems = items || getActiveDetailItems() || [];
+          var byKey = {};
+          listItems.forEach(function(it){
+            if(!it) return;
+            var title = (it.title || it.name || it.productName || it.itemName || '').trim();
+            var brand = (it.brand || it.productBrand || '').trim();
+            var productId = String(it.product_id || it.productId || it.id || it.inventoryId || it.variantId || it.sku || '').trim();
+            var key = (brand || title) ? api.getProductKey({ brand: brand, title: title }) : api.getProductKey({ productId: productId, brand: brand, title: title });
+            if(key) byKey[key] = true;
+          });
+
+          var keys = Object.keys(byKey);
+          if(keys.length){
+            for(var i=0;i<keys.length;i++){
+              var list = api.getRatings(keys[i]) || [];
+              for(var j=0;j<list.length;j++){
+                if(matchRating(list[j])) return true;
+              }
+            }
+            return false;
+          }
+
+          var all = api.getAllRatings ? api.getAllRatings() : {};
+          var pk = Object.keys(all || {});
+          for(var k=0;k<pk.length;k++){
+            var arr = Array.isArray(all[pk[k]]) ? all[pk[k]] : [];
+            for(var m=0;m<arr.length;m++){
+              if(matchRating(arr[m])) return true;
+            }
+          }
+          return false;
+        }catch(e){ return false; }
+      }
+
       window.openRatingModalForDetail = function(){
         try{
           var api = window.ShoePaoRatings;
           if(!api){ alert('Ratings system is not loaded.'); return; }
           var ord = getActiveDetailOrder();
           if(!ord) return;
+          if(hasUserRatedOrder(ord, getActiveDetailItems())){
+            alert('You already rated this order.');
+            return;
+          }
 
           _ratingModalOrderId = String(ord.id || orderId || '').trim();
           var overlay = document.getElementById('ratingModalOverlay');
@@ -430,6 +490,11 @@
           var api = window.ShoePaoRatings;
           if(!api){ alert('Ratings system is not loaded.'); return; }
           if(!_ratingModalOrderId){ window.closeRatingModal(); return; }
+          if(hasUserRatedOrder(getActiveDetailOrder(), getActiveDetailItems())){
+            alert('You already rated this order.');
+            window.closeRatingModal();
+            return;
+          }
 
           var profile = _getActiveProfile() || {};
           var userEmail = String(profile.email||'').trim().toLowerCase();
@@ -460,6 +525,10 @@
 
           if(!wroteAny){ alert('Please select a star rating.'); return; }
           window.closeRatingModal();
+          try{
+            var ord = getActiveDetailOrder();
+            if(ord){ renderOrder(ord, getActiveDetailItems(), serverOrderCache && serverOrderCache.tracking || []); }
+          }catch(e){}
           alert('Thanks! Your rating has been submitted.');
         }catch(e){
           console.error(e);
@@ -1685,7 +1754,12 @@
             actions.push(btn('Return / Refund', 'action-refund', 'window._detailRequestRefund()', { disabled: true }));
             actions.push('<div style="flex-basis:100%;color:#b71c1c;font-weight:600;font-size:0.95rem;">Return period has expired</div>');
           }
-          actions.push(btn('Rate Items', 'action-view', 'window._detailRateItems()'));
+          var rated = hasUserRatedOrder(order, getActiveDetailItems());
+          if(rated){
+            actions.push('<button class="action-btn action-view action-disabled" aria-disabled="true" disabled title="You already rated this order.">Rated</button>');
+          } else {
+            actions.push(btn('Rate Items', 'action-view', 'window._detailRateItems()'));
+          }
           actions.push(btn('Contact Seller', 'action-contact', 'window._detailContactSeller()'));
         } else if(statusNorm.indexOf('cancel') !== -1){
           actions.push(btn('Order Again', 'action-view', 'window._orderAgain()'));

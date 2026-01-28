@@ -1477,8 +1477,7 @@
         }
 
         function adjustInventoryStock(items, direction){
-            try{ adjustInventoryStockFirestore(items, direction); }catch(e){ /* ignore */ }
-            return false;
+            try{ return adjustInventoryStockFirestore(items, direction); }catch(e){ return false; }
         }
 
         function adjustInventoryStockFirestore(items, direction){
@@ -1492,51 +1491,17 @@
                     var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
                     var getItemId = function(it){ return String(it.product_id || it.productId || it.id || '').trim(); };
                     var getItemInventoryId = function(it){ return String(it.inventoryId || it.inventory_id || it.product_id || it.productId || it.id || '').trim(); };
-                    var getItemVariantId = function(it){ return String(it.variantId || it.variant_id || it.variant || '').trim(); };
                     var getItemName = function(it){ return String(it.name || it.title || it.productName || '').trim(); };
                     var getItemBrand = function(it){ return String(it.brand || it.productBrand || '').trim(); };
                     var getItemColor = function(it){ return String(it.color || it.variant || it.colorName || '').trim(); };
                     var getItemSize = function(it){ return String(it.size || it.eu || it.size_eu || '').trim(); };
 
-                    Promise.all([
-                        db.collection('variants').get(),
-                        db.collection('products').get()
-                    ]).then(function(res){
-                        var variantsSnap = res[0];
-                        var productsSnap = res[1];
-                        var variants = [];
+                    db.collection('products').get().then(function(productsSnap){
                         var products = [];
-                        variantsSnap.forEach(function(doc){ variants.push({ ref: doc.ref, id: doc.id, data: doc.data() || {} }); });
                         productsSnap.forEach(function(doc){ products.push({ ref: doc.ref, id: doc.id, data: doc.data() || {} }); });
 
-                        var variantsByProductId = {};
-                        variants.forEach(function(v){
-                            try{
-                                var d = v.data || {};
-                                var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
-                                if(!pid) return;
-                                var key = String(pid);
-                                if(!variantsByProductId[key]) variantsByProductId[key] = [];
-                                variantsByProductId[key].push(v);
-                            }catch(e){ /* ignore */ }
-                        });
-
-                        var batch = db.batch();
                         var did = false;
-                        var variantUpdates = new Map();
                         var productUpdates = new Map();
-
-                        function getVariantState(match){
-                            var key = match && match.ref ? match.ref.path : (match && match.id ? String(match.id) : '');
-                            if(!key) return null;
-                            var state = variantUpdates.get(key);
-                            if(!state){
-                                var base = JSON.parse(JSON.stringify(match.data || {}));
-                                state = { ref: match.ref, data: base, payload: {} };
-                                variantUpdates.set(key, state);
-                            }
-                            return state;
-                        }
 
                         function getProductState(match){
                             var key = match && match.ref ? match.ref.path : (match && match.id ? String(match.id) : '');
@@ -1550,105 +1515,24 @@
                             return state;
                         }
 
-                        items.forEach(function(it){
-                            var qty = Number(it.qty || it.quantity || 1) || 0;
-                            if(!qty) return;
-                            var size = getItemSize(it);
-                            if(!size) return;
-                            var itemId = getItemId(it);
-                            var itemInventoryId = getItemInventoryId(it);
-                            var itemVariantId = getItemVariantId(it);
-                            var itemName = getItemName(it);
-                            var itemBrand = getItemBrand(it);
-                            var itemColor = getItemColor(it);
-
-                            // Update variants collection
-                            var variantMatch = null;
-                            if(itemVariantId){
-                                variantMatch = variants.find(function(v){ return String(v.id) === itemVariantId; });
-                            }
-                            if(!variantMatch && itemId){
-                                variantMatch = variants.find(function(v){
-                                    var d = v.data || {};
-                                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
-                                    return pid && String(pid) === itemId;
-                                });
-                            }
-                            if(!variantMatch && itemInventoryId){
-                                variantMatch = variants.find(function(v){
-                                    var d = v.data || {};
-                                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
-                                    return pid && String(pid) === itemInventoryId;
-                                });
-                            }
-                            if(!variantMatch && itemColor){
-                                var cNorm = normalize(itemColor);
-                                variantMatch = variants.find(function(v){
-                                    var d = v.data || {};
-                                    var vColor = normalize(d.colorName || d.name || d.color || '');
-                                    if(!vColor) return false;
-                                    if(vColor !== cNorm) return false;
-                                    if(itemBrand){
-                                        var vBrand = normalize(d.brand || '');
-                                        if(vBrand && vBrand !== normalize(itemBrand)) return false;
-                                    }
-                                    return true;
-                                });
-                            }
-                            if(variantMatch){
-                                var vState = getVariantState(variantMatch);
-                                if(vState){
-                                    var vd = vState.data || {};
-                                    if(Array.isArray(vd.sizes)){
-                                        vd.sizes = vd.sizes.map(function(s){
-                                            if(String(s.eu) === String(size)){
-                                                var cur = Number(s.stock || 0) || 0;
-                                                var next = cur + (direction * qty);
-                                                return Object.assign({}, s, { stock: Math.max(0, next) });
-                                            }
-                                            return s;
-                                        });
-                                        vState.payload.sizes = vd.sizes;
-                                        did = true;
-                                    } else if (vd.sizeMap && typeof vd.sizeMap === 'object') {
-                                        var curMap = Object.assign({}, vd.sizeMap);
-                                        var curVal = Number(curMap[String(size)] || 0) || 0;
-                                        curMap[String(size)] = Math.max(0, curVal + (direction * qty));
-                                        vState.payload.sizeMap = curMap;
-                                        did = true;
-                                    } else if (vd.sizesMap && typeof vd.sizesMap === 'object') {
-                                        var curMap2 = Object.assign({}, vd.sizesMap);
-                                        var curVal2 = Number(curMap2[String(size)] || 0) || 0;
-                                        curMap2[String(size)] = Math.max(0, curVal2 + (direction * qty));
-                                        vState.payload.sizesMap = curMap2;
-                                        did = true;
-                                    } else {
-                                        var field = 'stock' + String(size);
-                                        var curVal3 = Number(vd[field] || 0) || 0;
-                                        var nextVal3 = Math.max(0, curVal3 + (direction * qty));
-                                        vState.payload[field] = nextVal3;
-                                        did = true;
-                                    }
-                                }
-                            }
-
-                            // Update products collection if sizes are embedded in colors
-                            var productMatch = null;
+                        function findProductMatch(itemId, itemInventoryId, itemName, itemBrand){
                             if(itemInventoryId){
-                                productMatch = products.find(function(p){
+                                var byInv = products.find(function(p){
                                     var d = p.data || {};
                                     return String(d.id || d.sku || p.id || '') === itemInventoryId;
                                 });
+                                if(byInv) return byInv;
                             }
-                            if(!productMatch && itemId){
-                                productMatch = products.find(function(p){
+                            if(itemId){
+                                var byId = products.find(function(p){
                                     var d = p.data || {};
                                     return String(d.id || d.sku || p.id || '') === itemId;
                                 });
+                                if(byId) return byId;
                             }
-                            if(!productMatch && itemName){
+                            if(itemName){
                                 var nName = normalize(itemName);
-                                productMatch = products.find(function(p){
+                                return products.find(function(p){
                                     var d = p.data || {};
                                     var model = normalize(d.model || d.name || d.title || '');
                                     if(!model) return false;
@@ -1658,144 +1542,57 @@
                                         if(b && b !== normalize(itemBrand)) return false;
                                     }
                                     return true;
-                                });
+                                }) || null;
                             }
-                            if(!variantMatch && productMatch){
-                                var pData = productMatch.data || {};
-                                var resolvedProductId = String(pData.id || pData.sku || productMatch.id || '');
-                                var list = resolvedProductId ? (variantsByProductId[resolvedProductId] || []) : [];
-                                if(list.length === 1){
-                                    variantMatch = list[0];
-                                }
-                            }
-                            if(productMatch){
-                                var pState = getProductState(productMatch);
-                                if(pState){
-                                    var pd = pState.data || {};
-                                    if(Array.isArray(pd.colors)){
-                                        var colorNameToUse = itemColor;
-                                        if(!colorNameToUse && pd.colors.length === 1){
-                                            colorNameToUse = pd.colors[0].name || '';
-                                        }
-                                        pd.colors = pd.colors.map(function(c){
-                                            if(colorNameToUse){
-                                                if(normalize(c.name || '') !== normalize(colorNameToUse)) return c;
-                                            }
-                                            if(Array.isArray(c.sizes)){
-                                                var sizes = c.sizes.map(function(s){
-                                                    if(String(s.eu) === String(size)){
-                                                        var cur = Number(s.stock || 0) || 0;
-                                                        var next = cur + (direction * qty);
-                                                        return Object.assign({}, s, { stock: Math.max(0, next) });
-                                                    }
-                                                    return s;
-                                                });
-                                                return Object.assign({}, c, { sizes: sizes });
-                                            }
-                                            return c;
-                                        });
-                                        pState.payload.colors = pd.colors;
-                                        did = true;
-                                    }
-                                }
-                            }
-                        });
-
-                        // Collect all updates (ref + payload) and commit in sequential chunks
-                        var writes = [];
-                        // Helper to build increment payloads when possible to update only changed sizes
-                        function buildIncrementPayload(state){
-                            try{
-                                if(!state || !state.payload || !Object.keys(state.payload).length) return null;
-                                var base = state.data || {};
-                                var payload = state.payload || {};
-                                var inc = {};
-                                var added = false;
-
-                                // Common size-map keys to consider
-                                var mapKeys = ['sizeMap','sizesMap','size_map','sizes_map'];
-                                mapKeys.forEach(function(k){
-                                    if(payload[k] && typeof payload[k] === 'object'){
-                                        var pmap = payload[k] || {};
-                                        var bmap = base[k] || {};
-                                        Object.keys(pmap).forEach(function(sz){
-                                            var newVal = Number(pmap[sz]||0);
-                                            var oldVal = Number(bmap[sz]||0);
-                                            var diff = newVal - oldVal;
-                                            if(diff !== 0){
-                                                inc[k + '.' + sz] = firebase.firestore.FieldValue.increment(diff);
-                                                added = true;
-                                            }
-                                        });
-                                    }
-                                });
-
-                                // If payload provides colors with sizes (product-level), try to compute per-color size diffs
-                                // This is more complex; only attempt for single-variant docs where payload.colors exists and base.colors exists
-                                if(payload.colors && Array.isArray(payload.colors) && Array.isArray(base.colors)){
-                                    // Build maps by color name for base and payload
-                                    var toMap = function(colorsArr){
-                                        var m = {};
-                                        colorsArr.forEach(function(c){
-                                            var name = String((c.name||c.colorName||c.color||'')).trim();
-                                            if(!name) return;
-                                            var sizes = Array.isArray(c.sizes) ? c.sizes : [];
-                                            var sm = {};
-                                            sizes.forEach(function(s){ sm[String(s.eu||s.size||'')] = Number(s.stock||0); });
-                                            m[name] = sm;
-                                        });
-                                        return m;
-                                    };
-                                    var pmap = toMap(payload.colors);
-                                    var bmap = toMap(base.colors);
-                                    Object.keys(pmap).forEach(function(colorName){
-                                        var pSizes = pmap[colorName] || {};
-                                        var bSizes = bmap[colorName] || {};
-                                        Object.keys(pSizes).forEach(function(sz){
-                                            var newVal = Number(pSizes[sz]||0);
-                                            var oldVal = Number(bSizes[sz]||0);
-                                            var diff = newVal - oldVal;
-                                            if(diff !== 0){
-                                                // use a map-like path under colorsMap if available, else fall back to sizesMap.<size>
-                                                // prefer sizesMap.<size> to keep updates simple
-                                                inc['sizesMap.' + sz] = (inc['sizesMap.' + sz] || 0);
-                                                // accumulate numeric diffs then convert to FieldValue later
-                                                inc['sizesMap.' + sz] = (typeof inc['sizesMap.' + sz] === 'number' ? inc['sizesMap.' + sz] + diff : diff);
-                                                added = true;
-                                            }
-                                        });
-                                    });
-                                }
-
-                                if(!added) return null;
-
-                                // Convert numeric diffs to FieldValue.increment
-                                var final = {};
-                                Object.keys(inc).forEach(function(k){
-                                    var v = inc[k];
-                                    if(typeof v === 'number') final[k] = firebase.firestore.FieldValue.increment(v);
-                                    else final[k] = v; // already a FieldValue
-                                });
-                                final.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                                return final;
-                            }catch(e){ return null; }
+                            return null;
                         }
 
-                        // Build writes for variants: prefer per-size increments when possible
-                        variantUpdates.forEach(function(state){
-                            try{
-                                if(!state || !state.payload || !Object.keys(state.payload).length) return;
-                                var incPayload = buildIncrementPayload(state);
-                                if(incPayload){
-                                    writes.push({ ref: state.ref, payload: incPayload });
-                                } else {
-                                    state.payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                                    writes.push({ ref: state.ref, payload: state.payload });
+                        items.forEach(function(it){
+                            var qty = Number(it.qty || it.quantity || 1) || 0;
+                            if(!qty) return;
+                            var size = getItemSize(it);
+                            if(!size) return;
+                            var itemId = getItemId(it);
+                            var itemInventoryId = getItemInventoryId(it);
+                            var itemName = getItemName(it);
+                            var itemBrand = getItemBrand(it);
+                            var itemColor = getItemColor(it);
+
+                            var productMatch = findProductMatch(itemId, itemInventoryId, itemName, itemBrand);
+                            if(!productMatch) return;
+                            var pState = getProductState(productMatch);
+                            if(!pState) return;
+                            var pd = pState.data || {};
+                            if(!Array.isArray(pd.colors)) return;
+
+                            var colorNameToUse = itemColor;
+                            if(!colorNameToUse && pd.colors.length === 1){
+                                colorNameToUse = pd.colors[0].name || '';
+                            }
+
+                            pd.colors = pd.colors.map(function(c){
+                                if(colorNameToUse){
+                                    if(normalize(c.name || '') !== normalize(colorNameToUse)) return c;
                                 }
-                            }catch(e){ }
+                                if(Array.isArray(c.sizes)){
+                                    var sizes = c.sizes.map(function(s){
+                                        if(String(s.eu) === String(size)){
+                                            var cur = Number(s.stock || 0) || 0;
+                                            var next = cur + (direction * qty);
+                                            return Object.assign({}, s, { stock: Math.max(0, next) });
+                                        }
+                                        return s;
+                                    });
+                                    return Object.assign({}, c, { sizes: sizes });
+                                }
+                                return c;
+                            });
+
+                            pState.payload.colors = pd.colors;
+                            did = true;
                         });
 
-                        // For products (which may contain colors arrays), fall back to full document updates to avoid array-rewrite complexity
+                        var writes = [];
                         productUpdates.forEach(function(state){
                             try{
                                 if(!state || !state.payload || !Object.keys(state.payload).length) return;
@@ -1806,8 +1603,7 @@
 
                         if(!did || !writes.length) return resolve(false);
 
-                        // Helper: commit an array of writes in sequential chunks with retries
-                        var CHUNK_SIZE = 200; // safe batch size well under Firestore limit (500)
+                        var CHUNK_SIZE = 200;
                         function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
                         (async function commitChunks(){
@@ -1820,20 +1616,17 @@
                                             var b = db.batch();
                                             chunk.forEach(function(w){ b.update(w.ref, w.payload); });
                                             await b.commit();
-                                            break; // success, move to next chunk
+                                            break;
                                         }catch(err){
                                             attempt++;
-                                            // If resource-exhausted, retry with exponential backoff up to a limit
                                             var code = (err && err.code) ? err.code : (err && err.message) ? err.message : null;
                                             if(attempt > 4){
-                                                // Give up after a few attempts
                                                 console.error('commitChunks: giving up after retries', err);
                                                 return resolve(false);
                                             }
-                                            var backoff = 250 * Math.pow(2, attempt); // 250ms, 500ms, 1s, 2s...
+                                            var backoff = 250 * Math.pow(2, attempt);
                                             console.warn('commitChunks: retrying chunk after error', code || err, 'attempt', attempt, 'backoff', backoff);
                                             await sleep(backoff);
-                                            // continue retrying
                                         }
                                     }
                                 }
@@ -1845,22 +1638,17 @@
             });
         }
 
-        // Lightweight inventory snapshot for stock validation (no writes)
+        // Lightweight products snapshot for stock validation (no writes)
         function fetchInventorySnapshot(){
             return new Promise(function(resolve){
                 try{
                     if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return resolve(null);
                     if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
                     var db = firebase.firestore();
-                    Promise.all([
-                        db.collection('variants').get(),
-                        db.collection('products').get()
-                    ]).then(function(res){
-                        var variants = [];
+                    db.collection('products').get().then(function(res){
                         var products = [];
-                        res[0].forEach(function(doc){ variants.push({ id: doc.id, data: doc.data() || {} }); });
-                        res[1].forEach(function(doc){ products.push({ id: doc.id, data: doc.data() || {} }); });
-                        resolve({ variants: variants, products: products });
+                        res.forEach(function(doc){ products.push({ id: doc.id, data: doc.data() || {} }); });
+                        resolve({ products: products });
                     }).catch(function(){ resolve(null); });
                 }catch(e){ resolve(null); }
             });
@@ -1909,48 +1697,9 @@
             var qty = Number(item.qty || item.quantity || 1) || 1;
             var itemId = String(item.product_id || item.productId || item.id || '').trim();
             var itemInventoryId = String(item.inventoryId || item.inventory_id || item.product_id || item.productId || item.id || '').trim();
-            var itemVariantId = String(item.variantId || item.variant_id || item.variant || '').trim();
             var itemName = String(item.name || item.title || item.productName || '').trim();
             var itemBrand = String(item.brand || item.productBrand || '').trim();
             var itemColor = String(item.color || item.variant || item.colorName || '').trim();
-
-            var variantMatch = null;
-            if(itemVariantId){
-                variantMatch = snapshot.variants.find(function(v){ return String(v.id) === itemVariantId; });
-            }
-            if(!variantMatch && itemId){
-                variantMatch = snapshot.variants.find(function(v){
-                    var d = v.data || {};
-                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || null;
-                    return pid && String(pid) === itemId;
-                });
-            }
-            if(!variantMatch && itemInventoryId){
-                variantMatch = snapshot.variants.find(function(v){
-                    var d = v.data || {};
-                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || null;
-                    return pid && String(pid) === itemInventoryId;
-                });
-            }
-            if(!variantMatch && itemColor){
-                var cNorm = normalize(itemColor);
-                variantMatch = snapshot.variants.find(function(v){
-                    var d = v.data || {};
-                    var vColor = normalize(d.colorName || d.name || d.color || '');
-                    if(!vColor) return false;
-                    if(vColor !== cNorm) return false;
-                    if(itemBrand){
-                        var vBrand = normalize(d.brand || '');
-                        if(vBrand && vBrand !== normalize(itemBrand)) return false;
-                    }
-                    return true;
-                });
-            }
-
-            if(variantMatch){
-                var available = getVariantStockForSize(variantMatch.data, size);
-                if(available !== null) return { available: available, needed: qty, name: itemName || itemId || 'Item', size: size };
-            }
 
             var productMatch = null;
             if(itemInventoryId){
@@ -3272,11 +3021,50 @@
                     return '&quot;';
                 });
             }
+            function pickValue(obj, keys){
+                if(!obj) return '';
+                for(var i=0;i<keys.length;i++){
+                    var v = obj[keys[i]];
+                    if(v === undefined || v === null) continue;
+                    var str = String(v).trim();
+                    if(str) return str;
+                }
+                return '';
+            }
+            function buildRefundMethodDetailsSection(req){
+                if(!req) return '';
+                var detailsVal = req.refundMethodDetails || req.refundDetails || req.refundAccountDetails || req.refundAccount;
+                if(detailsVal && typeof detailsVal === 'string'){
+                    var text = String(detailsVal).trim();
+                    if(text){
+                        return '<div style="margin-bottom:8px;"><strong>Refund method details:</strong> ' + escHtml(text) + '</div>';
+                    }
+                }
+                var detailObj = (detailsVal && typeof detailsVal === 'object') ? detailsVal : req;
+                var name = pickValue(detailObj, ['accountName','account_name','name','holder','accountHolder','refundName','gcashName','walletName']);
+                var number = pickValue(detailObj, ['accountNumber','account_number','number','accountNo','account_no','refundNumber','gcashNumber','walletNumber','phone','mobile']);
+                var bank = pickValue(detailObj, ['bank','bankName','bank_name']);
+                var branch = pickValue(detailObj, ['branch','bankBranch','bank_branch']);
+                var handle = pickValue(detailObj, ['handle','username','walletId','wallet_id']);
+                var email = pickValue(detailObj, ['email']);
+                var reference = pickValue(detailObj, ['reference','referenceNumber','reference_number']);
+                var lines = [];
+                if(name) lines.push('<div><strong>Account name:</strong> ' + escHtml(name) + '</div>');
+                if(number) lines.push('<div><strong>Account number:</strong> ' + escHtml(number) + '</div>');
+                if(bank) lines.push('<div><strong>Bank:</strong> ' + escHtml(bank) + '</div>');
+                if(branch) lines.push('<div><strong>Branch:</strong> ' + escHtml(branch) + '</div>');
+                if(handle) lines.push('<div><strong>Wallet handle:</strong> ' + escHtml(handle) + '</div>');
+                if(email) lines.push('<div><strong>Email:</strong> ' + escHtml(email) + '</div>');
+                if(reference) lines.push('<div><strong>Reference:</strong> ' + escHtml(reference) + '</div>');
+                if(!lines.length) return '';
+                return '<div style="margin-bottom:8px;"><strong>Refund method details:</strong><div style="margin-top:6px;display:flex;flex-direction:column;gap:4px;color:#444;">' + lines.join('') + '</div></div>';
+            }
             var html = '<div style="font-weight:600;margin-bottom:8px;">Order ID: ' + (row.id||'') + '</div>';
             html += '<div style="margin-bottom:8px;">Customer: ' + (row.name || '') + '</div>';
             if(row.returnRequest){
                 html += '<div style="margin-bottom:8px;"><strong>Reason:</strong> ' + (row.returnRequest.returnReason || '') + '</div>';
                 html += '<div style="margin-bottom:8px;"><strong>Refund method:</strong> ' + (row.returnRequest.refundMethod || '') + '</div>';
+                html += buildRefundMethodDetailsSection(row.returnRequest);
                 var reqItems = row.returnRequest.items || row.returnRequest.returnItems || row.returnRequest.products || [];
                 if(Array.isArray(reqItems) && reqItems.length){
                     html += '<div style="margin-bottom:6px;"><strong>Requested items:</strong></div>';
@@ -3742,10 +3530,16 @@
                     if (!isNaN(idx) && cart[idx]) {
                         if (window.tryIncrementCartItem) {
                             var r = window.tryIncrementCartItem(cart, idx);
-                            if (r && r.success === false && (r.reason === 'max_pairs' || r.reason === 'max_reached')) {
-                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
-                                return;
+                            if (r && r.success === false) {
+                                if (r.reason === 'max_reached') {
+                                    alert('Only ' + Number(r.maxAllowed || 0) + ' stock is available');
+                                    return;
+                                }
+                                if (r.reason === 'max_pairs') {
+                                    if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                    else alert('Maximum of 3 items per order allowed.');
+                                    return;
+                                }
                             }
                         } else {
                             cart[idx].quantity++;
