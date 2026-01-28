@@ -82,8 +82,9 @@
         }
         .productview-center {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             min-width: 380px;
             min-height: 380px;
             position: relative;
@@ -99,6 +100,7 @@
             background: #f7f7f7;
             padding: 8px; /* slight inner padding so edges aren't flush when contain adds empty space */
             transition: opacity 0.35s ease;
+            margin-top: -2px;
         }
         .productview-right {
             flex: 1;
@@ -320,25 +322,7 @@
             /* Deep red: #990000 */
             filter: invert(13%) sepia(99%) saturate(7492%) hue-rotate(357deg) brightness(90%) contrast(110%);
         }
-        /* Review icon button (placed to the right of wishlist) */
-        .productview-review-icon {
-            width: 66px;
-            height: 66px;
-            background: none !important;
-            border: none !important;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            box-shadow: none !important;
-            outline: none !important;
-            transition: filter 0.18s;
-        }
-        .productview-review-icon:hover img {
-            filter: invert(13%) sepia(99%) saturate(7492%) hue-rotate(357deg) brightness(90%) contrast(110%);
-        }
-        /* shared icon sizing so wishlist and review match exactly */
+        /* shared icon sizing */
         .productview-icon { width: 66px; height: 66px; display: flex; align-items: center; justify-content: center; padding: 0; background: none !important; border: none !important }
         .productview-icon img { width: 54px; height: 54px; object-fit: contain }
         .wishlist-popup {
@@ -421,61 +405,68 @@
             max-width: 98vw;
             height: auto;
         }
+        .productview-reviews-section {
+            max-width: 980px;
+            margin: 18px auto 32px auto;
+            padding: 0 20px;
+        }
         .productview-reviews-header {
-            text-align: left;
-            font-size: 1.3rem;
-            font-weight: 600;
+            text-align: center;
+            font-size: 1.35rem;
+            font-weight: 700;
             color: #222;
-            margin-bottom: 18px;
-            padding-left: 32px;
-            padding-right: 32px;
+            margin-bottom: 16px;
+            letter-spacing: 0.01em;
         }
         .productview-reviews-row {
-            display: flex;
-            gap: 48px;
-            align-items: flex-start;
-            margin-bottom: 32px;
-            padding-left: 32px;
-            padding-right: 32px;
+            display: grid;
+            grid-template-columns: minmax(260px, 1.2fr) minmax(260px, 1fr);
+            gap: 24px;
+            align-items: stretch;
+            background: #fafafa;
+            border: 1px solid #eee;
+            border-radius: 18px;
+            padding: 20px 24px;
         }
         .productview-reviews-left {
-            flex: 2;
             display: flex;
             flex-direction: column;
             gap: 12px;
+            align-items: flex-start;
         }
-        .productview-reviews-divider {
-            width: 2px;
-            height: 120px;
-            background: #eee;
-            margin: 0 24px;
+        .productview-reviews-left #ratingsAvgLine {
+            font-size: 1.25rem !important;
+        }
+        .productview-reviews-left #ratingsBasedOn {
+            font-size: 0.98rem !important;
         }
         .productview-reviews-center {
-            flex: 1;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 8px;
+            gap: 6px;
+            width: 100%;
         }
+        .productview-reviews-divider,
         .productview-reviews-right {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
+            display: none;
         }
-        .productview-review-btn {
-            background: #111;
-            color: #fff;
-            border: none;
-            border-radius: 22px;
-            padding: 12px 38px;
-            font-size: 1.08rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.2s;
+        .productview-reviews-card-title {
+            font-size: 0.95rem;
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 6px;
         }
-        .productview-review-btn:hover {
-            background: #b71c1c;
+        @media (max-width: 820px) {
+            .productview-reviews-row {
+                grid-template-columns: 1fr;
+            }
+            .productview-reviews-left {
+                align-items: center;
+                text-align: center;
+            }
+            .productview-reviews-center {
+                align-items: center;
+            }
         }
         .productview-recommend-header {
             font-size: 1.3rem;
@@ -484,6 +475,13 @@
             margin-bottom: 18px;
             padding-left: 32px;
             padding-right: 32px;
+        }
+        .productview-recommend-empty {
+            width: 100%;
+            text-align: center;
+            color: #777;
+            font-size: 0.98rem;
+            padding: 22px 0;
         }
         .productview-recommend-row {
             display: flex;
@@ -1437,6 +1435,10 @@
         <div class="productview-center">
             <img src="IMAGE/NIKE1.png" class="productview-main-img" id="mainShoeImg" alt="Main Shoe">
             <img src="IMAGE/NIKE1.png" class="productview-main-img" id="mainShoeImgOverlay" alt="Main Shoe Preview" style="position:absolute;opacity:0;pointer-events:none;">
+            <div class="productview-ar-caption">
+                Virtually try your preferred shoes to see<br>how it looks on you!
+            </div>
+            <button class="productview-ar-btn" onclick="openARModal()">AR Try-On Shoes</button>
         </div>
         <div class="productview-right">
             <div class="productview-brand" id="productBrand">Nike</div>
@@ -1532,65 +1534,24 @@
             
         </div>
     </div>
-    <div class="productview-ar-caption">
-        Virtually try your preferred shoes to see<br>how it looks on you!
-    </div>
-    <button class="productview-ar-btn" onclick="openARModal()">AR Try-On Shoes</button>
-    
-    <div class="productview-reviews-header">Customer Reviews</div>
-    <div class="productview-reviews-row" id="productRatingsRow">
-        <div class="productview-reviews-left">
-            <div id="ratingsAvgLine" style="font-size:1.08rem;font-weight:600;color:#222;"></div>
-            <div id="ratingsBasedOn" style="font-size:0.98rem;color:#444;"></div>
-            <div id="ratingsRecent" style="margin-top:10px;"></div>
+    <div class="productview-reviews-section">
+        <div class="productview-reviews-header">Customer Reviews</div>
+        <div class="productview-reviews-row" id="productRatingsRow">
+            <div class="productview-reviews-left">
+                <div id="ratingsAvgLine" style="font-size:1.08rem;font-weight:600;color:#222;"></div>
+                <div id="ratingsBasedOn" style="font-size:0.98rem;color:#444;"></div>
+                <div id="ratingsRecent" style="margin-top:10px;"></div>
+            </div>
+            <div class="productview-reviews-center" aria-label="Ratings breakdown">
+                <div class="productview-reviews-card-title">Ratings breakdown</div>
+                <div id="ratingsBreakdown"></div>
+            </div>
         </div>
-        <div class="productview-reviews-divider"></div>
-        <div class="productview-reviews-center" id="ratingsBreakdown"></div>
-        <div class="productview-reviews-divider"></div>
-        <div class="productview-reviews-right"></div>
     </div>
     <div class="productview-section-divider"></div>
     <div class="productview-recommend-header">You may also like</div>
-    <div class="productview-recommend-row">
-        <div class="productview-card">
-            <div class="productview-card-img-box">
-                <img src="IMAGE/NIKE1.png" class="productview-card-img" alt="Nike P6000 Shadow">
-                <span class="productview-card-badge-new">New</span>
-            </div>
-            <div class="productview-card-info-box">
-                <div class="productview-card-info-top">
-                    <span class="productview-card-brand">Nike</span>
-                    <span class="productview-card-price">₱2,395.00</span>
-                </div>
-                <div class="productview-card-info-bottom">Nike P6000 Shadow</div>
-            </div>
-        </div>
-        <div class="productview-card">
-            <div class="productview-card-img-box">
-                <img src="IMAGE/NIKE2.png" class="productview-card-img" alt="Nike Airmax TN Camo">
-                <span class="productview-card-badge-new">New</span>
-            </div>
-            <div class="productview-card-info-box">
-                <div class="productview-card-info-top">
-                    <span class="productview-card-brand">Nike</span>
-                    <span class="productview-card-price">₱2,395.00</span>
-                </div>
-                <div class="productview-card-info-bottom">Nike Airmax TN Camo</div>
-            </div>
-        </div>
-        <div class="productview-card">
-            <div class="productview-card-img-box">
-                <img src="IMAGE/NIKE3.png" class="productview-card-img" alt="Nike GT CUT 2 LEAP HIGH">
-                <span class="productview-card-badge-new">New</span>
-            </div>
-            <div class="productview-card-info-box">
-                <div class="productview-card-info-top">
-                    <span class="productview-card-brand">Nike</span>
-                    <span class="productview-card-price">₱2,395.00</span>
-                </div>
-                <div class="productview-card-info-bottom">Nike GT CUT 2 LEAP HIGH</div>
-            </div>
-        </div>
+    <div class="productview-recommend-row" id="recommendProducts">
+        <div class="productview-recommend-empty">Loading recommendations...</div>
     </div>
     
     <!-- AR Try-On Modal (inside body for proper overlay) -->
@@ -1828,7 +1789,6 @@ On page.</div>
             var selectors = [
                 '.productview-cart-btn',
                 '#wishlistBtn',
-                '.productview-review-btn',
                 '.productview-ar-btn',
                 '.productview-size-btn',
                 '.productview-size-dropdown',
@@ -2497,6 +2457,284 @@ On page.</div>
         }catch(e){ return false; }
     }
 
+    function resolveProductImage(p){
+        try{
+            if(Array.isArray(p.images) && p.images.length) return p.images[0];
+            if(p.image) return p.image;
+            if(Array.isArray(p.colors) && p.colors.length){
+                var c = p.colors[0] || {};
+                if(Array.isArray(c.images) && c.images.length) return c.images[0];
+                if(c.image) return c.image;
+            }
+        }catch(e){}
+        return 'IMAGE/NIKE1.png';
+    }
+
+    function getBaseModelName(item){
+        try{
+            var name = (item && item.name) ? String(item.name) : '';
+            var color = (item && item.color) ? String(item.color) : '';
+            if(!name) return '';
+            if(color){
+                var esc = color.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                var re = new RegExp('\\s*' + esc + '\\s*$', 'i');
+                name = name.replace(re, '').trim();
+            }
+            return name.trim();
+        }catch(e){ return (item && item.name) ? String(item.name) : ''; }
+    }
+
+    function buildInventoryRowsFromFirestore(products, variants){
+        var map = {};
+        (variants || []).forEach(function(v){
+            var pid = v.productId || v.product_id || (v.product && (v.product.id || v.productId)) || (v.productRef && v.productRef.id) || (v.product_ref && v.product_ref.id) || null;
+            if(!pid) return;
+            map[pid] = map[pid] || [];
+            var images = Array.isArray(v.images) ? v.images : (v.image ? [v.image] : []);
+            map[pid].push({
+                id: v.id || ('color-' + Math.random().toString(36).slice(2,9)),
+                name: v.colorName || v.name || v.color || 'Color',
+                color: v.color || v.colorName || v.name || '',
+                images: images,
+                image: (images && images.length) ? images[0] : (v.image || ''),
+                sizes: Array.isArray(v.sizes) ? v.sizes : []
+            });
+        });
+
+        var out = [];
+        (products || []).forEach(function(p){
+            var pid = p.id || p.productId || p.sku || '';
+            var variantColors = map[pid] || [];
+            var colorsArr = Array.isArray(p.colors) && p.colors.length ? p.colors.map(function(c){
+                var match = variantColors.find(function(v){
+                    return (v.id && c.id && String(v.id) === String(c.id)) || (v.name && c.name && String(v.name).toLowerCase() === String(c.name).toLowerCase());
+                });
+                if(match){
+                    if(!Array.isArray(c.images) || !c.images.length) c.images = match.images || [];
+                    if(!c.image) c.image = match.image || '';
+                }
+                return c;
+            }) : variantColors;
+
+            var baseImg = (Array.isArray(p.images) && p.images.length) ? p.images[0] : (p.image || '');
+            (colorsArr || []).forEach(function(c){
+                var colorImages = Array.isArray(c.images) ? c.images.filter(Boolean) : [];
+                var colorImg = colorImages.length ? colorImages[0] : (c.image || baseImg);
+                var salePrice = Number((p.pricing && (p.pricing.sale||p.pricing.original)) || p.price || 0);
+                var originalPrice = Number((p.pricing && p.pricing.original) || p.originalPrice || 0);
+                out.push({
+                    id: (p.sku || p.id || '') + ':' + (c.id || c.name || ''),
+                    name: (p.model || p.name || '') + (c.name ? (' ' + c.name) : ''),
+                    brand: p.brand || '',
+                    color: c.name || '',
+                    image: colorImg || baseImg || 'IMAGE/NIKE1.png',
+                    images: colorImages,
+                    price: salePrice,
+                    originalPrice: originalPrice,
+                    productId: p.id || '',
+                    colorId: c.id || '',
+                    createdAt: p.createdAt || null,
+                    status: normalizeStatus(p.status || 'published')
+                });
+            });
+        });
+        return out;
+    }
+
+    function groupInventoryRows(rows){
+        var groups = {};
+        (rows || []).forEach(function(r){
+            var baseName = getBaseModelName(r) || r.name || '';
+            var key = (r.brand || '') + '::' + baseName;
+            if(!groups[key]){
+                groups[key] = {
+                    brand: r.brand || '',
+                    baseName: baseName,
+                    variants: []
+                };
+            }
+            groups[key].variants.push({
+                id: r.id || '',
+                productId: r.productId || '',
+                name: r.name || '',
+                color: r.color || '',
+                image: r.image || '',
+                images: r.images || [],
+                price: Number(r.price || 0),
+                originalPrice: Number(r.originalPrice || 0),
+                status: r.status || 'published'
+            });
+        });
+        return Object.keys(groups).map(function(k){ return groups[k]; });
+    }
+
+    function buildProductViewUrl(p){
+        var params = new URLSearchParams();
+        if(p && p.id) params.set('pid', p.id);
+        if(p && p.brand) params.set('brand', p.brand);
+        if(p && p.title) params.set('title', p.title);
+        if(p && p.price) params.set('price', p.price);
+        if(p && p.originalPrice) params.set('originalPrice', p.originalPrice);
+        if(p && p.image) params.set('img', p.image);
+        return 'product-view.html?' + params.toString();
+    }
+
+    function shuffleInPlace(arr){
+        for(var i = arr.length - 1; i > 0; i--){
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+        }
+        return arr;
+    }
+
+    function renderRecommendedProducts(){
+        var container = document.getElementById('recommendProducts');
+        if(!container) return;
+        container.innerHTML = '<div class="productview-recommend-empty">Loading recommendations...</div>';
+
+        var params = new URLSearchParams(window.location.search || '');
+        var currentPid = (params.get('pid') || params.get('productId') || '').trim();
+
+        ensureFirebaseReady(function(err){
+            if(err){
+                container.innerHTML = '<div class="productview-recommend-empty">Unable to load recommendations.</div>';
+                return;
+            }
+            try{
+                var db = firebase.firestore();
+                Promise.all([db.collection('products').get(), db.collection('variants').get()]).then(function(res){
+                    var products = [];
+                    res[0].forEach(function(doc){ products.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+                    var variants = [];
+                    res[1].forEach(function(doc){ variants.push(Object.assign({ id: doc.id }, doc.data() || {})); });
+
+                    var rows = buildInventoryRowsFromFirestore(products, variants);
+                    var groups = groupInventoryRows(rows);
+
+                    var filtered = groups.filter(function(g){
+                        if(!g || !g.variants || !g.variants.length) return false;
+                        var published = g.variants.some(function(v){ return normalizeStatus(v.status || 'published') === 'published'; });
+                        if(!published) return false;
+                        if(currentPid){
+                            return !g.variants.some(function(v){ return String(v.productId || '') === String(currentPid); });
+                        }
+                        return true;
+                    });
+
+                    if(!filtered.length){
+                        container.innerHTML = '<div class="productview-recommend-empty">No recommendations yet.</div>';
+                        return;
+                    }
+
+                    shuffleInPlace(filtered);
+                    var picks = filtered.slice(0, 3);
+
+                    container.innerHTML = '';
+                    picks.forEach(function(g){
+                        var primary = (g.variants && g.variants[0]) || {};
+                        var title = (g.baseName || primary.name || '').trim() || 'Product';
+                        var brand = (g.brand || '').trim() || 'Brand';
+                        var image = primary.image || resolveProductImage(primary);
+                        var sale = Number(primary.price || 0);
+                        var original = Number(primary.originalPrice || 0);
+
+                        var card = document.createElement('div');
+                        card.className = 'productview-card';
+                        card.tabIndex = 0;
+                        card.setAttribute('role', 'button');
+                        card.setAttribute('aria-label', 'View ' + brand + ' ' + title);
+
+                        var imgBox = document.createElement('div');
+                        imgBox.className = 'productview-card-img-box';
+                        var img = document.createElement('img');
+                        img.className = 'productview-card-img';
+                        img.src = image;
+                        img.alt = title;
+                        imgBox.appendChild(img);
+
+                        var info = document.createElement('div');
+                        info.className = 'productview-card-info-box';
+                        var infoTop = document.createElement('div');
+                        infoTop.className = 'productview-card-info-top';
+                        var brandEl = document.createElement('span');
+                        brandEl.className = 'productview-card-brand';
+                        brandEl.textContent = brand;
+                        var priceEl = document.createElement('span');
+                        priceEl.className = 'productview-card-price';
+                        priceEl.textContent = formatPeso(sale || original || 0);
+                        infoTop.appendChild(brandEl);
+                        infoTop.appendChild(priceEl);
+                        var infoBottom = document.createElement('div');
+                        infoBottom.className = 'productview-card-info-bottom';
+                        infoBottom.textContent = title;
+                        info.appendChild(infoTop);
+                        info.appendChild(infoBottom);
+
+                        card.appendChild(imgBox);
+                        card.appendChild(info);
+
+                        var link = buildProductViewUrl({
+                            id: primary.productId || '',
+                            brand: brand,
+                            title: title,
+                            price: formatPeso(sale || original || 0),
+                            originalPrice: original && original > sale ? formatPeso(original) : '',
+                            image: image
+                        });
+
+                        function go(){ window.location.href = link; }
+                        card.addEventListener('click', go);
+                        card.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
+
+                        container.appendChild(card);
+                    });
+                }).catch(function(){
+                    container.innerHTML = '<div class="productview-recommend-empty">Unable to load recommendations.</div>';
+                });
+            }catch(e){
+                container.innerHTML = '<div class="productview-recommend-empty">Unable to load recommendations.</div>';
+            }
+        });
+    }
+
+    function applyMainImage(src){
+        try{
+            var base = document.getElementById('mainShoeImg');
+            var over = document.getElementById('mainShoeImgOverlay');
+            if(!base){ return; }
+            if(!over){ base.src = src; return; }
+            over.style.transition = 'none';
+            over.style.opacity = '0';
+            over.src = src;
+            over.onload = function(){
+                over.onload = null;
+                requestAnimationFrame(function(){ over.style.transition = 'opacity 0.35s ease'; over.style.opacity = '1'; });
+                setTimeout(function(){ base.src = src; over.style.opacity = '0'; }, 420);
+            };
+        }catch(_){ }
+    }
+
+    function bindThumbInteractions(){
+        var mainImg = document.getElementById('mainShoeImg');
+        if(!mainImg) return;
+        var thumbs = document.querySelectorAll('.productview-thumb');
+        if(!thumbs || !thumbs.length) return;
+        thumbs.forEach(function(th){
+            if(th.dataset.bound === '1') return;
+            th.dataset.bound = '1';
+            th.addEventListener('mouseenter', function(){
+                if(th.src){ applyMainImage(th.src); }
+            });
+            th.addEventListener('mouseleave', function(){
+                var target = window._selectedThumbSrc || mainImg.src;
+                if(target){ applyMainImage(target); }
+            });
+            th.addEventListener('click', function(){
+                if(th.src){ window._selectedThumbSrc = th.src; applyMainImage(th.src); }
+            });
+        });
+    }
+
     // Load product data from query params (with legacy fallbacks)
     window.addEventListener('DOMContentLoaded', function() {
         function renderRatingsUI(){
@@ -2591,7 +2829,7 @@ On page.</div>
                         return clean.split(' ')[0];
                     }
                     if(!list.length){
-                        recent.innerHTML = '<div style="font-size:0.95rem;color:#666;">Be the first to review this product.</div>';
+                        recent.innerHTML = '<div style="font-size:0.95rem;color:#666;">No reviews yet. Ratings are shown for verified purchases only.</div>';
                     } else {
                         recent.innerHTML = list.map(function(r){
                             var s = api.starsText(r && r.stars);
@@ -2650,6 +2888,7 @@ On page.</div>
         }
         var mainImgEl = document.getElementById('mainShoeImg');
         if (img) mainImgEl.src = img;
+        bindThumbInteractions();
 
         // Color variants rendering (grouped model)
         (function(){
@@ -2694,6 +2933,7 @@ On page.</div>
                 var variantImages = Array.isArray(variant.images) ? variant.images.filter(Boolean) : [];
                 if(!variantImages.length && variant.image) variantImages = [variant.image];
                 if(variantImages[0]){ setMainImageSrc(variantImages[0]); }
+                try{ window._selectedThumbSrc = ''; }catch(e){}
                 // update thumbnails to use variant images when available
                 document.querySelectorAll('.productview-thumb').forEach(function(th, idx){
                     if(variantImages[idx]) th.src = variantImages[idx];
@@ -2876,29 +3116,8 @@ On page.</div>
         // update ratings when other tabs add reviews
         try{ window.addEventListener('ratings:updated', function(){ try{ renderRatingsUI(); }catch(e){} }); }catch(e){}
 
-        // allow writing a review from the product page
-        try{
-            var writeBtn = document.getElementById('writeReviewBtn');
-            if(writeBtn){
-                writeBtn.addEventListener('click', function(){
-                    var api = window.ShoePaoRatings;
-                    if(!api){ alert('Ratings system is unavailable.'); return; }
-                    var stars = prompt('Rate this product (1-5):');
-                    if(stars === null) return;
-                    var s = Number(stars);
-                    if(!isFinite(s) || s < 1 || s > 5){ alert('Please enter a number from 1 to 5.'); return; }
-                    var comment = prompt('Add a comment (optional):') || '';
-                    api.addOrUpdateRating({
-                        productId: (localStorage.getItem('productId')||'').trim(),
-                        brand: (localStorage.getItem('productBrand')||'').trim(),
-                        title: (localStorage.getItem('productTitle')||'').trim(),
-                        stars: s,
-                        comment: comment
-                    });
-                    renderRatingsUI();
-                });
-            }
-        }catch(e){}
+        try{ renderRecommendedProducts(); }catch(e){}
+
         markViewReady();
     });
     // If page is opened with ?openAR=1 instruct the page to open the AR modal automatically
@@ -3131,14 +3350,15 @@ On page.</div>
                                 var incRes = window.tryIncrementCartItem(cart, idx);
                                 if (incRes && incRes.success === false && incRes.reason === 'max_pairs') {
                                     if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                    else alert('Maximum of 3 items per order allowed.');
+                                    else alert(window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
                                     return;
                                 }
                                 if (incRes && incRes.success === false && incRes.reason === 'max_reached') {
                                     var cStockEl = document.getElementById('sizeStock');
-                                    var maxAllowed = incRes.maxAllowed || 1;
-                                    if (cStockEl) { cStockEl.style.color = '#b71c1c'; cStockEl.textContent = 'Limit reached: you can only buy up to ' + maxAllowed + ' of this size.'; }
-                                    else alert('Limit reached: you can only buy up to ' + maxAllowed + ' of this size.');
+                                    var limitMsg = (window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
+                                    if (cStockEl) { cStockEl.style.color = '#b71c1c'; cStockEl.textContent = limitMsg; }
+                                    else if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                    else alert(limitMsg);
                                     return;
                                 }
                             } else {
@@ -3260,9 +3480,7 @@ On page.</div>
                             // show inline message when add failed
                             var msg = 'Unable to add to cart.';
                             if (res && res.reason === 'unavailable') msg = 'This product is currently unavailable.';
-                            else if (res && res.reason === 'out_of_stock') msg = 'This size is out of stock.';
-                            else if (res && res.reason === 'max_reached') msg = 'You can only add up to ' + (res.maxAllowed || 1) + ' of this size.';
-                            else if (res && res.reason === 'max_pairs') msg = 'Maximum of 3 items per product allowed.';
+                            else if (res && (res.reason === 'out_of_stock' || res.reason === 'max_reached' || res.reason === 'max_pairs')) msg = (window.CART_LIMIT_MESSAGE || 'Maximum order limit is 3 items only, cannot exceed stock.');
                             if (elStock) { elStock.style.color = '#b71c1c'; elStock.textContent = msg; }
                             else alert(msg);
                         }

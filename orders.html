@@ -882,7 +882,7 @@
                             // Normalize by merging to ensure ids are set
                             const merged = sortOrdersByNewest(mergeOrdersById([], srv));
                             ordersData = merged;
-                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                             currentList = ordersData.slice();
                             try{ renderTable(currentList); }catch(e){}
                         }catch(e){ /* ignore set/caching errors */ }
@@ -999,44 +999,39 @@
 
         async function initializeOrders(){
             try{
-                var fetched = [];
-                // Prefer authoritative server copy first so client always matches admin/state on load.
-                try{
-                    const resp = await fetch(API_BASE + '/api/orders');
-                    if(resp && resp.ok){
-                        const j = await resp.json();
-                        // API might return { orders: [...] } or an array directly
-                        if(j){
-                            if(Array.isArray(j.orders)) fetched = j.orders;
-                            else if(Array.isArray(j)) fetched = j;
+                // Render cached local orders immediately for snappy UI, then refresh from server/firestore in background.
+                var cached = [];
+                try{ cached = JSON.parse(localStorage.getItem('orders') || '[]'); if(!Array.isArray(cached)) cached = []; }catch(e){ cached = []; }
+                if(Array.isArray(cached) && cached.length){
+                    ordersData = sortOrdersByNewest(mergeOrdersById([], cached));
+                    ordersLoaded = true; // allow UI to render
+                    applySearch();
+                }
+
+                // Now fetch authoritative copies in background and merge
+                (async function backgroundFetch(){
+                    try{
+                        var fetched = [];
+                        try{
+                            const resp = await fetch(API_BASE + '/api/orders');
+                            if(resp && resp.ok){ const j = await resp.json(); if(j){ if(Array.isArray(j.orders)) fetched = j.orders; else if(Array.isArray(j)) fetched = j; } }
+                        }catch(e){ /* ignore server fetch error */ }
+                        if(!fetched || !fetched.length){
+                            try{ const fromFs = await fetchOrdersFromFirestore(); if(Array.isArray(fromFs) && fromFs.length) fetched = fromFs; }catch(e){}
                         }
-                    }
-                }catch(e){
-                    // server not reachable — we'll fall back below
-                }
-
-                // If server had no orders or wasn't reachable, try Firestore then localStorage
-                if(!fetched || !fetched.length){
-                    try{
-                        const fromFs = await fetchOrdersFromFirestore();
-                        if(Array.isArray(fromFs) && fromFs.length) fetched = fromFs;
-                    }catch(fetchErr){
-                        console.warn('Firestore fetch failed, falling back to localStorage', fetchErr);
-                    }
-                }
-
-                if(!fetched || !fetched.length){
-                    try{
-                        fetched = JSON.parse(localStorage.getItem('orders') || '[]');
-                        if(!Array.isArray(fetched)) fetched = [];
-                    }catch(e){ fetched = []; }
-                }
-
-                // Use server/authoritative data as the source of truth for rendering and cache it locally
-                ordersData = sortOrdersByNewest(mergeOrdersById([], fetched));
-                // Auto-cancel COD orders that are pending and have an awaiting cancel request
-                autoCancelCodPendingRequests(ordersData);
-                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){/* ignore */}
+                        if(!fetched || !fetched.length) return;
+                        // Merge server/fstore results and persist
+                        ordersData = sortOrdersByNewest(mergeOrdersById(ordersData || [], fetched || []));
+                        try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
+                        // Ensure confirmed orders from server are deducted locally
+                        try{ ensureStockAdjustmentForOrders(fetched); }catch(e){}
+                        if(ordersLoaded) applySearch();
+                    }catch(e){ console.warn('backgroundFetch failed', e); }
+                })();
+                // Ensure any confirmed orders that arrived from server/firestore/localStorage
+                // have their stock deducted locally (if not already adjusted). This ensures
+                // that merges and initial syncs also update localStorage inventory.
+                try{ ensureStockAdjustmentForOrders(ordersData); }catch(e){ console.warn('ensureStockAdjustmentForOrders failed', e); }
             }catch(e){
                 console.error('Failed to initialize orders', e);
                 ordersData = [];
@@ -1477,8 +1472,7 @@
         }
 
         function adjustInventoryStock(items, direction){
-            try{ adjustInventoryStockFirestore(items, direction); }catch(e){ /* ignore */ }
-            return false;
+            try{ return adjustInventoryStockFirestore(items, direction); }catch(e){ return false; }
         }
 
         function adjustInventoryStockFirestore(items, direction){
@@ -1492,51 +1486,17 @@
                     var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
                     var getItemId = function(it){ return String(it.product_id || it.productId || it.id || '').trim(); };
                     var getItemInventoryId = function(it){ return String(it.inventoryId || it.inventory_id || it.product_id || it.productId || it.id || '').trim(); };
-                    var getItemVariantId = function(it){ return String(it.variantId || it.variant_id || it.variant || '').trim(); };
                     var getItemName = function(it){ return String(it.name || it.title || it.productName || '').trim(); };
                     var getItemBrand = function(it){ return String(it.brand || it.productBrand || '').trim(); };
                     var getItemColor = function(it){ return String(it.color || it.variant || it.colorName || '').trim(); };
                     var getItemSize = function(it){ return String(it.size || it.eu || it.size_eu || '').trim(); };
 
-                    Promise.all([
-                        db.collection('variants').get(),
-                        db.collection('products').get()
-                    ]).then(function(res){
-                        var variantsSnap = res[0];
-                        var productsSnap = res[1];
-                        var variants = [];
+                    db.collection('products').get().then(function(productsSnap){
                         var products = [];
-                        variantsSnap.forEach(function(doc){ variants.push({ ref: doc.ref, id: doc.id, data: doc.data() || {} }); });
                         productsSnap.forEach(function(doc){ products.push({ ref: doc.ref, id: doc.id, data: doc.data() || {} }); });
 
-                        var variantsByProductId = {};
-                        variants.forEach(function(v){
-                            try{
-                                var d = v.data || {};
-                                var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
-                                if(!pid) return;
-                                var key = String(pid);
-                                if(!variantsByProductId[key]) variantsByProductId[key] = [];
-                                variantsByProductId[key].push(v);
-                            }catch(e){ /* ignore */ }
-                        });
-
-                        var batch = db.batch();
                         var did = false;
-                        var variantUpdates = new Map();
                         var productUpdates = new Map();
-
-                        function getVariantState(match){
-                            var key = match && match.ref ? match.ref.path : (match && match.id ? String(match.id) : '');
-                            if(!key) return null;
-                            var state = variantUpdates.get(key);
-                            if(!state){
-                                var base = JSON.parse(JSON.stringify(match.data || {}));
-                                state = { ref: match.ref, data: base, payload: {} };
-                                variantUpdates.set(key, state);
-                            }
-                            return state;
-                        }
 
                         function getProductState(match){
                             var key = match && match.ref ? match.ref.path : (match && match.id ? String(match.id) : '');
@@ -1550,105 +1510,24 @@
                             return state;
                         }
 
-                        items.forEach(function(it){
-                            var qty = Number(it.qty || it.quantity || 1) || 0;
-                            if(!qty) return;
-                            var size = getItemSize(it);
-                            if(!size) return;
-                            var itemId = getItemId(it);
-                            var itemInventoryId = getItemInventoryId(it);
-                            var itemVariantId = getItemVariantId(it);
-                            var itemName = getItemName(it);
-                            var itemBrand = getItemBrand(it);
-                            var itemColor = getItemColor(it);
-
-                            // Update variants collection
-                            var variantMatch = null;
-                            if(itemVariantId){
-                                variantMatch = variants.find(function(v){ return String(v.id) === itemVariantId; });
-                            }
-                            if(!variantMatch && itemId){
-                                variantMatch = variants.find(function(v){
-                                    var d = v.data || {};
-                                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
-                                    return pid && String(pid) === itemId;
-                                });
-                            }
-                            if(!variantMatch && itemInventoryId){
-                                variantMatch = variants.find(function(v){
-                                    var d = v.data || {};
-                                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || (d.productRef && d.productRef.id) || (d.product_ref && d.product_ref.id) || null;
-                                    return pid && String(pid) === itemInventoryId;
-                                });
-                            }
-                            if(!variantMatch && itemColor){
-                                var cNorm = normalize(itemColor);
-                                variantMatch = variants.find(function(v){
-                                    var d = v.data || {};
-                                    var vColor = normalize(d.colorName || d.name || d.color || '');
-                                    if(!vColor) return false;
-                                    if(vColor !== cNorm) return false;
-                                    if(itemBrand){
-                                        var vBrand = normalize(d.brand || '');
-                                        if(vBrand && vBrand !== normalize(itemBrand)) return false;
-                                    }
-                                    return true;
-                                });
-                            }
-                            if(variantMatch){
-                                var vState = getVariantState(variantMatch);
-                                if(vState){
-                                    var vd = vState.data || {};
-                                    if(Array.isArray(vd.sizes)){
-                                        vd.sizes = vd.sizes.map(function(s){
-                                            if(String(s.eu) === String(size)){
-                                                var cur = Number(s.stock || 0) || 0;
-                                                var next = cur + (direction * qty);
-                                                return Object.assign({}, s, { stock: Math.max(0, next) });
-                                            }
-                                            return s;
-                                        });
-                                        vState.payload.sizes = vd.sizes;
-                                        did = true;
-                                    } else if (vd.sizeMap && typeof vd.sizeMap === 'object') {
-                                        var curMap = Object.assign({}, vd.sizeMap);
-                                        var curVal = Number(curMap[String(size)] || 0) || 0;
-                                        curMap[String(size)] = Math.max(0, curVal + (direction * qty));
-                                        vState.payload.sizeMap = curMap;
-                                        did = true;
-                                    } else if (vd.sizesMap && typeof vd.sizesMap === 'object') {
-                                        var curMap2 = Object.assign({}, vd.sizesMap);
-                                        var curVal2 = Number(curMap2[String(size)] || 0) || 0;
-                                        curMap2[String(size)] = Math.max(0, curVal2 + (direction * qty));
-                                        vState.payload.sizesMap = curMap2;
-                                        did = true;
-                                    } else {
-                                        var field = 'stock' + String(size);
-                                        var curVal3 = Number(vd[field] || 0) || 0;
-                                        var nextVal3 = Math.max(0, curVal3 + (direction * qty));
-                                        vState.payload[field] = nextVal3;
-                                        did = true;
-                                    }
-                                }
-                            }
-
-                            // Update products collection if sizes are embedded in colors
-                            var productMatch = null;
+                        function findProductMatch(itemId, itemInventoryId, itemName, itemBrand){
                             if(itemInventoryId){
-                                productMatch = products.find(function(p){
+                                var byInv = products.find(function(p){
                                     var d = p.data || {};
                                     return String(d.id || d.sku || p.id || '') === itemInventoryId;
                                 });
+                                if(byInv) return byInv;
                             }
-                            if(!productMatch && itemId){
-                                productMatch = products.find(function(p){
+                            if(itemId){
+                                var byId = products.find(function(p){
                                     var d = p.data || {};
                                     return String(d.id || d.sku || p.id || '') === itemId;
                                 });
+                                if(byId) return byId;
                             }
-                            if(!productMatch && itemName){
+                            if(itemName){
                                 var nName = normalize(itemName);
-                                productMatch = products.find(function(p){
+                                return products.find(function(p){
                                     var d = p.data || {};
                                     var model = normalize(d.model || d.name || d.title || '');
                                     if(!model) return false;
@@ -1658,144 +1537,57 @@
                                         if(b && b !== normalize(itemBrand)) return false;
                                     }
                                     return true;
-                                });
+                                }) || null;
                             }
-                            if(!variantMatch && productMatch){
-                                var pData = productMatch.data || {};
-                                var resolvedProductId = String(pData.id || pData.sku || productMatch.id || '');
-                                var list = resolvedProductId ? (variantsByProductId[resolvedProductId] || []) : [];
-                                if(list.length === 1){
-                                    variantMatch = list[0];
-                                }
-                            }
-                            if(productMatch){
-                                var pState = getProductState(productMatch);
-                                if(pState){
-                                    var pd = pState.data || {};
-                                    if(Array.isArray(pd.colors)){
-                                        var colorNameToUse = itemColor;
-                                        if(!colorNameToUse && pd.colors.length === 1){
-                                            colorNameToUse = pd.colors[0].name || '';
-                                        }
-                                        pd.colors = pd.colors.map(function(c){
-                                            if(colorNameToUse){
-                                                if(normalize(c.name || '') !== normalize(colorNameToUse)) return c;
-                                            }
-                                            if(Array.isArray(c.sizes)){
-                                                var sizes = c.sizes.map(function(s){
-                                                    if(String(s.eu) === String(size)){
-                                                        var cur = Number(s.stock || 0) || 0;
-                                                        var next = cur + (direction * qty);
-                                                        return Object.assign({}, s, { stock: Math.max(0, next) });
-                                                    }
-                                                    return s;
-                                                });
-                                                return Object.assign({}, c, { sizes: sizes });
-                                            }
-                                            return c;
-                                        });
-                                        pState.payload.colors = pd.colors;
-                                        did = true;
-                                    }
-                                }
-                            }
-                        });
-
-                        // Collect all updates (ref + payload) and commit in sequential chunks
-                        var writes = [];
-                        // Helper to build increment payloads when possible to update only changed sizes
-                        function buildIncrementPayload(state){
-                            try{
-                                if(!state || !state.payload || !Object.keys(state.payload).length) return null;
-                                var base = state.data || {};
-                                var payload = state.payload || {};
-                                var inc = {};
-                                var added = false;
-
-                                // Common size-map keys to consider
-                                var mapKeys = ['sizeMap','sizesMap','size_map','sizes_map'];
-                                mapKeys.forEach(function(k){
-                                    if(payload[k] && typeof payload[k] === 'object'){
-                                        var pmap = payload[k] || {};
-                                        var bmap = base[k] || {};
-                                        Object.keys(pmap).forEach(function(sz){
-                                            var newVal = Number(pmap[sz]||0);
-                                            var oldVal = Number(bmap[sz]||0);
-                                            var diff = newVal - oldVal;
-                                            if(diff !== 0){
-                                                inc[k + '.' + sz] = firebase.firestore.FieldValue.increment(diff);
-                                                added = true;
-                                            }
-                                        });
-                                    }
-                                });
-
-                                // If payload provides colors with sizes (product-level), try to compute per-color size diffs
-                                // This is more complex; only attempt for single-variant docs where payload.colors exists and base.colors exists
-                                if(payload.colors && Array.isArray(payload.colors) && Array.isArray(base.colors)){
-                                    // Build maps by color name for base and payload
-                                    var toMap = function(colorsArr){
-                                        var m = {};
-                                        colorsArr.forEach(function(c){
-                                            var name = String((c.name||c.colorName||c.color||'')).trim();
-                                            if(!name) return;
-                                            var sizes = Array.isArray(c.sizes) ? c.sizes : [];
-                                            var sm = {};
-                                            sizes.forEach(function(s){ sm[String(s.eu||s.size||'')] = Number(s.stock||0); });
-                                            m[name] = sm;
-                                        });
-                                        return m;
-                                    };
-                                    var pmap = toMap(payload.colors);
-                                    var bmap = toMap(base.colors);
-                                    Object.keys(pmap).forEach(function(colorName){
-                                        var pSizes = pmap[colorName] || {};
-                                        var bSizes = bmap[colorName] || {};
-                                        Object.keys(pSizes).forEach(function(sz){
-                                            var newVal = Number(pSizes[sz]||0);
-                                            var oldVal = Number(bSizes[sz]||0);
-                                            var diff = newVal - oldVal;
-                                            if(diff !== 0){
-                                                // use a map-like path under colorsMap if available, else fall back to sizesMap.<size>
-                                                // prefer sizesMap.<size> to keep updates simple
-                                                inc['sizesMap.' + sz] = (inc['sizesMap.' + sz] || 0);
-                                                // accumulate numeric diffs then convert to FieldValue later
-                                                inc['sizesMap.' + sz] = (typeof inc['sizesMap.' + sz] === 'number' ? inc['sizesMap.' + sz] + diff : diff);
-                                                added = true;
-                                            }
-                                        });
-                                    });
-                                }
-
-                                if(!added) return null;
-
-                                // Convert numeric diffs to FieldValue.increment
-                                var final = {};
-                                Object.keys(inc).forEach(function(k){
-                                    var v = inc[k];
-                                    if(typeof v === 'number') final[k] = firebase.firestore.FieldValue.increment(v);
-                                    else final[k] = v; // already a FieldValue
-                                });
-                                final.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                                return final;
-                            }catch(e){ return null; }
+                            return null;
                         }
 
-                        // Build writes for variants: prefer per-size increments when possible
-                        variantUpdates.forEach(function(state){
-                            try{
-                                if(!state || !state.payload || !Object.keys(state.payload).length) return;
-                                var incPayload = buildIncrementPayload(state);
-                                if(incPayload){
-                                    writes.push({ ref: state.ref, payload: incPayload });
-                                } else {
-                                    state.payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                                    writes.push({ ref: state.ref, payload: state.payload });
+                        items.forEach(function(it){
+                            var qty = Number(it.qty || it.quantity || 1) || 0;
+                            if(!qty) return;
+                            var size = getItemSize(it);
+                            if(!size) return;
+                            var itemId = getItemId(it);
+                            var itemInventoryId = getItemInventoryId(it);
+                            var itemName = getItemName(it);
+                            var itemBrand = getItemBrand(it);
+                            var itemColor = getItemColor(it);
+
+                            var productMatch = findProductMatch(itemId, itemInventoryId, itemName, itemBrand);
+                            if(!productMatch) return;
+                            var pState = getProductState(productMatch);
+                            if(!pState) return;
+                            var pd = pState.data || {};
+                            if(!Array.isArray(pd.colors)) return;
+
+                            var colorNameToUse = itemColor;
+                            if(!colorNameToUse && pd.colors.length === 1){
+                                colorNameToUse = pd.colors[0].name || '';
+                            }
+
+                            pd.colors = pd.colors.map(function(c){
+                                if(colorNameToUse){
+                                    if(normalize(c.name || '') !== normalize(colorNameToUse)) return c;
                                 }
-                            }catch(e){ }
+                                if(Array.isArray(c.sizes)){
+                                    var sizes = c.sizes.map(function(s){
+                                        if(String(s.eu) === String(size)){
+                                            var cur = Number(s.stock || 0) || 0;
+                                            var next = cur + (direction * qty);
+                                            return Object.assign({}, s, { stock: Math.max(0, next) });
+                                        }
+                                        return s;
+                                    });
+                                    return Object.assign({}, c, { sizes: sizes });
+                                }
+                                return c;
+                            });
+
+                            pState.payload.colors = pd.colors;
+                            did = true;
                         });
 
-                        // For products (which may contain colors arrays), fall back to full document updates to avoid array-rewrite complexity
+                        var writes = [];
                         productUpdates.forEach(function(state){
                             try{
                                 if(!state || !state.payload || !Object.keys(state.payload).length) return;
@@ -1806,8 +1598,7 @@
 
                         if(!did || !writes.length) return resolve(false);
 
-                        // Helper: commit an array of writes in sequential chunks with retries
-                        var CHUNK_SIZE = 200; // safe batch size well under Firestore limit (500)
+                        var CHUNK_SIZE = 200;
                         function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
                         (async function commitChunks(){
@@ -1820,20 +1611,17 @@
                                             var b = db.batch();
                                             chunk.forEach(function(w){ b.update(w.ref, w.payload); });
                                             await b.commit();
-                                            break; // success, move to next chunk
+                                            break;
                                         }catch(err){
                                             attempt++;
-                                            // If resource-exhausted, retry with exponential backoff up to a limit
                                             var code = (err && err.code) ? err.code : (err && err.message) ? err.message : null;
                                             if(attempt > 4){
-                                                // Give up after a few attempts
                                                 console.error('commitChunks: giving up after retries', err);
                                                 return resolve(false);
                                             }
-                                            var backoff = 250 * Math.pow(2, attempt); // 250ms, 500ms, 1s, 2s...
+                                            var backoff = 250 * Math.pow(2, attempt);
                                             console.warn('commitChunks: retrying chunk after error', code || err, 'attempt', attempt, 'backoff', backoff);
                                             await sleep(backoff);
-                                            // continue retrying
                                         }
                                     }
                                 }
@@ -1845,22 +1633,17 @@
             });
         }
 
-        // Lightweight inventory snapshot for stock validation (no writes)
+        // Lightweight products snapshot for stock validation (no writes)
         function fetchInventorySnapshot(){
             return new Promise(function(resolve){
                 try{
                     if(!(window.FIREBASE_CONFIG && window.firebase && firebase.firestore)) return resolve(null);
                     if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
                     var db = firebase.firestore();
-                    Promise.all([
-                        db.collection('variants').get(),
-                        db.collection('products').get()
-                    ]).then(function(res){
-                        var variants = [];
+                    db.collection('products').get().then(function(res){
                         var products = [];
-                        res[0].forEach(function(doc){ variants.push({ id: doc.id, data: doc.data() || {} }); });
-                        res[1].forEach(function(doc){ products.push({ id: doc.id, data: doc.data() || {} }); });
-                        resolve({ variants: variants, products: products });
+                        res.forEach(function(doc){ products.push({ id: doc.id, data: doc.data() || {} }); });
+                        resolve({ products: products });
                     }).catch(function(){ resolve(null); });
                 }catch(e){ resolve(null); }
             });
@@ -1909,48 +1692,9 @@
             var qty = Number(item.qty || item.quantity || 1) || 1;
             var itemId = String(item.product_id || item.productId || item.id || '').trim();
             var itemInventoryId = String(item.inventoryId || item.inventory_id || item.product_id || item.productId || item.id || '').trim();
-            var itemVariantId = String(item.variantId || item.variant_id || item.variant || '').trim();
             var itemName = String(item.name || item.title || item.productName || '').trim();
             var itemBrand = String(item.brand || item.productBrand || '').trim();
             var itemColor = String(item.color || item.variant || item.colorName || '').trim();
-
-            var variantMatch = null;
-            if(itemVariantId){
-                variantMatch = snapshot.variants.find(function(v){ return String(v.id) === itemVariantId; });
-            }
-            if(!variantMatch && itemId){
-                variantMatch = snapshot.variants.find(function(v){
-                    var d = v.data || {};
-                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || null;
-                    return pid && String(pid) === itemId;
-                });
-            }
-            if(!variantMatch && itemInventoryId){
-                variantMatch = snapshot.variants.find(function(v){
-                    var d = v.data || {};
-                    var pid = d.productId || d.product_id || (d.product && (d.product.id || d.productId)) || null;
-                    return pid && String(pid) === itemInventoryId;
-                });
-            }
-            if(!variantMatch && itemColor){
-                var cNorm = normalize(itemColor);
-                variantMatch = snapshot.variants.find(function(v){
-                    var d = v.data || {};
-                    var vColor = normalize(d.colorName || d.name || d.color || '');
-                    if(!vColor) return false;
-                    if(vColor !== cNorm) return false;
-                    if(itemBrand){
-                        var vBrand = normalize(d.brand || '');
-                        if(vBrand && vBrand !== normalize(itemBrand)) return false;
-                    }
-                    return true;
-                });
-            }
-
-            if(variantMatch){
-                var available = getVariantStockForSize(variantMatch.data, size);
-                if(available !== null) return { available: available, needed: qty, name: itemName || itemId || 'Item', size: size };
-            }
 
             var productMatch = null;
             if(itemInventoryId){
@@ -2047,7 +1791,9 @@
             var promise = directItems ? Promise.resolve(directItems) : fetchOrderItemsFromFirestore(orderId);
             return promise.then(function(items){
                 if(!items || !items.length) return false;
-                return adjustInventoryStock(items, 1);
+                var localRes = null;
+                try{ localRes = performLocalInventoryAdjustment(items, 1); console.debug && console.debug('[restock] localRes', localRes); }catch(e){}
+                return adjustInventoryStock(items, 1).then(function(r){ return r; }).catch(function(){ return false; });
             }).catch(function(){ return false; });
         }
 
@@ -2056,8 +1802,268 @@
             var promise = directItems ? Promise.resolve(directItems) : fetchOrderItemsFromFirestore(orderId);
             return promise.then(function(items){
                 if(!items || !items.length) return false;
-                return adjustInventoryStock(items, -1);
+                var localRes = null;
+                try{ localRes = performLocalInventoryAdjustment(items, -1); console.debug && console.debug('[deduct] localRes', localRes); }catch(e){}
+                // If no matchedSize found in details, warn so admins can investigate
+                try{
+                    var anySizeMatched = Array.isArray(localRes && localRes.details) && localRes.details.some(function(d){ return d.matchedSize === true; });
+                    if(!anySizeMatched){ console.warn('No variant size matched when deducting items for order', orderId, localRes); }
+                }catch(e){}
+                return adjustInventoryStock(items, -1).then(function(r){ return r; }).catch(function(){ return false; });
             }).catch(function(){ return false; });
+        }
+
+        // Update localStorage-based inventory copies when orders change.
+        // This is best-effort: it only updates known local keys and shapes used by
+        // the admin inventory UI. If no suitable local inventory is present, this
+        // is a no-op.
+        function updateLocalInventory(items, direction){
+            try{
+                if(!Array.isArray(items) || !items.length) return false;
+                // candidate localStorage keys to try
+                var keys = ['products','inventory','inventory_data','inventory_app_products','local_inventory'];
+                var foundKey = null;
+                var data = null;
+                for(var k=0;k<keys.length;k++){
+                    try{ var raw = localStorage.getItem(keys[k]); if(!raw) continue; var parsed = JSON.parse(raw || 'null'); if(Array.isArray(parsed)){ foundKey = keys[k]; data = parsed; break; } }catch(e){}
+                }
+                if(!foundKey || !Array.isArray(data)) return false;
+
+                var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+
+                items.forEach(function(it){
+                    try{
+                        var qty = Number(it.qty || it.quantity || 1) || 1;
+                        var size = String(it.size || it.eu || it.size_eu || '').trim();
+                        var id = String(it.product_id || it.productId || it.id || it.inventoryId || '').trim();
+                        var name = String(it.name || it.title || it.productName || '').trim();
+                        var color = String(it.color || it.variant || it.colorName || '').trim();
+
+                        // find candidate product
+                        var prodIdx = -1;
+                        if(id){ prodIdx = data.findIndex(function(p){ try{ return String(p.id||p.productId||p.sku||'').trim() === id; }catch(e){return false;} }); }
+                        if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')) === normalize(name); }catch(e){return false;} }); }
+                        if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')).indexOf(normalize(name)) !== -1; }catch(e){return false;} }); }
+                        if(prodIdx === -1) return; // nothing to update
+
+                        var prod = data[prodIdx];
+                        // Several inventory shapes: colors -> sizes array OR sizesMap OR flat stock fields
+                        if(Array.isArray(prod.colors)){
+                            // find color
+                            var colorIdx = -1;
+                            if(color){ colorIdx = prod.colors.findIndex(function(c){ return normalize(c.name||c.code||'') === normalize(color); }); }
+                            if(colorIdx === -1 && prod.colors.length === 1) colorIdx = 0;
+                            if(colorIdx !== -1){
+                                var col = prod.colors[colorIdx];
+                                // sizes array
+                                if(Array.isArray(col.sizes)){
+                                    var sizeIdx = col.sizes.findIndex(function(s){ return String(s.eu||s.size||'') === String(size); });
+                                    if(sizeIdx !== -1){
+                                        var cur = Number(col.sizes[sizeIdx].stock || col.sizes[sizeIdx].qty || col.sizes[sizeIdx].inventory || 0) || 0;
+                                        var next = Math.max(0, cur + (direction * qty));
+                                        col.sizes[sizeIdx].stock = next;
+                                    } else {
+                                        // fallback: adjust aggregate fields
+                                        var cur2 = Number(col.stock || col.inventory || col.qty || 0) || 0;
+                                        col.stock = Math.max(0, cur2 + (direction * qty));
+                                    }
+                                } else {
+                                    var cur3 = Number(col.stock || col.inventory || col.qty || 0) || 0;
+                                    col.stock = Math.max(0, cur3 + (direction * qty));
+                                }
+                            } else {
+                                // no per-color match; try product-level sizes or aggregate
+                                var matched = false;
+                                if(Array.isArray(prod.sizes)){
+                                    var sIdx = prod.sizes.findIndex(function(s){ return String(s.eu||s.size||'') === String(size); });
+                                    if(sIdx !== -1){ var cur = Number(prod.sizes[sIdx].stock||0)||0; prod.sizes[sIdx].stock = Math.max(0, cur + (direction * qty)); matched = true; }
+                                }
+                                if(!matched){ var curp = Number(prod.stock || prod.inventory || prod.qty || 0) || 0; prod.stock = Math.max(0, curp + (direction * qty)); }
+                            }
+                        } else {
+                            // no colors array — try sizesMap or flat fields
+                            var done = false;
+                            if(prod.sizeMap && typeof prod.sizeMap === 'object' && size){
+                                var cur4 = Number(prod.sizeMap[String(size)] || 0) || 0;
+                                prod.sizeMap[String(size)] = Math.max(0, cur4 + (direction * qty));
+                                done = true;
+                            }
+                            if(!done && prod.sizesMap && typeof prod.sizesMap === 'object' && size){
+                                var cur5 = Number(prod.sizesMap[String(size)] || 0) || 0;
+                                prod.sizesMap[String(size)] = Math.max(0, cur5 + (direction * qty));
+                                done = true;
+                            }
+                            if(!done){
+                                var curp2 = Number(prod.stock || prod.inventory || prod.qty || 0) || 0;
+                                prod.stock = Math.max(0, curp2 + (direction * qty));
+                            }
+                        }
+                        // write back
+                        data[prodIdx] = prod;
+                    }catch(e){ /* ignore item update errors */ }
+                });
+
+                try{ localStorage.setItem(foundKey, JSON.stringify(data)); }catch(e){}
+                try{ window.dispatchEvent(new CustomEvent('shoepao:local-inventory-updated', { detail: { key: foundKey, updatedAt: Date.now() } })); }catch(e){}
+                return true;
+            }catch(e){ return false; }
+        }
+
+        // More detailed local adjustment that returns diagnostics about what changed.
+        function performLocalInventoryAdjustment(items, direction){
+            try{
+                if(!Array.isArray(items) || !items.length) return { updated: false, details: [] };
+                // Snapshot before
+                var keys = ['products','inventory','inventory_data','inventory_app_products','local_inventory'];
+                var foundKey = null; var data = null;
+                for(var k=0;k<keys.length;k++){
+                    try{ var raw = localStorage.getItem(keys[k]); if(!raw) continue; var parsed = JSON.parse(raw || 'null'); if(Array.isArray(parsed)){ foundKey = keys[k]; data = parsed; break; } }catch(e){}
+                }
+                if(!foundKey || !Array.isArray(data)) return { updated:false, details:[] };
+                var beforeMap = JSON.parse(JSON.stringify(data));
+                // reuse existing update logic to apply changes
+                var ok = (function(){
+                    try{
+                        // call the inline updateLocalInventory body but on our copied data
+                        var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+                        items.forEach(function(it){
+                            try{
+                                var qty = Number(it.qty || it.quantity || 1) || 1;
+                                var size = String(it.size || it.eu || it.size_eu || '').trim();
+                                var id = String(it.product_id || it.productId || it.id || it.inventoryId || '').trim();
+                                var name = String(it.name || it.title || it.productName || '').trim();
+                                var color = String(it.color || it.variant || it.colorName || '').trim();
+
+                                var prodIdx = -1;
+                                if(id){ prodIdx = data.findIndex(function(p){ try{ return String(p.id||p.productId||p.sku||'').trim() === id; }catch(e){return false;} }); }
+                                if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')) === normalize(name); }catch(e){return false;} }); }
+                                if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')).indexOf(normalize(name)) !== -1; }catch(e){return false;} }); }
+                                if(prodIdx === -1) return; // nothing to update
+
+                                var prod = data[prodIdx];
+                                if(Array.isArray(prod.colors)){
+                                    var colorIdx = -1;
+                                    if(color){ colorIdx = prod.colors.findIndex(function(c){ return normalize(c.name||c.code||'') === normalize(color); }); }
+                                    if(colorIdx === -1 && prod.colors.length === 1) colorIdx = 0;
+                                    if(colorIdx !== -1){
+                                        var col = prod.colors[colorIdx];
+                                        if(Array.isArray(col.sizes)){
+                                            var sizeIdx = col.sizes.findIndex(function(s){ return String(s.eu||s.size||'') === String(size); });
+                                            if(sizeIdx !== -1){
+                                                var cur = Number(col.sizes[sizeIdx].stock || col.sizes[sizeIdx].qty || col.sizes[sizeIdx].inventory || 0) || 0;
+                                                var next = Math.max(0, cur + (direction * qty));
+                                                col.sizes[sizeIdx].stock = next;
+                                            } else {
+                                                var cur2 = Number(col.stock || col.inventory || col.qty || 0) || 0;
+                                                col.stock = Math.max(0, cur2 + (direction * qty));
+                                            }
+                                        } else {
+                                            var cur3 = Number(col.stock || col.inventory || col.qty || 0) || 0;
+                                            col.stock = Math.max(0, cur3 + (direction * qty));
+                                        }
+                                    } else {
+                                        var matched = false;
+                                        if(Array.isArray(prod.sizes)){
+                                            var sIdx = prod.sizes.findIndex(function(s){ return String(s.eu||s.size||'') === String(size); });
+                                            if(sIdx !== -1){ var cur = Number(prod.sizes[sIdx].stock||0)||0; prod.sizes[sIdx].stock = Math.max(0, cur + (direction * qty)); matched = true; }
+                                        }
+                                        if(!matched){ var curp = Number(prod.stock || prod.inventory || prod.qty || 0) || 0; prod.stock = Math.max(0, curp + (direction * qty)); }
+                                    }
+                                } else {
+                                    var done = false;
+                                    if(prod.sizeMap && typeof prod.sizeMap === 'object' && size){
+                                        var cur4 = Number(prod.sizeMap[String(size)] || 0) || 0;
+                                        prod.sizeMap[String(size)] = Math.max(0, cur4 + (direction * qty));
+                                        done = true;
+                                    }
+                                    if(!done && prod.sizesMap && typeof prod.sizesMap === 'object' && size){
+                                        var cur5 = Number(prod.sizesMap[String(size)] || 0) || 0;
+                                        prod.sizesMap[String(size)] = Math.max(0, cur5 + (direction * qty));
+                                        done = true;
+                                    }
+                                    if(!done){ var curp2 = Number(prod.stock || prod.inventory || prod.qty || 0) || 0; prod.stock = Math.max(0, curp2 + (direction * qty)); }
+                                }
+                                data[prodIdx] = prod;
+                            }catch(e){ }
+                        });
+                        try{ localStorage.setItem(foundKey, JSON.stringify(data)); }catch(e){}
+                        try{ window.dispatchEvent(new CustomEvent('shoepao:local-inventory-updated', { detail: { key: foundKey, updatedAt: Date.now() } })); }catch(e){}
+                        return true;
+                    }catch(e){ return false; }
+                })();
+
+                // Build details by diffing beforeMap -> data for items
+                var details = [];
+                items.forEach(function(it){
+                    try{
+                        var id = String(it.product_id || it.productId || it.id || it.inventoryId || '').trim();
+                        var name = String(it.name || it.title || it.productName || '').trim();
+                        var size = String(it.size || it.eu || it.size_eu || '').trim();
+                        // find product in beforeMap and after data
+                        var beforeProd = null, afterProd = null;
+                        for(var i=0;i<beforeMap.length;i++){ var p = beforeMap[i]; if(id && (String(p.id||p.sku||p.productId||'') === id)) { beforeProd = p; break; } }
+                        for(var j=0;j<data.length;j++){ var p2 = data[j]; if(id && (String(p2.id||p2.sku||p2.productId||'') === id)) { afterProd = p2; break; } }
+                        // fall back to name matching
+                        if(!beforeProd && name){ beforeProd = beforeMap.find(function(p){ try{ return String(p.name||p.model||p.title||'').trim().toLowerCase() === name.toLowerCase(); }catch(e){return false;} }); }
+                        if(!afterProd && name){ afterProd = data.find(function(p){ try{ return String(p.name||p.model||p.title||'').trim().toLowerCase() === name.toLowerCase(); }catch(e){return false;} }); }
+                        var matchedSize = false;
+                        var beforeStock = null, afterStock = null;
+                        try{
+                            if(beforeProd){
+                                if(Array.isArray(beforeProd.colors)){
+                                    var col = (beforeProd.colors[0] || {});
+                                    if(Array.isArray(col.sizes)){
+                                        var s = col.sizes.find(function(s){ return String(s.eu||s.size||'') === size; }); if(s) beforeStock = Number(s.stock||s.qty||0)||0;
+                                    }
+                                } else if(beforeProd.sizeMap && size){ beforeStock = Number(beforeProd.sizeMap[String(size)]||0)||0; }
+                                else beforeStock = Number(beforeProd.stock||beforeProd.inventory||beforeProd.qty||0)||0;
+                            }
+                            if(afterProd){
+                                if(Array.isArray(afterProd.colors)){
+                                    var col2 = (afterProd.colors[0] || {});
+                                    if(Array.isArray(col2.sizes)){
+                                        var s2 = col2.sizes.find(function(s){ return String(s.eu||s.size||'') === size; }); if(s2) afterStock = Number(s2.stock||s2.qty||0)||0;
+                                    }
+                                } else if(afterProd.sizeMap && size){ afterStock = Number(afterProd.sizeMap[String(size)]||0)||0; }
+                                else afterStock = Number(afterProd.stock||afterProd.inventory||afterProd.qty||0)||0;
+                            }
+                            if(beforeStock !== null && afterStock !== null && beforeStock !== afterStock) matchedSize = true;
+                        }catch(e){}
+                        details.push({ item: it, matchedProductId: (afterProd && (afterProd.id||afterProd.sku||afterProd.productId)) || null, matchedSize: matchedSize, before: beforeStock, after: afterStock });
+                    }catch(e){}
+                });
+
+                return { updated: !!ok, key: foundKey, details: details };
+            }catch(e){ return { updated:false, details:[] }; }
+        }
+
+        // Ensure confirmed orders have their stock deducted locally when they appear
+        // in the local cache or are merged from server/firestore. This runs a best-effort
+        // deduction per order item and marks the order as adjusted to avoid duplicate work.
+        async function ensureStockAdjustmentForOrders(list){
+            try{
+                if(!Array.isArray(list)) return;
+                for(var i=0;i<list.length;i++){
+                    try{
+                        var ord = list[i];
+                        if(!ord || !ord.id) continue;
+                        var state = String((ord.status||'')).toLowerCase();
+                        var already = ord.stockAdjusted === true;
+                        if(state === 'confirmed' && !already){
+                            // Deduct locally first (best-effort). Use skipStockAdjust to
+                            // avoid recursive loops inside updateOrder.
+                            try{
+                                console.debug && console.debug('[stock-sync] auto-deduct for order', ord.id);
+                                var did = await deductOrderItems(ord.id, ord).catch(function(e){ console.warn('auto deduct failed for', ord.id, e); return false; });
+                                if(did){
+                                    // mark as adjusted locally and persist without triggering another adjust
+                                    try{ await updateOrder(ord.id, { stockAdjusted: true, stockAdjustedSource: 'sync', stockAdjustedAt: new Date().toISOString(), stockRestocked: false }, { skipStockAdjust: true }); }catch(e){ console.warn('mark adjusted failed', ord.id, e); }
+                                }
+                            }catch(e){ console.warn('error deducting order items', ord && ord.id, e); }
+                        }
+                    }catch(e){ /* per-order ignore */ }
+                }
+            }catch(e){ console.warn('ensureStockAdjustmentForOrders error', e); }
         }
 
         function titleCase(str){
@@ -2196,7 +2202,7 @@
                                                             try{
                                                                 for(var i=0;i<ordersData.length;i++){ if(String(ordersData[i].id) === String(localRow.id)){ ordersData[i] = Object.assign({}, ordersData[i], { tracking_number: tn, courier_name: carrier || ordersData[i].courier_name || '' }); break; } }
                                                                 for(var jidx=0;jidx<currentList.length;jidx++){ if(String(currentList[jidx].id) === String(localRow.id)){ currentList[jidx] = Object.assign({}, currentList[jidx], { tracking_number: tn, courier_name: carrier || currentList[jidx].courier_name || '' }); break; } }
-                                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                                                             }catch(e){}
                                                         }catch(e){}
                                                         // update the table cell text
@@ -2366,7 +2372,7 @@
                                                     var idx = ordersData.findIndex(o2 => String(o2.id) === String(row.id));
                                                     if(idx !== -1){
                                                         ordersData[idx] = Object.assign({}, ordersData[idx], { courier_name: srvOrder.courier_name || '', tracking_number: srvOrder.tracking_number || '', status: srvOrder.status || '' });
-                                                        try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                        try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                                                         try{ if(ordersLoaded) applySearch(); }catch(e){}
                                                     }
                                                     try{ if(window.activeDrawerRow && String(window.activeDrawerRow.id) === String(row.id)){ window.activeDrawerRow.courier_name = srvOrder.courier_name || window.activeDrawerRow.courier_name; window.activeDrawerRow.tracking_number = srvOrder.tracking_number || window.activeDrawerRow.tracking_number; } }catch(e){}
@@ -2397,7 +2403,7 @@
                                                     payment_proof: o.payment_proof || o.paymentProof || o.proofImage || ordersData[idx].payment_proof || '',
                                                     payment_proof_name: o.payment_proof_name || o.paymentProofName || o.proofName || ordersData[idx].payment_proof_name || ''
                                                 });
-                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                                                 // re-render table to reflect new values
                                                 try{ if(ordersLoaded) { applySearch(); } }catch(e){}
                                             }
@@ -2707,12 +2713,12 @@
                                             payment_status: s.payment_status || s.paymentStatus || ordersData[idx].payment_status || '',
                                             payment_proof: s.payment_proof || s.paymentProof || ordersData[idx].payment_proof || '',
                                             payment_proof_name: s.payment_proof_name || s.paymentProofName || ordersData[idx].payment_proof_name || ''
-                                        }); try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){} }catch(e){}
+                                        }); try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){} }catch(e){}
                             }
                         }).catch(function(err){ console.warn('Failed to persist order status to server', err); });
                     }
                 }catch(e){ console.warn('persist to server skipped', e); }
-                try { localStorage.setItem('orders', JSON.stringify(ordersData)); } catch(e) { console.error('persist failed', e); }
+                try { localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} } catch(e) { console.error('persist failed', e); }
                 // Broadcast a lightweight update so client tabs can refresh without a full reload
                 try{ localStorage.setItem('orders_update', JSON.stringify({ id: orderId, status: merged.status || '', ts: Date.now() })); }catch(e){}
                 applySearch();
@@ -3052,6 +3058,7 @@
                     ordersData = sortOrdersByNewest(mergeOrdersById([], ordersData));
                     currentList = ordersData.slice();
                     applySort(); renderTable(currentList);
+                    try{ ensureStockAdjustmentForOrders(ordersData); }catch(e){}
                 }catch(err){/* ignore */}
             }
             if(e.key === 'orders_update'){
@@ -3067,7 +3074,7 @@
                                 var idx = ordersData.findIndex(function(o){ return String(o.id) === String(serverOrder.id); });
                                 if(idx === -1){ ordersData.unshift(serverOrder); }
                                 else { ordersData[idx] = Object.assign({}, ordersData[idx], serverOrder); }
-                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                                try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
                                 ordersData = sortOrdersByNewest(mergeOrdersById([], ordersData));
                                 currentList = ordersData.slice();
                                 applySort(); renderTable(currentList);
@@ -3076,6 +3083,8 @@
                                     var updated = ordersData.find(function(o){ return String(o.id) === String(id); });
                                     if(updated) openOrderDrawer(updated);
                                 }
+                                // Ensure any newly-merged confirmed orders are adjusted locally
+                                try{ ensureStockAdjustmentForOrders([serverOrder]); }catch(e){}
                             }catch(e){}
                         }).catch(function(){ /* ignore fetch errors */ });
                     }
@@ -3115,7 +3124,8 @@
                         });
                         if(incoming.length){
                             ordersData = sortOrdersByNewest(mergeOrdersById(ordersData, incoming));
-                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                            try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
+                            try{ ensureStockAdjustmentForOrders(incoming); }catch(e){}
                             if(ordersLoaded) applySearch();
                         }
                     }catch(err){
@@ -3148,7 +3158,8 @@
                     // Normalize ids and merge
                     list.forEach(function(it){ if(!it.id) it.id = it.id || it.orderId || it.id; });
                     ordersData = sortOrdersByNewest(mergeOrdersById(ordersData, list));
-                    try{ localStorage.setItem('orders', JSON.stringify(ordersData)); }catch(e){}
+                    try{ localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} }catch(e){}
+                    try{ ensureStockAdjustmentForOrders(list); }catch(e){}
                     if(ordersLoaded) applySearch();
                 }).catch(function(err){ console.warn('Polling orders failed', err); });
             }catch(e){/* ignore */}
@@ -3742,10 +3753,16 @@
                     if (!isNaN(idx) && cart[idx]) {
                         if (window.tryIncrementCartItem) {
                             var r = window.tryIncrementCartItem(cart, idx);
-                            if (r && r.success === false && r.reason === 'max_pairs') {
-                                if (window.showMaxPairsMessage) window.showMaxPairsMessage();
-                                else alert('Maximum of 3 items per order allowed.');
-                                return;
+                            if (r && r.success === false) {
+                                if (r.reason === 'max_reached') {
+                                    alert('Only ' + Number(r.maxAllowed || 0) + ' stock is available');
+                                    return;
+                                }
+                                if (r.reason === 'max_pairs') {
+                                    if (window.showMaxPairsMessage) window.showMaxPairsMessage();
+                                    else alert('Maximum of 3 items per order allowed.');
+                                    return;
+                                }
                             }
                         } else {
                             cart[idx].quantity++;

@@ -109,3 +109,49 @@ window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
 
   window.PageDataGate = { block: block, ready: ready, error: error, wrap: wrap };
 })();
+
+// Small Firebase connectivity probe utility.
+// Usage: window.SHOEPAO_probeFirebase({ timeout: 5000, attempts: 3 }) -> Promise<{ ok: bool, error?: string }>
+(function(){
+  async function probeOnce(timeout){
+    if(!window.firebase || !firebase.firestore) return { ok: false, error: 'Firebase SDK not loaded' };
+    try{
+      if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG || {});
+      var db = firebase.firestore();
+      // Ensure network is enabled (useful when offline mode was previously disabled)
+      try{ if(db && db.enableNetwork) await db.enableNetwork(); }catch(e){}
+
+      // Try a quick read of a small query (orders limited to 1). This may be denied by rules
+      // for non-admin pages; in that case the call will error and we return the error for debugging.
+      var controller = null; var timer = null;
+      var p = new Promise(async function(resolve, reject){
+        try{
+          var q = db.collection('orders').limit(1);
+          var snap = await q.get();
+          resolve({ ok: true, took: 0, count: (snap && snap.size) ? snap.size : 0 });
+        }catch(err){ resolve({ ok: false, error: String(err && err.message || err) }); }
+      });
+      if(typeof timeout === 'number' && timeout > 0){
+        var race = Promise.race([p, new Promise(function(res){ setTimeout(function(){ res({ ok: false, error: 'timeout' }); }, timeout); })]);
+        return await race;
+      }
+      return await p;
+    }catch(e){ return { ok: false, error: String(e && e.message || e) }; }
+  }
+
+  async function probe(opts){
+    opts = opts || {};
+    var attempts = Number(opts.attempts || 1) || 1;
+    var timeout = Number(opts.timeout || 5000) || 5000;
+    var backoff = Number(opts.backoff || 800) || 800;
+    for(var i=0;i<attempts;i++){
+      var r = await probeOnce(timeout);
+      if(r && r.ok) return r;
+      // wait before retrying
+      if(i < attempts - 1) await new Promise(function(res){ setTimeout(res, backoff * (i+1)); });
+    }
+    return { ok: false, error: 'all attempts failed' };
+  }
+
+  try{ window.SHOEPAO_probeFirebase = probe; }catch(e){}
+})();

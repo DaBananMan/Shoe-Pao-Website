@@ -4,10 +4,36 @@
 // local Node API isn't running. For now it's intentionally minimal to avoid
 // side effects in production-like environments.
 (function(){
-  try{
+    try{
     if(typeof console !== 'undefined' && console.debug) console.debug('ensure-server.js loaded');
     // Expose a marker
     window.__shoepao_ensure_server = true;
+    // Detect navigation reloads and enter a short "startup hold" to avoid
+    // performing aggressive network activity (outbox flushes, probes) that
+    // can exacerbate flaky connections during hard reloads. Pages can check
+    // `window.SHOEPAO_isStartupHold()` to delay heavy work until the hold
+    // is released.
+    try{
+      (function(){
+        var holdMs = 5000; // default hold duration on reloads
+        var navType = null;
+        try{
+          var entries = (performance && typeof performance.getEntriesByType === 'function') ? performance.getEntriesByType('navigation') : null;
+          if(entries && entries.length) navType = entries[0].type;
+          else if(typeof performance !== 'undefined' && performance.navigation && typeof performance.navigation.type !== 'undefined') navType = (performance.navigation.type === 1) ? 'reload' : 'navigate';
+        }catch(e){ navType = null; }
+        if(String(navType) === 'reload'){
+          try{ window.SHOEPAO_startupHold = true; window.SHOEPAO_startupHoldUntil = Date.now() + holdMs; }catch(e){}
+          // Provide helpers to check / release the hold
+          try{ window.SHOEPAO_isStartupHold = function(){ try{ return !!window.SHOEPAO_startupHold && Date.now() < (window.SHOEPAO_startupHoldUntil||0); }catch(e){ return false; } }; }catch(e){}
+          try{ window.SHOEPAO_releaseStartupHold = function(){ try{ window.SHOEPAO_startupHold = false; window.SHOEPAO_startupHoldUntil = 0; try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:startup-released',{})); }catch(e){} }catch(e){} }; }catch(e){}
+          // Auto-release after the timeout in case something doesn't clear it
+          try{ setTimeout(function(){ try{ if(window.SHOEPAO_isStartupHold && window.SHOEPAO_isStartupHold()) window.SHOEPAO_releaseStartupHold(); }catch(e){} }, holdMs + 300); }catch(e){}
+        }else{
+          try{ window.SHOEPAO_startupHold = false; window.SHOEPAO_startupHoldUntil = 0; window.SHOEPAO_isStartupHold = function(){ return false; }; window.SHOEPAO_releaseStartupHold = function(){}; }catch(e){}
+        }
+      })();
+    }catch(e){}
     // Initial top-level verify probe removed to avoid top-level await usage.
     // verify-session logic runs later in the periodic checker which properly
     // handles async token refresh and sign-out behavior.
@@ -36,34 +62,45 @@
       function readOutbox(){ try{ return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); }catch(e){ return []; } }
       function writeOutbox(q){ try{ localStorage.setItem(OUTBOX_KEY, JSON.stringify(q || [])); }catch(e){} }
       function enqueueOutbox(entry){ try{ var q = readOutbox(); q.push(entry); writeOutbox(q); console.info('order-outbox: queued', entry && entry.requestId); }catch(e){ console.warn('order-outbox: enqueue failed', e); } }
+  function notifyApiUnreachable(info){ try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:api-unreachable', { detail: info || {} })); }catch(e){} }
+  function notifyApiReachable(info){ try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:api-reachable', { detail: info || {} })); }catch(e){} }
 
-      // Try to flush outbox: attempt each queued request sequentially
-      async function flushOutboxOnce(){ try{
+    // Try to flush outbox: attempt each queued request sequentially
+    async function flushOutboxOnce(){ try{
+      // If we're in a startup hold (reload), avoid flushing immediately to reduce
+      // network storms on hard reloads. Pages can release the hold early via
+      // window.SHOEPAO_releaseStartupHold() or it'll auto-expire.
+      try{ if(window.SHOEPAO_isStartupHold && window.SHOEPAO_isStartupHold()){ console.info('order-outbox: startup hold active - delaying flush'); return; } }catch(e){}
           var q = readOutbox(); if(!Array.isArray(q) || q.length === 0) return;
           var base = String(window.API_BASE || '/server-proxy.php').replace(/\/+$/,'');
           var remaining = [];
-          for(var i=0;i<q.length;i++){
+              for(var i=0;i<q.length;i++){
             var e = q[i];
             try{
               var url = (e.path && e.path.indexOf('/')===0) ? (base + e.path) : (base + '/' + (e.path||''));
               var opts = { method: e.method || 'POST', headers: e.headers || { 'Content-Type': 'application/json' } };
               if(e.body) opts.body = e.body;
-              var res = await origFetch(url, opts);
-              if(res && res.ok){ console.info('order-outbox: flushed', e.requestId); continue; }
+        var res = await origFetch(url, opts);
+        if(res && res.ok){ try{ notifyApiReachable({ requestId: e.requestId, path: e.path }); }catch(_){ } console.info('order-outbox: flushed', e.requestId); continue; }
               // If non-ok (4xx/5xx) keep it for retry unless it's clearly invalid (4xx)
               if(res && res.status >= 400 && res.status < 500){ console.warn('order-outbox: server rejected request', res.status, e.requestId); continue; }
               // otherwise keep for retry
               remaining.push(e);
             }catch(err){
               // network or other error -> keep for retry
+                  try{ notifyApiUnreachable({ requestId: e.requestId, path: e.path, error: String(err && err.message || err) }); }catch(_){}
               remaining.push(e);
             }
           }
           if(remaining.length !== q.length) writeOutbox(remaining);
         }catch(e){ console.warn('order-outbox: flush failed', e); } }
 
-      // Periodically flush outbox and when page gains connectivity
-      try{ setInterval(flushOutboxOnce, 10000); window.addEventListener && window.addEventListener('online', flushOutboxOnce); }catch(e){}
+  // Periodically flush outbox and when page gains connectivity
+  try{ setInterval(function(){ try{ flushOutboxOnce(); }catch(e){} }, 10000); window.addEventListener && window.addEventListener('online', function(){ try{ flushOutboxOnce(); }catch(e){} }); }catch(e){}
+
+  // If API becomes reachable during startup hold, release the hold so pending
+  // work can proceed immediately.
+  try{ window.addEventListener && window.addEventListener('shoepao:api-reachable', function(){ try{ if(window.SHOEPAO_isStartupHold && window.SHOEPAO_isStartupHold()){ console.info('startup hold: API reachable - releasing hold early'); try{ window.SHOEPAO_releaseStartupHold(); }catch(e){} } }catch(e){} }); }catch(e){}
 
       // Local dev helper removed: avoid probing for a PHP helper at /tools/ensure-node.php
       // which may not exist in some setups and causes noisy 404s. If developers need
@@ -71,7 +108,7 @@
       // window.SHOEPAO_ENABLE_NODE_STARTER = true and provides a reachable endpoint.
       try{ if(window && window.location && window.location.hostname === 'localhost') { console.debug('ensure-server: node-starter probe skipped (no /tools/ensure-node.php)'); } }catch(e){}
 
-      window.fetch = function(input, init){
+  window.fetch = function(input, init){
         try{
           var url = input;
           var opts = init || {};
@@ -105,6 +142,7 @@
                       var cloned = null; // not attempting to read stream here
                       if(shouldQueue){ enqueueOutbox({ requestId: 'rq_' + Date.now() + '_' + Math.floor(Math.random()*10000), path: '/' + path, method: method, headers: (opts && opts.headers) || {}, body: opts && opts.body ? opts.body : null }); }
                     }catch(e){ console.warn('order-outbox: enqueue error', e); }
+                    try{ notifyApiUnreachable({ path: '/' + path, method: method, error: String(err && err.message || err) }); }catch(_){ }
                     return Promise.reject(err);
                   });
                 }
@@ -114,18 +152,27 @@
                   // Try fetch; if it fails (network), enqueue and reject promise so caller handles it
                   return origFetch(newUrl, opts).catch(function(err){
                     try{ enqueueOutbox({ requestId: 'rq_' + Date.now() + '_' + Math.floor(Math.random()*10000), path: '/' + path, method: method, headers: (opts && opts.headers) || {}, body: opts && opts.body ? opts.body : null }); }catch(e){ console.warn('order-outbox: enqueue error', e); }
+                    try{ notifyApiUnreachable({ path: '/' + path, method: method, error: String(err && err.message || err) }); }catch(_){ }
                     return Promise.reject(err);
                   });
                 }
 
-                // default: just forward
-                return origFetch(newUrl, opts);
+                // default: forward but observe outcome to emit reachable/unreachable events
+                return origFetch(newUrl, opts).then(function(res){
+                  try{
+                    if(res && res.ok) notifyApiReachable({ url: newUrl, status: res.status });
+                    else if(res && res.status && res.status >= 500) notifyApiUnreachable({ url: newUrl, status: res.status });
+                  }catch(e){}
+                  return res;
+                }).catch(function(err){ try{ notifyApiUnreachable({ url: newUrl, error: String(err && err.message || err) }); }catch(e){}; return Promise.reject(err); });
               }
             }
           }
         }catch(e){ /* fall back to original */ }
         return origFetch(input, init);
       };
+      // Expose utilities for manual retry/probe from pages (admin UIs will call these)
+      try{ window.SHOEPAO_flushOutbox = flushOutboxOnce; }catch(e){}
     }
   }catch(e){}
 })();

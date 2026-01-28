@@ -355,9 +355,15 @@
     }
 
     async function refresh(gran, filters){
-        const data = await fetchAnalytics(gran, filters);
+        let data = await fetchAnalytics(gran, filters);
+        // If server analytics failed, try to build a best-effort view from localStorage
+        if(!data || !data.ok){
+            try{
+                data = computeLocalAnalytics(gran, filters);
+            }catch(e){ data = null; }
+        }
         if(!data || !data.ok) return;
-    el('cardRevenue').textContent = formatPHP(data.totals.revenue || 0);
+        el('cardRevenue').textContent = formatPHP(data.totals.revenue || 0);
     el('cardSales').textContent = String(data.totals.itemsSold || 0);
     // orders count displayed near chart
     el('cardOrdersCount').textContent = String(data.totals.orders || (data.series || []).reduce((s,x)=>s+Number(x.orders||0),0));
@@ -417,6 +423,15 @@
         const sel = el('filterRange'); if(sel) sel.addEventListener('change', onRangeChange);
         // trigger initial load (default is past_month)
         onRangeChange();
+        // Listen for local updates coming from other pages (orders/inventory)
+        window.addEventListener('shoepao:local-inventory-updated', function(){
+            console.debug && console.debug('[dashboard] detected local inventory update, refreshing UI from local cache');
+            (async ()=>{ if(__isRefreshing) return; __isRefreshing = true; try{ await refresh(__currentGran || 'month', __currentFilters || {}); }catch(e){ console.warn('local-inventory refresh error', e); } __isRefreshing = false; })();
+        });
+        window.addEventListener('shoepao:local-orders-updated', function(){
+            console.debug && console.debug('[dashboard] detected local orders update, refreshing UI from local cache');
+            (async ()=>{ if(__isRefreshing) return; __isRefreshing = true; try{ await refresh(__currentGran || 'month', __currentFilters || {}); }catch(e){ console.warn('local-orders refresh error', e); } __isRefreshing = false; })();
+        });
         // when tab becomes visible again or window focuses, refresh immediately and restart polling
         document.addEventListener('visibilitychange', function(){
             if(document.visibilityState === 'visible'){
@@ -429,4 +444,77 @@
         window.addEventListener('focus', function(){ if(document.visibilityState === 'visible'){ (async ()=>{ if(__isRefreshing) return; __isRefreshing = true; try{ await refresh(__currentGran || 'month', __currentFilters || {}); }catch(e){ console.warn('focus refresh error', e); } __isRefreshing = false; startAutoRefresh(); })(); } });
     });
 })();
+</script>
+
+<script>
+// Helpers: compute analytics from localStorage when server is unavailable.
+function computeLocalAnalytics(gran, filters){
+    // expected output shape similar to server response used by UI
+    var out = { ok: true, totals: { revenue: 0, itemsSold: 0, orders: 0 }, series: [], topBrands: [], topSizes: [], topModels: [], inventory: { totalStock: 0, lowStock: [] }, statusCounts: {} };
+
+    // read orders from localStorage
+    try{
+        var raw = localStorage.getItem('orders');
+        var orders = raw ? JSON.parse(raw) : null;
+        if(Array.isArray(orders)){
+            out.totals.orders = orders.length;
+            var itemsSold = 0;
+            orders.forEach(function(o){
+                try{
+                    var status = (o && (o.status || o.state || o.orderStatus)) || 'unknown';
+                    status = String(status).toLowerCase();
+                    out.statusCounts[status] = (out.statusCounts[status]||0) + 1;
+                    if(Array.isArray(o.items)){
+                        o.items.forEach(function(it){ itemsSold += Number(it.qty || it.quantity || 1) || 0; });
+                    }
+                }catch(e){}
+            });
+            out.totals.itemsSold = itemsSold;
+        }
+    }catch(e){ /* ignore */ }
+
+    // Read inventory from common localStorage keys (same heuristic as orders page updater)
+    try{
+        var keys = ['products','inventory','inventory_data','inventory_app_products','local_inventory'];
+        var found = null; var data = null;
+        for(var i=0;i<keys.length;i++){
+            try{ var r = localStorage.getItem(keys[i]); if(!r) continue; var p = JSON.parse(r||'null'); if(Array.isArray(p)){ found = keys[i]; data = p; break; } }catch(e){}
+        }
+        if(found && Array.isArray(data)){
+            var total = 0; var low = [];
+            data.forEach(function(prod){
+                try{
+                    var prodTotal = 0;
+                    if(Array.isArray(prod.colors)){
+                        prod.colors.forEach(function(c){
+                            if(Array.isArray(c.sizes)){
+                                c.sizes.forEach(function(s){ prodTotal += Number(s.stock||s.qty||s.inventory||0)||0; });
+                            } else {
+                                prodTotal += Number(c.stock||c.inventory||c.qty||0)||0;
+                            }
+                        });
+                    } else if(Array.isArray(prod.sizes)){
+                        prod.sizes.forEach(function(s){ prodTotal += Number(s.stock||s.qty||s.inventory||0)||0; });
+                    } else if(prod.sizeMap && typeof prod.sizeMap === 'object'){
+                        Object.keys(prod.sizeMap).forEach(function(k){ prodTotal += Number(prod.sizeMap[k]||0)||0; });
+                    } else if(prod.sizesMap && typeof prod.sizesMap === 'object'){
+                        Object.keys(prod.sizesMap).forEach(function(k){ prodTotal += Number(prod.sizesMap[k]||0)||0; });
+                    } else {
+                        prodTotal += Number(prod.stock||prod.inventory||prod.qty||0)||0;
+                    }
+                    total += prodTotal;
+                    // low stock threshold: 5 or product-specific lowThreshold
+                    var threshold = Number(prod.lowThreshold||prod.reorderPoint||5) || 5;
+                    if(prodTotal <= threshold){ low.push({ id: prod.id||prod.productId||prod.sku||'', name: prod.name||prod.title||prod.model||'' }); }
+                }catch(e){}
+            });
+            out.inventory.totalStock = total;
+            out.inventory.lowStock = low;
+        }
+    }catch(e){ /* ignore */ }
+
+    // revenue/series/top lists can't be reliably computed from local cache without sales history
+    // keep them empty or zero; UI will display zeros gracefully.
+    return out;
+}
 </script>
