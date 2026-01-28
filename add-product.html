@@ -49,6 +49,21 @@
     .helper-text { margin:4px 0 0 0; color:#666; font-size:0.9rem; }
     .chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:#f7f7f7; border:1px solid #eee; font-size:0.92rem; }
     .danger-text { color:#b71c1c; }
+    /* Variant image URL input styling: compact, match text height and full width */
+    .variant-image-slot .variant-image-url,
+    .variant-image-slot input[type="text"],
+    .variant-image-slot input[type="url"] {
+      display: block;
+      margin-top: 6px;
+      height: 28px; /* compact single-line height */
+      line-height: 20px;
+      padding: 4px 8px; /* small padding to reduce visual height */
+      font-size: 0.95rem;
+      border-radius: 8px;
+      border: 1px solid #e6e6e6;
+      width: 100%;
+      box-sizing: border-box;
+    }
     .warn { color:#b26b00; font-weight:600; }
     @media (max-width: 720px) {
       .size-row { grid-template-columns: 1fr; }

@@ -836,6 +836,13 @@
   function saveAll() {
     // Schedule a one-way sync to Firestore so remote mirrors current UI state
     try { if (firebaseState && firebaseState.enabled) scheduleFullSync(); } catch (e) { /* ignore */ }
+    // Persist a local copy for offline UI (dashboard and orders use this key)
+    try{
+      if(Array.isArray(state.products)){
+        try{ localStorage.setItem('products', JSON.stringify(state.products)); }catch(e){}
+        try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-inventory-updated', { detail: { key: 'products', updatedAt: Date.now() } })); }catch(e){}
+      }
+    }catch(e){}
   }
 
   // Ensure every product has a SKU; generate if missing/blank
@@ -2159,6 +2166,48 @@
         <button class="secondary" data-action="add-size-init" data-id="${color.id}">Add Size</button>
         <button class="secondary" data-action="clear-all-init" data-id="${color.id}">Clear</button>`;
       card.appendChild(fill);
+
+      // Variant images UI for Add Product initial variants
+      applyColorImages(color);
+      const imageCount = countColorImages(color);
+      const imageSection = document.createElement('div');
+      imageSection.className = 'variant-images-section';
+      imageSection.innerHTML = `
+        <div class="variant-images-header">
+          <div>
+            <strong>Variant Images</strong>
+            <div class="muted">Add up to 4 images for this color (upload or provide URL).</div>
+          </div>
+          <div class="variant-images-meta">
+            <span class="variant-images-count">${imageCount}/4 uploaded</span>
+            <button type="button" class="ghost" data-action="variant-images-clear-init" data-color="${color.id}">Clear images</button>
+          </div>
+        </div>
+        <div class="variant-images-grid">
+          ${color.images.map((img, idx) => {
+            const label = `Image ${idx + 1}`;
+            const preview = img
+              ? `<img src="${img}" alt="${color.name} ${label}">`
+              : `<div class="variant-image-placeholder">${label}</div>`;
+            return `
+              <div class="variant-image-row" data-index="${idx}">
+                <div class="variant-image-preview">${preview}</div>
+                <div class="variant-image-controls">
+                  <label class="secondary small-btn">
+                    <input type="file" accept="image/*" data-action="variant-image-upload-init" data-color="${color.id}" data-index="${idx}">
+                    Upload
+                  </label>
+                  <input type="text" class="variant-image-url" placeholder="Image URL" data-init-color="${color.id}" data-index="${idx}" value="${img || ''}">
+                  <button type="button" class="secondary small-btn" data-action="variant-image-seturl-init" data-color="${color.id}" data-index="${idx}">Set URL</button>
+                  <button type="button" class="ghost danger-text small-btn" data-action="variant-image-remove-init" data-color="${color.id}" data-index="${idx}">Remove</button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+        ${imageCount < 4 ? '<div class="variant-images-warning">Upload or set image URLs for all 4 images before saving.</div>' : ''}
+      `;
+      card.appendChild(imageSection);
+
       const grid = document.createElement('div'); grid.className = 'size-grid';
       if (!color.sizes.length) {
         const emptyRow = document.createElement('div');
@@ -2229,6 +2278,70 @@
       }
       const row = e.target.closest('.size-row');
       if (row) row.classList.toggle('is-critical', isSizeCritical({ id: 'init', brand: '', model: '' }, c, s));
+    }));
+
+    // Bind image uploads for initial variant editor
+    editor.querySelectorAll('[data-action="variant-image-upload-init"]').forEach(inp => inp.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const colorId = e.target.dataset.color;
+      const idx = parseNum(e.target.dataset.index, 0);
+      const c = state.ui.productModalColors.find(y => y.id === colorId);
+      if (!c) return;
+      const fr = new FileReader();
+      fr.onload = () => {
+        applyColorImages(c);
+        c.images[idx] = fr.result;
+        applyColorImages(c);
+        renderInitialVariants();
+      };
+      fr.onerror = () => alert('Failed to read image file.');
+      fr.readAsDataURL(file);
+    }));
+
+    // Bind image remove for initial variants
+    editor.querySelectorAll('[data-action="variant-image-remove-init"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const idx = parseNum(btn.dataset.index, 0);
+      const c = state.ui.productModalColors.find(y => y.id === colorId);
+      if (!c) return;
+      applyColorImages(c);
+      c.images[idx] = '';
+      applyColorImages(c);
+      renderInitialVariants();
+    }));
+
+    // Bind set URL buttons for initial variants
+    editor.querySelectorAll('[data-action="variant-image-seturl-init"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const idx = parseNum(btn.dataset.index, 0);
+      const input = editor.querySelector(`.variant-image-url[data-init-color="${colorId}"][data-index="${idx}"]`);
+      const url = input && String(input.value || '').trim();
+      if (!url) { alert('Enter an image URL'); return; }
+      const c = state.ui.productModalColors.find(y => y.id === colorId);
+      if (!c) return;
+      c.images[idx] = url;
+      applyColorImages(c);
+      renderInitialVariants();
+    }));
+
+    // Bind Enter key on URL inputs to set the URL (initial variants)
+    editor.querySelectorAll('.variant-image-url[data-init-color]').forEach(inp => inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const btn = editor.querySelector(`[data-action="variant-image-seturl-init"][data-color="${inp.dataset.initColor}"][data-index="${inp.dataset.index}"]`);
+        if (btn) btn.click();
+      }
+    }));
+
+    // Bind clear all images for initial variants
+    editor.querySelectorAll('[data-action="variant-images-clear-init"]').forEach(btn => btn.addEventListener('click', () => {
+      const colorId = btn.dataset.color;
+      const c = state.ui.productModalColors.find(y => y.id === colorId);
+      if (!c) return;
+      c.images = normalizeVariantImages([], '');
+      c.image = '';
+      renderInitialVariants();
     }));
   }
 
