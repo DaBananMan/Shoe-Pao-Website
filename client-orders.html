@@ -489,6 +489,116 @@
               .replace(/'/g,'&#39;');
         }
 
+        function getDisplayStatus(order){
+            function norm(v){ return String(v || '').trim().toLowerCase(); }
+            try{
+                var o = order || {};
+                // Cancellation overrides 'Delivered' display if a cancellation request exists
+                var cr = o.cancelRequest;
+                if(cr && cr.requestedAt && !cr.rejectedAt){
+                    if(cr.approvedAt || norm(o.status) === 'cancelled' || norm(o.status) === 'canceled') return 'Cancellation Approved';
+                    return 'Cancellation Requested';
+                }
+
+                // Return/Refund overrides 'Delivered' display if a return request exists
+                var rr = o.returnRequest;
+                if(rr && rr.requestedAt){
+                    var st = norm(o.status);
+                    var rs = norm(rr.refundStatus);
+                    var reqCode = norm(rr.requestTypeCode);
+                    var reqType = norm(rr.requestType || rr.type);
+                    var isReturnRefund = (reqCode === 'return_refund') || (reqType.indexOf('return') !== -1) || (st.indexOf('return and refund') !== -1);
+
+                    if(!isReturnRefund){
+                        if(st === 'refunded' || rs.indexOf('refunded') !== -1 || rr.refundedAt) return 'Refund complete';
+                        if(st === 'refund processing' || rs.indexOf('processing') !== -1) return 'Refund processing';
+                        return 'Refund requested';
+                    }
+
+                    if(st === 'refunded' || rs.indexOf('refunded') !== -1 || rr.refundedAt) return 'Return and Refund complete';
+                    if(st === 'refund processing' || rs.indexOf('processing') !== -1) return 'Return complete, processing refund';
+                    if(st === 'awaiting return' || rs.indexOf('awaiting return') !== -1) return 'Awaiting Return to Seller';
+                    if(rr.approvedAt) return 'Return and Refund Approved';
+                    return 'Return and Refund Requested';
+                }
+            }catch(e){ /* ignore and fall back */ }
+
+            // Default shipping display
+            return (order && order._display_status) ? order._display_status : (order && order.status) ? order.status : 'Pending';
+        }
+
+        function getClientApiBase(){
+            try{
+                var p = window.location.pathname.replace(/\/+$/,'').replace(/^\/+/, '');
+                var seg = p.split('/');
+                var root = seg.length > 0 ? '/' + seg[0] : '';
+                return root + '/server-proxy.php';
+            }catch(e){ return '/server-proxy.php'; }
+        }
+
+        function normalizeOrderStatusValue(value){
+            return String(value || '').trim().toLowerCase();
+        }
+
+        function isPendingLikeStatus(value){
+            var s = normalizeOrderStatusValue(value);
+            return !s || s === 'pending' || s === 'pending payment';
+        }
+
+        function resolveMergedStatus(localOrder, serverOrder){
+            var localStatus = localOrder ? (localOrder.status || localOrder._display_status || '') : '';
+            var serverStatus = serverOrder ? (serverOrder.status || serverOrder._display_status || '') : '';
+            var localPending = isPendingLikeStatus(localStatus);
+            var serverPending = isPendingLikeStatus(serverStatus);
+
+            if(serverStatus){
+                if(serverPending && !localPending) return localStatus || serverStatus;
+                if(!serverPending && localPending) return serverStatus;
+                return serverStatus || localStatus;
+            }
+
+            return localStatus || serverStatus;
+        }
+
+        function mergeServerOrdersIntoClient(orders){
+            return new Promise(function(resolve){
+                try{
+                    if(!window.fetch) return resolve(orders);
+                    var apiBase = getClientApiBase();
+                    var list = Array.isArray(orders) ? orders.slice() : [];
+                    var indexMap = {};
+                    list.forEach(function(o, i){ indexMap[String(o && (o.id || o.__docId) || '')] = i; });
+                    var tasks = list.map(function(order){
+                        var id = order && (order.id || order.__docId);
+                        if(!id) return Promise.resolve(null);
+                        return fetch(apiBase + '/api/orders/' + encodeURIComponent(id) + '/exists')
+                            .then(function(r){ if(!r.ok) throw new Error('exists check failed'); return r.json(); })
+                            .then(function(ex){ if(!ex || !ex.exists) return null; return fetch(apiBase + '/api/orders/' + encodeURIComponent(id)).then(function(r2){ if(!r2.ok) throw new Error('no order'); return r2.json(); }); })
+                            .then(function(j){ var serverOrder = (j && j.order) ? j.order : (j && j.id ? j : null); return serverOrder ? { id: id, order: serverOrder } : null; })
+                            .catch(function(){ return null; });
+                    });
+                    Promise.all(tasks).then(function(results){
+                        results.forEach(function(r){
+                            if(!r || !r.order) return;
+                            var key = String(r.order.id || r.id || '');
+                            var idx = (typeof indexMap[key] === 'number') ? indexMap[key] : -1;
+                            if(idx >= 0){
+                                var localOrder = list[idx] || {};
+                                var serverOrder = r.order || {};
+                                var merged = Object.assign({}, localOrder, serverOrder);
+                                var resolvedStatus = resolveMergedStatus(localOrder, serverOrder);
+                                if(resolvedStatus){ merged.status = resolvedStatus; }
+                                list[idx] = merged;
+                                if(Array.isArray(r.order.items) && r.order.items.length) list[idx].items = r.order.items;
+                            }
+                        });
+                        try{ localStorage.setItem('client_orders', JSON.stringify(list)); }catch(e){}
+                        resolve(list);
+                    }).catch(function(){ resolve(orders); });
+                }catch(e){ resolve(orders); }
+            });
+        }
+
         function hasUserRatedOrder(order, items){
             try{
                 var api = window.ShoePaoRatings;
@@ -861,7 +971,10 @@
                             }).catch(function(){ o.items = []; return o; });
                         })).then(function(fullOrders){
                             try{ localStorage.setItem('client_orders', JSON.stringify(fullOrders)); }catch(e){}
-                            fullOrders.forEach(function(order){
+                            function renderOrderCards(list){
+                                var cardOrders = Array.isArray(list) ? list : [];
+                                if(!cardOrders.length){ container.innerHTML='<div style="color:#666">You have no orders yet.</div>'; return; }
+                                cardOrders.forEach(function(order){
                                 const itemCount = (order.items || []).reduce((s,it)=>s + (it.qty||it.quantity||1), 0);
                                 const firstImage = getOrderRepresentativeImage(order);
                 // derive a short shipping snippet for card display
@@ -878,12 +991,13 @@
                 card.setAttribute('role','button');
                 card.setAttribute('tabindex','0');
                 const statusNorm = String(order.status||'').toLowerCase().trim();
+                var displayStatus = getDisplayStatus(order);
                 var estText = computeEstimatedDelivery(order);
                 var actionsHtml = buildActionButtons(order);
                 card.innerHTML = `
                     <div class="order-status-box">
-                        <img src="IMAGE/PendingIcon.png" class="order-status-icon" alt="${titleCase(order.status)}">
-                        <div style="display:flex;flex-direction:column;"><span style="font-weight:600">${titleCase(order.status)}</span><span style="font-size:0.92rem;color:#666">${formatOrderDateTime(order.created_at || order.date) || ''}</span></div>
+                        <img src="IMAGE/PendingIcon.png" class="order-status-icon" alt="${titleCase(displayStatus)}">
+                        <div style="display:flex;flex-direction:column;"><span style="font-weight:600">${titleCase(displayStatus)}</span><span style="font-size:0.92rem;color:#666">${formatOrderDateTime(order.created_at || order.date) || ''}</span></div>
                     </div>
                     <img src="${firstImage}" class="order-card-img" alt="Order Image">
                     <div class="order-card-divider"></div>
@@ -906,6 +1020,14 @@
                     }
                 });
                                 container.appendChild(card);
+                                });
+                            }
+                            renderOrderCards(fullOrders);
+                            return mergeServerOrdersIntoClient(fullOrders).then(function(mergedOrders){
+                                if(mergedOrders && mergedOrders.length){
+                                    container.innerHTML='';
+                                    renderOrderCards(mergedOrders);
+                                }
                             });
                         });
                     }).catch(function(err){
@@ -955,7 +1077,13 @@
                                 var clientOrders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
                                 var idx = clientOrders.findIndex(function(o){ return o && (o.id||'') === serverOrder.id; });
                                 if(idx === -1) clientOrders.unshift(serverOrder);
-                                else clientOrders[idx] = Object.assign({}, clientOrders[idx], serverOrder);
+                                else {
+                                    var localOrder = clientOrders[idx] || {};
+                                    var merged = Object.assign({}, localOrder, serverOrder);
+                                    var resolvedStatus = resolveMergedStatus(localOrder, serverOrder);
+                                    if(resolvedStatus){ merged.status = resolvedStatus; }
+                                    clientOrders[idx] = merged;
+                                }
                                 localStorage.setItem('client_orders', JSON.stringify(clientOrders));
                             }catch(e){/* ignore persist errors */}
                             try{ renderOrders(); }catch(e){}

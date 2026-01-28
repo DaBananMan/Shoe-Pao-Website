@@ -278,11 +278,14 @@
         }
         .sale-row {
             display: flex;
-            gap: 32px;
+            gap: 36px;
+            row-gap: 36px;
             justify-content: center;
-            margin: 0 auto 48px auto;
-            flex-wrap: nowrap;
+            margin: 0 auto 56px auto;
+            flex-wrap: wrap;
             width: 100%;
+            max-width: 1400px;
+            padding: 0 6vw;
         }
         .shoe-card {
             background: none;
@@ -433,11 +436,14 @@
         }
         .arrival-row {
             display: flex;
-            gap: 32px;
+            gap: 36px;
+            row-gap: 36px;
             justify-content: center;
-            margin: 0 auto 48px auto;
-            flex-wrap: nowrap;
+            margin: 0 auto 56px auto;
+            flex-wrap: wrap;
             width: 100%;
+            max-width: 1400px;
+            padding: 0 6vw;
         }
         .sale-row.scrollable,
         .arrival-row.scrollable {
@@ -446,6 +452,7 @@
             padding: 0 24px 12px 24px;
             scroll-snap-type: x proximity;
             -webkit-overflow-scrolling: touch;
+            flex-wrap: nowrap;
         }
         .sale-row.scrollable .shoe-card,
         .arrival-row.scrollable .shoe-card {
@@ -570,7 +577,11 @@
             .section-header {
                 margin-left: 4vw;
             }
-            .sale-row, .arrival-row, .brand-filter-row, .brands-panel {
+            .sale-row, .arrival-row {
+                margin-left: 0;
+                padding: 0 4vw;
+            }
+            .brand-filter-row, .brands-panel {
                 margin-left: 4vw;
             }
             .brands-panel {
@@ -601,10 +612,13 @@
             }
             .sale-row, .arrival-row {
                 flex-direction: column;
-                gap: 18px;
+                gap: 22px;
+                align-items: center;
+                padding: 0 3vw;
             }
             .shoe-card, .shoe-img-box {
-                width: 98vw;
+                width: 100%;
+                max-width: 520px;
                 height: 120px;
             }
             .brands-panel {
@@ -769,6 +783,7 @@
         container.classList.remove('scrollable');
         var saleItems = (rows || []).filter(function(r){ return hasTag(r, 'Sale'); });
         if (!saleItems.length) return;
+        var saleVisibleCount = Math.min(saleItems.length, 6);
         saleItems.slice(0, 6).forEach(function(item){
             var card = document.createElement('div');
             card.className = 'shoe-card';
@@ -846,7 +861,7 @@
             card.appendChild(infoBox);
             container.appendChild(card);
         });
-        if (saleItems.length > 5) container.classList.add('scrollable');
+        if (saleVisibleCount >= 4) container.classList.add('scrollable');
     }
 
     function renderTryOnItems(rows) {
@@ -862,6 +877,7 @@
         });
         if (!tryOnItems.length) return;
 
+        var tryOnVisibleCount = Math.min(tryOnItems.length, 6);
         tryOnItems.slice(0, 6).forEach(function(item){
             var card = document.createElement('div');
             card.className = 'shoe-card';
@@ -962,7 +978,7 @@
             container.appendChild(card);
         });
 
-        if (tryOnItems.length > 5) container.classList.add('scrollable');
+        if (tryOnVisibleCount >= 4) container.classList.add('scrollable');
     }
     function renderNewArrivals(rows) {
         var container = document.getElementById('arrivalRow');
@@ -971,6 +987,7 @@
         container.classList.remove('scrollable');
         var newItems = (rows || []).filter(function(r){ return hasTag(r, 'New'); });
         if (!newItems.length) return;
+        var newVisibleCount = Math.min(newItems.length, 9);
         newItems.slice(0, 9).forEach(function(item){
             var card = document.createElement('div');
             card.className = 'shoe-card';
@@ -1037,7 +1054,7 @@
             card.appendChild(infoBox);
             container.appendChild(card);
         });
-        if (newItems.length > 5) container.classList.add('scrollable');
+        if (newVisibleCount >= 4) container.classList.add('scrollable');
     }
     function renderHomeTaggedSections(){
         if (!window.getInventoryRows) { markHomeError('Products are unavailable right now.'); return; }
@@ -1601,7 +1618,7 @@
         });
         var container = document.getElementById('arrivalRow');
         if (container) {
-            if (visibleCount > 5) container.classList.add('scrollable');
+            if (visibleCount >= 4) container.classList.add('scrollable');
             else container.classList.remove('scrollable');
         }
     }

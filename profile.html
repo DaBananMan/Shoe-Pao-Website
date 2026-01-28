@@ -70,6 +70,72 @@
             flex-direction: column;
             gap: 2px;
         }
+        .profile-address-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 8px 0 12px 0;
+        }
+        .profile-address-item {
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+            background: #fff;
+        }
+        .profile-address-item.selected {
+            border-color: #b71c1c;
+            box-shadow: 0 0 0 1px #b71c1c inset;
+        }
+        .profile-address-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .profile-address-title {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        .profile-address-sub {
+            font-size: 0.92rem;
+            color: #555;
+        }
+        .profile-address-badge {
+            display: inline-flex;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #f5f5f5;
+            font-size: 0.78rem;
+            color: #666;
+            width: fit-content;
+        }
+        .profile-address-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .profile-address-btn {
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .profile-address-btn.primary {
+            background: #111;
+            color: #fff;
+            border-color: #111;
+        }
+        .profile-address-empty {
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 12px;
+        }
         .profile-address-main {
             font-weight: 500;
             color: #222;
@@ -287,6 +353,9 @@
             <div class="profile-address-main" id="profileAddressMain">Jemar Eden, BLK 69 LOT 18 Fairview</div>
             <div class="profile-address-details" id="profileAddressDetails">QUEZON CITY, 1118, PH</div>
         </div>
+        <div class="profile-label" style="margin-top:6px;">Saved Addresses</div>
+        <div id="profileAddressList" class="profile-address-list"></div>
+        <div id="profileAddressEmpty" class="profile-address-empty" style="display:none;">No saved addresses yet.</div>
         <div class="profile-address-plus" onclick="addAddress()"><img src="IMAGE/Plus.png" alt="Plus">Use a different address</div>
         <div id="profileAddressEditor" class="profile-address-editor" style="display:none;margin-top:10px"> 
             <div class="profile-label">Edit address</div>
@@ -501,6 +570,161 @@
         var derived = deriveAddressLinesFromDeliveryAddress(addrObj);
         mainEl.textContent = derived.main;
         detEl.textContent = derived.details;
+    }
+
+    function generateProfileAddressId(){
+        return 'addr_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
+    }
+
+    function normalizeProfileAddressEntry(entry){
+        if(!entry) return null;
+        var e = Object.assign({}, entry);
+        var brgyName = e.barangay && e.barangay.name ? e.barangay.name : e.barangay;
+        var cityName = e.city && e.city.name ? e.city.name : e.city;
+        var provName = e.province && e.province.name ? e.province.name : e.province;
+        var regName = e.region && e.region.name ? e.region.name : e.region;
+        var line2Parts = [brgyName, cityName, provName, regName, e.postalCode].filter(Boolean);
+        e.line1 = e.line1 || ((e.fullName ? e.fullName + ', ' : '') + (e.street || ''));
+        e.line2 = e.line2 || line2Parts.join(', ');
+        if(!e.id) e.id = generateProfileAddressId();
+        return e;
+    }
+
+    function getProfileAddressBook(){
+        var profile = {};
+        try{ profile = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ profile = {}; }
+        var addresses = Array.isArray(profile.addresses) ? profile.addresses.slice() : [];
+        var defaultId = profile.defaultAddressId || '';
+
+        if(!addresses.length && profile.deliveryAddress){
+            var fallback = normalizeProfileAddressEntry(profile.deliveryAddress);
+            if(fallback){
+                addresses = [fallback];
+                defaultId = defaultId || fallback.id;
+                profile.addresses = addresses;
+                profile.defaultAddressId = defaultId;
+                try{ localStorage.setItem('profile', JSON.stringify(profile)); }catch(e){}
+            }
+        }
+
+        return { profile: profile, addresses: addresses, defaultId: defaultId };
+    }
+
+    function buildAddressEntryFromProfile(profile, fallbackMain, fallbackDetails){
+        if(profile && profile.deliveryAddress) return profile.deliveryAddress;
+        var merged = [fallbackMain, fallbackDetails].filter(Boolean).join(', ');
+        return normalizeDeliveryAddressFromString(merged);
+    }
+
+    function upsertProfileAddressEntry(profile, entry, makeDefault){
+        if(!profile || !entry) return profile;
+        var normalized = normalizeProfileAddressEntry(entry);
+        if(!normalized) return profile;
+
+        var list = Array.isArray(profile.addresses) ? profile.addresses.slice() : [];
+        var idx = -1;
+        if(normalized.id){
+            idx = list.findIndex(function(a){ return a && String(a.id) === String(normalized.id); });
+        }
+        if(idx === -1){
+            idx = list.findIndex(function(a){
+                if(!a) return false;
+                var aLine1 = String(a.line1 || '').trim();
+                var aLine2 = String(a.line2 || '').trim();
+                return aLine1 && aLine1 === String(normalized.line1 || '').trim() && aLine2 === String(normalized.line2 || '').trim();
+            });
+        }
+        if(idx >= 0) list[idx] = Object.assign({}, list[idx], normalized);
+        else list.push(normalized);
+
+        if(makeDefault || !profile.defaultAddressId){
+            profile.defaultAddressId = normalized.id;
+        }
+        list.forEach(function(a){ if(a) a.isDefault = (String(a.id || '') === String(profile.defaultAddressId || '')); });
+        profile.addresses = list;
+        return profile;
+    }
+
+    function applyProfileAddressEntry(entry){
+        if(!entry) return;
+        var profile = {};
+        try{ profile = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ profile = {}; }
+        var normalized = normalizeProfileAddressEntry(entry);
+        profile.deliveryAddress = normalized;
+        var derived = deriveAddressLinesFromDeliveryAddress(normalized);
+        profile.addressMain = derived.main;
+        profile.addressDetails = derived.details;
+        profile = upsertProfileAddressEntry(profile, normalized, true) || profile;
+        try{ localStorage.setItem('profile', JSON.stringify(profile)); }catch(e){}
+        try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+        try{ upsertProfileToFirestore(profile); }catch(e){}
+        renderProfileAddressFromObject(normalized);
+        renderProfileAddressBook();
+    }
+
+    function renderProfileAddressBook(){
+        var listEl = document.getElementById('profileAddressList');
+        var emptyEl = document.getElementById('profileAddressEmpty');
+        if(!listEl) return;
+        var data = getProfileAddressBook();
+        var addresses = data.addresses || [];
+        var defaultId = data.defaultId || '';
+        listEl.innerHTML = '';
+        if(emptyEl) emptyEl.style.display = addresses.length ? 'none' : 'block';
+        if(!addresses.length) return;
+
+        addresses.forEach(function(entry){
+            var normalized = normalizeProfileAddressEntry(entry);
+            if(!normalized) return;
+            var isDefault = String(normalized.id || '') === String(defaultId || '');
+            var item = document.createElement('div');
+            item.className = 'profile-address-item' + (isDefault ? ' selected' : '');
+
+            var meta = document.createElement('div');
+            meta.className = 'profile-address-meta';
+            var title = document.createElement('div');
+            title.className = 'profile-address-title';
+            title.textContent = normalized.line1 || normalized.street || 'Address';
+            var sub = document.createElement('div');
+            sub.className = 'profile-address-sub';
+            sub.textContent = normalized.line2 || '';
+            meta.appendChild(title);
+            if(sub.textContent) meta.appendChild(sub);
+            if(isDefault){
+                var badge = document.createElement('div');
+                badge.className = 'profile-address-badge';
+                badge.textContent = 'Default';
+                meta.appendChild(badge);
+            }
+
+            var actions = document.createElement('div');
+            actions.className = 'profile-address-actions';
+            var useBtn = document.createElement('button');
+            useBtn.className = 'profile-address-btn primary';
+            useBtn.textContent = 'Use this';
+            useBtn.addEventListener('click', function(){ applyProfileAddressEntry(normalized); });
+            actions.appendChild(useBtn);
+
+            if(!isDefault){
+                var defBtn = document.createElement('button');
+                defBtn.className = 'profile-address-btn';
+                defBtn.textContent = 'Set default';
+                defBtn.addEventListener('click', function(){
+                    var profile = data.profile || {};
+                    profile.defaultAddressId = normalized.id;
+                    profile = upsertProfileAddressEntry(profile, normalized, true) || profile;
+                    try{ localStorage.setItem('profile', JSON.stringify(profile)); }catch(e){}
+                    try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
+                    try{ upsertProfileToFirestore(profile); }catch(e){}
+                    renderProfileAddressBook();
+                });
+                actions.appendChild(defBtn);
+            }
+
+            item.appendChild(meta);
+            item.appendChild(actions);
+            listEl.appendChild(item);
+        });
     }
 
     var PSGC_BASE = 'https://psgc.cloud/api';
@@ -857,6 +1081,10 @@
             phone: phone,
             deliveryAddress: deliveryAddress
         };
+        try{
+            var entry = buildAddressEntryFromProfile(profile, addressMain, addressDetails);
+            profile = upsertProfileAddressEntry(profile, entry, true) || profile;
+        }catch(e){ /* ignore address book sync errors */ }
         try {
             localStorage.setItem('profile', JSON.stringify(profile));
             try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
@@ -903,6 +1131,7 @@
                 }
             }catch(err){/* ignore orders parse errors */}
             alert('Profile saved!' + (typeof updated !== 'undefined' && updated>0 ? ('\nBackfilled ' + updated + ' existing order(s)') : ''));
+            try{ renderProfileAddressBook(); }catch(e){}
         } catch (e) {
             console.error('Could not save profile to localStorage', e);
             alert('Unable to save profile locally.');
@@ -941,6 +1170,8 @@
             }
         }catch(err){/* ignore parse errors */}
 
+        try{ renderProfileAddressBook(); }catch(e){}
+
         try{ syncProfileFromFirestore(); }catch(e){}
 
         try{ initProfileAddressEditor(); }catch(e){}
@@ -962,14 +1193,16 @@
             var addrDetEl = document.getElementById('profileAddressDetails');
             var phoneEl = document.getElementById('profilePhone');
             var deliveryAddress = getProfileDeliveryAddressFromFields();
-            var profile = {
+            var base = {};
+            try{ base = JSON.parse(localStorage.getItem('profile') || '{}') || {}; }catch(e){ base = {}; }
+            var profile = Object.assign({}, base, {
                 name: nameEl ? nameEl.value.trim() : '',
                 email: emailEl ? emailEl.value.trim() : '',
                 addressMain: addrMainEl ? addrMainEl.textContent.trim() : '',
                 addressDetails: addrDetEl ? addrDetEl.textContent.trim() : '',
                 phone: phoneEl ? phoneEl.value.trim() : '',
                 deliveryAddress: deliveryAddress
-            };
+            });
             try{ localStorage.setItem('profile', JSON.stringify(profile)); }catch(e){/* ignore */}
         }
 
@@ -995,6 +1228,7 @@
                         }
                         if(document.getElementById('profilePhone')) document.getElementById('profilePhone').value = np.phone || '';
                     }
+                    try{ renderProfileAddressBook(); }catch(e){}
                 }
             }catch(ex){/* ignore */}
         });
@@ -1044,6 +1278,7 @@
             var p = JSON.parse(localStorage.getItem('profile') || '{}') || {};
             p.addressMain = addrMain; p.addressDetails = addrDetails;
             p.deliveryAddress = addrObj;
+            try{ p = upsertProfileAddressEntry(p, addrObj, true) || p; }catch(e){}
             localStorage.setItem('profile', JSON.stringify(p));
             try{ localStorage.setItem('profile_updated_at', String(Date.now())); }catch(e){}
             try{ upsertProfileToFirestore(p); }catch(e){}
@@ -1064,6 +1299,7 @@
             }
         }catch(e){}
         if(editor) editor.style.display = 'none';
+        try{ renderProfileAddressBook(); }catch(e){}
         alert('Address saved');
     }
     // Sticky footer fallback for short content
