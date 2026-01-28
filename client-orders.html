@@ -1092,6 +1092,8 @@
                 }
             }catch(e){}
         });
+    // Also respond to in-page local order broadcasts for faster update in same-origin admin windows
+    try{ window.addEventListener('shoepao:local-orders-updated', function(){ try{ renderOrders(); }catch(e){} }); }catch(e){}
 
         // Orders are loaded from the server; no local storage sync needed.
 
@@ -1918,7 +1920,16 @@
             if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
             renderCart();
             if (checkoutBtn) {
-                checkoutBtn.addEventListener('click', function(){
+                checkoutBtn.addEventListener('click', function(e){
+                    try{
+                        var p = JSON.parse(localStorage.getItem('profile')||'null');
+                        var auth = null; try{ auth = JSON.parse(localStorage.getItem('authUser')||'null'); }catch(ex){}
+                        if((!p || !p.email) && (!auth || !auth.email)){
+                            // not signed in - redirect to login and return to checkout after
+                            window.location.href = 'login.html?return=' + encodeURIComponent('checkout.html');
+                            return;
+                        }
+                    }catch(e){}
                     window.location.href = 'checkout.html';
                 });
             }

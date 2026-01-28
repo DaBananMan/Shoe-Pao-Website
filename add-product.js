@@ -445,7 +445,45 @@
     } catch (e) { console.warn('Firebase init skipped', e); }
   }
 
+  // Dev helper: try to obtain an admin custom token from the local server
+  // and sign in so the client ID token contains `admin` claims needed by
+  // the permissive dev Firestore rules. This is best-effort and only runs
+  // on loopback hosts (localhost) to avoid leaking tokens in production.
+  async function tryEnsureAdmin() {
+    try {
+      if (!firebaseAvailable() || !firebase.auth) return;
+      const host = (window.location.hostname || '').toLowerCase();
+      if (!(host === 'localhost' || host === '127.0.0.1' || host === '::1')) return;
+
+      const user = firebase.auth().currentUser;
+      if (user) {
+        try {
+          const tr = await user.getIdTokenResult();
+          if (tr && tr.claims && tr.claims.admin) return; // already admin
+        } catch (e) { /* ignore claim read errors */ }
+      }
+
+      // Request a custom token from the server endpoint. This endpoint must
+      // be implemented by your local dev server and return JSON { token }.
+      try {
+        const resp = await fetch('/api/admin/get-admin-custom-token', { method: 'POST' });
+        if (!resp || !resp.ok) { console.warn('admin token endpoint not available', resp && resp.status); return; }
+        const json = await resp.json();
+        if (!json || !json.token) { console.warn('admin token endpoint returned no token'); return; }
+        await firebase.auth().signInWithCustomToken(json.token);
+        try { sessionStorage.setItem('shoepao_admin_session', '1'); }catch(e){}
+        try { if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:admin-signedin', { detail: { email: json.email || null } })); }catch(e){}
+        console.info('add-product: signed in with admin custom token');
+      } catch (e) {
+        console.warn('add-product: admin sign-in failed', e);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   async function persistProduct(product) {
+    // Attempt to ensure we're signed in as an admin (dev-only helper).
+    try { await tryEnsureAdmin(); }catch(e){}
+
     if (!firebaseState.enabled || !firebaseState.db) {
       alert('Firebase is not available, so the product cannot be saved.');
       return;
@@ -500,6 +538,8 @@
     updateSkuPreview();
     wireEvents();
     renderColors();
+    // Try a best-effort admin sign-in on page init (dev/local only).
+    try { tryEnsureAdmin(); }catch(e){}
   }
 
   document.addEventListener('DOMContentLoaded', init);

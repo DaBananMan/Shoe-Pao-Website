@@ -676,11 +676,15 @@
                     <div class="drawer-grid">
                         <div>
                             <div class="drawer-label">Carrier</div>
-                                <input id="drawerTrackingCarrier" class="drawer-input" placeholder="e.g., J&T Express" maxlength="24" style="max-width:220px;" />
+                                <select id="drawerTrackingCarrier" class="drawer-input" style="max-width:220px;">
+                                    <option value="">Select carrier</option>
+                                    <option value="JST">JST</option>
+                                    <option value="JRS">JRS</option>
+                                </select>
                         </div>
                         <div>
                             <div class="drawer-label">Tracking Number</div>
-                                <input id="drawerTrackingNumber" class="drawer-input" placeholder="Not assigned" maxlength="32" style="max-width:220px;" />
+                                <input id="drawerTrackingNumber" class="drawer-input" placeholder="Not assigned" maxlength="12" inputmode="numeric" pattern="\d{12}" style="max-width:220px;" />
                         </div>
                     </div>
                     <div style="margin-top:8px;color:#666;font-size:0.85rem;">AfterShip integration placeholder (API hook coming soon).</div>
@@ -1634,6 +1638,26 @@
         }
 
         // Lightweight products snapshot for stock validation (no writes)
+        // INVENTORY OUTBOX: queue inventory firestore updates when offline/error so they can be retried.
+        function readInventoryOutbox(){ try{ return JSON.parse(localStorage.getItem('inventory_outbox')||'[]') || []; }catch(e){ return []; } }
+        function writeInventoryOutbox(q){ try{ localStorage.setItem('inventory_outbox', JSON.stringify(q||[])); }catch(e){} }
+        function enqueueInventoryOutbox(items, direction, orderId){ try{ var q = readInventoryOutbox(); q.push({ id: orderId||null, items: items||[], direction: Number(direction)||0, ts: Date.now() }); writeInventoryOutbox(q); console.info('inventory_outbox: queued', orderId); }catch(e){ console.warn('enqueueInventoryOutbox failed', e); } }
+        async function flushInventoryOutboxOnce(){ try{
+            var q = readInventoryOutbox(); if(!Array.isArray(q) || !q.length) return;
+            var remaining = [];
+            for(var i=0;i<q.length;i++){
+                var e = q[i];
+                try{
+                    var ok = await adjustInventoryStock(e.items || [], e.direction || -1);
+                    if(!ok){ remaining.push(e); }
+                    else { console.info('inventory_outbox: flushed', e.id); }
+                }catch(err){ remaining.push(e); }
+            }
+            writeInventoryOutbox(remaining);
+            if(remaining.length === 0) try{ window.dispatchEvent && window.dispatchEvent(new CustomEvent('shoepao:inventory-outbox-drained', { detail: { ts: Date.now() } })); }catch(_){}
+        }catch(e){ console.warn('flushInventoryOutboxOnce failed', e); } }
+        try{ setInterval(function(){ try{ flushInventoryOutboxOnce(); }catch(e){} }, 10000); }catch(e){}
+
         function fetchInventorySnapshot(){
             return new Promise(function(resolve){
                 try{
@@ -1793,7 +1817,13 @@
                 if(!items || !items.length) return false;
                 var localRes = null;
                 try{ localRes = performLocalInventoryAdjustment(items, 1); console.debug && console.debug('[restock] localRes', localRes); }catch(e){}
-                return adjustInventoryStock(items, 1).then(function(r){ return r; }).catch(function(){ return false; });
+                return adjustInventoryStock(items, 1).then(function(r){
+                    if(!r){
+                        try{ enqueueInventoryOutbox(items, 1, orderId); }catch(e){}
+                        return false;
+                    }
+                    return r;
+                }).catch(function(){ try{ enqueueInventoryOutbox(items, 1, orderId); }catch(e){}; return false; });
             }).catch(function(){ return false; });
         }
 
@@ -1809,7 +1839,13 @@
                     var anySizeMatched = Array.isArray(localRes && localRes.details) && localRes.details.some(function(d){ return d.matchedSize === true; });
                     if(!anySizeMatched){ console.warn('No variant size matched when deducting items for order', orderId, localRes); }
                 }catch(e){}
-                return adjustInventoryStock(items, -1).then(function(r){ return r; }).catch(function(){ return false; });
+                return adjustInventoryStock(items, -1).then(function(r){
+                    if(!r){
+                        try{ enqueueInventoryOutbox(items, -1, orderId); }catch(e){}
+                        return false;
+                    }
+                    return r;
+                }).catch(function(){ try{ enqueueInventoryOutbox(items, -1, orderId); }catch(e){}; return false; });
             }).catch(function(){ return false; });
         }
 
@@ -1921,21 +1957,41 @@
                 }
                 if(!foundKey || !Array.isArray(data)) return { updated:false, details:[] };
                 var beforeMap = JSON.parse(JSON.stringify(data));
-                // reuse existing update logic to apply changes
+
                 var ok = (function(){
                     try{
-                        // call the inline updateLocalInventory body but on our copied data
                         var normalize = function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
                         items.forEach(function(it){
                             try{
                                 var qty = Number(it.qty || it.quantity || 1) || 1;
-                                var size = String(it.size || it.eu || it.size_eu || '').trim();
-                                var id = String(it.product_id || it.productId || it.id || it.inventoryId || '').trim();
+                                var size = String(it.size || it.eu || it.size_eu || it.sku || '').trim();
+                                // consider many id variants (sku, variantId, inventoryId, productId)
+                                var id = String(it.variantId || it.variant_id || it.inventoryId || it.inventory_id || it.product_id || it.productId || it.id || it.sku || '').trim();
                                 var name = String(it.name || it.title || it.productName || '').trim();
-                                var color = String(it.color || it.variant || it.colorName || '').trim();
+                                var color = String(it.color || it.variant || it.colorName || it.color_name || '').trim();
 
+                                // Prefer exact SKU / inventory id / variantId matches first
                                 var prodIdx = -1;
-                                if(id){ prodIdx = data.findIndex(function(p){ try{ return String(p.id||p.productId||p.sku||'').trim() === id; }catch(e){return false;} }); }
+                                if(id){
+                                    prodIdx = data.findIndex(function(p){
+                                        try{
+                                            var candIds = [p.id, p.productId, p.sku, p.inventoryId];
+                                            for(var ci=0; ci<candIds.length; ci++){ if(!candIds[ci]) continue; if(String(candIds[ci]).trim() === id) return true; }
+                                            // also check colors/variants for variant-level ids or skus
+                                            if(Array.isArray(p.colors)){
+                                                for(var cc=0; cc<p.colors.length; cc++){
+                                                    var col = p.colors[cc] || {};
+                                                    if(col.id && String(col.id).trim() === id) return true;
+                                                    if(Array.isArray(col.sizes)){
+                                                        for(var ss=0; ss<col.sizes.length; ss++){ var vs = col.sizes[ss]||{}; if(vs.sku && String(vs.sku).trim() === id) return true; if(vs.id && String(vs.id).trim() === id) return true; }
+                                                    }
+                                                }
+                                            }
+                                            return false;
+                                        }catch(e){ return false; }
+                                    });
+                                }
+                                // fallback: exact name match then fuzzy name
                                 if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')) === normalize(name); }catch(e){return false;} }); }
                                 if(prodIdx === -1 && name){ prodIdx = data.findIndex(function(p){ try{ return normalize(String(p.name||p.model||p.title||'')).indexOf(normalize(name)) !== -1; }catch(e){return false;} }); }
                                 if(prodIdx === -1) return; // nothing to update
@@ -1948,7 +2004,13 @@
                                     if(colorIdx !== -1){
                                         var col = prod.colors[colorIdx];
                                         if(Array.isArray(col.sizes)){
-                                            var sizeIdx = col.sizes.findIndex(function(s){ return String(s.eu||s.size||'') === String(size); });
+                                            // prefer matching by sku -> eu/size -> fallback to first
+                                            var sizeIdx = -1;
+                                            if(size){
+                                                sizeIdx = col.sizes.findIndex(function(s){ try{ if(s.sku && String(s.sku) === size) return true; return String(s.eu) === String(size) || String(s.size) === String(size); }catch(e){return false;} });
+                                            }
+                                            if(sizeIdx === -1){ sizeIdx = col.sizes.findIndex(function(s){ return typeof s.stock !== 'undefined' && (String(s.eu) === String(size) || String(s.size) === String(size)); }); }
+                                            if(sizeIdx === -1) sizeIdx = 0;
                                             if(sizeIdx !== -1){
                                                 var cur = Number(col.sizes[sizeIdx].stock || col.sizes[sizeIdx].qty || col.sizes[sizeIdx].inventory || 0) || 0;
                                                 var next = Math.max(0, cur + (direction * qty));
@@ -1996,9 +2058,9 @@
                 var details = [];
                 items.forEach(function(it){
                     try{
-                        var id = String(it.product_id || it.productId || it.id || it.inventoryId || '').trim();
+                        var id = String(it.variantId || it.variant_id || it.inventoryId || it.inventory_id || it.product_id || it.productId || it.id || it.sku || '').trim();
                         var name = String(it.name || it.title || it.productName || '').trim();
-                        var size = String(it.size || it.eu || it.size_eu || '').trim();
+                        var size = String(it.size || it.eu || it.size_eu || it.sku || '').trim();
                         // find product in beforeMap and after data
                         var beforeProd = null, afterProd = null;
                         for(var i=0;i<beforeMap.length;i++){ var p = beforeMap[i]; if(id && (String(p.id||p.sku||p.productId||'') === id)) { beforeProd = p; break; } }
@@ -2011,19 +2073,18 @@
                         try{
                             if(beforeProd){
                                 if(Array.isArray(beforeProd.colors)){
-                                    var col = (beforeProd.colors[0] || {});
-                                    if(Array.isArray(col.sizes)){
-                                        var s = col.sizes.find(function(s){ return String(s.eu||s.size||'') === size; }); if(s) beforeStock = Number(s.stock||s.qty||0)||0;
-                                    }
+                                    // try locate color+size
+                                    var found = null;
+                                    for(var ci=0; ci<beforeProd.colors.length; ci++){ var c = beforeProd.colors[ci]||{}; if(Array.isArray(c.sizes)){ var s = c.sizes.find(function(x){ return String(x.eu||x.size||x.sku||'') === size; }); if(s){ found = s; break; } } }
+                                    if(found) beforeStock = Number(found.stock||found.qty||0)||0;
                                 } else if(beforeProd.sizeMap && size){ beforeStock = Number(beforeProd.sizeMap[String(size)]||0)||0; }
                                 else beforeStock = Number(beforeProd.stock||beforeProd.inventory||beforeProd.qty||0)||0;
                             }
                             if(afterProd){
                                 if(Array.isArray(afterProd.colors)){
-                                    var col2 = (afterProd.colors[0] || {});
-                                    if(Array.isArray(col2.sizes)){
-                                        var s2 = col2.sizes.find(function(s){ return String(s.eu||s.size||'') === size; }); if(s2) afterStock = Number(s2.stock||s2.qty||0)||0;
-                                    }
+                                    var found2 = null;
+                                    for(var ci2=0; ci2<afterProd.colors.length; ci2++){ var c2 = afterProd.colors[ci2]||{}; if(Array.isArray(c2.sizes)){ var s2 = c2.sizes.find(function(x){ return String(x.eu||x.size||x.sku||'') === size; }); if(s2){ found2 = s2; break; } } }
+                                    if(found2) afterStock = Number(found2.stock||found2.qty||0)||0;
                                 } else if(afterProd.sizeMap && size){ afterStock = Number(afterProd.sizeMap[String(size)]||0)||0; }
                                 else afterStock = Number(afterProd.stock||afterProd.inventory||afterProd.qty||0)||0;
                             }
@@ -2347,8 +2408,15 @@
             try{
                 var carrierInput = document.getElementById('drawerTrackingCarrier');
                 var trackingInput = document.getElementById('drawerTrackingNumber');
-                if(carrierInput){ carrierInput.value = row.courier_name || row.courier || row.trackingCarrier || deliveryLabel || ''; }
-                if(trackingInput){ trackingInput.value = row.tracking_number || row.trackingNumber || row.tracking || ''; }
+                // Map delivery method heuristics to known carriers (JST/JRS)
+                var defaultCarrier = '';
+                try{
+                    var dl = String((deliveryLabel||'')).toLowerCase();
+                    if(dl.indexOf('jrs') !== -1 || dl.indexOf('j.r.s') !== -1) defaultCarrier = 'JRS';
+                    else if(dl.indexOf('j&t') !== -1 || dl.indexOf('jnt') !== -1 || dl.indexOf('j t') !== -1) defaultCarrier = 'JST';
+                }catch(e){ defaultCarrier = ''; }
+                if(carrierInput){ carrierInput.value = row.courier_name || row.courier || row.trackingCarrier || defaultCarrier || ''; }
+                if(trackingInput){ trackingInput.value = String(row.tracking_number || row.trackingNumber || row.tracking || '').replace(/\D/g,'').slice(0,12) || ''; }
             }catch(e){ /* ignore */ }
 
                     // Always attempt to fetch the authoritative server copy when opening the drawer
@@ -2450,7 +2518,15 @@
             if(confirmBtn){
                 // Use the live activeDrawerRow when invoking actions so the UI reflects
                 // any server-side updates fetched after opening the drawer (e.g. proof upload).
-                confirmBtn.onclick = function(){ handleOrderAction(window.activeDrawerRow || row, 'confirm'); };
+                confirmBtn.onclick = function(){
+                    try{
+                        if(trackingNumberInput && (!trackingNumberInput.value || String(trackingNumberInput.value).trim() === '')){
+                            trackingNumberInput.value = gen12DigitTracking();
+                            persistTracking();
+                        }
+                    }catch(e){}
+                    handleOrderAction(window.activeDrawerRow || row, 'confirm');
+                };
             }
 
             setTimeout(function(){
@@ -2719,6 +2795,14 @@
                     }
                 }catch(e){ console.warn('persist to server skipped', e); }
                 try { localStorage.setItem('orders', JSON.stringify(ordersData)); try{ if(window && window.dispatchEvent) window.dispatchEvent(new CustomEvent('shoepao:local-orders-updated', { detail: { updatedAt: Date.now() } })); }catch(e){} } catch(e) { console.error('persist failed', e); }
+                // Also merge/persist to client_orders so client pages see status changes quickly even if server is unreachable
+                try{
+                    var clientOrders = JSON.parse(localStorage.getItem('client_orders')||'[]') || [];
+                    var cidx = clientOrders.findIndex(function(o){ return o && String(o.id) === String(orderId); });
+                    var clientMerged = Object.assign({}, (cidx !== -1 ? clientOrders[cidx] : {}), merged);
+                    if(cidx === -1) clientOrders.unshift(clientMerged); else clientOrders[cidx] = clientMerged;
+                    try{ localStorage.setItem('client_orders', JSON.stringify(clientOrders)); }catch(e){}
+                }catch(e){}
                 // Broadcast a lightweight update so client tabs can refresh without a full reload
                 try{ localStorage.setItem('orders_update', JSON.stringify({ id: orderId, status: merged.status || '', ts: Date.now() })); }catch(e){}
                 applySearch();
@@ -2902,10 +2986,17 @@
 
             var trackingCarrierInput = document.getElementById('drawerTrackingCarrier');
             var trackingNumberInput = document.getElementById('drawerTrackingNumber');
+            function gen12DigitTracking(){
+                // Random 12-digit numeric string padded with leading zeros
+                try{ var n = Math.floor(Math.random() * 1e12); return String(n).padStart(12, '0'); }catch(e){ return (Date.now() % 1000000000000).toString().padStart(12,'0'); }
+            }
             function persistTracking(){
                 if(!activeDrawerOrderId) return;
-                var carrierVal = trackingCarrierInput.value || '';
-                var tnVal = trackingNumberInput.value || '';
+                var carrierVal = trackingCarrierInput ? (trackingCarrierInput.value || '') : '';
+                var tnVal = trackingNumberInput ? String(trackingNumberInput.value || '') : '';
+                // normalize: remove non-digits from tracking and limit to 12 digits
+                tnVal = String(tnVal).replace(/\D/g,'').slice(0,12);
+                if(trackingNumberInput) trackingNumberInput.value = tnVal;
                 // normalize fields to server canonical names as well as local-friendly keys
                 var payload = { trackingCarrier: carrierVal, trackingNumber: tnVal, courier_name: carrierVal, tracking_number: tnVal };
                 updateOrder(activeDrawerOrderId, payload);
@@ -2923,6 +3014,8 @@
             }
             if(trackingCarrierInput) trackingCarrierInput.addEventListener('change', persistTracking);
             if(trackingNumberInput) trackingNumberInput.addEventListener('change', persistTracking);
+            if(trackingNumberInput) trackingNumberInput.addEventListener('input', function(){ this.value = String(this.value||'').replace(/\D/g,'').slice(0,12); });
+            if(trackingNumberInput) trackingNumberInput.addEventListener('focus', function(){ try{ if(!this.value || String(this.value).trim() === ''){ this.value = gen12DigitTracking(); persistTracking(); } }catch(e){} });
             var simulateBtn = document.getElementById('drawerSimulateBtn');
             var refreshTrackingBtn = document.getElementById('drawerRefreshTrackingBtn');
             // Hide manual simulation/refresh controls - simulation is automatic when admin marks shipped
@@ -3835,7 +3928,15 @@
             if (cartOverlay) cartOverlay.addEventListener('click', closeCartSidebar);
             renderCart();
             if (checkoutBtn) {
-                checkoutBtn.addEventListener('click', function(){
+                checkoutBtn.addEventListener('click', function(e){
+                    try{
+                        var p = JSON.parse(localStorage.getItem('profile')||'null');
+                        var auth = null; try{ auth = JSON.parse(localStorage.getItem('authUser')||'null'); }catch(ex){}
+                        if((!p || !p.email) && (!auth || !auth.email)){
+                            window.location.href = 'login.html?return=' + encodeURIComponent('checkout.html');
+                            return;
+                        }
+                    }catch(err){}
                     window.location.href = 'checkout.html';
                 });
             }

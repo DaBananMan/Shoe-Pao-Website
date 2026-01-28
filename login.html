@@ -185,6 +185,7 @@
                                 };
                                 persistProfile(profile);
                                 try{ persistAuthTokenFromUser(user); }catch(e){}
+                                    try{ localStorage.setItem('authUser', JSON.stringify({ uid: user.uid||'', email: user.email||'', name: user.displayName||'' })); }catch(e){}
                                 try{
                                     if(profile.addresses && profile.addresses.length){
                                         var defId = profile.defaultAddressId || '';
@@ -203,6 +204,7 @@
                                 const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'password' };
                                 persistProfile(profile);
                                 try{ persistAuthTokenFromUser(user); }catch(e){}
+                                    try{ localStorage.setItem('authUser', JSON.stringify({ uid: user.uid||'', email: user.email||'', name: user.displayName||'' })); }catch(e){}
                                 const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
                                 const role = (email.trim().toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
                                 if (role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
@@ -213,6 +215,8 @@
                     const profile = { email: user.email, name: user.displayName || '', uid: user.uid, provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || 'password' };
                     persistProfile(profile);
                     persistAuthTokenFromUser(user);
+                    try{ localStorage.setItem('authUser', JSON.stringify({ uid: user.uid||'', email: user.email||'', name: user.displayName||'' })); }catch(e){}
+                        try{ localStorage.setItem('authUser', JSON.stringify({ uid: user.uid||'', email: user.email||'', name: user.displayName||'' })); }catch(e){}
                     const ret = getQueryParam('return'); if (ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e){} }
                     // route admin by email for compatibility with local logic
                     const role = (email.trim().toLowerCase() === 'admin@gmail.com') ? 'admin' : 'user';
@@ -232,6 +236,7 @@
             if(matched){ profile.name = matched.name || ((matched.firstName||'') + (matched.lastName ? (' ' + matched.lastName) : '')).trim() || ''; profile.firstName = matched.firstName || ''; profile.lastName = matched.lastName || ''; profile.phone = matched.phone || ''; profile.addressMain = matched.addressMain || ''; profile.addressDetails = matched.addressDetails || ''; }
             persistProfile(profile);
             persistLocalAuthToken(profile.email);
+            try{ localStorage.setItem('authUser', JSON.stringify({ uid: profile.uid||'', email: profile.email||'', name: profile.name||'' })); }catch(e){}
             var ret = getQueryParam('return'); if(ret) { try{ window.location.href = decodeURIComponent(ret); return; } catch(e) {} }
             if(role === 'admin') window.location.href = 'dashboard.html'; else window.location.href = 'home.html';
         }

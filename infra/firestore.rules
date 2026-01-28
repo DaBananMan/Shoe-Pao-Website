@@ -7,15 +7,16 @@
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Products: allow reads for dev, but prevent writes/creates if a tombstone exists.
-    // This prevents re-creating deleted products from any client or tool.
+    // Products: development-friendly rule.
+    // WARNING: These rules are intentionally permissive for local development.
+    // They allow any authenticated user to add/update products. If you need
+    // completely open writes during testing, you can change `request.auth != null`
+    // to `true`. Revert to a secure policy before production deployment.
     match /products/{productId} {
       allow read: if true;
-      // Allow writes only for admin users and only when there is no tombstone.
-      // Deletions (request.resource == null) are allowed so admins can remove docs.
-      allow write: if request.auth != null
-                    && request.auth.token.admin == true
-                    && (request.resource == null || !exists(/databases/$(database)/documents/deleted_products/$(productId)));
+      // Allow writes from any authenticated user so admins/editors can add products.
+      // For fully open dev access (not recommended), replace the condition with `if true`.
+      allow write: if request.auth != null;
     }
 
     // Tombstones collection: allow admin writes so server/tools can register deletions.

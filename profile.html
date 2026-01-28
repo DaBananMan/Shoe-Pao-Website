@@ -454,7 +454,7 @@
     <script>
     // Navigation bar functions
     function goToHome() { window.location.href = 'home.html'; }
-    function goToProfile() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { if(typeof window.ensureSignedInOrRedirect === 'function'){ ensureSignedInOrRedirect('profile.html'); } else { var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } } }catch(e){ window.location.href = 'login.html'; } }
+    function goToProfile() { try{ if(typeof window.handleGoToProfile === 'function'){ window.handleGoToProfile('profile.html'); } else { if(typeof window.ensureSignedInOrRedirect === 'function'){ ensureSignedInOrRedirect('profile.html'); } else { var p = JSON.parse(localStorage.getItem('profile')||'null'); var authUser = null; try{ authUser = JSON.parse(localStorage.getItem('authUser')||'null'); }catch(e){} if((!p || !p.email) && (!authUser || !authUser.email)){ window.location.href = 'login.html'; return; } window.location.href = 'profile.html'; } } }catch(e){ window.location.href = 'login.html'; } }
     function goToProductList() { window.location.href = 'product-list.html'; }
     function goToOrders() { window.location.href = 'client-orders.html'; }
     function goToWishlist() { window.location.href = 'wishlist.html'; }
@@ -465,7 +465,8 @@
             if(typeof window.ensureSignedInOrRedirect === 'function'){
                 if(!ensureSignedInOrRedirect('profile.html')) return;
             } else {
-                var p = JSON.parse(localStorage.getItem('profile')||'null'); if(!p || !p.email){ window.location.href = 'login.html'; return; }
+                var p = JSON.parse(localStorage.getItem('profile')||'null'); var authUser = null; try{ authUser = JSON.parse(localStorage.getItem('authUser')||'null'); }catch(e){}
+                if((!p || !p.email) && (!authUser || !authUser.email)){ window.location.href = 'login.html'; return; }
             }
         }catch(e){ window.location.href = 'login.html'; return; }
         window.location.href = 'profile.html';
@@ -1037,9 +1038,41 @@
         try{
             var token = localStorage.getItem('authToken');
             if(token) return true;
+            var authUser = localStorage.getItem('authUser');
+            if(authUser) return true;
             if(window.firebase && firebase.auth && firebase.auth().currentUser) return true;
         }catch(e){ /* ignore */ }
         return false;
+    }
+
+    // Persist Firebase auth state to localStorage so client pages remain signed in across reloads
+    function persistAuthState(user){
+        try{
+            if(!user) return;
+            var simple = { uid: user.uid || '', email: user.email || '', name: user.displayName || '' };
+            localStorage.setItem('authUser', JSON.stringify(simple));
+            // try to cache an id token for non-sensitive usage (short lived)
+            if(user.getIdToken) {
+                user.getIdToken(/* forceRefresh */ false).then(function(tok){
+                    try{ localStorage.setItem('authToken', tok); localStorage.setItem('authTokenUpdatedAt', String(Date.now())); }catch(e){}
+                }).catch(function(){});
+            }
+        }catch(e){ /* ignore persistence errors */ }
+    }
+
+    function clearAuthState(){
+        try{ localStorage.removeItem('authUser'); }catch(e){}
+        try{ localStorage.removeItem('authToken'); }catch(e){}
+        try{ localStorage.removeItem('authTokenUpdatedAt'); }catch(e){}
+    }
+
+    function restoreAuthFromStorage(){
+        try{
+            var raw = localStorage.getItem('authUser');
+            if(!raw) return null;
+            var obj = JSON.parse(raw || 'null');
+            return obj;
+        }catch(e){ return null; }
     }
 
     function setProfileVisibility(){
@@ -1051,7 +1084,7 @@
         return loggedIn;
     }
     // Save profile (persist to localStorage)
-    function saveProfile() {
+    async function saveProfile() {
         var name = document.getElementById('profileName').value.trim();
         var email = document.getElementById('profileEmail').value.trim();
         var addressMain = document.getElementById('profileAddressMain') ? document.getElementById('profileAddressMain').textContent.trim() : '';
@@ -1065,6 +1098,39 @@
                 document.getElementById('confirmPassword').focus();
                 return;
             }
+            // Verify current password before applying change
+            var currentPasswordVal = document.getElementById('currentPassword') ? document.getElementById('currentPassword').value : '';
+            if(!currentPasswordVal){ alert('Please enter your current password to confirm the change.'); document.getElementById('currentPassword').focus(); return; }
+            var passwordVerified = false;
+            try{
+                if(window.firebase && firebase.auth && firebase.auth().currentUser && firebase.auth().EmailAuthProvider){
+                    // Reauthenticate via Firebase
+                    try{
+                        var user = firebase.auth().currentUser;
+                        var cred = firebase.auth.EmailAuthProvider.credential(user.email, currentPasswordVal);
+                        // reauthenticateWithCredential may return a promise
+                        var ra = await user.reauthenticateWithCredential(cred);
+                        try{ await user.updatePassword(newPassword); }catch(e){ console.warn('updatePassword failed', e); }
+                        passwordVerified = true;
+                    }catch(e){ console.warn('Firebase reauth failed', e); passwordVerified = false; }
+                } else {
+                    // Local fallback: verify against users stored in localStorage
+                    try{
+                        var users = JSON.parse(localStorage.getItem('users') || '[]') || [];
+                        var pemail = (document.getElementById('profileEmail') && document.getElementById('profileEmail').value) ? document.getElementById('profileEmail').value.trim().toLowerCase() : '';
+                        var found = users.find(function(u){ return (u.email||'').toLowerCase() === pemail; });
+                        if(found && found.password && found.password === currentPasswordVal){
+                            // update stored password
+                            found.password = newPassword;
+                            try{ localStorage.setItem('users', JSON.stringify(users)); }catch(e){}
+                            passwordVerified = true;
+                        } else passwordVerified = false;
+                    }catch(e){ passwordVerified = false; }
+                }
+            }catch(e){ passwordVerified = false; }
+            if(!passwordVerified){ alert('Current password is incorrect. Password not changed.'); return; }
+            // Clear current password field for safety
+            try{ document.getElementById('currentPassword').value = ''; }catch(e){}
         }
         var deliveryAddress = getProfileAddressObjectFromEditor();
         if(deliveryAddress && !deliveryAddress.fullName){ deliveryAddress.fullName = name || ''; }
@@ -1147,6 +1213,10 @@
         } catch (e) {
             console.warn('Could not remove profile from localStorage', e);
         }
+        // clear helper auth state
+        try{ clearAuthState(); }catch(e){}
+        // also sign out from Firebase if it's available
+        try{ if(window.firebase && firebase.auth){ firebase.auth().signOut().catch(function(){}); } }catch(e){}
         // Optionally clear other session data if you want a full sign-out
         // localStorage.removeItem('cart');
         // localStorage.removeItem('checkoutPackaging');
@@ -1154,6 +1224,18 @@
     }
     // Populate profile inputs from localStorage if available and auto-save on change
     document.addEventListener('DOMContentLoaded', function(){
+        // restore any persisted auth state first so visibility checks reflect that
+        try{
+            var persisted = restoreAuthFromStorage();
+            if(persisted){
+                try{
+                    var base = JSON.parse(localStorage.getItem('profile')||'{}')||{};
+                    if(!base.email) base.email = persisted.email || base.email;
+                    if(!base.name) base.name = persisted.name || base.name;
+                    try{ localStorage.setItem('profile', JSON.stringify(base)); }catch(e){}
+                }catch(e){}
+            }
+        }catch(e){}
         var loggedIn = setProfileVisibility();
         try{
             var p = JSON.parse(localStorage.getItem('profile') || 'null');
@@ -1175,6 +1257,29 @@
         try{ syncProfileFromFirestore(); }catch(e){}
 
         try{ initProfileAddressEditor(); }catch(e){}
+
+        // ensure we listen for firebase auth state changes and persist them locally
+        try{
+            ensureFirebaseReady(function(err){
+                if(err) return;
+                try{
+                    if(window.firebase && firebase.auth){
+                        firebase.auth().onAuthStateChanged(function(user){
+                            if(user){
+                                persistAuthState(user);
+                                // if profile is missing email, backfill from auth
+                                try{ var p = JSON.parse(localStorage.getItem('profile')||'{}')||{}; if(!p.email && user.email){ p.email = user.email; p.name = p.name || user.displayName || ''; localStorage.setItem('profile', JSON.stringify(p)); } }catch(e){}
+                            } else {
+                                // no user: keep localStorage profile but clear auth tokens
+                                clearAuthState();
+                            }
+                            // update UI visibility based on new auth state
+                            try{ setProfileVisibility(); }catch(e){}
+                        });
+                    }
+                }catch(e){}
+            });
+        }catch(e){}
 
         // Debounced autosave when user types in profile fields so orders can pick up the name
         function debounce(fn, wait){
@@ -1542,6 +1647,14 @@
             renderCart();
             if (checkoutBtn) {
                 checkoutBtn.addEventListener('click', function(e){
+                    try{
+                        var p = JSON.parse(localStorage.getItem('profile')||'null');
+                        var auth = null; try{ auth = JSON.parse(localStorage.getItem('authUser')||'null'); }catch(ex){}
+                        if((!p || !p.email) && (!auth || !auth.email)){
+                            window.location.href = 'login.html?return=' + encodeURIComponent('checkout.html');
+                            return;
+                        }
+                    }catch(err){}
                     if(window.handleCheckoutFromCart){ window.handleCheckoutFromCart(e); }
                     else { window.location.href = 'checkout.html'; }
                 });
