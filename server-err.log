@@ -1,1 +1,0 @@
-ADMIN_DEFAULT_EMAIL appears invalid ("admin@localhost"). Skipping auto-creation of default admin. Set ADMIN_DEFAULT_EMAIL and ADMIN_DEFAULT_PASSWORD or set ADMIN_DISABLE_AUTO_CREATE=true to suppress this.
