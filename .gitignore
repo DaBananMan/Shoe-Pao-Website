@@ -1,3 +1,14 @@
+# Local user signup dumps (PII) — do not commit
+Users/*.txt
+
+# Local runtime artifacts
+node.pid
+node.pid.info
+server-err.log
+server-out.log
+
+# Node modules (if any)
+node_modules/
 # Shipped by Lens Studio
 
 # The lines below are automatically generated and updated by Lens Studio.

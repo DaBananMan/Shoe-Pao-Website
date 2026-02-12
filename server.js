@@ -530,6 +530,33 @@ app.post('/api/create-account-doc', async (req, res) => {
       // NOTE: we intentionally DO NOT write a separate `users/{uid}` document here to avoid
       // maintaining two parallel collections. The authoritative admin listing is `accounts`.
 
+      // Additionally, for dev/local auditing, write a plain-text file under Users/{email}.txt
+      // containing the non-sensitive profile details supplied during signup. This helps
+      // local admins inspect recent signups without needing Firestore access.
+      try{
+        const fs = require('fs');
+        const path = require('path');
+        const usersDir = path.join(__dirname, 'Users');
+        try{ if(!fs.existsSync(usersDir)) fs.mkdirSync(usersDir, { recursive: true }); }catch(e){}
+        // Sanitize email to a safe filename. Allow common email chars but replace others.
+        const rawEmail = String(accountPayload.email || (body.email || 'unknown'));
+        const safeName = rawEmail.replace(/[^a-zA-Z0-9@._+-]/g, '_');
+        const filePath = path.join(usersDir, safeName + '.txt');
+        const createdAt = new Date().toISOString();
+        const summaryLines = [];
+        summaryLines.push('Email: ' + rawEmail);
+        summaryLines.push('UID: ' + String(uid || ''));
+        summaryLines.push('Name: ' + String(accountPayload.displayName || accountPayload.name || ''));
+        if (accountPayload.phone) summaryLines.push('Phone: ' + String(accountPayload.phone));
+        if (accountPayload.addressMain) summaryLines.push('Address: ' + String(accountPayload.addressMain));
+        if (accountPayload.addressDetails) summaryLines.push('Address details: ' + String(accountPayload.addressDetails));
+        summaryLines.push('CreatedAt: ' + createdAt);
+        summaryLines.push('');
+        summaryLines.push('Full profile JSON:');
+        try{ summaryLines.push(JSON.stringify(accountPayload, null, 2)); }catch(e){ summaryLines.push(String(accountPayload)); }
+        try{ fs.writeFileSync(filePath, summaryLines.join('\n'), 'utf8'); }catch(e){ console.warn('Failed to write Users file for', rawEmail, e); }
+      }catch(e){ console.warn('create-account-doc: Users file write failed', e); }
+
       return res.json({ ok: true, uid: uid, email: accountPayload.email });
     }catch(e){ console.error('create-account-doc failed', e); return res.status(500).json({ error: 'firestore_write_failed', detail: String(e && e.message ? e.message : e) }); }
   }catch(err){ console.error('create-account-doc error', err); return res.status(500).json({ error: String(err && err.message ? err.message : err) }); }

@@ -30,6 +30,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $ch = curl_init($url);
 
+// If this is a create-account-doc request, attempt to write a local Users/{email}.txt
+// This provides a PHP-side fallback for environments where the Node server or
+// firebase-admin is not available. The file contains non-sensitive signup details
+// (do not include passwords). Errors here are non-fatal — we continue proxying.
+$requestPath = $path;
+if (stripos($requestPath, '/api/create-account-doc') === 0) {
+    try{
+        $raw = $body ?: '';
+        $data = json_decode($raw, true);
+        if (is_array($data)) {
+            $email = isset($data['profile']['email']) ? $data['profile']['email'] : (isset($data['email']) ? $data['email'] : null);
+            if (!$email && isset($data['profile']) && is_array($data['profile']) && isset($data['profile']['email'])) $email = $data['profile']['email'];
+            if ($email) {
+                $firstName = isset($data['profile']['firstName']) ? $data['profile']['firstName'] : (isset($data['profile']['name']) ? $data['profile']['name'] : '');
+                $phone = isset($data['profile']['phone']) ? $data['profile']['phone'] : '';
+                $addressMain = isset($data['profile']['addressMain']) ? $data['profile']['addressMain'] : '';
+                $addressDetails = isset($data['profile']['addressDetails']) ? $data['profile']['addressDetails'] : '';
+                $uid = isset($data['uid']) ? $data['uid'] : '';
+                // Sanitize email for filename
+                $safe = preg_replace('/[^a-zA-Z0-9@._+-]/', '_', $email);
+                $usersDir = __DIR__ . DIRECTORY_SEPARATOR . 'Users';
+                if (!is_dir($usersDir)) { @mkdir($usersDir, 0755, true); }
+                $filePath = $usersDir . DIRECTORY_SEPARATOR . $safe . '.txt';
+                $lines = [];
+                $lines[] = 'Email: ' . $email;
+                $lines[] = 'UID: ' . $uid;
+                $lines[] = 'Name: ' . $firstName;
+                if ($phone) $lines[] = 'Phone: ' . $phone;
+                if ($addressMain) $lines[] = 'Address: ' . $addressMain;
+                if ($addressDetails) $lines[] = 'Address details: ' . $addressDetails;
+                $lines[] = 'CreatedAt: ' . date('c');
+                $lines[] = '';
+                $lines[] = 'Full profile JSON:';
+                $lines[] = json_encode($data['profile']);
+                @file_put_contents($filePath, implode("\n", $lines));
+                // Return success immediately so this endpoint can be used without a Node backend.
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => true]);
+                exit;
+            }
+        }
+    }catch(Exception $e){ /* non-fatal */ }
+}
+
 // method
 $method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);

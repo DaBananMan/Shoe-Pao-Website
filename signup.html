@@ -22,15 +22,17 @@
             position: relative;
             background: #fff;
             z-index: 1;
-            gap: 13.2vw; /* Increase gap by 10% from previous 12vw */
+            gap: 2.5vw; /* bring logo closer to the form */
         }
         .logo-section {
             display: flex;
-            align-items: flex-start;
-            justify-content: flex-end;
-            min-width: 200px;
-            max-width: 320px;
-            margin-top: 116px; /* Reduce gap by 30% from previous 166px */
+            align-items: center;
+            justify-content: center; /* center logo within its column */
+            min-width: 110px;
+            max-width: 220px; /* tighter max width so logo is nearer the form */
+            margin-top: 18px; /* reduced top offset */
+            padding-left: 6px;
+            padding-right: 6px;
         }
         .logo-section img {
             width: 120px;
@@ -215,12 +217,17 @@
         }
         @media (min-width: 900px) {
             .signup-wrapper {
-                position: absolute;
-                top: 50%;
-                left: 48%; /* Move wrapper 3% to the right from previous 45% */
-                transform: translate(-50%, -50%);
+                /* Keep centered horizontally but flow naturally from the top so
+                   the logo and header remain visible at normal zoom. Avoid
+                   absolute centering which can cause clipping on some screens. */
+                position: relative;
+                margin: 48px auto; /* provide top space so header/logo are visible */
+                transform: none;
+                left: auto;
+                top: auto;
                 width: auto;
                 min-width: 0;
+                max-width: calc(100% - 64px);
             }
         }
     /* Social button styles — mirror login page */
@@ -828,6 +835,143 @@
                         localStorage.setItem('checkoutAddressObject', JSON.stringify(entry));
                         localStorage.setItem('checkoutAddressMain', entry.line1 || entry.street || '');
                         localStorage.setItem('checkoutAddressDetails', entry.line2 || '');
+                        try{
+                            // Trigger client-side download of a signup txt file so no server proxy is required.
+                            // This mirrors how other pages generate downloadable files (Word/CSV) for local audit.
+                            if (!window.downloadSignupTxt) {
+                                // Helpers to persist directory handle via IndexedDB
+                                window._shoepao_fs = window._shoepao_fs || {};
+                                window._shoepao_fs.dbName = 'shoepao-fs';
+                                window._shoepao_fs.storeName = 'handles';
+
+                                window._shoepao_fs.openDB = function(){
+                                    return new Promise(function(resolve, reject){
+                                        try{
+                                            const req = indexedDB.open(window._shoepao_fs.dbName, 1);
+                                            req.onupgradeneeded = function(ev){
+                                                try{ const db = ev.target.result; if(!db.objectStoreNames.contains(window._shoepao_fs.storeName)) db.createObjectStore(window._shoepao_fs.storeName); }catch(e){}
+                                            };
+                                            req.onsuccess = function(){ resolve(req.result); };
+                                            req.onerror = function(){ reject(req.error); };
+                                        }catch(e){ reject(e); }
+                                    });
+                                };
+
+                                window._shoepao_fs.getStoredDirHandle = async function(){
+                                    try{
+                                        const db = await window._shoepao_fs.openDB();
+                                        return new Promise(function(resolve, reject){
+                                            try{
+                                                const tx = db.transaction(window._shoepao_fs.storeName, 'readonly');
+                                                const store = tx.objectStore(window._shoepao_fs.storeName);
+                                                const r = store.get('users_dir');
+                                                r.onsuccess = function(){ resolve(r.result || null); };
+                                                r.onerror = function(){ resolve(null); };
+                                            }catch(e){ resolve(null); }
+                                        });
+                                    }catch(e){ return null; }
+                                };
+
+                                window._shoepao_fs.storeDirHandle = async function(handle){
+                                    try{
+                                        const db = await window._shoepao_fs.openDB();
+                                        return new Promise(function(resolve, reject){
+                                            try{
+                                                const tx = db.transaction(window._shoepao_fs.storeName, 'readwrite');
+                                                const store = tx.objectStore(window._shoepao_fs.storeName);
+                                                const r = store.put(handle, 'users_dir');
+                                                r.onsuccess = function(){ resolve(true); };
+                                                r.onerror = function(){ resolve(false); };
+                                            }catch(e){ resolve(false); }
+                                        });
+                                    }catch(e){ return false; }
+                                };
+
+                                window._shoepao_fs.verifyPermission = async function(handle, mode){
+                                    try{
+                                        if (!handle) return false;
+                                        // queryPermission may not be available in older browsers
+                                        if (handle.queryPermission) {
+                                            const qp = await handle.queryPermission({ mode: mode });
+                                            if (qp === 'granted') return true;
+                                            if (qp === 'prompt') {
+                                                const rp = await handle.requestPermission({ mode: mode });
+                                                return rp === 'granted';
+                                            }
+                                            return false;
+                                        }
+                                        return true;
+                                    }catch(e){ return false; }
+                                };
+
+                                window.downloadSignupTxt = async function(profile){
+                                    try{
+                                        var rawEmail = (profile && profile.email) ? String(profile.email) : 'unknown';
+                                        var safe = rawEmail.replace(/[^a-zA-Z0-9@._+-]/g, '_');
+                                        var fileName = safe + '.txt';
+                                        var createdAt = new Date().toISOString();
+                                        var lines = [];
+                                        lines.push('Email: ' + rawEmail);
+                                        lines.push('UID: ' + (profile.uid || ''));
+                                        lines.push('Name: ' + (profile.name || ''));
+                                        if (profile.phone) lines.push('Phone: ' + profile.phone);
+                                        if (profile.addressMain) lines.push('Address: ' + profile.addressMain);
+                                        if (profile.addressDetails) lines.push('Address details: ' + profile.addressDetails);
+                                        lines.push('CreatedAt: ' + createdAt);
+                                        lines.push('');
+                                        lines.push('Full profile JSON:');
+                                        try{ lines.push(JSON.stringify(profile, null, 2)); }catch(e){ lines.push(String(profile)); }
+
+                                        var blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+
+                                        // Attempt silent write to previously-chosen Users dir using stored handle
+                                        if (window.showDirectoryPicker) {
+                                            try{
+                                                const stored = await window._shoepao_fs.getStoredDirHandle();
+                                                if (stored && await window._shoepao_fs.verifyPermission(stored, 'readwrite')) {
+                                                    // write file directly
+                                                    try{
+                                                        const fileHandle = await stored.getFileHandle(fileName, { create: true });
+                                                        const writable = await fileHandle.createWritable();
+                                                        await writable.write(blob);
+                                                        await writable.close();
+                                                        return; // done without prompting
+                                                    }catch(e){ console.warn('write to stored dir failed', e); }
+                                                }
+                                                // If no stored handle or permission denied, prompt user to pick directory once
+                                                const dirHandle = await window.showDirectoryPicker({ id: 'shoepao-users-dir', mode: 'readwrite' });
+                                                try{ await window._shoepao_fs.storeDirHandle(dirHandle); }catch(e){}
+                                                try{
+                                                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                                                    const writable = await fileHandle.createWritable();
+                                                    await writable.write(blob);
+                                                    await writable.close();
+                                                    return;
+                                                }catch(e){ console.warn('write to picked dir failed', e); }
+                                            }catch(e){ console.warn('FS dir picker flow failed', e); }
+                                        }
+
+                                        // Fallback: prefer showSaveFilePicker if available
+                                        if (window.showSaveFilePicker) {
+                                            try{
+                                                const opts = { suggestedName: fileName, types: [{ description: 'Text file', accept: { 'text/plain': ['.txt'] } }] };
+                                                const handle = await window.showSaveFilePicker(opts);
+                                                const writable = await handle.createWritable();
+                                                await writable.write(blob);
+                                                await writable.close();
+                                                return;
+                                            }catch(e){ console.warn('save file picker failed', e); }
+                                        }
+
+                                        // Last-resort: trigger a normal download to the browser's Downloads folder
+                                        var url = URL.createObjectURL(blob);
+                                        var a = document.createElement('a'); a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+                                    }catch(err){ console.warn('downloadSignupTxt failed', err); }
+                                };
+                            }
+                            // Fire-and-forget: attempt to save the signup txt locally (silent if possible)
+                            try{ window.downloadSignupTxt(profilePayload); }catch(e){ console.warn('auto-download signup txt failed', e); }
+                        }catch(e){ console.warn('download signup file hook failed', e); }
                     }catch(e){}
 
                     try{
@@ -843,17 +987,13 @@
                                 else {
                                     const body = { idToken: idToken, profile: profilePayload };
                                     let resp = null;
-                                    // Try direct Node endpoint first (bypass PHP) for faster local dev
+                                    // Call PHP proxy endpoint directly so a Node server is not required for
+                                    // writing the Users/{email}.txt audit file in local/dev environments.
                                     try{
-                                        resp = await fetch('http://127.0.0.1:3000/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                        if (!resp.ok) {
-                                            console.warn('Direct node create-account-doc returned non-ok', resp.status);
-                                            // fall back to PHP proxy relative path
-                                            resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                        }
+                                        resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                        if (!resp.ok) console.warn('Proxy create-account-doc returned non-ok', resp.status);
                                     }catch(e){
-                                        console.warn('Direct node call failed, falling back to proxy', e);
-                                        try{ resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }catch(e2){ console.warn('Proxy create-account-doc failed', e2); }
+                                        console.warn('Proxy create-account-doc failed', e);
                                     }
                                     if (resp && !resp.ok) console.warn('Server create-account-doc returned non-ok', resp.status);
                                 }
@@ -922,14 +1062,10 @@
                                     const body = { idToken: idToken, profile: profile };
                                     let resp = null;
                                     try{
-                                        resp = await fetch('http://127.0.0.1:3000/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                        if (!resp.ok) {
-                                            console.warn('Direct node create-account-doc (social) returned non-ok', resp.status);
-                                            resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                        }
+                                        resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                        if (!resp.ok) console.warn('Proxy create-account-doc (social) returned non-ok', resp.status);
                                     }catch(e){
-                                        console.warn('Direct node call failed (social), falling back to proxy', e);
-                                        try{ resp = await fetch('server-proxy.php/api/create-account-doc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }catch(e2){ console.warn('Proxy create-account-doc (social) failed', e2); }
+                                        console.warn('Proxy create-account-doc (social) failed', e);
                                     }
                                     if (resp && !resp.ok) console.warn('Server create-account-doc returned non-ok (social)', resp.status);
                                 }
